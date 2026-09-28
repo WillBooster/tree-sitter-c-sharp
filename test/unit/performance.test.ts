@@ -11,8 +11,8 @@ await Parser.init();
 const parser = new Parser();
 parser.setLanguage(await Language.load(WasmPath));
 
-// Nothing rebuilds the Wasm build before the tests, so a check against a stale one would pass after a source edit
-// that brings the slowdown back.
+// `bun run test` does not rebuild the Wasm build, so a local run would time a stale one after a source edit that
+// brings the slowdown back. CI runs `bun run build/ci` first.
 test('uses a Wasm build built from the current parser', () => {
   const mtime = (name: string): number => fs.statSync(path.join(Root, name)).mtimeMs;
   // `tree-sitter build --wasm` (`bun run build-wasm`, `bun start`) compiles src/parser.c without regenerating it
