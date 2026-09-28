@@ -1,14 +1,17 @@
 {
-  "name": "tree-sitter-c-sharp",
+  "name": "@willbooster/tree-sitter-c-sharp",
   "version": "0.23.5",
   "description": "C# grammar for tree-sitter",
   "type": "module",
-  "repository": "https://github.com/tree-sitter/tree-sitter-c-sharp",
+  "repository": "https://github.com/WillBooster/tree-sitter-c-sharp",
   "license": "MIT",
-  "author": {
-    "name": "Max Brunsfeld",
-    "email": "maxbrunsfeld@gmail.com"
-  },
+  "author": "WillBooster Inc.",
+  "contributors": [
+    {
+      "name": "Max Brunsfeld",
+      "email": "maxbrunsfeld@gmail.com"
+    }
+  ],
   "maintainers": [
     {
       "name": "Amaan Qureshi",
