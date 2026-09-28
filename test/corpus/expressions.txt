@@ -2581,9 +2581,9 @@ var f = b is A { E: C(S.C) bb } ? bb : null;
                       type: (identifier)
                       (positional_pattern_clause
                         (subpattern
-                          (type_pattern
-                            type: (qualified_name
-                              qualifier: (identifier)
+                          (constant_pattern
+                            (member_access_expression
+                              expression: (identifier)
                               name: (identifier)))))
                       name: (identifier))))))
             consequence: (identifier)
@@ -2767,9 +2767,9 @@ if (a is not B { E: C(S.E) x }) {}
                   type: (identifier)
                   (positional_pattern_clause
                     (subpattern
-                      (type_pattern
-                        type: (qualified_name
-                          qualifier: (identifier)
+                      (constant_pattern
+                        (member_access_expression
+                          expression: (identifier)
                           name: (identifier)))))
                   name: (identifier)))))))
       consequence: (block))))
@@ -2975,9 +2975,9 @@ var z = expr is (E.A or E.B) v2;
               type: (identifier)
               (positional_pattern_clause
                 (subpattern
-                  (type_pattern
-                    type: (qualified_name
-                      qualifier: (identifier)
+                  (constant_pattern
+                    (member_access_expression
+                      expression: (identifier)
                       name: (identifier)))))
               name: (identifier)))))))
   (global_statement
@@ -2993,9 +2993,9 @@ var z = expr is (E.A or E.B) v2;
               (positional_pattern_clause
                 (subpattern
                   (or_pattern
-                    left: (type_pattern
-                      type: (qualified_name
-                        qualifier: (identifier)
+                    left: (constant_pattern
+                      (member_access_expression
+                        expression: (identifier)
                         name: (identifier)))
                     right: (constant_pattern
                       (member_access_expression

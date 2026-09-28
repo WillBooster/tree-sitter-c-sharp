@@ -1022,7 +1022,10 @@ module.exports = grammar({
 
     // No associativity: tree-sitter 0.27 resolves a precedence tie with a right-associative reduce as a shift, which
     // makes `case int when x:` and `x is A or nameof(y)` read `when` and `(y)` as a variable designation.
-    type_pattern: ($) => field('type', $.type),
+    // A name such as `A.B` in `R(A.B or C)` also parses as a constant pattern. Without the negative dynamic
+    // precedence, the reading depends on the other GLR stack versions alive at that point, so an incremental
+    // reparse can switch it without reporting a changed range.
+    type_pattern: ($) => prec.dynamic(-1, field('type', $.type)),
 
     list_pattern: ($) =>
       prec.right(
