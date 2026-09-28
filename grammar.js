@@ -1020,7 +1020,9 @@ module.exports = grammar({
 
     var_pattern: ($) => seq('var', $._variable_designation),
 
-    type_pattern: ($) => prec.right(field('type', $.type)),
+    // No associativity: tree-sitter 0.27 resolves a precedence tie with a right-associative reduce as a shift, which
+    // makes `case int when x:` and `x is A or nameof(y)` read `when` and `(y)` as a variable designation.
+    type_pattern: ($) => field('type', $.type),
 
     list_pattern: ($) =>
       prec.right(

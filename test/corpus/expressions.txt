@@ -2590,6 +2590,37 @@ var f = b is A { E: C(S.C) bb } ? bb : null;
             alternative: (null_literal)))))))
 
 ================================================================================
+Or pattern of nameof constants
+================================================================================
+
+var b = s is nameof(A) or nameof(B);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (is_pattern_expression
+            expression: (identifier)
+            pattern: (or_pattern
+              left: (constant_pattern
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (argument
+                      (identifier)))))
+              right: (constant_pattern
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (argument
+                      (identifier))))))))))))
+
+================================================================================
 Precedence between is operator and conditional_expression
 ================================================================================
 

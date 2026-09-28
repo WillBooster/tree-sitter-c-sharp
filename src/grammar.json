@@ -5988,15 +5988,11 @@
       ]
     },
     "type_pattern": {
-      "type": "PREC_RIGHT",
-      "value": 0,
+      "type": "FIELD",
+      "name": "type",
       "content": {
-        "type": "FIELD",
-        "name": "type",
-        "content": {
-          "type": "SYMBOL",
-          "name": "type"
-        }
+        "type": "SYMBOL",
+        "name": "type"
       }
     },
     "list_pattern": {
