@@ -76,11 +76,13 @@ parser.setLanguage(await Language.load(cSharp));
 
 The package also ships the node types in `src/node-types.json`.
 
-In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp):
+In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and the
+[runtime](https://crates.io/crates/willbooster-tree-sitter), whose fixes keep incremental reparses consistent with
+fresh parses:
 
 ```toml
 [dependencies]
-tree-sitter = "0.27"
+tree-sitter = { package = "willbooster-tree-sitter", version = "1.0.3" }
 tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "1" }
 ```
 
@@ -116,6 +118,9 @@ cargo test
 - checks that the Wasm build parses C# with @willbooster/web-tree-sitter in Chromium (`test/unit/browser.test.ts`,
   which needs Chromium installed once by `bunx playwright install chromium`) and in Cloudflare Workers with and without
   `nodejs_compat` (`test/unit/workers.test.ts`).
+
+`cargo test` also replays edits that `tree-sitter fuzz` found to break incremental parsing, with the
+willbooster-tree-sitter runtime that fixes them; `tree-sitter fuzz` itself runs the runtime built into tree-sitter-cli.
 
 CI also runs these tests on Linux arm64 and macOS, where the Rust binding compiles the parser natively, and fuzzes the parser with libFuzzer and sanitizers
 (`.github/workflows/robustness.yml`).
