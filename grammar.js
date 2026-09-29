@@ -1249,10 +1249,10 @@ module.exports = grammar({
     //
     // A parenthesized expression followed by `*` is a multiplication, not a
     // cast of a dereference (C# spec §12.9.8 Cast expressions: `(a) * b` is
-    // a cast only when `a` cannot be an expression), so a dereference
-    // outweighs the cast's dynamic precedence. For the same reason `*(p) + 1`
-    // dereferences `(p)` rather than a cast of `+1`: a dereference of a
-    // non-lvalue outweighs a dereference of an lvalue plus that precedence.
+    // a cast only when `a` cannot be an expression), so a dereference's
+    // penalty outweighs the cast's +1. `*(p) + 1` is likewise the sum of a
+    // dereference of `(p)` (-2), not a dereference of a cast of `+1`
+    // (-4 + 1), so dereferencing a non-lvalue carries the larger penalty.
     _pointer_indirection_expression: ($) => prec.dynamic(-2, prec.right(PREC.UNARY, seq('*', $.lvalue_expression))),
 
     _value_indirection_expression: ($) => prec.dynamic(-4, prec.right(PREC.UNARY, seq('*', $.non_lvalue_expression))),
