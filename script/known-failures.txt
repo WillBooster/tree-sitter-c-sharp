@@ -43,7 +43,6 @@ examples/Newtonsoft.Json/Src/Newtonsoft.Json/Utilities/DictionaryWrapper.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Utilities/ReflectionUtils.cs
 examples/PowerToys/src/modules/AdvancedPaste/AdvancedPaste.UITests.Next/AdvancedPasteTestBase.cs
 examples/PowerToys/src/modules/AdvancedPaste/AdvancedPaste/Services/KernelServiceBase.cs
-examples/PowerToys/src/modules/MouseWithoutBorders/App/Class/InputHook.cs
 examples/PowerToys/src/modules/cmdpal/Microsoft.CmdPal.Common/Text/PrecomputedFuzzyMatcher.cs
 examples/PowerToys/src/modules/cmdpal/Microsoft.CmdPal.UI.ViewModels/Commands/MainListPage.cs
 examples/PowerToys/src/modules/cmdpal/Microsoft.CmdPal.UI.ViewModels/Services/CmdPalProtocolActivation.cs
@@ -54,7 +53,6 @@ examples/PowerToys/src/modules/cmdpal/Tests/Microsoft.CmdPal.UI.ViewModels.UnitT
 examples/PowerToys/src/modules/cmdpal/Tests/Microsoft.CmdPal.UI.ViewModels.UnitTests/FastFirstPaintTests.cs
 examples/PowerToys/src/modules/cmdpal/Tests/Microsoft.CmdPal.UI.ViewModels.UnitTests/ScoringParallelEquivalenceTests.cs
 examples/PowerToys/src/modules/cmdpal/Tests/Microsoft.CmdPal.UI.ViewModels.UnitTests/ScoringThroughputHarnessTests.cs
-examples/PowerToys/src/modules/powerdisplay/PowerDisplay/Helpers/TrayIconMouseWheelListener.cs
 examples/nunit/src/NUnitFramework/framework/Internal/DisposeHelper.cs
 examples/nunit/src/NUnitFramework/framework/Internal/ExceptionHelper.cs
 examples/nunit/src/NUnitFramework/framework/Internal/OSPlatform.cs

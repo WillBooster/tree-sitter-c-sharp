@@ -650,6 +650,71 @@ var o = (Int32)((1));
                 (integer_literal)))))))))
 
 ================================================================================
+Pointer indirection of non-lvalue expressions
+================================================================================
+
+var x = *(long*)&v;
+x = *(T*)p.q;
+x = *(p + 1);
+x = (a) * b;
+x = (a) * (b + 1);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (predefined_type))
+              value: (prefix_unary_expression
+                (identifier))))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (identifier))
+            value: (member_access_expression
+              expression: (identifier)
+              name: (identifier)))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (parenthesized_expression
+            (binary_expression
+              left: (identifier)
+              right: (integer_literal)))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (parenthesized_expression
+            (identifier))
+          right: (identifier)))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (parenthesized_expression
+            (identifier))
+          right: (parenthesized_expression
+            (binary_expression
+              left: (identifier)
+              right: (integer_literal))))))))
+
+================================================================================
 Precedence of unary prefix operator and element access
 ================================================================================
 

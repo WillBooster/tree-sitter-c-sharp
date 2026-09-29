@@ -6825,6 +6825,15 @@
           "value": "prefix_unary_expression"
         },
         {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_value_indirection_expression"
+          },
+          "named": true,
+          "value": "prefix_unary_expression"
+        },
+        {
           "type": "SYMBOL",
           "name": "reftype_expression"
         },
@@ -7796,20 +7805,45 @@
       }
     },
     "_pointer_indirection_expression": {
-      "type": "PREC_RIGHT",
-      "value": 17,
+      "type": "PREC_DYNAMIC",
+      "value": -2,
       "content": {
-        "type": "SEQ",
-        "members": [
-          {
-            "type": "STRING",
-            "value": "*"
-          },
-          {
-            "type": "SYMBOL",
-            "name": "lvalue_expression"
-          }
-        ]
+        "type": "PREC_RIGHT",
+        "value": 17,
+        "content": {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "*"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "lvalue_expression"
+            }
+          ]
+        }
+      }
+    },
+    "_value_indirection_expression": {
+      "type": "PREC_DYNAMIC",
+      "value": -2,
+      "content": {
+        "type": "PREC_RIGHT",
+        "value": 17,
+        "content": {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "*"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "non_lvalue_expression"
+            }
+          ]
+        }
       }
     },
     "_address_of_expression": {
