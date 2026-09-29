@@ -1,9 +1,11 @@
 # @willbooster/tree-sitter-c-sharp
 
+[![npm version](https://img.shields.io/npm/v/@willbooster/tree-sitter-c-sharp.svg)](https://www.npmjs.com/package/@willbooster/tree-sitter-c-sharp)
+[![license](https://img.shields.io/npm/l/@willbooster/tree-sitter-c-sharp.svg)](https://www.npmjs.com/package/@willbooster/tree-sitter-c-sharp)
 [![Test](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test.yml/badge.svg)](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test.yml)
 [![Test rust](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test-rust.yml/badge.svg)](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test-rust.yml)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
-[![wbfy](https://img.shields.io/badge/wbfy-20.24.0-1e90ff.svg)](https://github.com/WillBooster/shared/tree/main/packages/wbfy)
+[![wbfy](https://img.shields.io/badge/wbfy-20.26.0-1e90ff.svg)](https://github.com/WillBooster/shared/tree/main/packages/wbfy)
 [![crates.io](https://img.shields.io/crates/v/willbooster-tree-sitter-c-sharp.svg)](https://crates.io/crates/willbooster-tree-sitter-c-sharp)
 
 C# grammar for [tree-sitter](https://github.com/tree-sitter/tree-sitter), forked from
@@ -29,17 +31,45 @@ Known gaps:
 
 ## Usage
 
-The npm package ships `tree-sitter-c_sharp.wasm` for [web-tree-sitter](https://www.npmjs.com/package/web-tree-sitter):
+The npm package ships `tree-sitter-c_sharp.wasm` for
+[@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
+browsers, and Cloudflare Workers. In Node.js and Bun, load it from the package:
 
 ```js
 import { fileURLToPath } from 'node:url';
-import { Language, Parser } from 'web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 
 await Parser.init();
 const parser = new Parser();
 const wasmPath = fileURLToPath(import.meta.resolve('@willbooster/tree-sitter-c-sharp/tree-sitter-c_sharp.wasm'));
 parser.setLanguage(await Language.load(wasmPath));
 const tree = parser.parse('class Program {}\n');
+```
+
+In browsers, serve both `.wasm` files and load them by URL. With Vite:
+
+```js
+import { Language, Parser } from '@willbooster/web-tree-sitter';
+import runtimeUrl from '@willbooster/web-tree-sitter/web-tree-sitter.wasm?url';
+import cSharpUrl from '@willbooster/tree-sitter-c-sharp/tree-sitter-c_sharp.wasm?url';
+
+await Parser.init({ locateFile: () => runtimeUrl });
+const parser = new Parser();
+parser.setLanguage(await Language.load(cSharpUrl));
+```
+
+In Cloudflare Workers, which do not allow compiling Wasm at run time, import both `.wasm` files as modules (Wrangler
+compiles them at build time) and pass them to `Parser.init` and `Language.load`. This works with and without the
+`nodejs_compat` flag:
+
+```js
+import { Language, Parser } from '@willbooster/web-tree-sitter';
+import runtime from '@willbooster/web-tree-sitter/web-tree-sitter.wasm';
+import cSharp from '@willbooster/tree-sitter-c-sharp/tree-sitter-c_sharp.wasm';
+
+await Parser.init({ wasmModule: runtime });
+const parser = new Parser();
+parser.setLanguage(await Language.load(cSharp));
 ```
 
 The package also ships the node types in `src/node-types.json`.
@@ -80,7 +110,10 @@ cargo test
   it; review its diff before committing;
 - a performance check (`test/unit/performance.test.ts`) that recovering from an error on each of 10,000 lines takes
   linear time, since consumers parse files while they are being edited. It loads the Wasm build through
-  web-tree-sitter, which `bun run build/ci` rebuilds after regenerating the parser.
+  @willbooster/web-tree-sitter, which `bun run build/ci` rebuilds after regenerating the parser;
+- checks that the Wasm build parses C# with @willbooster/web-tree-sitter in Chromium (`test/unit/browser.test.ts`,
+  which needs Chromium installed once by `bunx playwright install chromium`) and in Cloudflare Workers with and without
+  `nodejs_compat` (`test/unit/workers.test.ts`).
 
 CI also runs these tests on Linux arm64 and macOS, where the Rust binding compiles the parser natively, and fuzzes the parser with libFuzzer and sanitizers
 (`.github/workflows/robustness.yml`).
