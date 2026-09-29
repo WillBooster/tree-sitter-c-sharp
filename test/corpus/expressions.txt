@@ -2581,13 +2581,44 @@ var f = b is A { E: C(S.C) bb } ? bb : null;
                       type: (identifier)
                       (positional_pattern_clause
                         (subpattern
-                          (type_pattern
-                            type: (qualified_name
-                              qualifier: (identifier)
+                          (constant_pattern
+                            (member_access_expression
+                              expression: (identifier)
                               name: (identifier)))))
                       name: (identifier))))))
             consequence: (identifier)
             alternative: (null_literal)))))))
+
+================================================================================
+Or pattern of nameof constants
+================================================================================
+
+var b = s is nameof(A) or nameof(B);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (is_pattern_expression
+            expression: (identifier)
+            pattern: (or_pattern
+              left: (constant_pattern
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (argument
+                      (identifier)))))
+              right: (constant_pattern
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (argument
+                      (identifier))))))))))))
 
 ================================================================================
 Precedence between is operator and conditional_expression
@@ -2736,9 +2767,9 @@ if (a is not B { E: C(S.E) x }) {}
                   type: (identifier)
                   (positional_pattern_clause
                     (subpattern
-                      (type_pattern
-                        type: (qualified_name
-                          qualifier: (identifier)
+                      (constant_pattern
+                        (member_access_expression
+                          expression: (identifier)
                           name: (identifier)))))
                   name: (identifier)))))))
       consequence: (block))))
@@ -2944,9 +2975,9 @@ var z = expr is (E.A or E.B) v2;
               type: (identifier)
               (positional_pattern_clause
                 (subpattern
-                  (type_pattern
-                    type: (qualified_name
-                      qualifier: (identifier)
+                  (constant_pattern
+                    (member_access_expression
+                      expression: (identifier)
                       name: (identifier)))))
               name: (identifier)))))))
   (global_statement
@@ -2962,9 +2993,9 @@ var z = expr is (E.A or E.B) v2;
               (positional_pattern_clause
                 (subpattern
                   (or_pattern
-                    left: (type_pattern
-                      type: (qualified_name
-                        qualifier: (identifier)
+                    left: (constant_pattern
+                      (member_access_expression
+                        expression: (identifier)
                         name: (identifier)))
                     right: (constant_pattern
                       (member_access_expression

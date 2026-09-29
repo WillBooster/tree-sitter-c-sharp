@@ -5988,8 +5988,8 @@
       ]
     },
     "type_pattern": {
-      "type": "PREC_RIGHT",
-      "value": 0,
+      "type": "PREC_DYNAMIC",
+      "value": -1,
       "content": {
         "type": "FIELD",
         "name": "type",
@@ -10495,7 +10495,7 @@
           },
           {
             "type": "PATTERN",
-            "value": "\\\\[abefnrtv'\\\"\\\\\\?0]"
+            "value": "\\\\[abefnrtv'\"\\\\?0]"
           }
         ]
       }
@@ -10612,7 +10612,8 @@
           },
           {
             "type": "PATTERN",
-            "value": "(\\p{XID_Start}|_|\\\\u[0-9A-Fa-f]{4}|\\\\U[0-9A-Fa-f]{8})(\\p{XID_Continue}|\\\\u[0-9A-Fa-f]{4}|\\\\U[0-9A-Fa-f]{8})*"
+            "value": "(\\p{XID_Start}|_|\\\\u[0-9A-Fa-f]{4}|\\\\U[0-9A-Fa-f]{8})(\\p{XID_Continue}|\\\\u[0-9A-Fa-f]{4}|\\\\U[0-9A-Fa-f]{8})*",
+            "flags": "u"
           }
         ]
       }
