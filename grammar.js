@@ -1133,6 +1133,7 @@ module.exports = grammar({
         // Parallels `_pointer_indirection_expression` (the `*` operator),
         // which is similarly aliased back into `lvalue_expression`.
         alias($._address_of_expression, $.prefix_unary_expression),
+        alias($._value_indirection_expression, $.prefix_unary_expression),
         $.reftype_expression,
         $.refvalue_expression,
         $.stackalloc_expression,
@@ -1230,16 +1231,31 @@ module.exports = grammar({
           // `&` and `*` are intentionally NOT in this choice list:
           //   * `&` → `_address_of_expression` (operand restricted to lvalue
           //           — see comment on that rule for the #413 rationale)
-          //   * `*` → `_pointer_indirection_expression` (same shape,
-          //           restricted to lvalue, surfaced in `lvalue_expression`)
-          // Both are aliased back to `prefix_unary_expression` so the
+          //   * `*` → `_pointer_indirection_expression` and
+          //           `_value_indirection_expression`
+          // They are aliased back to `prefix_unary_expression` so the
           // public AST is unaffected.
           choice('++', '--', '+', '-', '!', '~', '^'),
           $.expression
         )
       ),
 
-    _pointer_indirection_expression: ($) => prec.right(PREC.UNARY, seq('*', $.lvalue_expression)),
+    // Pointer indirection is split by its operand. Dereferencing an lvalue
+    // (`*p`, `*(p)`, `**pp`) yields an lvalue, so it is surfaced in
+    // `lvalue_expression` and can be assigned to. Dereferencing any other
+    // expression (`*(long*)&v`, `*(p + 1)`) is only read: surfacing it in
+    // `lvalue_expression` too would let `=` follow every expression that can
+    // be its operand, which grows the parser from 8,495 to 13,339 states.
+    //
+    // A parenthesized expression followed by `*` is a multiplication, not a
+    // cast of a dereference (C# spec §12.9.8 Cast expressions: `(a) * b` is
+    // a cast only when `a` cannot be an expression), so a dereference's
+    // penalty outweighs the cast's +1. `*(p) + 1` is likewise the sum of a
+    // dereference of `(p)` (-2), not a dereference of a cast of `+1`
+    // (-4 + 1), so dereferencing a non-lvalue carries the larger penalty.
+    _pointer_indirection_expression: ($) => prec.dynamic(-2, prec.right(PREC.UNARY, seq('*', $.lvalue_expression))),
+
+    _value_indirection_expression: ($) => prec.dynamic(-4, prec.right(PREC.UNARY, seq('*', $.non_lvalue_expression))),
 
     // Address-of is split out from `prefix_unary_expression` so that
     // `&` can't act as a fallback when the lexer would otherwise

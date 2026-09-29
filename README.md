@@ -27,6 +27,8 @@ The grammar is based upon the Roslyn grammar with changes in order to:
 Known gaps:
 
 - `async`, `var` and `await` cannot be used as identifiers everywhere they are valid
+- A pointer dereference can be assigned to only when its operand is a variable, member access, element access,
+  or another dereference (`*p = 1`, `*(p) = 1`, `*a.b = 1`); `*(int*)p = 1` and `*(p + 1) = 1` are not recognized
 - File-based apps preprocessor directives (`#:property`, `#:package`, `#:sdk`, `#:project`) are not yet recognized
 
 ## Usage
