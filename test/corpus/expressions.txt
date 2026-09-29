@@ -658,6 +658,8 @@ x = *(T*)p.q;
 x = *(p + 1);
 x = (a) * b;
 x = (a) * (b + 1);
+x = *(p) + 1;
+x = *(p) - *(q);
 
 --------------------------------------------------------------------------------
 
@@ -712,7 +714,27 @@ x = (a) * (b + 1);
           right: (parenthesized_expression
             (binary_expression
               left: (identifier)
-              right: (integer_literal))))))))
+              right: (integer_literal)))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (prefix_unary_expression
+            (parenthesized_expression
+              (identifier)))
+          right: (integer_literal)))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (prefix_unary_expression
+            (parenthesized_expression
+              (identifier)))
+          right: (prefix_unary_expression
+            (parenthesized_expression
+              (identifier))))))))
 
 ================================================================================
 Precedence of unary prefix operator and element access
