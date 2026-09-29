@@ -1248,9 +1248,9 @@ module.exports = grammar({
     // be its operand, which grows the parser from 8,495 to 13,339 states.
     //
     // A parenthesized expression followed by `*` is a multiplication, not a
-    // cast of a dereference (C# spec §12.9.7: `(a) * b` is a cast only when
-    // `a` cannot be an expression), so a dereference outweighs the cast's
-    // dynamic precedence.
+    // cast of a dereference (C# spec §12.9.8 Cast expressions: `(a) * b` is
+    // a cast only when `a` cannot be an expression), so a dereference
+    // outweighs the cast's dynamic precedence.
     _pointer_indirection_expression: ($) => prec.dynamic(-2, prec.right(PREC.UNARY, seq('*', $.lvalue_expression))),
 
     _value_indirection_expression: ($) => prec.dynamic(-2, prec.right(PREC.UNARY, seq('*', $.non_lvalue_expression))),
