@@ -747,6 +747,7 @@ Assignments through pointer indirection of non-lvalue expressions
 *(T*)a[0] = 1;
 *(T*)f() = 1;
 *(p + 1) = 1;
+*&s.f = 1;
 *dst++ = *src++;
 *(int*)p += 2;
 var a = *p++;
@@ -831,6 +832,15 @@ var e = *(T)(x);
             (binary_expression
               left: (identifier)
               right: (integer_literal))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (prefix_unary_expression
+            (member_access_expression
+              expression: (identifier)
+              name: (identifier))))
         right: (integer_literal))))
   (global_statement
     (expression_statement

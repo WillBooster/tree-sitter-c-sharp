@@ -1263,18 +1263,18 @@ module.exports = grammar({
 
     // Pointer indirection is split by its operand. The assignable form, surfaced in `lvalue_expression`, takes an
     // lvalue (`*p`, `*(p)`, `**pp`) or an operand that ends in a closing token or an lvalue: a parenthesized
-    // expression (`*(p + 1)`), a postfix expression (`*p++`), or a cast of an lvalue, a parenthesized, postfix, or
-    // invocation expression, or an address (`*(int*)p`, `*(long*)(p + 4)`, `*(T*)f()`, `*(long*)&v`). Dereferencing
-    // any other expression (`*++p`) is only read: letting any expression be the assignable form's operand lets `=`
-    // follow every expression that can be the operand, which grows the parser by about 4,800 states and nearly doubles
-    // the Wasm build, while these operands add about 550.
+    // expression (`*(p + 1)`), a postfix expression (`*p++`), an address (`*&v`), or a cast of an lvalue, a
+    // parenthesized, postfix, or invocation expression, or an address (`*(int*)p`, `*(long*)(p + 4)`, `*(T*)f()`,
+    // `*(long*)&v`). Dereferencing any other expression (`*++p`) is only read: letting any expression be the assignable
+    // form's operand lets `=` follow every expression that can be the operand, which grows the parser by about 4,800
+    // states and nearly doubles the Wasm build, while these operands add about 550.
     //
-    // A parenthesized expression followed by `*` is a multiplication, not a
-    // cast of a dereference (C# spec §12.9.8 Cast expressions: `(a) * b` is
-    // a cast only when `a` cannot be an expression), so a dereference's
-    // penalty outweighs the cast's +1. `*(p) + 1` is likewise the sum of a
-    // dereference of `(p)` (-2), not a dereference of a cast of `+1`
-    // (-4 + 1), so dereferencing a non-lvalue carries the larger penalty.
+    // Dynamic precedences: an assignable dereference -2, a read-only one -4, a read-only cast +1, and an assignable cast
+    // -1. C# reads a parenthesized name as a cast only when the token after `)` is `~`, `!`, `(`, an identifier, a
+    // literal, or a keyword (C# spec §12.9.8 Cast expressions), and these values keep that reading: `(a) * b` is a
+    // multiplication (0), not a cast of `*b` (+1 - 2); `*(p) + 1` and `*(p) & x` apply to a dereference of `(p)` (-2),
+    // not to a dereference of a cast of `+1` or `&x` (-4 + 1 or -2 - 1); `*(b)[0]` dereferences an element access
+    // (-2), not a cast of `[0]` (-2 - 1). Where both casts fit, they give the same tree.
     _pointer_indirection_expression: ($) =>
       prec.dynamic(
         -2,
@@ -1285,6 +1285,7 @@ module.exports = grammar({
             choice(
               $.lvalue_expression,
               $.parenthesized_expression,
+              alias($._address_of_expression, $.prefix_unary_expression),
               alias($._lvalue_cast_expression, $.cast_expression),
               $.postfix_unary_expression
             )
@@ -1292,9 +1293,6 @@ module.exports = grammar({
         )
       ),
 
-    // Its dynamic precedence of -1, against the +1 of a read-only cast, keeps a cast reading from winning over a
-    // postfix or binary reading of a parenthesized name that C# does not read as a cast: `*(p) & x` is a bitwise AND.
-    // Where only this form fits (`*(int*)p = 1`), no reading competes.
     _lvalue_cast_expression: ($) =>
       prec(
         PREC.CAST,

@@ -7922,6 +7922,15 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "SYMBOL",
+                    "name": "_address_of_expression"
+                  },
+                  "named": true,
+                  "value": "prefix_unary_expression"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
                     "name": "_lvalue_cast_expression"
                   },
                   "named": true,
