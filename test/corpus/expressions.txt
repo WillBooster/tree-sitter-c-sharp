@@ -2708,6 +2708,115 @@ var b = s is nameof(A) or nameof(B);
                       (identifier))))))))))))
 
 ================================================================================
+Constant patterns of nameof in switch sections and switch expression arms
+================================================================================
+
+switch (p) { case nameof(A): break; case nameof(B) when b: break; }
+var x = p switch { nameof(A) => 1, nameof(B) or nameof(C) => 2, _ => 0 };
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (switch_statement
+      value: (identifier)
+      body: (switch_body
+        (switch_section
+          (constant_pattern
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier)))))
+          (break_statement))
+        (switch_section
+          (constant_pattern
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier)))))
+          (when_clause
+            (identifier))
+          (break_statement)))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (switch_expression
+            (identifier)
+            (switch_expression_arm
+              (constant_pattern
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (argument
+                      (identifier)))))
+              (integer_literal))
+            (switch_expression_arm
+              (or_pattern
+                left: (constant_pattern
+                  (invocation_expression
+                    function: (identifier)
+                    arguments: (argument_list
+                      (argument
+                        (identifier)))))
+                right: (constant_pattern
+                  (invocation_expression
+                    function: (identifier)
+                    arguments: (argument_list
+                      (argument
+                        (identifier))))))
+              (integer_literal))
+            (switch_expression_arm
+              (discard)
+              (integer_literal))))))))
+
+================================================================================
+Var patterns with parenthesized designations
+================================================================================
+
+switch (p) { case var (a, b): break; }
+var x = p switch { var (a, (b, _)) => 1, var c => 2 };
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (switch_statement
+      value: (identifier)
+      body: (switch_body
+        (switch_section
+          (var_pattern
+            (parenthesized_variable_designation
+              name: (identifier)
+              name: (identifier)))
+          (break_statement)))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (switch_expression
+            (identifier)
+            (switch_expression_arm
+              (var_pattern
+                (parenthesized_variable_designation
+                  name: (identifier)
+                  (parenthesized_variable_designation
+                    name: (identifier)
+                    (discard))))
+              (integer_literal))
+            (switch_expression_arm
+              (declaration_pattern
+                type: (implicit_type)
+                name: (identifier))
+              (integer_literal))))))))
+
+================================================================================
 Precedence between is operator and conditional_expression
 ================================================================================
 
@@ -3006,15 +3115,12 @@ var c = p is (var x, var y) { x: 0 };
         type: (implicit_type)
         (variable_declarator
           name: (identifier)
-          (invocation_expression
-            function: (is_expression
-              left: (identifier)
-              right: (implicit_type))
-            arguments: (argument_list
-              (argument
-                (identifier))
-              (argument
-                (identifier))))))))
+          (is_pattern_expression
+            expression: (identifier)
+            pattern: (var_pattern
+              (parenthesized_variable_designation
+                name: (identifier)
+                name: (identifier))))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
