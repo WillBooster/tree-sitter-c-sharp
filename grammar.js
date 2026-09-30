@@ -970,7 +970,7 @@ module.exports = grammar({
       ),
 
     // Uses '(' pattern ')' to create direct conflict with parenthesized_pattern
-    _parenthesized_pattern_with_designation: ($) => seq('(', $.pattern, ')', $._variable_designation),
+    _parenthesized_pattern_with_designation: ($) => seq('(', $.pattern, ')', $._simple_designation),
 
     constant_pattern: ($) =>
       choice(
@@ -1018,7 +1018,10 @@ module.exports = grammar({
 
     parenthesized_pattern: ($) => seq('(', $.pattern, ')'),
 
-    var_pattern: ($) => seq('var', $._variable_designation),
+    // `var x` parses as a declaration_pattern with an implicit_type. `var (x, y)` also reads as a positional pattern
+    // of type `var` or, after `is`, as an invocation of `o is var`; each of those carries the implicit_type's dynamic
+    // precedence of 1, so this needs more.
+    var_pattern: ($) => prec.dynamic(2, seq('var', $.parenthesized_variable_designation)),
 
     // No associativity: tree-sitter 0.27 resolves a precedence tie with a right-associative reduce as a shift, which
     // makes `case int when x:` and `x is A or nameof(y)` read `when` and `(y)` as a variable designation.
@@ -1033,7 +1036,7 @@ module.exports = grammar({
           '[',
           optional(seq(commaSep1(choice($.pattern, $.slice_pattern)), optional(','))),
           ']',
-          optional($._variable_designation)
+          optional($._simple_designation)
         )
       ),
 
@@ -1052,7 +1055,7 @@ module.exports = grammar({
               field('type', $._name),
               $.positional_pattern_clause,
               optional($.property_pattern_clause),
-              $._variable_designation
+              $._simple_designation
             )
           ),
           // name followed by positional pattern WITHOUT variable designation
@@ -1061,19 +1064,19 @@ module.exports = grammar({
             seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))
           ),
           // positional pattern with variable designation (no type prefix)
-          prec.dynamic(1, seq($.positional_pattern_clause, $._variable_designation)),
+          prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
           // positional pattern without variable designation (no type prefix)
           $.positional_pattern_clause,
           // other type followed by pattern clauses (type is required here to avoid ambiguity)
           seq(
             field('type', $.type),
             choice(seq($.positional_pattern_clause, optional($.property_pattern_clause)), $.property_pattern_clause),
-            optional($._variable_designation)
+            optional($._simple_designation)
           ),
           // no type, just pattern clauses (no variable designation to avoid conflict with above)
           seq(
             choice(seq($.positional_pattern_clause, $.property_pattern_clause), $.property_pattern_clause),
-            optional($._variable_designation)
+            optional($._simple_designation)
           )
         )
       ),
@@ -1095,10 +1098,13 @@ module.exports = grammar({
     or_pattern: ($) =>
       prec.left(PREC.OR, seq(field('left', $.pattern), field('operator', 'or'), field('right', $.pattern))),
 
-    declaration_pattern: ($) => seq(field('type', $.type), $._variable_designation),
+    declaration_pattern: ($) => seq(field('type', $.type), $._simple_designation),
 
-    _variable_designation: ($) =>
-      prec(1, choice($.discard, $.parenthesized_variable_designation, field('name', $.identifier))),
+    _variable_designation: ($) => choice($._simple_designation, $.parenthesized_variable_designation),
+
+    // C# admits a parenthesized designation in a pattern only after `var`; elsewhere `T (x)` and `nameof(x)` are
+    // positional patterns or invocations.
+    _simple_designation: ($) => prec(1, choice($.discard, field('name', $.identifier))),
 
     parenthesized_variable_designation: ($) => seq('(', commaSep($._variable_designation), ')'),
 
