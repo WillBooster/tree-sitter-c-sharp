@@ -3081,7 +3081,7 @@ var b = s is nameof(A) or nameof(B);
 Constant patterns of nameof in switch sections and switch expression arms
 ================================================================================
 
-switch (p) { case nameof(A): break; case nameof(B) when b: break; }
+switch (p) { case nameof(A): break; case nameof(A.B) when b: break; }
 var x = p switch { nameof(A) => 1, nameof(B) or nameof(C) => 2, _ => 0 };
 
 --------------------------------------------------------------------------------
@@ -3105,7 +3105,9 @@ var x = p switch { nameof(A) => 1, nameof(B) or nameof(C) => 2, _ => 0 };
               function: (identifier)
               arguments: (argument_list
                 (argument
-                  (identifier)))))
+                  (member_access_expression
+                    expression: (identifier)
+                    name: (identifier))))))
           (when_clause
             (identifier))
           (break_statement)))))
@@ -3514,6 +3516,91 @@ var c = p is (var x, var y) { x: 0 };
                   (identifier)
                   (constant_pattern
                     (integer_literal)))))))))))
+
+================================================================================
+Positional patterns after a predefined type or an array type
+================================================================================
+
+var a = o is int (1);
+var b = o switch { int (var q) => 1, _ => 0 };
+switch (o) { case string (var c, var d) s: break; case int[] (1): break; case A[] (var e): break; }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (is_pattern_expression
+            expression: (identifier)
+            pattern: (recursive_pattern
+              type: (predefined_type)
+              (positional_pattern_clause
+                (subpattern
+                  (constant_pattern
+                    (integer_literal))))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (switch_expression
+            (identifier)
+            (switch_expression_arm
+              (recursive_pattern
+                type: (predefined_type)
+                (positional_pattern_clause
+                  (subpattern
+                    (declaration_pattern
+                      type: (implicit_type)
+                      name: (identifier)))))
+              (integer_literal))
+            (switch_expression_arm
+              (discard)
+              (integer_literal)))))))
+  (global_statement
+    (switch_statement
+      value: (identifier)
+      body: (switch_body
+        (switch_section
+          (recursive_pattern
+            type: (predefined_type)
+            (positional_pattern_clause
+              (subpattern
+                (declaration_pattern
+                  type: (implicit_type)
+                  name: (identifier)))
+              (subpattern
+                (declaration_pattern
+                  type: (implicit_type)
+                  name: (identifier))))
+            name: (identifier))
+          (break_statement))
+        (switch_section
+          (recursive_pattern
+            type: (array_type
+              type: (predefined_type)
+              rank: (array_rank_specifier))
+            (positional_pattern_clause
+              (subpattern
+                (constant_pattern
+                  (integer_literal)))))
+          (break_statement))
+        (switch_section
+          (recursive_pattern
+            type: (array_type
+              type: (identifier)
+              rank: (array_rank_specifier))
+            (positional_pattern_clause
+              (subpattern
+                (declaration_pattern
+                  type: (implicit_type)
+                  name: (identifier)))))
+          (break_statement))))))
 
 ================================================================================
 Recursive patterns with variable designation (issue #282)
