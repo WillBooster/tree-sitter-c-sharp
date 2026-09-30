@@ -3081,7 +3081,7 @@ var b = s is nameof(A) or nameof(B);
 Constant patterns of nameof in switch sections and switch expression arms
 ================================================================================
 
-switch (p) { case nameof(A): break; case nameof(B) when b: break; }
+switch (p) { case nameof(A): break; case nameof(A.B) when b: break; }
 var x = p switch { nameof(A) => 1, nameof(B) or nameof(C) => 2, _ => 0 };
 
 --------------------------------------------------------------------------------
@@ -3105,7 +3105,9 @@ var x = p switch { nameof(A) => 1, nameof(B) or nameof(C) => 2, _ => 0 };
               function: (identifier)
               arguments: (argument_list
                 (argument
-                  (identifier)))))
+                  (member_access_expression
+                    expression: (identifier)
+                    name: (identifier))))))
           (when_clause
             (identifier))
           (break_statement)))))

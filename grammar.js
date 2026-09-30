@@ -83,6 +83,7 @@ module.exports = grammar({
     [$.constant_pattern, $.lvalue_expression, $._name],
 
     [$.type, $._name_invocation_pattern, $.recursive_pattern],
+    [$.type, $.recursive_pattern],
     [$.attribute, $.type, $._name_invocation_pattern, $.recursive_pattern],
 
     [$.parenthesized_pattern, $._parenthesized_pattern_with_designation],
@@ -1082,10 +1083,15 @@ module.exports = grammar({
           prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
           // positional pattern without variable designation (no type prefix)
           $.positional_pattern_clause,
-          // other type followed by pattern clauses (type is required here to avoid ambiguity)
+          // other type followed by a property pattern clause
+          seq(field('type', $.type), $.property_pattern_clause, optional($._simple_designation)),
+          // A positional clause follows only a name (above) or a predefined type. Letting any type take one reads
+          // `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed the
+          // runtime's limit, and which reading survives depends on the versions alive, not on dynamic precedence.
           seq(
-            field('type', $.type),
-            choice(seq($.positional_pattern_clause, optional($.property_pattern_clause)), $.property_pattern_clause),
+            field('type', $.predefined_type),
+            $.positional_pattern_clause,
+            optional($.property_pattern_clause),
             optional($._simple_designation)
           ),
           // no type, just pattern clauses (no variable designation to avoid conflict with above)

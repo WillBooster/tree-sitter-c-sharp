@@ -6290,32 +6290,47 @@
                 }
               },
               {
+                "type": "SYMBOL",
+                "name": "property_pattern_clause"
+              },
+              {
                 "type": "CHOICE",
                 "members": [
                   {
-                    "type": "SEQ",
-                    "members": [
-                      {
-                        "type": "SYMBOL",
-                        "name": "positional_pattern_clause"
-                      },
-                      {
-                        "type": "CHOICE",
-                        "members": [
-                          {
-                            "type": "SYMBOL",
-                            "name": "property_pattern_clause"
-                          },
-                          {
-                            "type": "BLANK"
-                          }
-                        ]
-                      }
-                    ]
+                    "type": "SYMBOL",
+                    "name": "_simple_designation"
                   },
+                  {
+                    "type": "BLANK"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "FIELD",
+                "name": "type",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "predefined_type"
+                }
+              },
+              {
+                "type": "SYMBOL",
+                "name": "positional_pattern_clause"
+              },
+              {
+                "type": "CHOICE",
+                "members": [
                   {
                     "type": "SYMBOL",
                     "name": "property_pattern_clause"
+                  },
+                  {
+                    "type": "BLANK"
                   }
                 ]
               },
@@ -12880,6 +12895,10 @@
     [
       "type",
       "_name_invocation_pattern",
+      "recursive_pattern"
+    ],
+    [
+      "type",
       "recursive_pattern"
     ],
     [
