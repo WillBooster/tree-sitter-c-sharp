@@ -3365,6 +3365,93 @@ class C {
               (identifier))))))))
 
 ================================================================================
+List patterns followed by a when clause or a query clause
+================================================================================
+
+var x = p switch { [var a] when a > 0 => 1, [] when b => 2, [_] c when c.Length > 1 => 3, _ => 0 };
+switch (p) { case [var a] when a is 1: break; case [] when b: break; }
+var q = from a in b where a is [1] select a;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (switch_expression
+            (identifier)
+            (switch_expression_arm
+              (list_pattern
+                (declaration_pattern
+                  type: (implicit_type)
+                  name: (identifier)))
+              (when_clause
+                (binary_expression
+                  left: (identifier)
+                  right: (integer_literal)))
+              (integer_literal))
+            (switch_expression_arm
+              (list_pattern)
+              (when_clause
+                (identifier))
+              (integer_literal))
+            (switch_expression_arm
+              (list_pattern
+                (discard)
+                name: (identifier))
+              (when_clause
+                (binary_expression
+                  left: (member_access_expression
+                    expression: (identifier)
+                    name: (identifier))
+                  right: (integer_literal)))
+              (integer_literal))
+            (switch_expression_arm
+              (discard)
+              (integer_literal)))))))
+  (global_statement
+    (switch_statement
+      value: (identifier)
+      body: (switch_body
+        (switch_section
+          (list_pattern
+            (declaration_pattern
+              type: (implicit_type)
+              name: (identifier)))
+          (when_clause
+            (is_pattern_expression
+              expression: (identifier)
+              pattern: (constant_pattern
+                (integer_literal))))
+          (break_statement))
+        (switch_section
+          (list_pattern)
+          (when_clause
+            (identifier))
+          (break_statement)))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (query_expression
+            (from_clause
+              name: (identifier)
+              (identifier))
+            (where_clause
+              (is_pattern_expression
+                expression: (identifier)
+                pattern: (list_pattern
+                  (constant_pattern
+                    (integer_literal)))))
+            (select_clause
+              (identifier))))))))
+
+================================================================================
 Conditional expression with member accesses
 ================================================================================
 

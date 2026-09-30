@@ -1030,8 +1030,10 @@ module.exports = grammar({
     // reparse can switch it without reporting a changed range.
     type_pattern: ($) => prec.dynamic(-1, field('type', $.type)),
 
+    // Left-associative so that a contextual keyword after `]` (`when` in a switch arm or section, `select` in a query)
+    // ends the pattern instead of becoming its designation.
     list_pattern: ($) =>
-      prec.right(
+      prec.left(
         seq(
           '[',
           optional(seq(commaSep1(choice($.pattern, $.slice_pattern)), optional(','))),
