@@ -1251,19 +1251,15 @@ module.exports = grammar({
 
     postfix_unary_expression: ($) => prec(PREC.POSTFIX, seq(postfixOperand($), choice('++', '--', '!'))),
 
+    // `&` and `*` have rules of their own (`_address_of_expression`, `_pointer_indirection_expression`, and
+    // `_value_indirection_expression`), aliased to this node. The dynamic precedence of `+`, `-`, and `^` is explained
+    // at `_pointer_indirection_expression`.
     prefix_unary_expression: ($) =>
       prec(
         PREC.UNARY,
-        seq(
-          // `&` and `*` are intentionally NOT in this choice list:
-          //   * `&` → `_address_of_expression` (operand restricted to lvalue
-          //           — see comment on that rule for the #413 rationale)
-          //   * `*` → `_pointer_indirection_expression` and
-          //           `_value_indirection_expression`
-          // They are aliased back to `prefix_unary_expression` so the
-          // public AST is unaffected.
-          choice('++', '--', '+', '-', '!', '~', '^'),
-          $.expression
+        choice(
+          seq(choice('++', '--', '!', '~'), $.expression),
+          prec.dynamic(-2, seq(choice('+', '-', '^'), $.expression))
         )
       ),
 
@@ -1275,12 +1271,13 @@ module.exports = grammar({
     // form's operand lets `=` follow every expression that can be the operand, which grows the parser by about 4,800
     // states and nearly doubles the Wasm build, while these operands add about 550.
     //
-    // Dynamic precedences: an assignable dereference -2, a read-only one -4, a read-only cast +1, and an assignable cast
-    // -1. C# reads a parenthesized name as a cast only when the token after `)` is `~`, `!`, `(`, an identifier, a
-    // literal, or a keyword (C# spec §12.9.8 Cast expressions), and these values keep that reading: `(a) * b` is a
-    // multiplication (0), not a cast of `*b` (+1 - 2); `*(p) + 1` and `*(p) & x` apply to a dereference of `(p)` (-2),
-    // not to a dereference of a cast of `+1` or `&x` (-4 + 1 or -2 - 1); `*(b)[0]` dereferences an element access
-    // (-2), not a cast of `[0]` (-2 - 1). Where both casts fit, they give the same tree.
+    // Dynamic precedences: an assignable dereference -2, a read-only one -4, a read-only cast +1, an assignable cast -1,
+    // and a unary `+`, `-`, `^`, or `&` -2. C# reads a parenthesized name as a cast only when the token after `)` is
+    // `~`, `!`, `(`, an identifier, a literal, or a keyword (C# spec §12.9.8 Cast expressions), and these values keep
+    // that reading: `(a) * b`, `(a) - b`, and `(a) & b` are binary expressions (0), not casts of `*b`, `-b`, or `&b`
+    // (+1 - 2); `*(p) + 1` and `*(p) & x` apply to a dereference of `(p)` (-2), not to a dereference of a cast of `+1`
+    // or `&x` (-5); `*(b)[0]` dereferences an element access (-2), not a cast of `[0]` (-3). Where both casts fit, they
+    // give the same tree.
     _pointer_indirection_expression: ($) =>
       prec.dynamic(
         -2,
@@ -1327,9 +1324,10 @@ module.exports = grammar({
     // Address-of is split out from `prefix_unary_expression` and takes only a variable: an lvalue, or an invocation,
     // which can return a reference (`&span.GetPinnableReference()`). If a cast could take `&` before any expression,
     // the lexer would split `&&` into two `&` tokens and `(a) && (b > 0)` would read as a cast of `&(&(b > 0))`; as
-    // `(b > 0)` is not a variable, that reading fails and `&&` stays one token.
+    // `(b > 0)` is not a variable, that reading fails and `&&` stays one token. The dynamic precedence is explained at
+    // `_pointer_indirection_expression`.
     _address_of_expression: ($) =>
-      prec.right(PREC.UNARY, seq('&', choice($.lvalue_expression, $.invocation_expression))),
+      prec.dynamic(-2, prec.right(PREC.UNARY, seq('&', choice($.lvalue_expression, $.invocation_expression)))),
 
     query_expression: ($) => seq($.from_clause, $._query_body),
 

@@ -4373,7 +4373,7 @@ MyFunction<A,B>(1);
             (integer_literal)))))))
 
 ================================================================================
-Logical AND vs cast disambiguation with parenthesized LHS (#413)
+Logical AND vs cast disambiguation with parenthesized LHS
 ================================================================================
 
 class C {
@@ -4487,19 +4487,19 @@ class C {
               type: (predefined_type)
               (variable_declarator
                 name: (identifier)
-                (cast_expression
-                  type: (identifier)
-                  value: (prefix_unary_expression
-                    (identifier))))))
+                (binary_expression
+                  left: (parenthesized_expression
+                    (identifier))
+                  right: (identifier)))))
           (local_declaration_statement
             (variable_declaration
               type: (implicit_type)
               (variable_declarator
                 name: (identifier)
-                (cast_expression
-                  type: (identifier)
-                  value: (prefix_unary_expression
-                    (identifier))))))
+                (binary_expression
+                  left: (parenthesized_expression
+                    (identifier))
+                  right: (identifier)))))
           (local_declaration_statement
             (variable_declaration
               type: (implicit_type)
@@ -4507,6 +4507,92 @@ class C {
                 name: (identifier)
                 (prefix_unary_expression
                   (identifier))))))))))
+
+================================================================================
+Binary expressions after a parenthesized name
+================================================================================
+
+x = (a) + 1;
+x = (a) - b;
+x = (a.b) - c;
+x = (a) ^ b;
+x = (int)(a) + 1;
+x = (int)-1;
+x = (T)!b;
+x = (T)(-y);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (parenthesized_expression
+            (identifier))
+          right: (integer_literal)))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (parenthesized_expression
+            (identifier))
+          right: (identifier)))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (parenthesized_expression
+            (member_access_expression
+              expression: (identifier)
+              name: (identifier)))
+          right: (identifier)))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (parenthesized_expression
+            (identifier))
+          right: (identifier)))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (cast_expression
+            type: (predefined_type)
+            value: (parenthesized_expression
+              (identifier)))
+          right: (integer_literal)))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (cast_expression
+          type: (predefined_type)
+          value: (prefix_unary_expression
+            (integer_literal))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (cast_expression
+          type: (identifier)
+          value: (prefix_unary_expression
+            (identifier))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (cast_expression
+          type: (identifier)
+          value: (parenthesized_expression
+            (prefix_unary_expression
+              (identifier))))))))
 
 ================================================================================
 With expression typical basic form
@@ -5127,8 +5213,8 @@ class C { void M() {
               type: (implicit_type)
               (variable_declarator
                 name: (identifier)
-                (cast_expression
-                  type: (ref_type
-                    type: (identifier))
-                  value: (prefix_unary_expression
-                    (integer_literal)))))))))))
+                (binary_expression
+                  left: (parenthesized_expression
+                    (ref_expression
+                      (identifier)))
+                  right: (integer_literal))))))))))
