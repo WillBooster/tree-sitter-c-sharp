@@ -8041,8 +8041,17 @@
             "value": "&"
           },
           {
-            "type": "SYMBOL",
-            "name": "lvalue_expression"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "lvalue_expression"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "invocation_expression"
+              }
+            ]
           }
         ]
       }

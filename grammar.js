@@ -1318,18 +1318,12 @@ module.exports = grammar({
 
     _value_indirection_expression: ($) => prec.dynamic(-4, prec.right(PREC.UNARY, seq('*', $.non_lvalue_expression))),
 
-    // Address-of is split out from `prefix_unary_expression` so that
-    // `&` can't act as a fallback when the lexer would otherwise
-    // emit `&&`. Its operand is restricted to an lvalue (same shape
-    // as the spec's `address-of-expression`). This is the fix for
-    // tree-sitter#413: `(a) && (b > 0)` was misparsed as
-    // `cast(a, &(&(b > 0)))` because the cast state accepted `&` as
-    // a unary start and the lexer split `&&` into two `&` tokens.
-    // With this split, `&` is only valid before an lvalue, which
-    // `(b > 0)` is not — so the cast interpretation can no longer
-    // consume the trailing parenthesized expression and `&&` must
-    // be emitted as a single token for the binary path to succeed.
-    _address_of_expression: ($) => prec.right(PREC.UNARY, seq('&', $.lvalue_expression)),
+    // Address-of is split out from `prefix_unary_expression` and takes only a variable: an lvalue, or an invocation,
+    // which can return a reference (`&span.GetPinnableReference()`). If a cast could take `&` before any expression,
+    // the lexer would split `&&` into two `&` tokens and `(a) && (b > 0)` would read as a cast of `&(&(b > 0))`; as
+    // `(b > 0)` is not a variable, that reading fails and `&&` stays one token.
+    _address_of_expression: ($) =>
+      prec.right(PREC.UNARY, seq('&', choice($.lvalue_expression, $.invocation_expression))),
 
     query_expression: ($) => seq($.from_clause, $._query_body),
 

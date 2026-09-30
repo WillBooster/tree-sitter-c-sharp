@@ -925,6 +925,7 @@ Element access and member access after address-of and pointer indirection
 
 p = &s.f;
 p = &a[0];
+p = &f();
 p = *a[0];
 p = *(b)[0].x;
 p = *f()[0];
@@ -932,6 +933,7 @@ p = *p++->q;
 p = *(T*)f().g;
 p = *(T*)&a[0];
 fixed (byte* q = &b[0]) {}
+fixed (byte* r = &MemoryMarshal.GetReference(s)) {}
 
 --------------------------------------------------------------------------------
 
@@ -954,6 +956,14 @@ fixed (byte* q = &b[0]) {}
             subscript: (bracketed_argument_list
               (argument
                 (integer_literal))))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (invocation_expression
+            function: (identifier)
+            arguments: (argument_list))))))
   (global_statement
     (expression_statement
       (assignment_expression
@@ -1038,6 +1048,22 @@ fixed (byte* q = &b[0]) {}
               subscript: (bracketed_argument_list
                 (argument
                   (integer_literal)))))))
+      (block)))
+  (global_statement
+    (fixed_statement
+      (variable_declaration
+        type: (pointer_type
+          type: (predefined_type))
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (invocation_expression
+              function: (member_access_expression
+                expression: (identifier)
+                name: (identifier))
+              arguments: (argument_list
+                (argument
+                  (identifier)))))))
       (block))))
 
 ================================================================================
