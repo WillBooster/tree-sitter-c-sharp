@@ -1085,11 +1085,11 @@ module.exports = grammar({
           $.positional_pattern_clause,
           // other type followed by a property pattern clause
           seq(field('type', $.type), $.property_pattern_clause, optional($._simple_designation)),
-          // A positional clause follows only a name (above) or a predefined type. Letting any type take one reads
-          // `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed the
-          // runtime's limit, and which reading survives depends on the versions alive, not on dynamic precedence.
+          // A positional clause follows only a name (above), a predefined type, or an array type. Letting any type take
+          // one reads `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed
+          // the runtime's limit, and which reading survives depends on the versions alive, not on dynamic precedence.
           seq(
-            field('type', $.predefined_type),
+            field('type', choice($.predefined_type, $.array_type)),
             $.positional_pattern_clause,
             optional($.property_pattern_clause),
             optional($._simple_designation)

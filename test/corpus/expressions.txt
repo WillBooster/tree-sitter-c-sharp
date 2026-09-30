@@ -3518,12 +3518,12 @@ var c = p is (var x, var y) { x: 0 };
                     (integer_literal)))))))))))
 
 ================================================================================
-Positional patterns after a predefined type
+Positional patterns after a predefined type or an array type
 ================================================================================
 
 var a = o is int (1);
 var b = o switch { int (var q) => 1, _ => 0 };
-switch (o) { case string (var c, var d) s: break; }
+switch (o) { case string (var c, var d) s: break; case int[] (1): break; case A[] (var e): break; }
 
 --------------------------------------------------------------------------------
 
@@ -3579,6 +3579,27 @@ switch (o) { case string (var c, var d) s: break; }
                   type: (implicit_type)
                   name: (identifier))))
             name: (identifier))
+          (break_statement))
+        (switch_section
+          (recursive_pattern
+            type: (array_type
+              type: (predefined_type)
+              rank: (array_rank_specifier))
+            (positional_pattern_clause
+              (subpattern
+                (constant_pattern
+                  (integer_literal)))))
+          (break_statement))
+        (switch_section
+          (recursive_pattern
+            type: (array_type
+              type: (identifier)
+              rank: (array_rank_specifier))
+            (positional_pattern_clause
+              (subpattern
+                (declaration_pattern
+                  type: (implicit_type)
+                  name: (identifier)))))
           (break_statement))))))
 
 ================================================================================

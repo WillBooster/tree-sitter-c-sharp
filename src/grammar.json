@@ -6314,8 +6314,17 @@
                 "type": "FIELD",
                 "name": "type",
                 "content": {
-                  "type": "SYMBOL",
-                  "name": "predefined_type"
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "predefined_type"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "array_type"
+                    }
+                  ]
                 }
               },
               {
