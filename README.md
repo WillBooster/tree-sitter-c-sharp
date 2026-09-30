@@ -76,9 +76,10 @@ parser.setLanguage(await Language.load(cSharp));
 
 The package also ships the node types in `src/node-types.json`.
 
-In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and the
-[runtime](https://crates.io/crates/willbooster-tree-sitter), whose fixes keep incremental reparses consistent with
-fresh parses:
+In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
+[willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
+fuzzed with, whose fixes keep incremental reparses consistent with fresh parses (the grammar also loads in the upstream
+`tree-sitter` crate 0.27, whose error recovery never ends on some malformed input):
 
 ```toml
 [dependencies]
@@ -122,7 +123,8 @@ cargo test
 `cargo test` also replays edits that `tree-sitter fuzz` found to break incremental parsing, with the
 willbooster-tree-sitter runtime that fixes them; `tree-sitter fuzz` itself runs the runtime built into tree-sitter-cli.
 
-CI also runs these tests on Linux arm64 and macOS, where the Rust binding compiles the parser natively, and fuzzes the parser with libFuzzer and sanitizers
+CI also runs these tests on Linux arm64 and macOS, where the Rust binding compiles the parser natively, and fuzzes the
+parser with libFuzzer and sanitizers on the willbooster-tree-sitter runtime locked in `Cargo.lock`
 (`.github/workflows/robustness.yml`).
 
 ### References
