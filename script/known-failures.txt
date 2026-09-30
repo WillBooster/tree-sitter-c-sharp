@@ -45,7 +45,6 @@ examples/PowerToys/src/modules/AdvancedPaste/AdvancedPaste.UITests.Next/Advanced
 examples/PowerToys/src/modules/AdvancedPaste/AdvancedPaste/Services/KernelServiceBase.cs
 examples/PowerToys/src/modules/cmdpal/Microsoft.CmdPal.Common/Text/PrecomputedFuzzyMatcher.cs
 examples/PowerToys/src/modules/cmdpal/Microsoft.CmdPal.UI.ViewModels/Commands/MainListPage.cs
-examples/PowerToys/src/modules/cmdpal/Microsoft.CmdPal.UI.ViewModels/Services/CmdPalProtocolActivation.cs
 examples/PowerToys/src/modules/cmdpal/Microsoft.CmdPal.UI/Controls/IconBox.cs
 examples/PowerToys/src/modules/cmdpal/Tests/Microsoft.CmdPal.Ext.Bookmarks.UnitTests/BookmarkResolverTests.Common.cs
 examples/PowerToys/src/modules/cmdpal/Tests/Microsoft.CmdPal.Ext.Bookmarks.UnitTests/BookmarkResolverTests.Quoted.cs
