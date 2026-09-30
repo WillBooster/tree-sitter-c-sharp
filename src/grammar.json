@@ -6985,13 +6985,17 @@
           "name": "element_access_expression"
         },
         {
-          "type": "ALIAS",
+          "type": "PREC_DYNAMIC",
+          "value": -3,
           "content": {
-            "type": "SYMBOL",
-            "name": "bracketed_argument_list"
-          },
-          "named": true,
-          "value": "element_binding_expression"
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "bracketed_argument_list"
+            },
+            "named": true,
+            "value": "element_binding_expression"
+          }
         },
         {
           "type": "ALIAS",

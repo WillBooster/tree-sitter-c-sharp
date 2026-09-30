@@ -1176,7 +1176,9 @@ module.exports = grammar({
         $.tuple_expression,
         $._simple_name,
         $.element_access_expression,
-        alias($.bracketed_argument_list, $.element_binding_expression),
+        // Only an index initializer (`new C { [0] = 1 }`) assigns to a bare `[...]`. The penalty keeps `*(b)[0]` an
+        // element access of `(b)` rather than a dereference of `(b)` cast from `[0]`.
+        prec.dynamic(-3, alias($.bracketed_argument_list, $.element_binding_expression)),
         alias($._pointer_indirection_expression, $.prefix_unary_expression),
         alias($._parenthesized_lvalue_expression, $.parenthesized_expression),
         // C# 14 null-conditional assignment: `obj?.x = v`, `obj?[i] = v`.
