@@ -916,8 +916,10 @@ Element access and member access after address-of and pointer indirection
 p = &s.f;
 p = &a[0];
 p = *a[0];
-p = *(b)[0];
-p = *f();
+p = *(b)[0].x;
+p = *f()[0];
+p = *p++->q;
+p = *(T*)f().g;
 p = *(T*)&a[0];
 fixed (byte* q = &b[0]) {}
 
@@ -957,9 +959,23 @@ fixed (byte* q = &b[0]) {}
       (assignment_expression
         left: (identifier)
         right: (prefix_unary_expression
+          (member_access_expression
+            expression: (element_access_expression
+              expression: (parenthesized_expression
+                (identifier))
+              subscript: (bracketed_argument_list
+                (argument
+                  (integer_literal))))
+            name: (identifier))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
           (element_access_expression
-            expression: (parenthesized_expression
-              (identifier))
+            expression: (invocation_expression
+              function: (identifier)
+              arguments: (argument_list))
             subscript: (bracketed_argument_list
               (argument
                 (integer_literal))))))))
@@ -968,9 +984,23 @@ fixed (byte* q = &b[0]) {}
       (assignment_expression
         left: (identifier)
         right: (prefix_unary_expression
-          (invocation_expression
-            function: (identifier)
-            arguments: (argument_list))))))
+          (member_access_expression
+            expression: (postfix_unary_expression
+              (identifier))
+            name: (identifier))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (identifier))
+            value: (member_access_expression
+              expression: (invocation_expression
+                function: (identifier)
+                arguments: (argument_list))
+              name: (identifier)))))))
   (global_statement
     (expression_statement
       (assignment_expression

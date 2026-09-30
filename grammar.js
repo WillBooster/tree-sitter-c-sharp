@@ -1007,9 +1007,10 @@ module.exports = grammar({
     _name_invocation_pattern: ($) => seq(field('function', $._name), field('arguments', $.argument_list)),
 
     // Invocation where function is not a simple name
+    // One above `invocation_expression`, which reads the same tokens where both fit.
     _complex_invocation_expression: ($) =>
       prec(
-        PREC.INVOCATION,
+        PREC.INVOCATION + 1,
         seq(
           field(
             'function',
@@ -1242,12 +1243,7 @@ module.exports = grammar({
         )
       ),
 
-    // Postfix operators, invocations, element accesses, and member accesses also take an lvalue_expression directly.
-    // Through `expression` only, `&a[0]`, `*a[0]`, and `*(T*)p++` would reduce the unary operator or the cast, whose
-    // operand is an lvalue_expression, before `expression → lvalue_expression` (precedence 0) could let the postfix
-    // operator apply to the operand.
-    postfix_unary_expression: ($) =>
-      prec(PREC.POSTFIX, seq(choice($.expression, $.lvalue_expression), choice('++', '--', '!'))),
+    postfix_unary_expression: ($) => prec(PREC.POSTFIX, seq(postfixOperand($), choice('++', '--', '!'))),
 
     prefix_unary_expression: ($) =>
       prec(
@@ -1271,7 +1267,7 @@ module.exports = grammar({
     // invocation expression, or an address (`*(int*)p`, `*(long*)(p + 4)`, `*(T*)f()`, `*(long*)&v`). Dereferencing
     // any other expression (`*++p`) is only read: letting any expression be the assignable form's operand lets `=`
     // follow every expression that can be the operand, which grows the parser by about 4,800 states and nearly doubles
-    // the Wasm build, while these operands add about 500.
+    // the Wasm build, while these operands add about 550.
     //
     // A parenthesized expression followed by `*` is a multiplication, not a
     // cast of a dereference (C# spec §12.9.8 Cast expressions: `(a) * b` is
@@ -1417,10 +1413,7 @@ module.exports = grammar({
     checked_expression: ($) => seq(choice('checked', 'unchecked'), '(', $.expression, ')'),
 
     invocation_expression: ($) =>
-      prec(
-        PREC.INVOCATION,
-        seq(field('function', choice($.expression, $.lvalue_expression)), field('arguments', $.argument_list))
-      ),
+      prec(PREC.INVOCATION, seq(field('function', postfixOperand($)), field('arguments', $.argument_list))),
 
     switch_expression: ($) => prec(PREC.SWITCH, seq($.expression, 'switch', $._switch_expression_body)),
     _switch_expression_body: ($) => seq('{', commaSep($.switch_expression_arm), optional(','), '}'),
@@ -1434,13 +1427,7 @@ module.exports = grammar({
     throw_expression: ($) => seq('throw', $.expression),
 
     element_access_expression: ($) =>
-      prec(
-        PREC.POSTFIX,
-        seq(
-          field('expression', choice($.expression, $.lvalue_expression)),
-          field('subscript', $.bracketed_argument_list)
-        )
-      ),
+      prec(PREC.POSTFIX, seq(field('expression', postfixOperand($)), field('subscript', $.bracketed_argument_list))),
 
     interpolated_string_expression: ($) =>
       choice(
@@ -1490,7 +1477,7 @@ module.exports = grammar({
       prec(
         PREC.DOT,
         seq(
-          field('expression', choice($.expression, $.lvalue_expression, $.predefined_type, $._name)),
+          field('expression', choice(postfixOperand($), $.predefined_type, $._name)),
           choice('.', '->'),
           field('name', $._simple_name)
         )
@@ -1909,6 +1896,26 @@ function preprocIf(suffix, content, precedence = 0, rep = true) {
         )
       ),
   };
+}
+
+/**
+ * The operand of a postfix operator, an invocation, an element access, or a member access. Besides `expression`, it
+ * lists the forms that are operands of `&`, of the assignable `*`, or of the assignable cast: reaching them only
+ * through `expression` would reduce the unary operator or the cast (precedence UNARY or CAST) before `expression`
+ * (precedence 0) lets the postfix operator apply, reading `&a[0]` as `(&a)[0]` and `*(T*)f()[0]` as `(*(T*)f())[0]`.
+ *
+ * @param {GrammarSymbols<string>} $
+ *
+ * @returns {ChoiceRule}
+ */
+function postfixOperand($) {
+  return choice(
+    $.expression,
+    $.lvalue_expression,
+    $.invocation_expression,
+    $.postfix_unary_expression,
+    $.parenthesized_expression
+  );
 }
 
 /**

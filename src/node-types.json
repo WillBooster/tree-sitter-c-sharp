@@ -2324,6 +2324,14 @@
           {
             "type": "expression",
             "named": true
+          },
+          {
+            "type": "invocation_expression",
+            "named": true
+          },
+          {
+            "type": "postfix_unary_expression",
+            "named": true
           }
         ]
       },
@@ -3466,6 +3474,10 @@
             "named": true
           },
           {
+            "type": "postfix_unary_expression",
+            "named": true
+          },
+          {
             "type": "qualified_name",
             "named": true
           }
@@ -3875,6 +3887,14 @@
           },
           {
             "type": "expression",
+            "named": true
+          },
+          {
+            "type": "invocation_expression",
+            "named": true
+          },
+          {
+            "type": "postfix_unary_expression",
             "named": true
           },
           {
@@ -4643,6 +4663,14 @@
       "types": [
         {
           "type": "expression",
+          "named": true
+        },
+        {
+          "type": "invocation_expression",
+          "named": true
+        },
+        {
+          "type": "postfix_unary_expression",
           "named": true
         }
       ]

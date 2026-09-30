@@ -5961,7 +5961,7 @@
     },
     "_complex_invocation_expression": {
       "type": "PREC",
-      "value": 18,
+      "value": 19,
       "content": {
         "type": "SEQ",
         "members": [
@@ -7813,6 +7813,18 @@
               {
                 "type": "SYMBOL",
                 "name": "lvalue_expression"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "invocation_expression"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "postfix_unary_expression"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "parenthesized_expression"
               }
             ]
           },
@@ -8669,6 +8681,18 @@
                 {
                   "type": "SYMBOL",
                   "name": "lvalue_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "invocation_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "postfix_unary_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "parenthesized_expression"
                 }
               ]
             }
@@ -8854,6 +8878,18 @@
                 {
                   "type": "SYMBOL",
                   "name": "lvalue_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "invocation_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "postfix_unary_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "parenthesized_expression"
                 }
               ]
             }
@@ -9139,12 +9175,29 @@
               "type": "CHOICE",
               "members": [
                 {
-                  "type": "SYMBOL",
-                  "name": "expression"
-                },
-                {
-                  "type": "SYMBOL",
-                  "name": "lvalue_expression"
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "expression"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "lvalue_expression"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "invocation_expression"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "postfix_unary_expression"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "parenthesized_expression"
+                    }
+                  ]
                 },
                 {
                   "type": "SYMBOL",
