@@ -1443,6 +1443,8 @@ Lambda expression with ref modifier
 ================================================================================
 
 MyIntDelegate a = (ref int i) => i + 1;
+var b = (int x, ref readonly int y, scoped ref int z) => x;
+var c = (in Query q, int i) => i;
 
 --------------------------------------------------------------------------------
 
@@ -1456,12 +1458,50 @@ MyIntDelegate a = (ref int i) => i + 1;
           (lambda_expression
             parameters: (parameter_list
               (parameter
-                type: (ref_type
-                  type: (predefined_type))
+                (modifier)
+                type: (predefined_type)
                 name: (identifier)))
             body: (binary_expression
               left: (identifier)
-              right: (integer_literal))))))))
+              right: (integer_literal)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (lambda_expression
+            parameters: (parameter_list
+              (parameter
+                type: (predefined_type)
+                name: (identifier))
+              (parameter
+                (modifier)
+                (modifier)
+                type: (predefined_type)
+                name: (identifier))
+              (parameter
+                (modifier)
+                (modifier)
+                type: (predefined_type)
+                name: (identifier)))
+            body: (identifier))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (lambda_expression
+            parameters: (parameter_list
+              (parameter
+                (modifier)
+                type: (identifier)
+                name: (identifier))
+              (parameter
+                type: (predefined_type)
+                name: (identifier)))
+            body: (identifier)))))))
 
 ================================================================================
 Invocation expressions
