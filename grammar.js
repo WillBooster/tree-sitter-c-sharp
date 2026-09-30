@@ -1242,7 +1242,12 @@ module.exports = grammar({
         )
       ),
 
-    postfix_unary_expression: ($) => prec(PREC.POSTFIX, seq($.expression, choice('++', '--', '!'))),
+    // Postfix operators, invocations, element accesses, and member accesses also take an lvalue_expression directly.
+    // Through `expression` only, `&a[0]`, `*a[0]`, and `*(T*)p++` would reduce the unary operator or the cast, whose
+    // operand is an lvalue_expression, before `expression → lvalue_expression` (precedence 0) could let the postfix
+    // operator apply to the operand.
+    postfix_unary_expression: ($) =>
+      prec(PREC.POSTFIX, seq(choice($.expression, $.lvalue_expression), choice('++', '--', '!'))),
 
     prefix_unary_expression: ($) =>
       prec(
@@ -1262,10 +1267,11 @@ module.exports = grammar({
 
     // Pointer indirection is split by its operand. The assignable form, surfaced in `lvalue_expression`, takes an
     // lvalue (`*p`, `*(p)`, `**pp`) or an operand that ends in a closing token or an lvalue: a parenthesized
-    // expression (`*(p + 1)`), a cast of an lvalue or of its address (`*(int*)p`, `*(long*)&v`), or a postfix
-    // increment of an lvalue (`*p++`). Dereferencing any other expression (`*f()`) is only read: letting any
-    // expression be the assignable form's operand lets `=` follow every expression that can be the operand, which
-    // grows the parser by about 4,800 states and nearly doubles the Wasm build, while these operands add about 370.
+    // expression (`*(p + 1)`), a postfix expression (`*p++`), an invocation (`*f()`), or a cast of one of these or of
+    // an address (`*(int*)p`, `*(long*)(p + 4)`, `*(long*)&v`). Dereferencing any other expression (`*++p`) is only
+    // read: letting any expression be the assignable form's operand lets `=` follow every expression that can be the
+    // operand, which grows the parser by about 4,800 states and nearly doubles the Wasm build, while these operands
+    // add about 500.
     //
     // A parenthesized expression followed by `*` is a multiplication, not a
     // cast of a dereference (C# spec §12.9.8 Cast expressions: `(a) * b` is
@@ -1284,7 +1290,8 @@ module.exports = grammar({
               $.lvalue_expression,
               $.parenthesized_expression,
               alias($._lvalue_cast_expression, $.cast_expression),
-              alias($._lvalue_postfix_unary_expression, $.postfix_unary_expression)
+              $.postfix_unary_expression,
+              $.invocation_expression
             )
           )
         )
@@ -1299,12 +1306,19 @@ module.exports = grammar({
             '(',
             field('type', $.type),
             ')',
-            field('value', choice($.lvalue_expression, alias($._address_of_expression, $.prefix_unary_expression)))
+            field(
+              'value',
+              choice(
+                $.lvalue_expression,
+                $.parenthesized_expression,
+                alias($._address_of_expression, $.prefix_unary_expression),
+                $.postfix_unary_expression,
+                $.invocation_expression
+              )
+            )
           )
         )
       ),
-
-    _lvalue_postfix_unary_expression: ($) => prec(PREC.POSTFIX, seq($.lvalue_expression, choice('++', '--'))),
 
     _value_indirection_expression: ($) => prec.dynamic(-4, prec.right(PREC.UNARY, seq('*', $.non_lvalue_expression))),
 
@@ -1401,7 +1415,10 @@ module.exports = grammar({
     checked_expression: ($) => seq(choice('checked', 'unchecked'), '(', $.expression, ')'),
 
     invocation_expression: ($) =>
-      prec(PREC.INVOCATION, seq(field('function', $.expression), field('arguments', $.argument_list))),
+      prec(
+        PREC.INVOCATION,
+        seq(field('function', choice($.expression, $.lvalue_expression)), field('arguments', $.argument_list))
+      ),
 
     switch_expression: ($) => prec(PREC.SWITCH, seq($.expression, 'switch', $._switch_expression_body)),
     _switch_expression_body: ($) => seq('{', commaSep($.switch_expression_arm), optional(','), '}'),
@@ -1415,7 +1432,13 @@ module.exports = grammar({
     throw_expression: ($) => seq('throw', $.expression),
 
     element_access_expression: ($) =>
-      prec(PREC.POSTFIX, seq(field('expression', $.expression), field('subscript', $.bracketed_argument_list))),
+      prec(
+        PREC.POSTFIX,
+        seq(
+          field('expression', choice($.expression, $.lvalue_expression)),
+          field('subscript', $.bracketed_argument_list)
+        )
+      ),
 
     interpolated_string_expression: ($) =>
       choice(
@@ -1465,7 +1488,7 @@ module.exports = grammar({
       prec(
         PREC.DOT,
         seq(
-          field('expression', choice($.expression, $.predefined_type, $._name)),
+          field('expression', choice($.expression, $.lvalue_expression, $.predefined_type, $._name)),
           choice('.', '->'),
           field('name', $._simple_name)
         )
