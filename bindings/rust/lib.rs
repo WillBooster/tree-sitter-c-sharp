@@ -101,6 +101,40 @@ mod tests {
         new_parser();
     }
 
+    // The input and edits are the corpus case "Precedence between is operator and as operator" and the edits
+    // `tree-sitter fuzz` makes with TREE_SITTER_SEED=1133. They leave a syntax error before the unchanged last line.
+    #[test]
+    fn test_parsing_var_as_an_implicit_type_after_an_error_on_a_preceding_line() {
+        let mut parser = new_parser();
+        let mut code = concat!(
+            "\n",
+            "//var a = new object() is null as Object == false; // this parses with wrong precedence\n",
+            "var a = new object() is null as Object;\n",
+            "var b = true == 1 as int? is int;\n",
+        )
+        .as_bytes()
+        .to_vec();
+        let mut tree = parser.parse(&code, None).unwrap();
+        for e in [(16, 64, &b"2B7QP"[..]), (0, 0, b"4 & "), (18, 0, b"j9F7nu")] {
+            edit(&mut tree, &mut code, e);
+        }
+        let var_b = code.windows(5).position(|w| w == b"var b").unwrap();
+        let var_kind = |tree: &Tree| {
+            tree.root_node()
+                .named_descendant_for_byte_range(var_b, var_b + 3)
+                .unwrap()
+                .kind()
+                .to_string()
+        };
+
+        let reparsed = parser.parse(&code, Some(&tree)).unwrap();
+        assert_eq!(var_kind(&reparsed), "implicit_type");
+        assert_eq!(
+            var_kind(&parser.parse(&code, None).unwrap()),
+            "implicit_type"
+        );
+    }
+
     // The input and edits are the corpus case "Identifiers" and the edits `tree-sitter fuzz` makes with
     // TREE_SITTER_SEED=6575. One of them splits the three bytes of U+203F in `first\u{203F}letter`, right after the token
     // `first`.
