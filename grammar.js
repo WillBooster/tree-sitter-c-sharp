@@ -1007,9 +1007,10 @@ module.exports = grammar({
     _name_invocation_pattern: ($) => seq(field('function', $._name), field('arguments', $.argument_list)),
 
     // Invocation where function is not a simple name
+    // One above `invocation_expression`, which reads the same tokens where both fit.
     _complex_invocation_expression: ($) =>
       prec(
-        PREC.INVOCATION,
+        PREC.INVOCATION + 1,
         seq(
           field(
             'function',
@@ -1242,7 +1243,7 @@ module.exports = grammar({
         )
       ),
 
-    postfix_unary_expression: ($) => prec(PREC.POSTFIX, seq($.expression, choice('++', '--', '!'))),
+    postfix_unary_expression: ($) => prec(PREC.POSTFIX, seq(postfixOperand($), choice('++', '--', '!'))),
 
     prefix_unary_expression: ($) =>
       prec(
@@ -1260,35 +1261,69 @@ module.exports = grammar({
         )
       ),
 
-    // Pointer indirection is split by its operand. Dereferencing an lvalue
-    // (`*p`, `*(p)`, `**pp`) yields an lvalue, so it is surfaced in
-    // `lvalue_expression` and can be assigned to. Dereferencing any other
-    // expression (`*(long*)&v`, `*(p + 1)`) is only read: surfacing it in
-    // `lvalue_expression` too would let `=` follow every expression that can
-    // be its operand, which grows the parser from 8,495 to 13,339 states.
+    // Pointer indirection is split by its operand. The assignable form, surfaced in `lvalue_expression`, takes an
+    // lvalue (`*p`, `*(p)`, `**pp`) or an operand that ends in a closing token or an lvalue: a parenthesized
+    // expression (`*(p + 1)`), a postfix expression (`*p++`), an address (`*&v`), or a cast of an lvalue, a
+    // parenthesized, postfix, or invocation expression, or an address (`*(int*)p`, `*(long*)(p + 4)`, `*(T*)f()`,
+    // `*(long*)&v`). Dereferencing any other expression (`*++p`) is only read: letting any expression be the assignable
+    // form's operand lets `=` follow every expression that can be the operand, which grows the parser by about 4,800
+    // states and nearly doubles the Wasm build, while these operands add about 550.
     //
-    // A parenthesized expression followed by `*` is a multiplication, not a
-    // cast of a dereference (C# spec §12.9.8 Cast expressions: `(a) * b` is
-    // a cast only when `a` cannot be an expression), so a dereference's
-    // penalty outweighs the cast's +1. `*(p) + 1` is likewise the sum of a
-    // dereference of `(p)` (-2), not a dereference of a cast of `+1`
-    // (-4 + 1), so dereferencing a non-lvalue carries the larger penalty.
-    _pointer_indirection_expression: ($) => prec.dynamic(-2, prec.right(PREC.UNARY, seq('*', $.lvalue_expression))),
+    // Dynamic precedences: an assignable dereference -2, a read-only one -4, a read-only cast +1, and an assignable cast
+    // -1. C# reads a parenthesized name as a cast only when the token after `)` is `~`, `!`, `(`, an identifier, a
+    // literal, or a keyword (C# spec §12.9.8 Cast expressions), and these values keep that reading: `(a) * b` is a
+    // multiplication (0), not a cast of `*b` (+1 - 2); `*(p) + 1` and `*(p) & x` apply to a dereference of `(p)` (-2),
+    // not to a dereference of a cast of `+1` or `&x` (-4 + 1 or -2 - 1); `*(b)[0]` dereferences an element access
+    // (-2), not a cast of `[0]` (-2 - 1). Where both casts fit, they give the same tree.
+    _pointer_indirection_expression: ($) =>
+      prec.dynamic(
+        -2,
+        prec.right(
+          PREC.UNARY,
+          seq(
+            '*',
+            choice(
+              $.lvalue_expression,
+              $.parenthesized_expression,
+              alias($._address_of_expression, $.prefix_unary_expression),
+              alias($._lvalue_cast_expression, $.cast_expression),
+              $.postfix_unary_expression
+            )
+          )
+        )
+      ),
+
+    _lvalue_cast_expression: ($) =>
+      prec(
+        PREC.CAST,
+        prec.dynamic(
+          -1,
+          seq(
+            '(',
+            field('type', $.type),
+            ')',
+            field(
+              'value',
+              choice(
+                $.lvalue_expression,
+                $.parenthesized_expression,
+                alias($._address_of_expression, $.prefix_unary_expression),
+                $.postfix_unary_expression,
+                $.invocation_expression
+              )
+            )
+          )
+        )
+      ),
 
     _value_indirection_expression: ($) => prec.dynamic(-4, prec.right(PREC.UNARY, seq('*', $.non_lvalue_expression))),
 
-    // Address-of is split out from `prefix_unary_expression` so that
-    // `&` can't act as a fallback when the lexer would otherwise
-    // emit `&&`. Its operand is restricted to an lvalue (same shape
-    // as the spec's `address-of-expression`). This is the fix for
-    // tree-sitter#413: `(a) && (b > 0)` was misparsed as
-    // `cast(a, &(&(b > 0)))` because the cast state accepted `&` as
-    // a unary start and the lexer split `&&` into two `&` tokens.
-    // With this split, `&` is only valid before an lvalue, which
-    // `(b > 0)` is not — so the cast interpretation can no longer
-    // consume the trailing parenthesized expression and `&&` must
-    // be emitted as a single token for the binary path to succeed.
-    _address_of_expression: ($) => prec.right(PREC.UNARY, seq('&', $.lvalue_expression)),
+    // Address-of is split out from `prefix_unary_expression` and takes only a variable: an lvalue, or an invocation,
+    // which can return a reference (`&span.GetPinnableReference()`). If a cast could take `&` before any expression,
+    // the lexer would split `&&` into two `&` tokens and `(a) && (b > 0)` would read as a cast of `&(&(b > 0))`; as
+    // `(b > 0)` is not a variable, that reading fails and `&&` stays one token.
+    _address_of_expression: ($) =>
+      prec.right(PREC.UNARY, seq('&', choice($.lvalue_expression, $.invocation_expression))),
 
     query_expression: ($) => seq($.from_clause, $._query_body),
 
@@ -1370,7 +1405,7 @@ module.exports = grammar({
     checked_expression: ($) => seq(choice('checked', 'unchecked'), '(', $.expression, ')'),
 
     invocation_expression: ($) =>
-      prec(PREC.INVOCATION, seq(field('function', $.expression), field('arguments', $.argument_list))),
+      prec(PREC.INVOCATION, seq(field('function', postfixOperand($)), field('arguments', $.argument_list))),
 
     switch_expression: ($) => prec(PREC.SWITCH, seq($.expression, 'switch', $._switch_expression_body)),
     _switch_expression_body: ($) => seq('{', commaSep($.switch_expression_arm), optional(','), '}'),
@@ -1384,7 +1419,7 @@ module.exports = grammar({
     throw_expression: ($) => seq('throw', $.expression),
 
     element_access_expression: ($) =>
-      prec(PREC.POSTFIX, seq(field('expression', $.expression), field('subscript', $.bracketed_argument_list))),
+      prec(PREC.POSTFIX, seq(field('expression', postfixOperand($)), field('subscript', $.bracketed_argument_list))),
 
     interpolated_string_expression: ($) =>
       choice(
@@ -1434,7 +1469,7 @@ module.exports = grammar({
       prec(
         PREC.DOT,
         seq(
-          field('expression', choice($.expression, $.predefined_type, $._name)),
+          field('expression', choice(postfixOperand($), $.predefined_type, $._name)),
           choice('.', '->'),
           field('name', $._simple_name)
         )
@@ -1853,6 +1888,26 @@ function preprocIf(suffix, content, precedence = 0, rep = true) {
         )
       ),
   };
+}
+
+/**
+ * The operand of a postfix operator, an invocation, an element access, or a member access. Besides `expression`, it
+ * lists the forms that are operands of `&`, of the assignable `*`, or of the assignable cast: reaching them only
+ * through `expression` would reduce the unary operator or the cast (precedence UNARY or CAST) before `expression`
+ * (precedence 0) lets the postfix operator apply, reading `&a[0]` as `(&a)[0]` and `*(T*)f()[0]` as `(*(T*)f())[0]`.
+ *
+ * @param {GrammarSymbols<string>} $
+ *
+ * @returns {ChoiceRule}
+ */
+function postfixOperand($) {
+  return choice(
+    $.expression,
+    $.lvalue_expression,
+    $.invocation_expression,
+    $.postfix_unary_expression,
+    $.parenthesized_expression
+  );
 }
 
 /**

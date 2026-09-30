@@ -737,6 +737,336 @@ x = *(p) - *(q);
               (identifier))))))))
 
 ================================================================================
+Assignments through pointer indirection of non-lvalue expressions
+================================================================================
+
+*(int*)p = 1;
+*(long*)(p + 4) = 1;
+*(long*)&v = 1;
+*(int*)p++ = 1;
+*(T*)a[0] = 1;
+*(T*)f() = 1;
+*(p + 1) = 1;
+*&s.f = 1;
+*dst++ = *src++;
+*(int*)p += 2;
+var a = *p++;
+var b = *(int*)p++;
+var c = *(T*)a[0];
+var d = *(p) & x;
+var e = *(T)(x);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (predefined_type))
+            value: (identifier)))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (predefined_type))
+            value: (parenthesized_expression
+              (binary_expression
+                left: (identifier)
+                right: (integer_literal)))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (predefined_type))
+            value: (prefix_unary_expression
+              (identifier))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (predefined_type))
+            value: (postfix_unary_expression
+              (identifier))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (identifier))
+            value: (element_access_expression
+              expression: (identifier)
+              subscript: (bracketed_argument_list
+                (argument
+                  (integer_literal))))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (identifier))
+            value: (invocation_expression
+              function: (identifier)
+              arguments: (argument_list))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (parenthesized_expression
+            (binary_expression
+              left: (identifier)
+              right: (integer_literal))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (prefix_unary_expression
+            (member_access_expression
+              expression: (identifier)
+              name: (identifier))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (postfix_unary_expression
+            (identifier)))
+        right: (prefix_unary_expression
+          (postfix_unary_expression
+            (identifier))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (predefined_type))
+            value: (identifier)))
+        right: (integer_literal))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (postfix_unary_expression
+              (identifier)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (predefined_type))
+              value: (postfix_unary_expression
+                (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (identifier))
+              value: (element_access_expression
+                expression: (identifier)
+                subscript: (bracketed_argument_list
+                  (argument
+                    (integer_literal))))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (binary_expression
+            left: (prefix_unary_expression
+              (parenthesized_expression
+                (identifier)))
+            right: (identifier))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (identifier)
+              value: (parenthesized_expression
+                (identifier)))))))))
+
+================================================================================
+Element access and member access after address-of and pointer indirection
+================================================================================
+
+p = &s.f;
+p = &a[0];
+p = &f();
+p = *a[0];
+p = *(b)[0].x;
+p = *f()[0];
+p = *p++->q;
+p = *(T*)f().g;
+p = *(T*)&a[0];
+fixed (byte* q = &b[0]) {}
+fixed (byte* r = &MemoryMarshal.GetReference(s)) {}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (member_access_expression
+            expression: (identifier)
+            name: (identifier))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (element_access_expression
+            expression: (identifier)
+            subscript: (bracketed_argument_list
+              (argument
+                (integer_literal))))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (invocation_expression
+            function: (identifier)
+            arguments: (argument_list))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (element_access_expression
+            expression: (identifier)
+            subscript: (bracketed_argument_list
+              (argument
+                (integer_literal))))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (member_access_expression
+            expression: (element_access_expression
+              expression: (parenthesized_expression
+                (identifier))
+              subscript: (bracketed_argument_list
+                (argument
+                  (integer_literal))))
+            name: (identifier))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (element_access_expression
+            expression: (invocation_expression
+              function: (identifier)
+              arguments: (argument_list))
+            subscript: (bracketed_argument_list
+              (argument
+                (integer_literal))))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (member_access_expression
+            expression: (postfix_unary_expression
+              (identifier))
+            name: (identifier))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (identifier))
+            value: (member_access_expression
+              expression: (invocation_expression
+                function: (identifier)
+                arguments: (argument_list))
+              name: (identifier)))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (identifier))
+            value: (prefix_unary_expression
+              (element_access_expression
+                expression: (identifier)
+                subscript: (bracketed_argument_list
+                  (argument
+                    (integer_literal))))))))))
+  (global_statement
+    (fixed_statement
+      (variable_declaration
+        type: (pointer_type
+          type: (predefined_type))
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (element_access_expression
+              expression: (identifier)
+              subscript: (bracketed_argument_list
+                (argument
+                  (integer_literal)))))))
+      (block)))
+  (global_statement
+    (fixed_statement
+      (variable_declaration
+        type: (pointer_type
+          type: (predefined_type))
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (invocation_expression
+              function: (member_access_expression
+                expression: (identifier)
+                name: (identifier))
+              arguments: (argument_list
+                (argument
+                  (identifier)))))))
+      (block))))
+
+================================================================================
 Precedence of unary prefix operator and element access
 ================================================================================
 
