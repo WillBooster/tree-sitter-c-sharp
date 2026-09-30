@@ -82,7 +82,7 @@ fresh parses:
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "1.0.3" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "1.0.4" }
 tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "1" }
 ```
 
