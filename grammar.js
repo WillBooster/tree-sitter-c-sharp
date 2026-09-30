@@ -1176,9 +1176,7 @@ module.exports = grammar({
         $.tuple_expression,
         $._simple_name,
         $.element_access_expression,
-        // Only an index initializer (`new C { [0] = 1 }`) assigns to a bare `[...]`. The penalty keeps `*(b)[0]` an
-        // element access of `(b)` rather than a dereference of `(b)` cast from `[0]`.
-        prec.dynamic(-3, alias($.bracketed_argument_list, $.element_binding_expression)),
+        alias($.bracketed_argument_list, $.element_binding_expression),
         alias($._pointer_indirection_expression, $.prefix_unary_expression),
         alias($._parenthesized_lvalue_expression, $.parenthesized_expression),
         // C# 14 null-conditional assignment: `obj?.x = v`, `obj?[i] = v`.
@@ -1269,11 +1267,11 @@ module.exports = grammar({
 
     // Pointer indirection is split by its operand. The assignable form, surfaced in `lvalue_expression`, takes an
     // lvalue (`*p`, `*(p)`, `**pp`) or an operand that ends in a closing token or an lvalue: a parenthesized
-    // expression (`*(p + 1)`), a postfix expression (`*p++`), an invocation (`*f()`), or a cast of one of these or of
-    // an address (`*(int*)p`, `*(long*)(p + 4)`, `*(long*)&v`). Dereferencing any other expression (`*++p`) is only
-    // read: letting any expression be the assignable form's operand lets `=` follow every expression that can be the
-    // operand, which grows the parser by about 4,800 states and nearly doubles the Wasm build, while these operands
-    // add about 500.
+    // expression (`*(p + 1)`), a postfix expression (`*p++`), or a cast of an lvalue, a parenthesized, postfix, or
+    // invocation expression, or an address (`*(int*)p`, `*(long*)(p + 4)`, `*(T*)f()`, `*(long*)&v`). Dereferencing
+    // any other expression (`*++p`) is only read: letting any expression be the assignable form's operand lets `=`
+    // follow every expression that can be the operand, which grows the parser by about 4,800 states and nearly doubles
+    // the Wasm build, while these operands add about 500.
     //
     // A parenthesized expression followed by `*` is a multiplication, not a
     // cast of a dereference (C# spec §12.9.8 Cast expressions: `(a) * b` is
@@ -1292,18 +1290,20 @@ module.exports = grammar({
               $.lvalue_expression,
               $.parenthesized_expression,
               alias($._lvalue_cast_expression, $.cast_expression),
-              $.postfix_unary_expression,
-              $.invocation_expression
+              $.postfix_unary_expression
             )
           )
         )
       ),
 
+    // Its dynamic precedence of -1, against the +1 of a read-only cast, keeps a cast reading from winning over a
+    // postfix or binary reading of a parenthesized name that C# does not read as a cast: `*(p) & x` is a bitwise AND.
+    // Where only this form fits (`*(int*)p = 1`), no reading competes.
     _lvalue_cast_expression: ($) =>
       prec(
         PREC.CAST,
         prec.dynamic(
-          1,
+          -1,
           seq(
             '(',
             field('type', $.type),

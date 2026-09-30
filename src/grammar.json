@@ -6985,17 +6985,13 @@
           "name": "element_access_expression"
         },
         {
-          "type": "PREC_DYNAMIC",
-          "value": -3,
+          "type": "ALIAS",
           "content": {
-            "type": "ALIAS",
-            "content": {
-              "type": "SYMBOL",
-              "name": "bracketed_argument_list"
-            },
-            "named": true,
-            "value": "element_binding_expression"
-          }
+            "type": "SYMBOL",
+            "name": "bracketed_argument_list"
+          },
+          "named": true,
+          "value": "element_binding_expression"
         },
         {
           "type": "ALIAS",
@@ -7922,10 +7918,6 @@
                 {
                   "type": "SYMBOL",
                   "name": "postfix_unary_expression"
-                },
-                {
-                  "type": "SYMBOL",
-                  "name": "invocation_expression"
                 }
               ]
             }
@@ -7938,7 +7930,7 @@
       "value": 17,
       "content": {
         "type": "PREC_DYNAMIC",
-        "value": 1,
+        "value": -1,
         "content": {
           "type": "SEQ",
           "members": [
