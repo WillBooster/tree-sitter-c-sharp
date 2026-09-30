@@ -7887,11 +7887,115 @@
               "value": "*"
             },
             {
-              "type": "SYMBOL",
-              "name": "lvalue_expression"
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "lvalue_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "parenthesized_expression"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_lvalue_cast_expression"
+                  },
+                  "named": true,
+                  "value": "cast_expression"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_lvalue_postfix_unary_expression"
+                  },
+                  "named": true,
+                  "value": "postfix_unary_expression"
+                }
+              ]
             }
           ]
         }
+      }
+    },
+    "_lvalue_cast_expression": {
+      "type": "PREC",
+      "value": 17,
+      "content": {
+        "type": "PREC_DYNAMIC",
+        "value": 1,
+        "content": {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "("
+            },
+            {
+              "type": "FIELD",
+              "name": "type",
+              "content": {
+                "type": "SYMBOL",
+                "name": "type"
+              }
+            },
+            {
+              "type": "STRING",
+              "value": ")"
+            },
+            {
+              "type": "FIELD",
+              "name": "value",
+              "content": {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "lvalue_expression"
+                  },
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_address_of_expression"
+                    },
+                    "named": true,
+                    "value": "prefix_unary_expression"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "_lvalue_postfix_unary_expression": {
+      "type": "PREC",
+      "value": 18,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "lvalue_expression"
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "++"
+              },
+              {
+                "type": "STRING",
+                "value": "--"
+              }
+            ]
+          }
+        ]
       }
     },
     "_value_indirection_expression": {

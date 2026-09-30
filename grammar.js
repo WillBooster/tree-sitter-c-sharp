@@ -1260,12 +1260,12 @@ module.exports = grammar({
         )
       ),
 
-    // Pointer indirection is split by its operand. Dereferencing an lvalue
-    // (`*p`, `*(p)`, `**pp`) yields an lvalue, so it is surfaced in
-    // `lvalue_expression` and can be assigned to. Dereferencing any other
-    // expression (`*(long*)&v`, `*(p + 1)`) is only read: surfacing it in
-    // `lvalue_expression` too would let `=` follow every expression that can
-    // be its operand, which grows the parser from 8,495 to 13,339 states.
+    // Pointer indirection is split by its operand. The assignable form, surfaced in `lvalue_expression`, takes an
+    // lvalue (`*p`, `*(p)`, `**pp`) or an operand that ends in a closing token or an lvalue: a parenthesized
+    // expression (`*(p + 1)`), a cast of an lvalue or of its address (`*(int*)p`, `*(long*)&v`), or a postfix
+    // increment of an lvalue (`*p++`). Dereferencing any other expression (`*f()`) is only read: letting any
+    // expression be the assignable form's operand lets `=` follow every expression that can be the operand, which
+    // grows the parser by about 4,800 states and nearly doubles the Wasm build, while these operands add about 370.
     //
     // A parenthesized expression followed by `*` is a multiplication, not a
     // cast of a dereference (C# spec §12.9.8 Cast expressions: `(a) * b` is
@@ -1273,7 +1273,38 @@ module.exports = grammar({
     // penalty outweighs the cast's +1. `*(p) + 1` is likewise the sum of a
     // dereference of `(p)` (-2), not a dereference of a cast of `+1`
     // (-4 + 1), so dereferencing a non-lvalue carries the larger penalty.
-    _pointer_indirection_expression: ($) => prec.dynamic(-2, prec.right(PREC.UNARY, seq('*', $.lvalue_expression))),
+    _pointer_indirection_expression: ($) =>
+      prec.dynamic(
+        -2,
+        prec.right(
+          PREC.UNARY,
+          seq(
+            '*',
+            choice(
+              $.lvalue_expression,
+              $.parenthesized_expression,
+              alias($._lvalue_cast_expression, $.cast_expression),
+              alias($._lvalue_postfix_unary_expression, $.postfix_unary_expression)
+            )
+          )
+        )
+      ),
+
+    _lvalue_cast_expression: ($) =>
+      prec(
+        PREC.CAST,
+        prec.dynamic(
+          1,
+          seq(
+            '(',
+            field('type', $.type),
+            ')',
+            field('value', choice($.lvalue_expression, alias($._address_of_expression, $.prefix_unary_expression)))
+          )
+        )
+      ),
+
+    _lvalue_postfix_unary_expression: ($) => prec(PREC.POSTFIX, seq($.lvalue_expression, choice('++', '--'))),
 
     _value_indirection_expression: ($) => prec.dynamic(-4, prec.right(PREC.UNARY, seq('*', $.non_lvalue_expression))),
 

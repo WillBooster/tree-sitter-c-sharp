@@ -737,6 +737,76 @@ x = *(p) - *(q);
               (identifier))))))))
 
 ================================================================================
+Assignments through pointer indirection of non-lvalue expressions
+================================================================================
+
+*(int*)p = 1;
+*(long*)&v = 1;
+*(p + 1) = 1;
+*dst++ = *src++;
+*(int*)p += 2;
+var a = *p++;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (predefined_type))
+            value: (identifier)))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (predefined_type))
+            value: (prefix_unary_expression
+              (identifier))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (parenthesized_expression
+            (binary_expression
+              left: (identifier)
+              right: (integer_literal))))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (postfix_unary_expression
+            (identifier)))
+        right: (prefix_unary_expression
+          (postfix_unary_expression
+            (identifier))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (prefix_unary_expression
+          (cast_expression
+            type: (pointer_type
+              type: (predefined_type))
+            value: (identifier)))
+        right: (integer_literal))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (postfix_unary_expression
+              (identifier))))))))
+
+================================================================================
 Precedence of unary prefix operator and element access
 ================================================================================
 
