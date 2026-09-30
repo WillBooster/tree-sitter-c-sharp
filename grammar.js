@@ -101,6 +101,7 @@ module.exports = grammar({
     [$._reserved_identifier, $.parameter],
     [$._simple_name, $.parameter],
     [$.tuple_element, $.parameter, $.declaration_expression],
+    [$.parameter, $.declaration_expression],
     [$.parameter, $.tuple_element],
 
     [$.event_declaration, $.variable_declarator],
@@ -518,8 +519,9 @@ module.exports = grammar({
         )
       ),
 
+    // The precedence reads the `ref` of `extension(ref int)` as a modifier rather than a ref_type.
     receiver_parameter: ($) =>
-      seq(repeat($._attribute_list), $._parameter_type_with_modifiers, optional(field('name', $.identifier))),
+      prec(1, seq(repeat($._attribute_list), $._parameter_type_with_modifiers, optional(field('name', $.identifier)))),
 
     extension_body: ($) => seq('{', repeat($._extension_member_declaration), '}', optional(';')),
 
@@ -615,9 +617,18 @@ module.exports = grammar({
 
     parameter_list: ($) => seq('(', sep(choice($.parameter, $._parameter_array), ','), ')'),
 
+    // `ref`, `out`, and `in` stay out of the repeat: reducing the repeat after them would compete with the shift of
+    // the next token into an argument (`(ref x)`), whose precedence wins, so `(ref int i) =>` would read `ref int` as a
+    // ref_type while a method's `(ref int i)` reads `ref` as a modifier.
     _parameter_type_with_modifiers: ($) =>
       seq(
-        repeat(prec.left(alias(choice('this', 'scoped', 'ref', 'out', 'in', 'readonly'), $.modifier))),
+        repeat(prec.left(alias(choice('this', 'scoped', 'readonly'), $.modifier))),
+        optional(
+          seq(
+            alias(choice('ref', 'out', 'in'), $.modifier),
+            repeat(prec.left(alias(choice('this', 'readonly'), $.modifier)))
+          )
+        ),
         field('type', $.type)
       ),
 
@@ -770,7 +781,8 @@ module.exports = grammar({
         )
       ),
 
-    ref_type: ($) => seq('ref', optional('readonly'), field('type', $.type)),
+    // Right-associative so that a parameter's `ref int x` keeps `ref` as a modifier instead of reducing a ref_type.
+    ref_type: ($) => prec.right(seq('ref', optional('readonly'), field('type', $.type))),
 
     _ref_base_type: ($) =>
       choice(
