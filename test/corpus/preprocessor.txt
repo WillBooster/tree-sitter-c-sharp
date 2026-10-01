@@ -218,3 +218,67 @@ Shebang directive
 
 (compilation_unit
   (shebang_directive))
+
+================================================================================
+Pragma directive at the end of input without a line break
+================================================================================
+
+#pragma warning disable 618
+class A {}
+#pragma warning restore 618
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (preproc_pragma
+    (integer_literal))
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list))
+  (preproc_pragma
+    (integer_literal)))
+
+================================================================================
+Endregion directive at the end of input without a line break
+================================================================================
+
+#region A
+class B {}
+#endregion
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (preproc_region
+    content: (preproc_arg))
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list))
+  (preproc_endregion))
+
+================================================================================
+Error directive at the end of input without a line break
+================================================================================
+
+class A {}
+#error B
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list))
+  (preproc_error
+    (preproc_arg)))
+
+================================================================================
+Nullable directive and a no-break space at the end of input without a line break
+================================================================================
+
+class A {}
+#nullable enable 
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list))
+  (preproc_nullable))

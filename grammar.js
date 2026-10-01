@@ -137,6 +137,7 @@ module.exports = grammar({
     // simple-lambda parameter list (at least one element has a parameter
     // modifier) closed by ')=>'.
     $._lambda_paren_open,
+    $._end_of_input,
   ],
 
   extras: ($) => [
@@ -1766,9 +1767,10 @@ module.exports = grammar({
       );
     },
 
-    preproc_region: ($) => seq(preprocessor('region'), optional(field('content', $.preproc_arg)), /\n/),
+    preproc_region: ($) => seq(preprocessor('region'), optional(field('content', $.preproc_arg)), directiveEnd($)),
 
-    preproc_endregion: ($) => seq(preprocessor('endregion'), optional(field('content', $.preproc_arg)), /\n/),
+    preproc_endregion: ($) =>
+      seq(preprocessor('endregion'), optional(field('content', $.preproc_arg)), directiveEnd($)),
 
     preproc_line: ($) =>
       seq(
@@ -1793,7 +1795,7 @@ module.exports = grammar({
             $.string_literal
           )
         ),
-        /\n/
+        directiveEnd($)
       ),
 
     preproc_pragma: ($) =>
@@ -1803,30 +1805,42 @@ module.exports = grammar({
           seq('warning', choice('disable', 'restore'), commaSep(choice($.identifier, $.integer_literal))),
           seq('checksum', $.string_literal, $.string_literal, $.string_literal)
         ),
-        /\n/
+        directiveEnd($)
       ),
 
-    preproc_nullable: () =>
+    preproc_nullable: ($) =>
       seq(
         preprocessor('nullable'),
         choice('enable', 'disable', 'restore'),
         optional(choice('annotations', 'warnings')),
-        /\n/
+        directiveEnd($)
       ),
 
-    preproc_error: ($) => seq(preprocessor('error'), $.preproc_arg, /\n/),
+    preproc_error: ($) => seq(preprocessor('error'), $.preproc_arg, directiveEnd($)),
 
-    preproc_warning: ($) => seq(preprocessor('warning'), $.preproc_arg, /\n/),
+    preproc_warning: ($) => seq(preprocessor('warning'), $.preproc_arg, directiveEnd($)),
 
-    preproc_define: ($) => seq(preprocessor('define'), $.preproc_arg, /\n/),
+    preproc_define: ($) => seq(preprocessor('define'), $.preproc_arg, directiveEnd($)),
 
-    preproc_undef: ($) => seq(preprocessor('undef'), $.preproc_arg, /\n/),
+    preproc_undef: ($) => seq(preprocessor('undef'), $.preproc_arg, directiveEnd($)),
 
     shebang_directive: () => token(seq('#!', /.*/)),
 
     comment: () => token(choice(seq('//', /[^\n\r]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
   },
 });
+
+/**
+ * Ends a directive that opens no conditional section: at a line break, or at the end of the input, which a file may
+ * reach without a final line break.
+ *
+ * @param {GrammarSymbols<string>} $
+ *
+ * @returns {ChoiceRule}
+ */
+function directiveEnd($) {
+  return choice(/\n/, $._end_of_input);
+}
 
 /**
  * Creates a preprocessor regex rule

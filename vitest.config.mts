@@ -8,7 +8,14 @@ export default defineConfig({
     // tsconfig.json declares the `vitest/globals` types, so the runner must provide those globals.
     globals: true,
     projects: [
-      { test: { name: 'node', include: ['test/unit/**/*.test.ts'], exclude: BrowserTests } },
+      {
+        test: {
+          name: 'node',
+          include: ['test/unit/**/*.test.ts'],
+          exclude: BrowserTests,
+          globalSetup: ['test/unit/globalSetup.ts'],
+        },
+      },
       {
         test: {
           name: 'browser',
