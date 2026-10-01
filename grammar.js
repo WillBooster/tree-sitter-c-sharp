@@ -1205,7 +1205,9 @@ module.exports = grammar({
 
     assignment_expression: ($) =>
       seq(
-        field('left', $.lvalue_expression),
+        // An invocation can return a reference (`Unsafe.Add(ref x, i) = v`). It ends with `)`, so `=` after it adds few
+        // parse states, unlike making any expression assignable.
+        field('left', choice($.lvalue_expression, $.invocation_expression)),
         field('operator', choice('=', '+=', '-=', '*=', '/=', '%=', '&=', '^=', '|=', '<<=', '>>=', '>>>=', '??=')),
         field('right', $.expression)
       ),

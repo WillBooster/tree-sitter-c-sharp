@@ -1007,6 +1007,10 @@
         "required": true,
         "types": [
           {
+            "type": "invocation_expression",
+            "named": true
+          },
+          {
             "type": "lvalue_expression",
             "named": true
           }
