@@ -131,7 +131,9 @@ only the types of the grammar DSL that `grammar.js` checks against; its `tree-si
   `nodejs_compat` (`test/unit/workers.test.ts`).
 
 The tests and `script/parse-examples` compile the parser into `.tmp/tree-sitter-lib` rather than the CLI's cache shared
-by every checkout; `script/fuzz-corpus` builds a per-run parser in `.tmp/fuzz` and deletes it afterwards.
+by every checkout; `script/fuzz-corpus` builds a per-run parser in `.tmp/fuzz` and deletes it afterwards. `mise.toml`
+sets `TREE_SITTER_LIBDIR` to `.tmp/tree-sitter-lib` as well, so other `tree-sitter` commands run in the checkout use
+this checkout's parser too.
 
 `cargo test` also replays edits that `tree-sitter fuzz` found to break incremental parsing on runtimes without the
 fixes of willbooster-tree-sitter.
