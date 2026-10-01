@@ -19,6 +19,7 @@ enum TokenType {
     RAW_STRING_END,
     RAW_STRING_CONTENT,
     LAMBDA_PAREN_OPEN,
+    END_OF_INPUT,
 };
 
 typedef enum {
@@ -70,14 +71,13 @@ static void skip_ws_and_comments(TSLexer *lexer) {
         } else if (c == '/') {
             advance(lexer);
             if (lexer->lookahead == '/') {
-                while (lexer->lookahead != 0 && lexer->lookahead != '\n') {
+                while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
                     advance(lexer);
                 }
             } else if (lexer->lookahead == '*') {
                 advance(lexer);
                 int32_t prev = 0;
-                while (lexer->lookahead != 0 &&
-                       !(prev == '*' && lexer->lookahead == '/')) {
+                while (!lexer->eof(lexer) && !(prev == '*' && lexer->lookahead == '/')) {
                     prev = lexer->lookahead;
                     advance(lexer);
                 }
@@ -247,7 +247,7 @@ static LambdaScanResult scan_lambda_paren_open(TSLexer *lexer) {
         skip_ws_and_comments(lexer);
         int32_t c = lexer->lookahead;
 
-        if (c == 0) BAIL;   // EOF mid-list
+        if (lexer->eof(lexer)) BAIL;
 
         if (c == ')') {
             advance(lexer);
@@ -338,6 +338,15 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         return false;
     }
 
+    // A directive may end the input without a line break, which no regex token can match.
+    if (valid_symbols[END_OF_INPUT]) {
+        while (lexer->lookahead != '\n' && iswspace(lexer->lookahead)) {
+            skip(lexer);
+        }
+        lexer->result_symbol = END_OF_INPUT;
+        return lexer->eof(lexer);
+    }
+
     if (valid_symbols[OPT_SEMI]) {
         lexer->result_symbol = OPT_SEMI;
         if (lexer->lookahead == ';') {
@@ -381,7 +390,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     if (valid_symbols[RAW_STRING_CONTENT]) {
-        while (lexer->lookahead) {
+        while (!lexer->eof(lexer)) {
             if (lexer->lookahead == '"') {
                 lexer->mark_end(lexer);
                 quote_count = 0;
@@ -541,7 +550,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         lexer->result_symbol = INTERPOLATION_STRING_CONTENT;
         Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
 
-        while (lexer->lookahead) {
+        while (!lexer->eof(lexer)) {
             // top-down approach, first see if it's raw
             if (is_raw(current_interpolation)) {
                 if (lexer->lookahead == '"') {

@@ -105,13 +105,17 @@ script/parse-examples
 cargo test
 ```
 
+`script/tree-sitter` (also `bun run tree-sitter`) runs the tree-sitter CLI of WillBooster/tree-sitter at the runtime
+version locked in `Cargo.lock`, so the parser is generated, built, tested, and fuzzed with the generator and the
+runtime this package ships. The first run downloads that CLI from its GitHub Release into `.tmp/`, or builds it with
+`cargo` when the download fails or the release has no binary that runs here. The `tree-sitter-cli` package provides
+only the types of the grammar DSL that `grammar.js` checks against; its `tree-sitter` binary is upstream's.
+
 `bun run test` runs:
 
 - the corpus in `test/corpus`, with the native build and with the Wasm build (the first run downloads the WASI SDK);
 - an incremental-parsing check (`test/unit/incremental.test.ts`): `script/fuzz-corpus` runs `tree-sitter fuzz`, which
-  edits each corpus case at random, reparses it, undoes the edits, and reparses again, on the WillBooster/tree-sitter
-  runtime version locked in `Cargo.lock` (the first run downloads that CLI from its GitHub Release, or builds it with
-  `cargo` when the download fails or the release has no binary that runs here). `TREE_SITTER_SEED`,
+  edits each corpus case at random, reparses it, undoes the edits, and reparses again. `TREE_SITTER_SEED`,
   `TREE_SITTER_ITERATIONS`, and `TREE_SITTER_EDITS` run other or more edits;
 - a check that the real-world C# files cloned into `examples/` fail to parse exactly as listed in
   `script/known-failures.txt`. The first run clones them. The example repositories are pinned to commits in
