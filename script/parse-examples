@@ -38,6 +38,9 @@ clone() {
 }
 
 cd "$(dirname "$0")/.."
+# The CLI caches compiled parsers by language name in a directory shared by every checkout and reuses one that is newer
+# than the sources, so this checkout's parser is compiled into a cache of its own.
+export TREE_SITTER_LIBDIR=$PWD/.tmp/tree-sitter-lib
 
 clone Newtonsoft.Json https://github.com/JamesNK/Newtonsoft.Json 52fa3aef1f2cadcd3a3f874251eddc98d3efbbaa
 clone nunit https://github.com/nunit/nunit 803adc6b56ec4cba1e917204b1f5797f2d879361

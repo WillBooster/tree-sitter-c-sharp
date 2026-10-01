@@ -5,14 +5,15 @@
 [![Test](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test.yml/badge.svg)](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test.yml)
 [![Test rust](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test-rust.yml/badge.svg)](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test-rust.yml)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
-[![wbfy](https://img.shields.io/badge/wbfy-20.26.0-1e90ff.svg)](https://github.com/WillBooster/shared/tree/main/packages/wbfy)
+[![wbfy](https://img.shields.io/badge/wbfy-20.28.6-1e90ff.svg)](https://github.com/WillBooster/shared/tree/main/packages/wbfy)
 [![crates.io](https://img.shields.io/crates/v/willbooster-tree-sitter-c-sharp.svg)](https://crates.io/crates/willbooster-tree-sitter-c-sharp)
 
 C# grammar for [tree-sitter](https://github.com/tree-sitter/tree-sitter), forked from
 [tree-sitter/tree-sitter-c-sharp](https://github.com/tree-sitter/tree-sitter-c-sharp). We are grateful
 to its authors and contributors. This is not an official release of that project.
 
-This fork fixes parsing bugs and raises conformance with the [C# language specification](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/readme).
+This fork fixes parsing bugs and raises conformance with the
+[C# language specification](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/readme).
 
 The grammar is based upon the Roslyn grammar with changes in order to:
 
@@ -114,12 +115,17 @@ cargo test
   `script/known-failures.txt`. The first run clones them. The example repositories are pinned to commits in
   `script/parse-examples`. After a grammar change or a moved pin alters that list, `script/parse-examples` rewrites
   it; review its diff before committing;
-- a performance check (`test/unit/performance.test.ts`) that recovering from an error on each of 10,000 lines takes
-  linear time, since consumers parse files while they are being edited. It loads the Wasm build through
-  @willbooster/web-tree-sitter, which `bun run build/ci` rebuilds after regenerating the parser;
+- a performance check (`test/unit/performance.test.ts`) that recovering from an error on each line takes linear time
+  (ten times the lines take about ten times the CPU time, under a ceiling), since consumers parse files while they are
+  being edited. It loads the Wasm build through @willbooster/web-tree-sitter, which `bun run build/ci` rebuilds after
+  regenerating the parser;
+- a check that `package.json` and `Cargo.lock` test the same runtime version (`test/unit/runtimeVersion.test.ts`);
 - checks that the Wasm build parses C# with @willbooster/web-tree-sitter in Chromium (`test/unit/browser.test.ts`,
   which needs Chromium installed once by `bunx playwright install chromium`) and in Cloudflare Workers with and without
   `nodejs_compat` (`test/unit/workers.test.ts`).
+
+The tests and `script/parse-examples` compile the parser into `.tmp/tree-sitter-lib` rather than the CLI's cache shared
+by every checkout.
 
 `cargo test` also replays edits that `tree-sitter fuzz` found to break incremental parsing, with the
 willbooster-tree-sitter runtime that fixes them; `tree-sitter fuzz` itself runs the runtime built into tree-sitter-cli.
@@ -131,6 +137,7 @@ parser with libFuzzer and sanitizers on the willbooster-tree-sitter runtime lock
 ### References
 
 - [C# language specification](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/readme)
-- [Official C# 8 Draft Language Spec](https://github.com/dotnet/csharpstandard/tree/draft-v8/standard) provides chapters that formally define the language grammar.
+- [Official C# 8 Draft Language Spec](https://github.com/dotnet/csharpstandard/tree/draft-v8/standard) provides
+  chapters that formally define the language grammar.
 - [Roslyn C# language grammar export](https://github.com/dotnet/roslyn/blob/master/src/Compilers/CSharp/Portable/Generated/CSharp.Generated.g4)
 - [SharpLab](https://sharplab.io) (web-based syntax tree playground based on Roslyn)
