@@ -268,3 +268,17 @@ class A {}
     body: (declaration_list))
   (preproc_error
     (preproc_arg)))
+
+================================================================================
+Nullable directive and a no-break space at the end of input without a line break
+================================================================================
+
+class A {}
+#nullable enable 
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list))
+  (preproc_nullable))

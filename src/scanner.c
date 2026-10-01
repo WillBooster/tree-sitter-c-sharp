@@ -50,6 +50,12 @@ static inline void advance(TSLexer *lexer) { lexer->advance(lexer, false); }
 
 static inline void skip(TSLexer *lexer) { lexer->advance(lexer, true); }
 
+// The whitespace of the grammar's first extra other than a line feed, which ends a directive. `iswspace` depends on the
+// C library and its locale, e.g. it rejects U+00A0 on macOS.
+static inline bool is_space_but_line_feed(int32_t c) {
+    return c == '\t' || c == '\v' || c == '\f' || c == '\r' || c == ' ' || c == 0xA0 || c == 0x3000 || c == 0xFEFF;
+}
+
 // ---- Helpers for LAMBDA_PAREN_OPEN scanning ---------------------------
 
 static inline bool is_id_start(int32_t c) {
@@ -340,7 +346,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
     // A directive may end the input without a line break, which no regex token can match.
     if (valid_symbols[END_OF_INPUT]) {
-        while (lexer->lookahead != '\n' && iswspace(lexer->lookahead)) {
+        while (is_space_but_line_feed(lexer->lookahead)) {
             skip(lexer);
         }
         lexer->result_symbol = END_OF_INPUT;
