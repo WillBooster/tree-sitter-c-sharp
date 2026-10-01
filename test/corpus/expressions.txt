@@ -823,6 +823,63 @@ x = (T)(-y);
               (identifier))))))))
 
 ================================================================================
+Assignments to a ref-returning invocation
+================================================================================
+
+Unsafe.Add(ref x, i) = v + 1;
+GetRef() = 1;
+GetRef() += 1;
+x = GetRef() = 2;
+f();
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (invocation_expression
+          function: (member_access_expression
+            expression: (identifier)
+            name: (identifier))
+          arguments: (argument_list
+            (argument
+              (identifier))
+            (argument
+              (identifier))))
+        right: (binary_expression
+          left: (identifier)
+          right: (integer_literal)))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (invocation_expression
+          function: (identifier)
+          arguments: (argument_list))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (invocation_expression
+          function: (identifier)
+          arguments: (argument_list))
+        right: (integer_literal))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (identifier)
+        right: (assignment_expression
+          left: (invocation_expression
+            function: (identifier)
+            arguments: (argument_list))
+          right: (integer_literal)))))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list)))))
+
+================================================================================
 Assignments through pointer indirection of non-lvalue expressions
 ================================================================================
 

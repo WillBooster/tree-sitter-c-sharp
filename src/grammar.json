@@ -7081,8 +7081,17 @@
           "type": "FIELD",
           "name": "left",
           "content": {
-            "type": "SYMBOL",
-            "name": "lvalue_expression"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "lvalue_expression"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "invocation_expression"
+              }
+            ]
           }
         },
         {
