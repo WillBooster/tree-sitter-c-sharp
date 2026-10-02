@@ -65,14 +65,13 @@ jobs:
           persist-credentials: false
       - run: |
           mkdir -p .tmp/fuzz-seeds
-          # Perl keeps NUL bytes in the inputs, which some awk implementations drop.
-          perl -e 'my $dir = shift; my ($state, $n, $out) = (0, 0);
-            while (<>) {
-              if ($state != 2 && /^=+$/) { if (++$state == 2) { open $out, ">", "$dir/" . ++$n or die $! } next }
-              if ($state == 2 && /^-{3,}$/) { $state = 0; close $out; next }
-              print $out $_ if $state == 2;
-            }
-          ' .tmp/fuzz-seeds $(find test/corpus -name '*.txt' | LC_ALL=C sort)
+          script/fuzz-seeds .tmp/fuzz-seeds $(find test/corpus -name '*.txt' | LC_ALL=C sort)
+          # libFuzzer runs just as well without seeds, so the seeds must show that every NUL character reached them.
+          corpus_nuls=$(find test/corpus -name '*.txt' -exec cat {} + | tr -dc '\000' | wc -c)
+          seed_nuls=$(find .tmp/fuzz-seeds -type f -exec cat {} + | tr -dc '\000' | wc -c)
+          echo "NUL characters: $corpus_nuls in the corpus, $seed_nuls in the seeds"
+          test "$corpus_nuls" -gt 0
+          test "$seed_nuls" -eq "$corpus_nuls"
       - name: Build the fuzzer
         run: |
           jq '.. | select((.type? == "STRING" or (.type? == "ALIAS" and .named? == false)) and .value? != "") | .value' \
