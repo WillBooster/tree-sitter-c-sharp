@@ -714,8 +714,30 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "STRING",
-              "value": "ref"
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "ref"
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "partial"
+                      },
+                      "named": true,
+                      "value": "modifier"
+                    },
+                    {
+                      "type": "BLANK"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "type": "BLANK"
@@ -2301,11 +2323,48 @@
           }
         },
         {
-          "type": "REPEAT",
-          "content": {
-            "type": "SYMBOL",
-            "name": "modifier"
-          }
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "REPEAT",
+              "content": {
+                "type": "SYMBOL",
+                "name": "modifier"
+              }
+            },
+            {
+              "type": "PREC_DYNAMIC",
+              "value": 1,
+              "content": {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "REPEAT",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "modifier"
+                    }
+                  },
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "STRING",
+                      "value": "partial"
+                    },
+                    "named": true,
+                    "value": "modifier"
+                  },
+                  {
+                    "type": "REPEAT",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "modifier"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         },
         {
           "type": "FIELD",
@@ -11058,6 +11117,10 @@
         },
         {
           "type": "STRING",
+          "value": "partial"
+        },
+        {
+          "type": "STRING",
           "value": "property"
         },
         {
@@ -12911,6 +12974,11 @@
     }
   ],
   "conflicts": [
+    [
+      "modifier",
+      "_constructor_declaration_initializer",
+      "_reserved_identifier"
+    ],
     [
       "_simple_name",
       "generic_name"
