@@ -79,3 +79,67 @@ private struct NoBodyWithPrimary(int g);
       (parameter
         type: (predefined_type)
         name: (identifier)))))
+
+================================================================================
+Ref partial structs
+================================================================================
+
+public ref partial struct Buffer { }
+public ref partial struct Buffer { public int Value; }
+internal readonly ref partial struct Slice<T> { }
+partial struct Existing { }
+ref struct Plain { }
+class RefTypes { public ref int Get(ref int value) { return ref value; } }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (struct_declaration
+    (modifier)
+    (modifier)
+    (identifier)
+    (declaration_list))
+  (struct_declaration
+    (modifier)
+    (modifier)
+    (identifier)
+    (declaration_list
+      (field_declaration
+        (modifier)
+        (variable_declaration
+          (predefined_type)
+          (variable_declarator
+            (identifier))))))
+  (struct_declaration
+    (modifier)
+    (modifier)
+    (modifier)
+    (identifier)
+    (type_parameter_list
+      (type_parameter
+        (identifier)))
+    (declaration_list))
+  (struct_declaration
+    (modifier)
+    (identifier)
+    (declaration_list))
+  (struct_declaration
+    (identifier)
+    (declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list
+      (method_declaration
+        (modifier)
+        (ref_type
+          (predefined_type))
+        (identifier)
+        (parameter_list
+          (parameter
+            (modifier)
+            (predefined_type)
+            (identifier)))
+        (block
+          (return_statement
+            (ref_expression
+              (identifier))))))))

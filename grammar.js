@@ -267,7 +267,7 @@ module.exports = grammar({
       seq(
         repeat($._attribute_list),
         repeat($.modifier),
-        optional('ref'),
+        optional(seq('ref', optional(alias('partial', $.modifier)))),
         'struct',
         field('name', $.identifier),
         repeat(choice($.type_parameter_list, $.parameter_list, $.base_list)),
