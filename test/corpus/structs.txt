@@ -191,3 +191,33 @@ class C {
         (arrow_expression_clause
           (ref_expression
             (identifier)))))))
+
+================================================================================
+Contextual file return types
+================================================================================
+
+class K {
+  file F() { return null; }
+  public file G() => null;
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    (identifier)
+    (declaration_list
+      (method_declaration
+        (identifier)
+        (identifier)
+        (parameter_list)
+        (block
+          (return_statement
+            (null_literal))))
+      (method_declaration
+        (modifier)
+        (identifier)
+        (identifier)
+        (parameter_list)
+        (arrow_expression_clause
+          (null_literal))))))

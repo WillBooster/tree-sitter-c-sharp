@@ -45,6 +45,7 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.modifier, $._constructor_declaration_initializer, $._reserved_identifier],
     [$._simple_name, $.generic_name],
     [$._simple_name, $.type_parameter],
     [$._simple_name, $.subpattern],
@@ -534,15 +535,15 @@ module.exports = grammar({
     constructor_declaration: ($) => seq($._constructor_declaration_initializer, $._function_body),
 
     _constructor_declaration_initializer: ($) =>
-      prec.dynamic(
-        1,
-        seq(
-          repeat($._attribute_list),
+      seq(
+        repeat($._attribute_list),
+        choice(
           repeat($.modifier),
-          field('name', $.identifier),
-          field('parameters', $.parameter_list),
-          optional($.constructor_initializer)
-        )
+          prec.dynamic(1, seq(repeat($.modifier), alias('partial', $.modifier), repeat($.modifier)))
+        ),
+        field('name', $.identifier),
+        field('parameters', $.parameter_list),
+        optional($.constructor_initializer)
       ),
 
     destructor_declaration: ($) =>
