@@ -143,3 +143,51 @@ class RefTypes { public ref int Get(ref int value) { return ref value; } }
           (return_statement
             (ref_expression
               (identifier))))))))
+
+================================================================================
+Ref returns of a contextual partial type
+================================================================================
+
+class C {
+  public ref partial M() { return ref x; }
+  public ref partial[] A() { return ref xs; }
+  public ref readonly partial R() => ref x;
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    (identifier)
+    (declaration_list
+      (method_declaration
+        (modifier)
+        (ref_type
+          (identifier))
+        (identifier)
+        (parameter_list)
+        (block
+          (return_statement
+            (ref_expression
+              (identifier)))))
+      (method_declaration
+        (modifier)
+        (ref_type
+          (array_type
+            (identifier)
+            (array_rank_specifier)))
+        (identifier)
+        (parameter_list)
+        (block
+          (return_statement
+            (ref_expression
+              (identifier)))))
+      (method_declaration
+        (modifier)
+        (ref_type
+          (identifier))
+        (identifier)
+        (parameter_list)
+        (arrow_expression_clause
+          (ref_expression
+            (identifier)))))))

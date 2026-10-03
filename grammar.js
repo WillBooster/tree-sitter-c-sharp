@@ -534,12 +534,15 @@ module.exports = grammar({
     constructor_declaration: ($) => seq($._constructor_declaration_initializer, $._function_body),
 
     _constructor_declaration_initializer: ($) =>
-      seq(
-        repeat($._attribute_list),
-        repeat($.modifier),
-        field('name', $.identifier),
-        field('parameters', $.parameter_list),
-        optional($.constructor_initializer)
+      prec.dynamic(
+        1,
+        seq(
+          repeat($._attribute_list),
+          repeat($.modifier),
+          field('name', $.identifier),
+          field('parameters', $.parameter_list),
+          optional($.constructor_initializer)
+        )
       ),
 
     destructor_declaration: ($) =>
@@ -1705,6 +1708,7 @@ module.exports = grammar({
         'on',
         'orderby',
         'param',
+        'partial',
         'property',
         'scoped',
         'select',
