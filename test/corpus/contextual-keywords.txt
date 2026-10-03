@@ -587,3 +587,194 @@ class nameof { }
   (class_declaration
     name: (identifier)
     body: (declaration_list)))
+
+================================================================================
+Async contextual identifiers and modifiers
+================================================================================
+
+class C {
+    void M(bool async) {
+        Use(async);
+        async = !async;
+        async Task Local() => await Work();
+        static async Task StaticLocal() => await Work();
+        var lambda = async () => await Work();
+        var named = async => async;
+        var anonymous = async delegate { await Work(); };
+    }
+    async Task Run() => await Work();
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier)))))
+          (expression_statement
+            (assignment_expression
+              left: (identifier)
+              right: (prefix_unary_expression
+                (identifier))))
+          (local_function_statement
+            (modifier)
+            type: (identifier)
+            name: (identifier)
+            parameters: (parameter_list)
+            body: (arrow_expression_clause
+              (await_expression
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list)))))
+          (local_function_statement
+            (modifier)
+            (modifier)
+            type: (identifier)
+            name: (identifier)
+            parameters: (parameter_list)
+            body: (arrow_expression_clause
+              (await_expression
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list)))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (lambda_expression
+                  (modifier)
+                  parameters: (parameter_list)
+                  body: (await_expression
+                    (invocation_expression
+                      function: (identifier)
+                      arguments: (argument_list)))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (lambda_expression
+                  parameters: (implicit_parameter)
+                  body: (identifier)))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (anonymous_method_expression
+                  (modifier)
+                  (block
+                    (expression_statement
+                      (await_expression
+                        (invocation_expression
+                          function: (identifier)
+                          arguments: (argument_list)))))))))))
+      (method_declaration
+        (modifier)
+        returns: (identifier)
+        name: (identifier)
+        parameters: (parameter_list)
+        body: (arrow_expression_clause
+          (await_expression
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list))))))))
+
+================================================================================
+Async identifiers in types and calls
+================================================================================
+
+class async { }
+class C {
+    async Identity(async value) => value;
+    void M(async async) {
+        async result = async;
+        Use(async, result);
+        async.Invoke();
+        var f = (async) => async;
+        var g = static (async) => async;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list))
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        returns: (identifier)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (identifier)))
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (local_declaration_statement
+            (variable_declaration
+              type: (identifier)
+              (variable_declarator
+                name: (identifier)
+                (identifier))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier))
+                (argument
+                  (identifier)))))
+          (expression_statement
+            (invocation_expression
+              function: (member_access_expression
+                expression: (identifier)
+                name: (identifier))
+              arguments: (argument_list)))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (lambda_expression
+                  parameters: (parameter_list
+                    (parameter
+                      name: (identifier)))
+                  body: (identifier)))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (lambda_expression
+                  (modifier)
+                  parameters: (parameter_list
+                    (parameter
+                      name: (identifier)))
+                  body: (identifier))))))))))

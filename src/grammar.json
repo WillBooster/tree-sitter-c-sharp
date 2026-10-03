@@ -9542,8 +9542,8 @@
           {
             "type": "REPEAT",
             "content": {
-              "type": "PREC",
-              "value": -1,
+              "type": "PREC_DYNAMIC",
+              "value": 1,
               "content": {
                 "type": "ALIAS",
                 "content": {
@@ -9808,8 +9808,8 @@
         {
           "type": "REPEAT",
           "content": {
-            "type": "PREC",
-            "value": -1,
+            "type": "PREC_DYNAMIC",
+            "value": 1,
             "content": {
               "type": "ALIAS",
               "content": {
@@ -11046,6 +11046,10 @@
         {
           "type": "STRING",
           "value": "alias"
+        },
+        {
+          "type": "STRING",
+          "value": "async"
         },
         {
           "type": "STRING",
@@ -13120,6 +13124,38 @@
     [
       "_reserved_identifier",
       "modifier"
+    ],
+    [
+      "_reserved_identifier"
+    ],
+    [
+      "_lambda_expression_init",
+      "anonymous_method_expression",
+      "_reserved_identifier"
+    ],
+    [
+      "_lambda_expression_init",
+      "_reserved_identifier"
+    ],
+    [
+      "modifier",
+      "_lambda_expression_init",
+      "anonymous_method_expression"
+    ],
+    [
+      "modifier",
+      "_lambda_expression_init"
+    ],
+    [
+      "modifier",
+      "_lambda_expression_init",
+      "_reserved_identifier"
+    ],
+    [
+      "modifier",
+      "_lambda_expression_init",
+      "anonymous_method_expression",
+      "_reserved_identifier"
     ],
     [
       "_reserved_identifier",

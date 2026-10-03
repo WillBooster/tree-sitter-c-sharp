@@ -94,6 +94,13 @@ module.exports = grammar({
     [$.collection_expression, $.list_pattern],
 
     [$._reserved_identifier, $.modifier],
+    [$._reserved_identifier],
+    [$._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
+    [$._lambda_expression_init, $._reserved_identifier],
+    [$.modifier, $._lambda_expression_init, $.anonymous_method_expression],
+    [$.modifier, $._lambda_expression_init],
+    [$.modifier, $._lambda_expression_init, $._reserved_identifier],
+    [$.modifier, $._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
     [$._reserved_identifier, $.scoped_type],
     [$._reserved_identifier, $.implicit_type],
     [$._reserved_identifier, $.from_clause],
@@ -1513,7 +1520,7 @@ module.exports = grammar({
         -1,
         seq(
           repeat($._attribute_list),
-          repeat(prec(-1, alias(choice('static', 'async'), $.modifier))),
+          repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
           optional(field('type', $.type)),
           field('parameters', $._lambda_parameters)
         )
@@ -1557,7 +1564,7 @@ module.exports = grammar({
 
     anonymous_method_expression: ($) =>
       seq(
-        repeat(prec(-1, alias(choice('static', 'async'), $.modifier))),
+        repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
         'delegate',
         optional(field('parameters', $.parameter_list)),
         $.block
@@ -1685,6 +1692,7 @@ module.exports = grammar({
     _reserved_identifier: () =>
       choice(
         'alias',
+        'async',
         'ascending',
         'by',
         'descending',
