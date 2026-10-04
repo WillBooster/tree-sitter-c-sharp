@@ -13,7 +13,7 @@ test('preserves file directive fields and following source across line endings',
       for (const ending of ['', '\n']) {
         const source =
           [
-            '#:sdk Microsoft.NET.Sdk',
+            '#:sdk\u00A0Microsoft.NET.Sdk\f',
             '#:package "Humanizer" @ 2.0',
             '#:Package Newtonsoft.Json Version=13.0.3',
             '#:property Description = "Hello world"',
@@ -83,7 +83,8 @@ test('keeps unknown directive payloads opaque and ends ranges on their own line'
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const line of [
-        '#:sdk Foo',
+        '#:sdk Foo\f',
+        '#:sdk\u00A0Foo',
         '#:Package Humanizer@2',
         '#:tool T',
         '#:nuget-source https://api.nuget.org/v3/index.json',
@@ -105,7 +106,7 @@ test('keeps unknown directive payloads opaque and ends ranges on their own line'
               .captures(tree.rootNode)
               .filter(({ name }) => name === 'keyword.directive')
               .map(({ node }) => node.text)
-          ).toEqual([line.split(' ')[0]]);
+          ).toEqual([line.split(/\s/)[0]]);
         } finally {
           tree.delete();
         }

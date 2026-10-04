@@ -1916,15 +1916,20 @@ module.exports = grammar({
         choice(token.immediate(/\r\n|[\n\r\u0085\u2028\u2029]/), $._end_of_input)
       ),
 
-    file_directive_kind: () => token(/#:[^\s\u0085\u2028\u2029]*/),
+    file_directive_kind: () => token(/#:[^\s\u00A0\uFEFF\u3000\u0085\u2028\u2029]*/),
 
-    _file_directive_spacing: () => token.immediate(prec(1, /[ \t]+/)),
+    _file_directive_spacing: () => token.immediate(prec(1, /[ \t\v\f\u00A0\uFEFF\u3000]+/)),
     file_directive_name: () =>
       token.immediate(
-        choice(/[^\s\u0085\u2028\u2029@="]+/, /"([^"\\\r\n\u0085\u2028\u2029]|\\[^\r\n\u0085\u2028\u2029])*"/)
+        choice(
+          /[^\s\u00A0\uFEFF\u3000\u0085\u2028\u2029@="]+/,
+          /"([^"\\\r\n\u0085\u2028\u2029]|\\[^\r\n\u0085\u2028\u2029])*"/
+        )
       ),
     file_directive_value: () =>
-      token.immediate(/[^\s\u0085\u2028\u2029]([^\r\n\u0085\u2028\u2029]*[^\s\u0085\u2028\u2029])?/),
+      token.immediate(
+        /[^\s\u00A0\uFEFF\u3000\u0085\u2028\u2029]([^\r\n\u0085\u2028\u2029]*[^\s\u00A0\uFEFF\u3000\u0085\u2028\u2029])?/
+      ),
 
     shebang_directive: () => token(seq('#!', /.*/)),
 
