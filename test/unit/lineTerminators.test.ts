@@ -116,3 +116,33 @@ test('recognizes line endings while scanning modifier lambda parameters', () => 
     parser.delete();
   }
 });
+
+test('preserves directive source ranges before blank LF and CRLF lines', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const newline of ['\n', '\r\n']) {
+      for (const blankLines of [1, 2]) {
+        for (const directive of [
+          '#pragma warning disable CS1000',
+          '#pragma warning disable CS1000  ',
+          '#region R',
+          '#region R  ',
+        ]) {
+          const source = directive + newline.repeat(blankLines + 1) + 'class C {}';
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            expect(tree.rootNode.firstNamedChild?.text, source).toBe(
+              directive + newline.repeat(newline === '\r\n' ? 1 : blankLines + 1)
+            );
+            expect(tree.rootNode.descendantsOfType('class_declaration').map((n) => n.text)).toEqual(['class C {}']);
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

@@ -20,6 +20,7 @@ enum TokenType {
     RAW_STRING_CONTENT,
     LAMBDA_PAREN_OPEN,
     END_OF_INPUT,
+    DIRECTIVE_CRLF,
 };
 
 typedef enum {
@@ -346,6 +347,17 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     // error recovery, gives better trees this way
     if (valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START]) {
         return false;
+    }
+
+    if (valid_symbols[DIRECTIVE_CRLF]) {
+        while (is_space_but_line_feed(lexer->lookahead) && lexer->lookahead != '\r') skip(lexer);
+        if (lexer->lookahead == '\r') {
+            advance(lexer);
+            if (lexer->lookahead != '\n') return false;
+            advance(lexer);
+            lexer->result_symbol = DIRECTIVE_CRLF;
+            return true;
+        }
     }
 
     // A directive may end the input without a line break, which no regex token can match.

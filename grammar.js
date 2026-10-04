@@ -9,8 +9,6 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-const newLine = /\r\n|[\r\n\u0085\u2028\u2029]/;
-
 const PREC = {
   GENERIC: 19,
   DOT: 18,
@@ -148,6 +146,7 @@ module.exports = grammar({
     // modifier) closed by ')=>'.
     $._lambda_paren_open,
     $._end_of_input,
+    $._directive_crlf,
   ],
 
   extras: ($) => [
@@ -1876,7 +1875,12 @@ module.exports = grammar({
  * @returns {ChoiceRule}
  */
 function directiveEnd($) {
-  return choice(newLine, $._end_of_input);
+  return choice(directiveNewLine($), $._end_of_input);
+}
+
+/** @param {GrammarSymbols<string>} $ */
+function directiveNewLine($) {
+  return choice($._directive_crlf, /[\r\n\u0085\u2028\u2029]/);
 }
 
 /**
@@ -1923,7 +1927,7 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         seq(
           preprocessor('if'),
           field('condition', $._preproc_expression),
-          newLine,
+          directiveNewLine($),
           rep ? repeat(content($)) : required ? content($) : optional(content($)),
           field('alternative', optional(alternativeBlock($))),
           preprocessor('endif')
@@ -1942,7 +1946,7 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         seq(
           preprocessor('elif'),
           field('condition', $._preproc_expression),
-          newLine,
+          directiveNewLine($),
           rep ? repeat(content($)) : required ? content($) : optional(content($)),
           field('alternative', optional(alternativeBlock($)))
         )
