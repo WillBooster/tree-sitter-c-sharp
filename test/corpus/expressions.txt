@@ -5277,6 +5277,236 @@ class C { void M() {
                   right: (integer_literal))))))))))
 
 ================================================================================
+Expression arguments with out declarations and tuple deconstruction
+================================================================================
+
+using System;
+using T = System.Int32;
+unsafe class C {
+    void M(double t, double pow_es, int a, int b, int c, int d) {
+        Math.Atan(t * pow_es);
+        Use(a * b + c * d);
+        Compare(a < b, c > d);
+        Read(out byte count);
+        Read(count: out byte named);
+        Read(out var inferred);
+        Read(out count);
+        Pointer(out T* pointer);
+        Pass(ref a, in b);
+        (int left, int right) = (a, b);
+        Use(left * right);
+    }
+    void Use(int result) {}
+    void Compare(bool left, bool right) {}
+    void Read(out byte count) { count = 0; }
+    void Pass(ref int left, in int right) {}
+    void Pointer(out T* pointer) { pointer = null; }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (using_directive
+    (identifier))
+  (using_directive
+    name: (identifier)
+    (qualified_name
+      qualifier: (identifier)
+      name: (identifier)))
+  (class_declaration
+    (modifier)
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block
+          (expression_statement
+            (invocation_expression
+              function: (member_access_expression
+                expression: (identifier)
+                name: (identifier))
+              arguments: (argument_list
+                (argument
+                  (binary_expression
+                    left: (identifier)
+                    right: (identifier))))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (binary_expression
+                    left: (binary_expression
+                      left: (identifier)
+                      right: (identifier))
+                    right: (binary_expression
+                      left: (identifier)
+                      right: (identifier)))))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (binary_expression
+                    left: (identifier)
+                    right: (identifier)))
+                (argument
+                  (binary_expression
+                    left: (identifier)
+                    right: (identifier))))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (declaration_expression
+                    type: (predefined_type)
+                    name: (identifier))))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  name: (identifier)
+                  (declaration_expression
+                    type: (predefined_type)
+                    name: (identifier))))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (declaration_expression
+                    type: (implicit_type)
+                    name: (identifier))))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier)))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (declaration_expression
+                    type: (pointer_type
+                      type: (identifier))
+                    name: (identifier))))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier))
+                (argument
+                  (identifier)))))
+          (expression_statement
+            (assignment_expression
+              left: (tuple_expression
+                (argument
+                  (declaration_expression
+                    type: (predefined_type)
+                    name: (identifier)))
+                (argument
+                  (declaration_expression
+                    type: (predefined_type)
+                    name: (identifier))))
+              right: (tuple_expression
+                (argument
+                  (identifier))
+                (argument
+                  (identifier)))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (binary_expression
+                    left: (identifier)
+                    right: (identifier))))))))
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block))
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block))
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            (modifier)
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block
+          (expression_statement
+            (assignment_expression
+              left: (identifier)
+              right: (integer_literal)))))
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            (modifier)
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            (modifier)
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block))
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            (modifier)
+            type: (pointer_type
+              type: (identifier))
+            name: (identifier)))
+        body: (block
+          (expression_statement
+            (assignment_expression
+              left: (identifier)
+              right: (null_literal))))))))
+
+================================================================================
 Generic constructors with arguments and initializers
 ================================================================================
 

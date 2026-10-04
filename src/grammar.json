@@ -3408,37 +3408,51 @@
             "type": "CHOICE",
             "members": [
               {
-                "type": "CHOICE",
+                "type": "SEQ",
                 "members": [
                   {
-                    "type": "STRING",
-                    "value": "ref"
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "CHOICE",
+                        "members": [
+                          {
+                            "type": "STRING",
+                            "value": "ref"
+                          },
+                          {
+                            "type": "STRING",
+                            "value": "out"
+                          },
+                          {
+                            "type": "STRING",
+                            "value": "in"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "BLANK"
+                      }
+                    ]
                   },
+                  {
+                    "type": "SYMBOL",
+                    "name": "expression"
+                  }
+                ]
+              },
+              {
+                "type": "SEQ",
+                "members": [
                   {
                     "type": "STRING",
                     "value": "out"
                   },
                   {
-                    "type": "STRING",
-                    "value": "in"
+                    "type": "SYMBOL",
+                    "name": "declaration_expression"
                   }
                 ]
-              },
-              {
-                "type": "BLANK"
-              }
-            ]
-          },
-          {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "expression"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "declaration_expression"
               }
             ]
           }
@@ -10575,8 +10589,13 @@
           "type": "SEQ",
           "members": [
             {
-              "type": "SYMBOL",
-              "name": "argument"
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_tuple_argument"
+              },
+              "named": true,
+              "value": "argument"
             },
             {
               "type": "REPEAT1",
@@ -10588,8 +10607,13 @@
                     "value": ","
                   },
                   {
-                    "type": "SYMBOL",
-                    "name": "argument"
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_tuple_argument"
+                    },
+                    "named": true,
+                    "value": "argument"
                   }
                 ]
               }
@@ -10601,6 +10625,78 @@
           "value": ")"
         }
       ]
+    },
+    "_tuple_argument": {
+      "type": "PREC",
+      "value": 1,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "FIELD",
+                    "name": "name",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "identifier"
+                    }
+                  },
+                  {
+                    "type": "STRING",
+                    "value": ":"
+                  }
+                ]
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "STRING",
+                    "value": "ref"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "out"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "in"
+                  }
+                ]
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "expression"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "declaration_expression"
+              }
+            ]
+          }
+        ]
+      }
     },
     "literal": {
       "type": "CHOICE",
@@ -13102,10 +13198,6 @@
     [
       "tuple_element",
       "using_variable_declarator"
-    ],
-    [
-      "tuple_element",
-      "declaration_expression"
     ],
     [
       "tuple_pattern",

@@ -52,7 +52,6 @@ module.exports = grammar({
 
     [$.tuple_element, $.type_pattern],
     [$.tuple_element, $.using_variable_declarator],
-    [$.tuple_element, $.declaration_expression],
 
     [$.tuple_pattern, $.parameter],
     [$.tuple_pattern, $._simple_name],
@@ -660,8 +659,7 @@ module.exports = grammar({
         1,
         seq(
           optional(seq(field('name', $.identifier), ':')),
-          optional(choice('ref', 'out', 'in')),
-          choice($.expression, $.declaration_expression)
+          choice(seq(optional(choice('ref', 'out', 'in')), $.expression), seq('out', $.declaration_expression))
         )
       ),
 
@@ -1611,7 +1609,17 @@ module.exports = grammar({
 
     range_expression: ($) => prec.right(PREC.RANGE, seq(optional($.expression), '..', optional($.expression))),
 
-    tuple_expression: ($) => seq('(', commaSep2($.argument), ')'),
+    tuple_expression: ($) => seq('(', commaSep2(alias($._tuple_argument, $.argument)), ')'),
+
+    _tuple_argument: ($) =>
+      prec(
+        1,
+        seq(
+          optional(seq(field('name', $.identifier), ':')),
+          optional(choice('ref', 'out', 'in')),
+          choice($.expression, $.declaration_expression)
+        )
+      ),
 
     literal: ($) =>
       choice(
