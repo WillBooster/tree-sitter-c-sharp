@@ -36,7 +36,11 @@ Known gaps:
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
-browsers, and Cloudflare Workers. In Node.js and Bun, load it from the package:
+browsers, and Cloudflare Workers. Use runtime version 1.1.2 or later: browser loading requires its asynchronous
+instantiation support for this grammar. Install the runtime alongside the grammar when using the Wasm parser; it
+remains an optional peer for consumers that only use the grammar source or queries.
+
+In Node.js and Bun, load it from the package:
 
 ```js
 import { fileURLToPath } from 'node:url';
@@ -84,8 +88,8 @@ fuzzed with, whose fixes keep incremental reparses consistent with fresh parses 
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "1.0.4" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "1" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "1.1.2" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "2" }
 ```
 
 ```rust
