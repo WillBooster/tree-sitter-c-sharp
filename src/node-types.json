@@ -2292,6 +2292,11 @@
     }
   },
   {
+    "type": "discard",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "do_statement",
     "named": true,
     "fields": {
@@ -6828,6 +6833,10 @@
     "named": false
   },
   {
+    "type": "_",
+    "named": false
+  },
+  {
     "type": "__makeref",
     "named": false
   },
@@ -6943,10 +6952,6 @@
   {
     "type": "disable",
     "named": false
-  },
-  {
-    "type": "discard",
-    "named": true
   },
   {
     "type": "do",
