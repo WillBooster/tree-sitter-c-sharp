@@ -3972,6 +3972,82 @@
       },
       "name": {
         "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "parameters": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "parameter_list",
+            "named": true
+          }
+        ]
+      },
+      "returns": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type",
+            "named": true
+          }
+        ]
+      },
+      "type_parameters": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_parameter_list",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute_list",
+          "named": true
+        },
+        {
+          "type": "explicit_interface_specifier",
+          "named": true
+        },
+        {
+          "type": "modifier",
+          "named": true
+        },
+        {
+          "type": "preproc_if",
+          "named": true
+        },
+        {
+          "type": "preproc_if_in_attribute_list",
+          "named": true
+        },
+        {
+          "type": "type_parameter_constraints_clause",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "method_signature",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
         "required": true,
         "types": [
           {
@@ -4802,6 +4878,10 @@
           "named": true
         },
         {
+          "type": "method_signature",
+          "named": true
+        },
+        {
           "type": "statement",
           "named": true
         },
@@ -4846,6 +4926,10 @@
         },
         {
           "type": "global_attribute",
+          "named": true
+        },
+        {
+          "type": "method_signature",
           "named": true
         },
         {
@@ -4971,6 +5055,10 @@
         },
         {
           "type": "global_attribute",
+          "named": true
+        },
+        {
+          "type": "method_signature",
           "named": true
         },
         {

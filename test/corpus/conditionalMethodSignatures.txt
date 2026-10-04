@@ -1,0 +1,171 @@
+==================
+Conditional method headers with a shared body
+==================
+
+namespace TestNs {
+ public class TestClass {
+#if OUTER_CONDITION
+#if INNER_CONDITION
+ static void MyMethod()
+#else
+ static void MyMethod(int param)
+#endif
+ { }
+#endif
+ }
+}
+
+---
+
+(compilation_unit
+  (namespace_declaration
+    (identifier)
+    (declaration_list
+      (class_declaration
+        (modifier)
+        (identifier)
+        (declaration_list
+          (preproc_if
+            (identifier)
+            (method_declaration
+              (preproc_if
+                (identifier)
+                (method_signature
+                  (modifier)
+                  (predefined_type)
+                  (identifier)
+                  (parameter_list))
+                (preproc_else
+                  (method_signature
+                    (modifier)
+                    (predefined_type)
+                    (identifier)
+                    (parameter_list
+                      (parameter
+                        (predefined_type)
+                        (identifier))))))
+              (block))))))))
+
+==================
+Conditional generic and expression-bodied method headers
+==================
+
+class C {
+#if A
+[System.Obsolete] public T M<T>(T value) where T : class
+#elif B
+public T M<T>(T value) where T : class
+#else
+public T M<T>(T value) where T : class
+#endif
+=> value;
+void After() {}
+}
+
+---
+
+(compilation_unit
+  (class_declaration
+    (identifier)
+    (declaration_list
+      (method_declaration
+        (preproc_if
+          (identifier)
+          (method_signature
+            (attribute_list
+              (attribute
+                (qualified_name
+                  (identifier)
+                  (identifier))))
+            (modifier)
+            (identifier)
+            (identifier)
+            (type_parameter_list
+              (type_parameter
+                (identifier)))
+            (parameter_list
+              (parameter
+                (identifier)
+                (identifier)))
+            (type_parameter_constraints_clause
+              (identifier)
+              (type_parameter_constraint)))
+          (preproc_elif
+            (identifier)
+            (method_signature
+              (modifier)
+              (identifier)
+              (identifier)
+              (type_parameter_list
+                (type_parameter
+                  (identifier)))
+              (parameter_list
+                (parameter
+                  (identifier)
+                  (identifier)))
+              (type_parameter_constraints_clause
+                (identifier)
+                (type_parameter_constraint)))
+            (preproc_else
+              (method_signature
+                (modifier)
+                (identifier)
+                (identifier)
+                (type_parameter_list
+                  (type_parameter
+                    (identifier)))
+                (parameter_list
+                  (parameter
+                    (identifier)
+                    (identifier)))
+                (type_parameter_constraints_clause
+                  (identifier)
+                  (type_parameter_constraint))))))
+        (arrow_expression_clause
+          (identifier)))
+      (method_declaration
+        (predefined_type)
+        (identifier)
+        (parameter_list)
+        (block)))))
+
+==================
+Conditional interface method headers
+==================
+
+interface I {
+#if A
+void M()
+#else
+void M(int value)
+#endif
+;
+void After();
+}
+
+---
+
+(compilation_unit
+  (interface_declaration
+    (identifier)
+    (declaration_list
+      (method_declaration
+        (preproc_if
+          (identifier)
+          (method_signature
+            (predefined_type)
+            (identifier)
+            (parameter_list))
+          (preproc_else
+            (method_signature
+              (predefined_type)
+              (identifier)
+              (parameter_list
+                (parameter
+                  (predefined_type)
+                  (identifier)))))))
+      (method_declaration
+        (predefined_type)
+        (identifier)
+        (parameter_list)))))
+

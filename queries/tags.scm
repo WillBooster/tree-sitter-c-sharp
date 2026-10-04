@@ -8,6 +8,8 @@
 
 (method_declaration name: (identifier) @name) @definition.method
 
+(method_signature name: (identifier) @name) @definition.method
+
 (object_creation_expression type: (identifier) @name) @reference.class
 
 (type_parameter_constraints_clause (identifier) @name) @reference.class
