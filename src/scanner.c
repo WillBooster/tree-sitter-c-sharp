@@ -50,6 +50,10 @@ static inline void advance(TSLexer *lexer) { lexer->advance(lexer, false); }
 
 static inline void skip(TSLexer *lexer) { lexer->advance(lexer, true); }
 
+static inline bool is_line_terminator(int32_t c) {
+    return c == '\r' || c == '\n' || c == 0x85 || c == 0x2028 || c == 0x2029;
+}
+
 // Use a fixed set for end-of-input lookahead: `iswspace` depends on the C library and locale (it rejects NBSP on macOS).
 // Line terminators that remain here are handled by the grammar when end-of-input lookahead fails.
 static inline bool is_space_but_line_feed(int32_t c) {
@@ -72,12 +76,12 @@ static inline bool is_id_continue(int32_t c) {
 static void skip_ws_and_comments(TSLexer *lexer) {
     for (;;) {
         int32_t c = lexer->lookahead;
-        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+        if (is_space_but_line_feed(c) || is_line_terminator(c)) {
             advance(lexer);
         } else if (c == '/') {
             advance(lexer);
             if (lexer->lookahead == '/') {
-                while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+                while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
                     advance(lexer);
                 }
             } else if (lexer->lookahead == '*') {

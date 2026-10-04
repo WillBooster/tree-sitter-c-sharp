@@ -94,3 +94,24 @@ test('keeps trailing directive slashes while preserving adjacent block comments'
     parser.delete();
   }
 });
+
+test('recognizes line endings while scanning modifier lambda parameters', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const comment of ['', '// parameter boundary']) {
+        const source = `class C { void M() { var f = (ref a,${comment}${newline}out b) => 0; } }`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(tree.rootNode.descendantsOfType('lambda_expression')).toHaveLength(1);
+          expect(tree.rootNode.descendantsOfType('implicit_parameter').map((n) => n.text)).toEqual(['a', 'b']);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
