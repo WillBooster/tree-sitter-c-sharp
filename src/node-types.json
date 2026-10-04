@@ -8,6 +8,10 @@
         "named": true
       },
       {
+        "type": "conditional_method_declaration",
+        "named": true
+      },
+      {
         "type": "constructor_declaration",
         "named": true
       },
@@ -1857,6 +1861,36 @@
     }
   },
   {
+    "type": "conditional_method_declaration",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "arrow_expression_clause",
+            "named": true
+          },
+          {
+            "type": "block",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "preproc_if",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "constant_pattern",
     "named": true,
     "fields": {},
@@ -2657,6 +2691,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "conditional_method_declaration",
+          "named": true
+        },
         {
           "type": "method_declaration",
           "named": true
@@ -3972,7 +4010,7 @@
       },
       "name": {
         "multiple": false,
-        "required": false,
+        "required": true,
         "types": [
           {
             "type": "identifier",
@@ -3982,7 +4020,7 @@
       },
       "parameters": {
         "multiple": false,
-        "required": false,
+        "required": true,
         "types": [
           {
             "type": "parameter_list",
@@ -3992,7 +4030,7 @@
       },
       "returns": {
         "multiple": false,
-        "required": false,
+        "required": true,
         "types": [
           {
             "type": "type",
@@ -4025,10 +4063,6 @@
         },
         {
           "type": "modifier",
-          "named": true
-        },
-        {
-          "type": "preproc_if",
           "named": true
         },
         {

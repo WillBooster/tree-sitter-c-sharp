@@ -42,10 +42,12 @@ void After() {}
           ]);
         }
         const methods = tree.rootNode.descendantsOfType('method_declaration');
-        expect(methods).toHaveLength(2);
-        assert.ok(methods[0] && methods[1]);
-        expect(methods[0].childForFieldName('body')?.text).toBe(body.replace(/;$/, ''));
-        expect(methods[1].childForFieldName('name')?.text).toBe('After');
+        expect(methods).toHaveLength(1);
+        assert.ok(methods[0]);
+        expect(methods[0].childForFieldName('name')?.text).toBe('After');
+        const conditional = tree.rootNode.descendantsOfType('conditional_method_declaration');
+        expect(conditional).toHaveLength(1);
+        expect(conditional[0]?.childForFieldName('body')?.text).toBe(body.replace(/;$/, ''));
         expect(
           highlights
             .captures(tree.rootNode)

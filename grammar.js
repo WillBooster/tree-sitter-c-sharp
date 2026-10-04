@@ -480,6 +480,7 @@ module.exports = grammar({
         $.delegate_declaration,
         $.field_declaration,
         $.method_declaration,
+        $.conditional_method_declaration,
         $.event_declaration,
         $.event_field_declaration,
         $.record_declaration,
@@ -525,7 +526,8 @@ module.exports = grammar({
 
     extension_body: ($) => seq('{', repeat($._extension_member_declaration), '}', optional(';')),
 
-    _extension_member_declaration: ($) => choice($.method_declaration, $.property_declaration, $.operator_declaration),
+    _extension_member_declaration: ($) =>
+      choice($.method_declaration, $.conditional_method_declaration, $.property_declaration, $.operator_declaration),
 
     field_declaration: ($) => seq(repeat($._attribute_list), repeat($.modifier), $.variable_declaration, ';'),
 
@@ -553,8 +555,9 @@ module.exports = grammar({
         $._function_body
       ),
 
-    method_declaration: ($) =>
-      seq(choice($._method_signature, alias($.preproc_if_in_method_signature, $.preproc_if)), $._function_body),
+    method_declaration: ($) => seq($._method_signature, $._function_body),
+
+    conditional_method_declaration: ($) => seq(alias($.preproc_if_in_method_signature, $.preproc_if), $._function_body),
 
     method_signature: ($) => $._method_signature,
 

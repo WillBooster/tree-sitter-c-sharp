@@ -27,7 +27,7 @@ namespace TestNs {
         (declaration_list
           (preproc_if
             (identifier)
-            (method_declaration
+            (conditional_method_declaration
               (preproc_if
                 (identifier)
                 (method_signature
@@ -68,7 +68,7 @@ void After() {}
   (class_declaration
     (identifier)
     (declaration_list
-      (method_declaration
+      (conditional_method_declaration
         (preproc_if
           (identifier)
           (method_signature
@@ -149,7 +149,7 @@ void After();
   (interface_declaration
     (identifier)
     (declaration_list
-      (method_declaration
+      (conditional_method_declaration
         (preproc_if
           (identifier)
           (method_signature
