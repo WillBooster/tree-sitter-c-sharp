@@ -7,12 +7,23 @@ test('preserves tuple products as expressions while editing typed deconstruction
   const parser = new Parser();
   let query: Query | undefined;
   let tree: Tree | undefined;
-  let source = 'class C { object M(int a, int b, int c) { (int x, int y) = (a*b, c); return (x*y, c); } }';
+  let source = `using System.Collections.Generic;
+class A {}
+class C {
+  object M(int a, int b, int c) {
+    (int x, List<A> y) = (a, new List<A>());
+    (List<A> r, int z) = (y, b);
+    ((int, int) pair, List<List<int>> nested) = ((a, b), new List<List<int>>());
+    (int u, int v) = (a*b, c);
+    return (u*v, c);
+  }
+}`;
   try {
     parser.setLanguage(language);
     query = new Query(
       language,
-      '(non_lvalue_expression/binary_expression left: (identifier) @left right: (identifier) @right) @product'
+      `(non_lvalue_expression/binary_expression left: (identifier) @left right: (identifier) @right) @product
+(type/generic_name) @generic`
     );
     tree = parser.parse(source)!;
     expect(tree.rootNode.hasError).toBe(false);
@@ -21,12 +32,26 @@ test('preserves tuple products as expressions while editing typed deconstruction
         .captures(tree.rootNode)
         .filter(({ name }) => name === 'product')
         .map(({ node }) => node.text)
-    ).toEqual(['a*b', 'x*y']);
+    ).toEqual(['a*b', 'u*v']);
     expect(tree.rootNode.descendantsOfType('declaration_expression').map((node) => node.text)).toEqual([
       'int x',
-      'int y',
+      'List<A> y',
+      'List<A> r',
+      'int z',
+      '(int, int) pair',
+      'List<List<int>> nested',
+      'int u',
+      'int v',
     ]);
+    expect(
+      query
+        .captures(tree.rootNode)
+        .filter(({ name, node }) => name === 'generic' && node.parent?.type === 'declaration_expression')
+        .map(({ node }) => node.text)
+    ).toEqual(['List<A>', 'List<A>', 'List<List<int>>']);
     const offset = source.indexOf('*');
+    const row = source.slice(0, offset).split('\n').length - 1;
+    const column = offset - source.lastIndexOf('\n', offset) - 1;
     for (const operator of ['/', '*']) {
       const next = source.slice(0, offset) + operator + source.slice(offset + 1);
       tree.edit(
@@ -34,9 +59,9 @@ test('preserves tuple products as expressions while editing typed deconstruction
           startIndex: offset,
           oldEndIndex: offset + 1,
           newEndIndex: offset + 1,
-          startPosition: { row: 0, column: offset },
-          oldEndPosition: { row: 0, column: offset + 1 },
-          newEndPosition: { row: 0, column: offset + 1 },
+          startPosition: { row, column },
+          oldEndPosition: { row, column: column + 1 },
+          newEndPosition: { row, column: column + 1 },
         })
       );
       const previous: Tree = tree;

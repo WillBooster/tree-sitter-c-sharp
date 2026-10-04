@@ -10709,7 +10709,7 @@
               },
               {
                 "type": "PREC_DYNAMIC",
-                "value": -2,
+                "value": -1,
                 "content": {
                   "type": "SYMBOL",
                   "name": "declaration_expression"

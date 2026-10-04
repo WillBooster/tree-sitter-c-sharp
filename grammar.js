@@ -1602,7 +1602,7 @@ module.exports = grammar({
         seq(
           optional(seq(field('name', $.identifier), ':')),
           optional(choice('ref', 'out', 'in')),
-          choice($.expression, prec.dynamic(-2, $.declaration_expression))
+          choice($.expression, prec.dynamic(-1, $.declaration_expression))
         )
       ),
 
