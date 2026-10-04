@@ -12505,11 +12505,8 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "IMMEDIATE_TOKEN",
-              "content": {
-                "type": "STRING",
-                "value": "/"
-              }
+              "type": "SYMBOL",
+              "name": "_preproc_arg_slash"
             },
             {
               "type": "BLANK"
@@ -12517,6 +12514,13 @@
           ]
         }
       ]
+    },
+    "_preproc_arg_slash": {
+      "type": "IMMEDIATE_TOKEN",
+      "content": {
+        "type": "PATTERN",
+        "value": "\\/"
+      }
     },
     "preproc_directive": {
       "type": "PATTERN",

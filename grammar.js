@@ -1739,11 +1739,12 @@ module.exports = grammar({
     ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
     ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
 
-    preproc_arg: () =>
+    preproc_arg: ($) =>
       seq(
         token(prec(-1, /[^\s\u0085\u2028\u2029]([^/\r\n\u0085\u2028\u2029]|\/[^*\r\n\u0085\u2028\u2029]|\\\r?\n)*/)),
-        optional(token.immediate('/'))
+        optional($._preproc_arg_slash)
       ),
+    _preproc_arg_slash: () => token.immediate(/\//),
     preproc_directive: () => /#[ \t]*[a-zA-Z0-9]\w*/,
 
     _preproc_expression: ($) =>

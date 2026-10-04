@@ -83,6 +83,7 @@ test('keeps trailing directive slashes while preserving adjacent block comments'
         try {
           expect(tree.rootNode.hasError, source).toBe(false);
           expect(tree.rootNode.descendantsOfType('preproc_arg').map((n) => n.text)).toEqual([argument]);
+          expect(tree.rootNode.descendantsOfType('preproc_arg')[0]?.childCount).toBe(0);
           expect(tree.rootNode.descendantsOfType('comment').map((n) => n.text)).toEqual(comment ? [comment] : []);
           expect(tree.rootNode.descendantsOfType('class_declaration').map((n) => n.text)).toEqual(['class C {}']);
         } finally {
