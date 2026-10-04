@@ -127,3 +127,43 @@ test('keeps unknown directive payloads opaque and ends ranges on their own line'
     parser.delete();
   }
 });
+
+test('keeps incomplete SDK payloads on their ignored directive line', async () => {
+  await Parser.init();
+  const language = await Language.load(wasmPath);
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const query = new Query(
+    language,
+    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
+  );
+  try {
+    for (const kind of ['sdk', 'package', 'property', 'project', 'ref', 'include', 'exclude']) {
+      for (const payload of ['', ' ', ' K', ' PublishAot false', ' "unfinished', ' =', ' @']) {
+        const line = `#:${kind}${payload}`;
+        for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029', '']) {
+          const source = line + newline + (newline ? 'class Program {}' : '');
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(false);
+            const directive = tree.rootNode.namedChildren[0]!;
+            expect(directive.type).toBe('file_directive');
+            expect(directive.text).toBe(line + newline);
+            expect(
+              query
+                .captures(tree.rootNode)
+                .filter(({ name }) => name === 'keyword.directive')
+                .map(({ node }) => node.text)
+            ).toEqual([`#:${kind}`]);
+            if (newline) expect(tree.rootNode.namedChildren[1]?.text).toBe('class Program {}');
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});

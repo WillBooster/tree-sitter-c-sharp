@@ -13148,89 +13148,128 @@
                   ]
                 },
                 {
-                  "type": "SYMBOL",
-                  "name": "_file_directive_spacing"
-                },
-                {
-                  "type": "FIELD",
-                  "name": "name",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "file_directive_name"
-                  }
-                },
-                {
                   "type": "CHOICE",
                   "members": [
                     {
-                      "type": "CHOICE",
+                      "type": "SEQ",
                       "members": [
                         {
-                          "type": "SEQ",
+                          "type": "SYMBOL",
+                          "name": "_file_directive_spacing"
+                        },
+                        {
+                          "type": "CHOICE",
                           "members": [
                             {
-                              "type": "CHOICE",
-                              "members": [
-                                {
-                                  "type": "SYMBOL",
-                                  "name": "_file_directive_spacing"
-                                },
-                                {
-                                  "type": "BLANK"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "IMMEDIATE_TOKEN",
-                              "content": {
-                                "type": "PREC",
-                                "value": 2,
-                                "content": {
-                                  "type": "STRING",
-                                  "value": "@"
-                                }
-                              }
-                            },
-                            {
-                              "type": "CHOICE",
-                              "members": [
-                                {
-                                  "type": "SYMBOL",
-                                  "name": "_file_directive_spacing"
-                                },
-                                {
-                                  "type": "BLANK"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "CHOICE",
+                              "type": "SEQ",
                               "members": [
                                 {
                                   "type": "FIELD",
-                                  "name": "value",
+                                  "name": "name",
                                   "content": {
                                     "type": "SYMBOL",
-                                    "name": "file_directive_value"
+                                    "name": "file_directive_name"
                                   }
                                 },
                                 {
-                                  "type": "BLANK"
+                                  "type": "CHOICE",
+                                  "members": [
+                                    {
+                                      "type": "CHOICE",
+                                      "members": [
+                                        {
+                                          "type": "SEQ",
+                                          "members": [
+                                            {
+                                              "type": "CHOICE",
+                                              "members": [
+                                                {
+                                                  "type": "SYMBOL",
+                                                  "name": "_file_directive_spacing"
+                                                },
+                                                {
+                                                  "type": "BLANK"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "IMMEDIATE_TOKEN",
+                                              "content": {
+                                                "type": "PREC",
+                                                "value": 2,
+                                                "content": {
+                                                  "type": "STRING",
+                                                  "value": "@"
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "CHOICE",
+                                              "members": [
+                                                {
+                                                  "type": "SYMBOL",
+                                                  "name": "_file_directive_spacing"
+                                                },
+                                                {
+                                                  "type": "BLANK"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "CHOICE",
+                                              "members": [
+                                                {
+                                                  "type": "FIELD",
+                                                  "name": "value",
+                                                  "content": {
+                                                    "type": "SYMBOL",
+                                                    "name": "file_directive_value"
+                                                  }
+                                                },
+                                                {
+                                                  "type": "BLANK"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "SEQ",
+                                          "members": [
+                                            {
+                                              "type": "CHOICE",
+                                              "members": [
+                                                {
+                                                  "type": "SYMBOL",
+                                                  "name": "_file_directive_spacing"
+                                                },
+                                                {
+                                                  "type": "BLANK"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "FIELD",
+                                              "name": "metadata",
+                                              "content": {
+                                                "type": "SYMBOL",
+                                                "name": "file_directive_value"
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "BLANK"
+                                    }
+                                  ]
                                 }
                               ]
-                            }
-                          ]
-                        },
-                        {
-                          "type": "SEQ",
-                          "members": [
-                            {
-                              "type": "SYMBOL",
-                              "name": "_file_directive_spacing"
                             },
                             {
                               "type": "FIELD",
-                              "name": "metadata",
+                              "name": "value",
                               "content": {
                                 "type": "SYMBOL",
                                 "name": "file_directive_value"
@@ -13263,58 +13302,136 @@
                   "value": "#:property"
                 },
                 {
-                  "type": "SYMBOL",
-                  "name": "_file_directive_spacing"
-                },
-                {
-                  "type": "FIELD",
-                  "name": "name",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "file_directive_name"
-                  }
-                },
-                {
                   "type": "CHOICE",
                   "members": [
                     {
-                      "type": "SYMBOL",
-                      "name": "_file_directive_spacing"
-                    },
-                    {
-                      "type": "BLANK"
-                    }
-                  ]
-                },
-                {
-                  "type": "IMMEDIATE_TOKEN",
-                  "content": {
-                    "type": "STRING",
-                    "value": "="
-                  }
-                },
-                {
-                  "type": "CHOICE",
-                  "members": [
-                    {
-                      "type": "SYMBOL",
-                      "name": "_file_directive_spacing"
-                    },
-                    {
-                      "type": "BLANK"
-                    }
-                  ]
-                },
-                {
-                  "type": "CHOICE",
-                  "members": [
-                    {
-                      "type": "FIELD",
-                      "name": "value",
-                      "content": {
-                        "type": "SYMBOL",
-                        "name": "file_directive_value"
-                      }
+                      "type": "SEQ",
+                      "members": [
+                        {
+                          "type": "SYMBOL",
+                          "name": "_file_directive_spacing"
+                        },
+                        {
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "SEQ",
+                              "members": [
+                                {
+                                  "type": "FIELD",
+                                  "name": "name",
+                                  "content": {
+                                    "type": "SYMBOL",
+                                    "name": "file_directive_name"
+                                  }
+                                },
+                                {
+                                  "type": "CHOICE",
+                                  "members": [
+                                    {
+                                      "type": "CHOICE",
+                                      "members": [
+                                        {
+                                          "type": "SEQ",
+                                          "members": [
+                                            {
+                                              "type": "CHOICE",
+                                              "members": [
+                                                {
+                                                  "type": "SYMBOL",
+                                                  "name": "_file_directive_spacing"
+                                                },
+                                                {
+                                                  "type": "BLANK"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "IMMEDIATE_TOKEN",
+                                              "content": {
+                                                "type": "PREC",
+                                                "value": 2,
+                                                "content": {
+                                                  "type": "STRING",
+                                                  "value": "="
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "CHOICE",
+                                              "members": [
+                                                {
+                                                  "type": "SYMBOL",
+                                                  "name": "_file_directive_spacing"
+                                                },
+                                                {
+                                                  "type": "BLANK"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "CHOICE",
+                                              "members": [
+                                                {
+                                                  "type": "FIELD",
+                                                  "name": "value",
+                                                  "content": {
+                                                    "type": "SYMBOL",
+                                                    "name": "file_directive_value"
+                                                  }
+                                                },
+                                                {
+                                                  "type": "BLANK"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "SEQ",
+                                          "members": [
+                                            {
+                                              "type": "CHOICE",
+                                              "members": [
+                                                {
+                                                  "type": "SYMBOL",
+                                                  "name": "_file_directive_spacing"
+                                                },
+                                                {
+                                                  "type": "BLANK"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "FIELD",
+                                              "name": "value",
+                                              "content": {
+                                                "type": "SYMBOL",
+                                                "name": "file_directive_value"
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "BLANK"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "FIELD",
+                              "name": "value",
+                              "content": {
+                                "type": "SYMBOL",
+                                "name": "file_directive_value"
+                              }
+                            }
+                          ]
+                        }
+                      ]
                     },
                     {
                       "type": "BLANK"
@@ -13380,16 +13497,29 @@
                   ]
                 },
                 {
-                  "type": "SYMBOL",
-                  "name": "_file_directive_spacing"
-                },
-                {
-                  "type": "FIELD",
-                  "name": "value",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "file_directive_value"
-                  }
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SEQ",
+                      "members": [
+                        {
+                          "type": "SYMBOL",
+                          "name": "_file_directive_spacing"
+                        },
+                        {
+                          "type": "FIELD",
+                          "name": "value",
+                          "content": {
+                            "type": "SYMBOL",
+                            "name": "file_directive_value"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "BLANK"
+                    }
+                  ]
                 }
               ]
             },
@@ -13488,17 +13618,21 @@
     "file_directive_name": {
       "type": "IMMEDIATE_TOKEN",
       "content": {
-        "type": "CHOICE",
-        "members": [
-          {
-            "type": "PATTERN",
-            "value": "[^ \\t\\v\\f\\u00A0\\uFEFF\\u3000\\r\\n\\u0085\\u2028\\u2029@=\"]+"
-          },
-          {
-            "type": "PATTERN",
-            "value": "\"([^\"\\\\\\r\\n\\u0085\\u2028\\u2029]|\\\\[^\\r\\n\\u0085\\u2028\\u2029])*\""
-          }
-        ]
+        "type": "PREC",
+        "value": 1,
+        "content": {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "PATTERN",
+              "value": "[^ \\t\\v\\f\\u00A0\\uFEFF\\u3000\\r\\n\\u0085\\u2028\\u2029@=\"]+"
+            },
+            {
+              "type": "PATTERN",
+              "value": "\"([^\"\\\\\\r\\n\\u0085\\u2028\\u2029]|\\\\[^\\r\\n\\u0085\\u2028\\u2029])*\""
+            }
+          ]
+        }
       }
     },
     "file_directive_value": {
