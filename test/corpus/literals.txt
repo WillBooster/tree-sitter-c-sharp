@@ -893,6 +893,11 @@ var b = $@"""";
 var c = $@"before""{p}""after";
 var d = $@"""""{p}""""";
 
+var e = @$"""{p}""";
+var f = $@"""{{z}}""";
+var g = $$"""{{p}}""{{p}}""";
+var h = $"""a""{p}""";
+
 --------------------------------------------------------------------------------
 
 (compilation_unit
@@ -953,4 +958,61 @@ var d = $@"""""{p}""""";
               (interpolation_brace)
               (identifier)
               (interpolation_brace))
-            (string_content)))))))
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (interpolation_quote)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (interpolation_quote))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (interpolation_quote)
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (interpolation_quote)))))))
