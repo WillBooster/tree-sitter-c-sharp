@@ -34,12 +34,24 @@ test('preserves file directive fields and following source across line endings',
             [undefined, '../my project'],
           ]);
           expect(tree.rootNode.namedChildren.at(-1)?.text).toBe('class Program {}');
-          expect(
-            query
-              .captures(tree.rootNode)
-              .filter(({ name }) => name === 'keyword.directive')
-              .map(({ node }) => node.text)
-          ).toEqual(['#:sdk', '#:package', '#:property', '#:property', '#:project']);
+          const captures = query.captures(tree.rootNode);
+          expect(captures.filter(({ name }) => name === 'keyword.directive').map(({ node }) => node.text)).toEqual([
+            '#:sdk',
+            '#:package',
+            '#:property',
+            '#:property',
+            '#:project',
+          ]);
+          for (const [capture, texts] of [
+            ['property', ['Microsoft.NET.Sdk', '"Humanizer"', 'Description', 'Empty']],
+            ['string', ['2.0', '"Hello world"', '../my project']],
+          ] as const) {
+            expect(
+              captures
+                .filter(({ name }) => name === capture)
+                .map(({ node }) => [node.text, node.startIndex, node.endIndex])
+            ).toEqual(texts.map((text) => [text, source.indexOf(text), source.indexOf(text) + text.length]));
+          }
         } finally {
           tree.delete();
         }
