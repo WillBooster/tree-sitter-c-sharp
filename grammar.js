@@ -36,7 +36,7 @@ const PREC = {
   SELECT: 0,
 };
 
-const directiveHorizontal = String.raw` \t\v\f\u00A0\uFEFF\u3000`;
+const directiveHorizontal = String.raw` \t\v\f\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF`;
 const directiveLineBreak = String.raw`\r\n\u0085\u2028\u2029`;
 const directiveWhitespace = directiveHorizontal + directiveLineBreak;
 

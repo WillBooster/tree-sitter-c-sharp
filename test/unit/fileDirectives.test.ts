@@ -262,3 +262,32 @@ test('keeps file-directive-looking text inside preprocessor arguments', async ()
     parser.delete();
   }
 });
+
+test('separates and trims Unicode horizontal whitespace without changing interior payload text', async () => {
+  await Parser.init();
+  const language = await Language.load(wasmPath);
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const separator of [
+      '\u1680',
+      ...Array.from({ length: 11 }, (_, i) => String.fromCodePoint(0x20_00 + i)),
+      '\u202F',
+      '\u205F',
+    ]) {
+      const source = `#:package${separator}Humanizer@2.0${separator}\n#:project${separator}my${separator}file.cs${separator}\nclass C {}`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const directives = tree.rootNode.descendantsOfType('file_directive');
+        expect(directives[0]?.childForFieldName('name')?.text, source).toBe('Humanizer');
+        expect(directives[0]?.childForFieldName('value')?.text, source).toBe('2.0');
+        expect(directives[1]?.childForFieldName('value')?.text, source).toBe(`my${separator}file.cs`);
+        expect(tree.rootNode.descendantsOfType('class_declaration')[0]?.text).toBe('class C {}');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
