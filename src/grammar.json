@@ -9594,17 +9594,8 @@
                   "content": {
                     "type": "ALIAS",
                     "content": {
-                      "type": "CHOICE",
-                      "members": [
-                        {
-                          "type": "SYMBOL",
-                          "name": "identifier"
-                        },
-                        {
-                          "type": "STRING",
-                          "value": "_"
-                        }
-                      ]
+                      "type": "SYMBOL",
+                      "name": "identifier"
                     },
                     "named": true,
                     "value": "implicit_parameter"
