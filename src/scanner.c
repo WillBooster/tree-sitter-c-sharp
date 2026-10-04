@@ -50,8 +50,8 @@ static inline void advance(TSLexer *lexer) { lexer->advance(lexer, false); }
 
 static inline void skip(TSLexer *lexer) { lexer->advance(lexer, true); }
 
-// The whitespace of the grammar's first extra other than a line feed, which ends a directive. `iswspace` depends on the
-// C library and its locale, e.g. it rejects U+00A0 on macOS.
+// Use a fixed set for end-of-input lookahead: `iswspace` depends on the C library and locale (it rejects NBSP on macOS).
+// Line terminators that remain here are handled by the grammar when end-of-input lookahead fails.
 static inline bool is_space_but_line_feed(int32_t c) {
     return c == '\t' || c == '\v' || c == '\f' || c == '\r' || c == ' ' || c == 0xA0 || c == 0x3000 || c == 0xFEFF;
 }
