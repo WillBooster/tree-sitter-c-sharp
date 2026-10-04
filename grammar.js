@@ -1523,7 +1523,7 @@ module.exports = grammar({
           repeat($._attribute_list),
           repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
           choice(
-            field('parameters', prec(-1, alias($.identifier, $.implicit_parameter))),
+            field('parameters', prec(-1, alias(choice($.identifier, '_'), $.implicit_parameter))),
             seq(optional(field('type', $.type)), field('parameters', $._lambda_parameters))
           )
         )
@@ -1693,6 +1693,7 @@ module.exports = grammar({
 
     _reserved_identifier: () =>
       choice(
+        prec(-1, '_'),
         'alias',
         'async',
         'ascending',

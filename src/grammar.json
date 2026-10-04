@@ -9576,8 +9576,17 @@
                   "content": {
                     "type": "ALIAS",
                     "content": {
-                      "type": "SYMBOL",
-                      "name": "identifier"
+                      "type": "CHOICE",
+                      "members": [
+                        {
+                          "type": "SYMBOL",
+                          "name": "identifier"
+                        },
+                        {
+                          "type": "STRING",
+                          "value": "_"
+                        }
+                      ]
                     },
                     "named": true,
                     "value": "implicit_parameter"
@@ -11061,6 +11070,14 @@
     "_reserved_identifier": {
       "type": "CHOICE",
       "members": [
+        {
+          "type": "PREC",
+          "value": -1,
+          "content": {
+            "type": "STRING",
+            "value": "_"
+          }
+        },
         {
           "type": "STRING",
           "value": "alias"

@@ -845,3 +845,61 @@ class C { void M() { var f = async _ => await W(); var g = async x => await W();
                       type: (predefined_type)
                       name: (identifier)))
                   body: (identifier))))))))))
+
+================================================================================
+Async discard lambdas in invocation arguments
+================================================================================
+
+class C { void M() { var a = new Gate(async _ => await W()); Use(async _ => await W()); var b = async _ => await W(); } }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list)
+        body: (block
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (object_creation_expression
+                  type: (identifier)
+                  arguments: (argument_list
+                    (argument
+                      (lambda_expression
+                        (modifier)
+                        parameters: (implicit_parameter)
+                        body: (await_expression
+                          (invocation_expression
+                            function: (identifier)
+                            arguments: (argument_list))))))))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (lambda_expression
+                    (modifier)
+                    parameters: (implicit_parameter)
+                    body: (await_expression
+                      (invocation_expression
+                        function: (identifier)
+                        arguments: (argument_list))))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (lambda_expression
+                  (modifier)
+                  parameters: (implicit_parameter)
+                  body: (await_expression
+                    (invocation_expression
+                      function: (identifier)
+                      arguments: (argument_list))))))))))))
