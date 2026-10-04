@@ -1,18 +1,23 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
-import { expect, test } from 'vitest';
+import { beforeAll, expect, test } from 'vitest';
 
-test('preserves conditional method signatures, shared bodies and method queries', async () => {
+const root = path.join(import.meta.dirname, '../..');
+let language: Language;
+
+beforeAll(async () => {
   await Parser.init();
-  const root = path.join(import.meta.dirname, '../..');
-  const language = await Language.load(path.join(root, 'tree-sitter-c_sharp.wasm'));
+  language = await Language.load(path.join(root, 'tree-sitter-c_sharp.wasm'));
+});
+
+test('preserves conditional method signatures, shared bodies and method queries', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const highlights = new Query(language, await readFile(path.join(root, 'queries/highlights.scm'), 'utf8'));
-  const tags = new Query(language, await readFile(path.join(root, 'queries/tags.scm'), 'utf8'));
+  const highlights = new Query(language, readFileSync(path.join(root, 'queries/highlights.scm'), 'utf8'));
+  const tags = new Query(language, readFileSync(path.join(root, 'queries/tags.scm'), 'utf8'));
   try {
     for (const body of ['{ return value; }', '=> value;']) {
       const tree = parser.parse(`class C {
