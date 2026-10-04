@@ -882,3 +882,163 @@ var s = $$"""
               (interpolation_brace))
             (string_content)
             (interpolation_quote)))))))
+
+================================================================================
+Escaped quotes in interpolated verbatim strings
+================================================================================
+
+var p = 1;
+var a = $@"""{p}""";
+var b = $@"""";
+var c = $@"before""{p}""after";
+var d = $@"""""{p}""""";
+
+var e = @$"""{p}""";
+var f = $@"""{{z}}""";
+var g = $$"""{{p}}""{{p}}""";
+var h = $"""a""{p}""";
+
+var i = $@"""""{{z}}""""";
+var j = @$"""""""{{z}}{p}""""""";
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (integer_literal)))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (interpolation_quote)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (interpolation_quote))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (interpolation_quote)
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (interpolation_quote))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (interpolated_string_expression
+            (interpolation_start)
+            (string_content)
+            (interpolation
+              (interpolation_brace)
+              (identifier)
+              (interpolation_brace))
+            (string_content)))))))

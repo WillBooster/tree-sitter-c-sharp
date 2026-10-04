@@ -503,6 +503,16 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         while (lexer->lookahead == '"') {
             advance(lexer);
             quote_count++;
+            if (is_verbatim(current_interpolation) && quote_count == 2) {
+                lexer->mark_end(lexer);
+                did_advance = true;
+                quote_count = 0;
+            }
+        }
+
+        if (is_verbatim(current_interpolation) && did_advance && quote_count == 1) {
+            lexer->result_symbol = INTERPOLATION_STRING_CONTENT;
+            return valid_symbols[INTERPOLATION_STRING_CONTENT];
         }
 
         if (quote_count == current_interpolation->quote_count) {
@@ -511,11 +521,13 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             return true;
         }
 
-        did_advance = quote_count > 0;
+        did_advance = did_advance || quote_count > 0;
     }
 
     if (valid_symbols[INTERPOLATION_OPEN_BRACE] && scanner->interpolation_stack.size > 0) {
         Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
+
+        if (did_advance) lexer->mark_end(lexer);
 
         while (lexer->lookahead == '{' && brace_advanced < current_interpolation->dollar_count) {
             advance(lexer);
@@ -524,6 +536,10 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
         if (brace_advanced > 0 && brace_advanced == current_interpolation->dollar_count &&
             (brace_advanced == 0 || lexer->lookahead != '{')) {
+            if (did_advance) {
+                lexer->result_symbol = INTERPOLATION_STRING_CONTENT;
+                return valid_symbols[INTERPOLATION_STRING_CONTENT];
+            }
             current_interpolation->open_brace_count = brace_advanced;
             lexer->result_symbol = INTERPOLATION_OPEN_BRACE;
             return true;
@@ -597,6 +613,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
                     advance(lexer);
                     if (lexer->lookahead == '"') {
                         advance(lexer);
+                        did_advance = true;
                         continue;
                     }
                     return did_advance;
