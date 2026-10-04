@@ -10708,8 +10708,12 @@
                 "name": "expression"
               },
               {
-                "type": "SYMBOL",
-                "name": "declaration_expression"
+                "type": "PREC_DYNAMIC",
+                "value": -1,
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "declaration_expression"
+                }
               }
             ]
           }
