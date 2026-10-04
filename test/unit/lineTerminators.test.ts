@@ -68,3 +68,29 @@ test('retains declarations after preprocessor lines in every newline encoding', 
     parser.delete();
   }
 });
+
+test('keeps trailing directive slashes while preserving adjacent block comments', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const [payload, argument, comment] of [
+        ['https://example.com/', 'https://example.com/', undefined],
+        ['foo/* note */', 'foo', '/* note */'],
+        ['/', '/', undefined],
+      ]) {
+        const source = `#region ${payload}${newline}class C {}${newline}#endregion`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(tree.rootNode.descendantsOfType('preproc_arg').map((n) => n.text)).toEqual([argument]);
+          expect(tree.rootNode.descendantsOfType('comment').map((n) => n.text)).toEqual(comment ? [comment] : []);
+          expect(tree.rootNode.descendantsOfType('class_declaration').map((n) => n.text)).toEqual(['class C {}']);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

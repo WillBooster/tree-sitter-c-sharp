@@ -1740,7 +1740,10 @@ module.exports = grammar({
     ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
 
     preproc_arg: () =>
-      token(prec(-1, /[^\s\u0085\u2028\u2029]([^/\r\n\u0085\u2028\u2029]|\/[^*\r\n\u0085\u2028\u2029]|\\\r?\n)*/)),
+      seq(
+        token(prec(-1, /[^\s\u0085\u2028\u2029]([^/\r\n\u0085\u2028\u2029]|\/[^*\r\n\u0085\u2028\u2029]|\\\r?\n)*/)),
+        optional(token.immediate('/'))
+      ),
     preproc_directive: () => /#[ \t]*[a-zA-Z0-9]\w*/,
 
     _preproc_expression: ($) =>
