@@ -36,6 +36,10 @@ const PREC = {
   SELECT: 0,
 };
 
+const directiveHorizontal = String.raw` \t\v\f\u00A0\uFEFF\u3000`;
+const directiveLineBreak = String.raw`\r\n\u0085\u2028\u2029`;
+const directiveWhitespace = directiveHorizontal + directiveLineBreak;
+
 const decimalDigitSequence = /([0-9][0-9_]*[0-9]|[0-9])/;
 
 const stringEncoding = /(u|U)8/;
@@ -1913,23 +1917,21 @@ module.exports = grammar({
           )
         ),
         optional($._file_directive_spacing),
-        choice(token.immediate(/\r\n|[\n\r\u0085\u2028\u2029]/), $._end_of_input)
+        choice(token.immediate(new RegExp(String.raw`\r\n|[${directiveLineBreak}]`)), $._end_of_input)
       ),
 
-    file_directive_kind: () => token(/#:[^\s\u00A0\uFEFF\u3000\u0085\u2028\u2029]*/),
+    file_directive_kind: () => token(new RegExp(`#:[^${directiveWhitespace}]*`)),
 
-    _file_directive_spacing: () => token.immediate(prec(1, /[ \t\v\f\u00A0\uFEFF\u3000]+/)),
+    _file_directive_spacing: () => token.immediate(prec(1, new RegExp(`[${directiveHorizontal}]+`))),
     file_directive_name: () =>
       token.immediate(
         choice(
-          /[^\s\u00A0\uFEFF\u3000\u0085\u2028\u2029@="]+/,
-          /"([^"\\\r\n\u0085\u2028\u2029]|\\[^\r\n\u0085\u2028\u2029])*"/
+          new RegExp(`[^${directiveWhitespace}@="]+`),
+          new RegExp(String.raw`"([^"\\${directiveLineBreak}]|\\[^${directiveLineBreak}])*"`)
         )
       ),
     file_directive_value: () =>
-      token.immediate(
-        /[^\s\u00A0\uFEFF\u3000\u0085\u2028\u2029]([^\r\n\u0085\u2028\u2029]*[^\s\u00A0\uFEFF\u3000\u0085\u2028\u2029])?/
-      ),
+      token.immediate(new RegExp(`[^${directiveWhitespace}]([^${directiveLineBreak}]*[^${directiveWhitespace}])?`)),
 
     shebang_directive: () => token(seq('#!', /.*/)),
 

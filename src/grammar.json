@@ -13456,7 +13456,7 @@
               "type": "IMMEDIATE_TOKEN",
               "content": {
                 "type": "PATTERN",
-                "value": "\\r\\n|[\\n\\r\\u0085\\u2028\\u2029]"
+                "value": "\\r\\n|[\\r\\n\\u0085\\u2028\\u2029]"
               }
             },
             {
@@ -13471,7 +13471,7 @@
       "type": "TOKEN",
       "content": {
         "type": "PATTERN",
-        "value": "#:[^\\s\\u00A0\\uFEFF\\u3000\\u0085\\u2028\\u2029]*"
+        "value": "#:[^ \\t\\v\\f\\u00A0\\uFEFF\\u3000\\r\\n\\u0085\\u2028\\u2029]*"
       }
     },
     "_file_directive_spacing": {
@@ -13492,7 +13492,7 @@
         "members": [
           {
             "type": "PATTERN",
-            "value": "[^\\s\\u00A0\\uFEFF\\u3000\\u0085\\u2028\\u2029@=\"]+"
+            "value": "[^ \\t\\v\\f\\u00A0\\uFEFF\\u3000\\r\\n\\u0085\\u2028\\u2029@=\"]+"
           },
           {
             "type": "PATTERN",
@@ -13505,7 +13505,7 @@
       "type": "IMMEDIATE_TOKEN",
       "content": {
         "type": "PATTERN",
-        "value": "[^\\s\\u00A0\\uFEFF\\u3000\\u0085\\u2028\\u2029]([^\\r\\n\\u0085\\u2028\\u2029]*[^\\s\\u00A0\\uFEFF\\u3000\\u0085\\u2028\\u2029])?"
+        "value": "[^ \\t\\v\\f\\u00A0\\uFEFF\\u3000\\r\\n\\u0085\\u2028\\u2029]([^\\r\\n\\u0085\\u2028\\u2029]*[^ \\t\\v\\f\\u00A0\\uFEFF\\u3000\\r\\n\\u0085\\u2028\\u2029])?"
       }
     },
     "shebang_directive": {
