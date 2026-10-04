@@ -9569,24 +9569,51 @@
             "members": [
               {
                 "type": "FIELD",
-                "name": "type",
+                "name": "parameters",
                 "content": {
-                  "type": "SYMBOL",
-                  "name": "type"
+                  "type": "PREC",
+                  "value": -1,
+                  "content": {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "identifier"
+                    },
+                    "named": true,
+                    "value": "implicit_parameter"
+                  }
                 }
               },
               {
-                "type": "BLANK"
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "FIELD",
+                        "name": "type",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "type"
+                        }
+                      },
+                      {
+                        "type": "BLANK"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "FIELD",
+                    "name": "parameters",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_lambda_parameters"
+                    }
+                  }
+                ]
               }
             ]
-          },
-          {
-            "type": "FIELD",
-            "name": "parameters",
-            "content": {
-              "type": "SYMBOL",
-              "name": "_lambda_parameters"
-            }
           }
         ]
       }
@@ -9600,15 +9627,6 @@
           {
             "type": "SYMBOL",
             "name": "parameter_list"
-          },
-          {
-            "type": "ALIAS",
-            "content": {
-              "type": "SYMBOL",
-              "name": "identifier"
-            },
-            "named": true,
-            "value": "implicit_parameter"
           },
           {
             "type": "SYMBOL",
@@ -12998,6 +13016,10 @@
     [
       "tuple_element",
       "type_pattern"
+    ],
+    [
+      "type_pattern",
+      "declaration_pattern"
     ],
     [
       "tuple_element",

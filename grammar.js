@@ -51,6 +51,7 @@ module.exports = grammar({
     [$._simple_name, $.subpattern],
 
     [$.tuple_element, $.type_pattern],
+    [$.type_pattern, $.declaration_pattern],
     [$.tuple_element, $.using_variable_declarator],
     [$.tuple_element, $.declaration_expression],
 
@@ -1521,8 +1522,10 @@ module.exports = grammar({
         seq(
           repeat($._attribute_list),
           repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
-          optional(field('type', $.type)),
-          field('parameters', $._lambda_parameters)
+          choice(
+            field('parameters', prec(-1, alias($.identifier, $.implicit_parameter))),
+            seq(optional(field('type', $.type)), field('parameters', $._lambda_parameters))
+          )
         )
       ),
 
@@ -1531,7 +1534,6 @@ module.exports = grammar({
         -1,
         choice(
           $.parameter_list,
-          alias($.identifier, $.implicit_parameter),
           // C# 14: `(ref x) => x`, `(out y) => ...`, `(text, out result) => ...`
           // The opening '(' is recognized via the external _lambda_paren_open
           // token, which the scanner only emits when it can confirm a closing
