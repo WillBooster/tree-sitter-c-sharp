@@ -35,3 +35,36 @@ test('ends comments and shebang lines before every C# line terminator', () => {
     parser.delete();
   }
 });
+
+test('retains declarations after preprocessor lines in every newline encoding', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      const source = [
+        '#if X',
+        'class A {}',
+        '#elif Y',
+        'class B {}',
+        '#else',
+        'class C {}',
+        '#endif',
+        '#region R',
+        'class D {}',
+        '#endregion',
+        '',
+      ].join(newline);
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('class_declaration').map((n) => n.childForFieldName('name')?.text)
+        ).toEqual(['A', 'B', 'C', 'D']);
+        expect(tree.rootNode.descendantsOfType('preproc_arg').map((n) => n.text)).toEqual(['R']);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

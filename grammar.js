@@ -9,6 +9,8 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
+const newLine = /\r\n|[\r\n\u0085\u2028\u2029]/;
+
 const PREC = {
   GENERIC: 19,
   DOT: 18,
@@ -1737,7 +1739,8 @@ module.exports = grammar({
     ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
     ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
 
-    preproc_arg: () => token(prec(-1, /\S([^/\n]|\/[^*]|\\\r?\n)*/)),
+    preproc_arg: () =>
+      token(prec(-1, /[^\s\u0085\u2028\u2029]([^/\r\n\u0085\u2028\u2029]|\/[^*\r\n\u0085\u2028\u2029]|\\\r?\n)*/)),
     preproc_directive: () => /#[ \t]*[a-zA-Z0-9]\w*/,
 
     _preproc_expression: ($) =>
@@ -1869,7 +1872,7 @@ module.exports = grammar({
  * @returns {ChoiceRule}
  */
 function directiveEnd($) {
-  return choice(/\n/, $._end_of_input);
+  return choice(newLine, $._end_of_input);
 }
 
 /**
@@ -1916,7 +1919,7 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         seq(
           preprocessor('if'),
           field('condition', $._preproc_expression),
-          /\n/,
+          newLine,
           rep ? repeat(content($)) : required ? content($) : optional(content($)),
           field('alternative', optional(alternativeBlock($))),
           preprocessor('endif')
@@ -1935,7 +1938,7 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         seq(
           preprocessor('elif'),
           field('condition', $._preproc_expression),
-          /\n/,
+          newLine,
           rep ? repeat(content($)) : required ? content($) : optional(content($)),
           field('alternative', optional(alternativeBlock($)))
         )
