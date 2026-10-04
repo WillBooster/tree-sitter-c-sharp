@@ -1,0 +1,51 @@
+==================
+File-based application directives
+==================
+
+#!/usr/bin/env dotnet
+#:sdk Microsoft.NET.Sdk
+#:package Newtonsoft.Json@13.0.3
+#:property LangVersion=preview
+#:property Description=Hello world
+#:project ../MyLibrary
+#:ref ../Library.cs
+#:include ./**/*.cs
+#:exclude obj/**/*.cs
+using System;
+Console.WriteLine("Hello");
+
+---
+
+(compilation_unit
+  (shebang_directive)
+  (file_directive
+    (file_directive_name))
+  (file_directive
+    (file_directive_name)
+    (file_directive_value))
+  (file_directive
+    (file_directive_name)
+    (file_directive_value))
+  (file_directive
+    (file_directive_name)
+    (file_directive_value))
+  (file_directive
+    (file_directive_value))
+  (file_directive
+    (file_directive_value))
+  (file_directive
+    (file_directive_value))
+  (file_directive
+    (file_directive_value))
+  (using_directive
+    (identifier))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        (member_access_expression
+          (identifier)
+          (identifier))
+        (argument_list
+          (argument
+            (string_literal
+              (string_literal_content))))))))

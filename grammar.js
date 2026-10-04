@@ -190,7 +190,7 @@ module.exports = grammar({
   word: ($) => $._identifier_token,
 
   rules: {
-    compilation_unit: ($) => seq(optional($.shebang_directive), repeat($._top_level_item)),
+    compilation_unit: ($) => seq(optional($.shebang_directive), repeat($.file_directive), repeat($._top_level_item)),
 
     _top_level_item: ($) => prec(2, choice($._top_level_item_no_statement, $.global_statement)),
 
@@ -1865,6 +1865,48 @@ module.exports = grammar({
     preproc_define: ($) => seq(preprocessor('define'), $.preproc_arg, directiveEnd($)),
 
     preproc_undef: ($) => seq(preprocessor('undef'), $.preproc_arg, directiveEnd($)),
+
+    file_directive: ($) =>
+      seq(
+        choice(
+          seq(
+            choice('#:sdk', '#:package'),
+            $._file_directive_spacing,
+            field('name', $.file_directive_name),
+            optional(
+              choice(
+                seq(
+                  optional($._file_directive_spacing),
+                  token.immediate(prec(2, '@')),
+                  optional($._file_directive_spacing),
+                  optional(field('value', $.file_directive_value))
+                ),
+                seq($._file_directive_spacing, field('metadata', $.file_directive_value))
+              )
+            )
+          ),
+          seq(
+            '#:property',
+            $._file_directive_spacing,
+            field('name', $.file_directive_name),
+            optional($._file_directive_spacing),
+            token.immediate('='),
+            optional($._file_directive_spacing),
+            optional(field('value', $.file_directive_value))
+          ),
+          seq(
+            choice('#:project', '#:ref', '#:include', '#:exclude'),
+            $._file_directive_spacing,
+            field('value', $.file_directive_value)
+          )
+        ),
+        optional($._file_directive_spacing),
+        choice(/\r\n|\n|\r/, $._end_of_input)
+      ),
+
+    _file_directive_spacing: () => token.immediate(prec(1, /[ \t]+/)),
+    file_directive_name: () => token.immediate(choice(/[^\s@="]+/, /"([^"\\\r\n]|\\[^\r\n])*"/)),
+    file_directive_value: () => token.immediate(/[^\s]([^\r\n]*[^\s])?/),
 
     shebang_directive: () => token(seq('#!', /.*/)),
 
