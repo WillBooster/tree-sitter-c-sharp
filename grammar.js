@@ -1865,19 +1865,24 @@ module.exports = grammar({
           fileDirectiveArguments(
             $,
             choice(
-              alias(token(/#:[sS][dD][kK]/), '#:sdk'),
-              alias(token(/#:[pP][aA][cC][kK][aA][gG][eE]/), '#:package')
+              alias(token(prec(-2, /#:[sS][dD][kK]/)), '#:sdk'),
+              alias(token(prec(-2, /#:[pP][aA][cC][kK][aA][gG][eE]/)), '#:package')
             ),
             '@',
             'metadata'
           ),
-          fileDirectiveArguments($, alias(token(/#:[pP][rR][oO][pP][eE][rR][tT][yY]/), '#:property'), '=', 'value'),
+          fileDirectiveArguments(
+            $,
+            alias(token(prec(-2, /#:[pP][rR][oO][pP][eE][rR][tT][yY]/)), '#:property'),
+            '=',
+            'value'
+          ),
           seq(
             choice(
-              alias(token(/#:[pP][rR][oO][jJ][eE][cC][tT]/), '#:project'),
-              alias(token(/#:[rR][eE][fF]/), '#:ref'),
-              alias(token(/#:[iI][nN][cC][lL][uU][dD][eE]/), '#:include'),
-              alias(token(/#:[eE][xX][cC][lL][uU][dD][eE]/), '#:exclude')
+              alias(token(prec(-2, /#:[pP][rR][oO][jJ][eE][cC][tT]/)), '#:project'),
+              alias(token(prec(-2, /#:[rR][eE][fF]/)), '#:ref'),
+              alias(token(prec(-2, /#:[iI][nN][cC][lL][uU][dD][eE]/)), '#:include'),
+              alias(token(prec(-2, /#:[eE][xX][cC][lL][uU][dD][eE]/)), '#:exclude')
             ),
             optional(seq($._file_directive_spacing, field('value', $.file_directive_value)))
           ),
@@ -1890,7 +1895,7 @@ module.exports = grammar({
         choice(token.immediate(new RegExp(String.raw`\r\n|[${directiveLineBreak}]`)), $._end_of_input)
       ),
 
-    file_directive_kind: () => token(new RegExp(`#:[^${directiveWhitespace}]*`)),
+    file_directive_kind: () => token(prec(-2, new RegExp(`#:[^${directiveWhitespace}]*`))),
 
     _file_directive_spacing: () => token.immediate(prec(1, new RegExp(`[${directiveHorizontal}]+`))),
     file_directive_name: () =>

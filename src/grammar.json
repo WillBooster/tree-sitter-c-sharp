@@ -13373,8 +13373,12 @@
                       "content": {
                         "type": "TOKEN",
                         "content": {
-                          "type": "PATTERN",
-                          "value": "#:[sS][dD][kK]"
+                          "type": "PREC",
+                          "value": -2,
+                          "content": {
+                            "type": "PATTERN",
+                            "value": "#:[sS][dD][kK]"
+                          }
                         }
                       },
                       "named": false,
@@ -13385,8 +13389,12 @@
                       "content": {
                         "type": "TOKEN",
                         "content": {
-                          "type": "PATTERN",
-                          "value": "#:[pP][aA][cC][kK][aA][gG][eE]"
+                          "type": "PREC",
+                          "value": -2,
+                          "content": {
+                            "type": "PATTERN",
+                            "value": "#:[pP][aA][cC][kK][aA][gG][eE]"
+                          }
                         }
                       },
                       "named": false,
@@ -13541,8 +13549,12 @@
                   "content": {
                     "type": "TOKEN",
                     "content": {
-                      "type": "PATTERN",
-                      "value": "#:[pP][rR][oO][pP][eE][rR][tT][yY]"
+                      "type": "PREC",
+                      "value": -2,
+                      "content": {
+                        "type": "PATTERN",
+                        "value": "#:[pP][rR][oO][pP][eE][rR][tT][yY]"
+                      }
                     }
                   },
                   "named": false,
@@ -13698,8 +13710,12 @@
                       "content": {
                         "type": "TOKEN",
                         "content": {
-                          "type": "PATTERN",
-                          "value": "#:[pP][rR][oO][jJ][eE][cC][tT]"
+                          "type": "PREC",
+                          "value": -2,
+                          "content": {
+                            "type": "PATTERN",
+                            "value": "#:[pP][rR][oO][jJ][eE][cC][tT]"
+                          }
                         }
                       },
                       "named": false,
@@ -13710,8 +13726,12 @@
                       "content": {
                         "type": "TOKEN",
                         "content": {
-                          "type": "PATTERN",
-                          "value": "#:[rR][eE][fF]"
+                          "type": "PREC",
+                          "value": -2,
+                          "content": {
+                            "type": "PATTERN",
+                            "value": "#:[rR][eE][fF]"
+                          }
                         }
                       },
                       "named": false,
@@ -13722,8 +13742,12 @@
                       "content": {
                         "type": "TOKEN",
                         "content": {
-                          "type": "PATTERN",
-                          "value": "#:[iI][nN][cC][lL][uU][dD][eE]"
+                          "type": "PREC",
+                          "value": -2,
+                          "content": {
+                            "type": "PATTERN",
+                            "value": "#:[iI][nN][cC][lL][uU][dD][eE]"
+                          }
                         }
                       },
                       "named": false,
@@ -13734,8 +13758,12 @@
                       "content": {
                         "type": "TOKEN",
                         "content": {
-                          "type": "PATTERN",
-                          "value": "#:[eE][xX][cC][lL][uU][dD][eE]"
+                          "type": "PREC",
+                          "value": -2,
+                          "content": {
+                            "type": "PATTERN",
+                            "value": "#:[eE][xX][cC][lL][uU][dD][eE]"
+                          }
                         }
                       },
                       "named": false,
@@ -13847,8 +13875,12 @@
     "file_directive_kind": {
       "type": "TOKEN",
       "content": {
-        "type": "PATTERN",
-        "value": "#:[^ \\t\\v\\f\\u00A0\\uFEFF\\u3000\\r\\n\\u0085\\u2028\\u2029]*"
+        "type": "PREC",
+        "value": -2,
+        "content": {
+          "type": "PATTERN",
+          "value": "#:[^ \\t\\v\\f\\u00A0\\uFEFF\\u3000\\r\\n\\u0085\\u2028\\u2029]*"
+        }
       }
     },
     "_file_directive_spacing": {

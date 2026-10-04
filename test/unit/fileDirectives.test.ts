@@ -232,3 +232,33 @@ test('does not open multiline comments inside directive payloads', async () => {
     parser.delete();
   }
 });
+
+test('keeps file-directive-looking text inside preprocessor arguments', async () => {
+  await Parser.init();
+  const parser = new Parser();
+  parser.setLanguage(await Language.load(wasmPath));
+  try {
+    for (const kind of ['region', 'endregion', 'define', 'undef', 'error', 'warning']) {
+      for (const argument of ['#:foo', '#:sdk X', '#:package Humanizer', '#:/ is not valid here']) {
+        const source = `#${kind} ${argument}\nclass C{}`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(tree.rootNode.descendantsOfType('file_directive'), source).toHaveLength(0);
+          expect(
+            tree.rootNode.descendantsOfType('preproc_arg').map((node) => node.text),
+            source
+          ).toEqual([argument]);
+          expect(
+            tree.rootNode.descendantsOfType('class_declaration').map((node) => node.text),
+            source
+          ).toEqual(['class C{}']);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
