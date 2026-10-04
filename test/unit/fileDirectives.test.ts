@@ -97,6 +97,11 @@ test('keeps unknown directive payloads opaque and ends ranges on their own line'
         '#:sdk\u00A0Foo',
         '#:Package Humanizer@2',
         '#:tool T',
+        '#:tool // payload',
+        '#:project /* payload',
+        '#:sdk A /* payload',
+        '#:package A // payload',
+        '#:property A= // payload',
         '#:nuget-source https://api.nuget.org/v3/index.json',
         '#:run --watch',
         '#:',
@@ -191,6 +196,36 @@ test('preserves surrounding declarations when directives are inserted after code
       } finally {
         original.delete();
         edited.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('does not open multiline comments inside directive payloads', async () => {
+  await Parser.init();
+  const parser = new Parser();
+  parser.setLanguage(await Language.load(wasmPath));
+  try {
+    for (const line of ['#:tool /*a', '#:project /*a', '#:sdk A /*a', '#:property A= /*a']) {
+      for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+        const source = `${line}${newline}class Program {}\n*/`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(
+            tree.rootNode.descendantsOfType('file_directive').map((node) => node.text),
+            source
+          ).toEqual([line + newline]);
+          expect(
+            tree.rootNode.descendantsOfType('class_declaration').map((node) => node.text),
+            source
+          ).toEqual(['class Program {}']);
+          expect(tree.rootNode.descendantsOfType('comment'), source).toHaveLength(0);
+          expect(tree.rootNode.hasError, source).toBe(true);
+        } finally {
+          tree.delete();
+        }
       }
     }
   } finally {

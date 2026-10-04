@@ -1896,7 +1896,7 @@ module.exports = grammar({
     file_directive_name: () =>
       token.immediate(
         prec(
-          1,
+          2,
           choice(
             new RegExp(`[^${directiveWhitespace}@="]+`),
             new RegExp(String.raw`"([^"\\${directiveLineBreak}]|\\[^${directiveLineBreak}])*"`)
@@ -1904,7 +1904,9 @@ module.exports = grammar({
         )
       ),
     file_directive_value: () =>
-      token.immediate(new RegExp(`[^${directiveWhitespace}]([^${directiveLineBreak}]*[^${directiveWhitespace}])?`)),
+      token.immediate(
+        prec(1, new RegExp(`[^${directiveWhitespace}]([^${directiveLineBreak}]*[^${directiveWhitespace}])?`))
+      ),
 
     shebang_directive: () => token(seq('#!', /.*/)),
 
