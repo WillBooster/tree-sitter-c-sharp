@@ -164,6 +164,7 @@ module.exports = grammar({
     $.preproc_warning,
     $.preproc_define,
     $.preproc_undef,
+    $.file_directive,
   ],
 
   inline: ($) => [
@@ -194,7 +195,7 @@ module.exports = grammar({
   word: ($) => $._identifier_token,
 
   rules: {
-    compilation_unit: ($) => seq(optional($.shebang_directive), repeat($.file_directive), repeat($._top_level_item)),
+    compilation_unit: ($) => seq(optional($.shebang_directive), repeat($._top_level_item)),
 
     _top_level_item: ($) => prec(2, choice($._top_level_item_no_statement, $.global_statement)),
 

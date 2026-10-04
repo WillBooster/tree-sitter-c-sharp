@@ -22,13 +22,6 @@
           "type": "REPEAT",
           "content": {
             "type": "SYMBOL",
-            "name": "file_directive"
-          }
-        },
-        {
-          "type": "REPEAT",
-          "content": {
-            "type": "SYMBOL",
             "name": "_top_level_item"
           }
         }
@@ -13741,6 +13734,10 @@
     {
       "type": "SYMBOL",
       "name": "preproc_undef"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "file_directive"
     }
   ],
   "conflicts": [

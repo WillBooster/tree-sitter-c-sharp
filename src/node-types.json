@@ -1756,10 +1756,6 @@
           "named": true
         },
         {
-          "type": "file_directive",
-          "named": true
-        },
-        {
           "type": "file_scoped_namespace_declaration",
           "named": true
         },
@@ -2757,6 +2753,7 @@
   {
     "type": "file_directive",
     "named": true,
+    "extra": true,
     "fields": {
       "metadata": {
         "multiple": false,

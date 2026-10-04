@@ -167,3 +167,33 @@ test('keeps incomplete SDK payloads on their ignored directive line', async () =
     parser.delete();
   }
 });
+
+test('preserves surrounding declarations when directives are inserted after code', async () => {
+  await Parser.init();
+  const parser = new Parser();
+  parser.setLanguage(await Language.load(wasmPath));
+  try {
+    for (const prefix of [
+      'class Q {}',
+      'Console.WriteLine("hi");',
+      'using System;\nnamespace N {}\nrecord R(int X);',
+    ]) {
+      const original = parser.parse(prefix + '\nclass B {}')!;
+      const edited = parser.parse(prefix + '\n#:package Newtonsoft.Json@13.0.3\nclass B {}')!;
+      try {
+        expect(edited.rootNode.hasError).toBe(false);
+        expect(
+          edited.rootNode.namedChildren.filter((node) => node.type !== 'file_directive').map((node) => node.toString())
+        ).toEqual(original.rootNode.namedChildren.map((node) => node.toString()));
+        const directive = edited.rootNode.descendantsOfType('file_directive')[0]!;
+        expect(directive.childForFieldName('name')?.text).toBe('Newtonsoft.Json');
+        expect(directive.childForFieldName('value')?.text).toBe('13.0.3');
+      } finally {
+        original.delete();
+        edited.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
