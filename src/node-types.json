@@ -8,6 +8,10 @@
         "named": true
       },
       {
+        "type": "conditional_method_declaration",
+        "named": true
+      },
+      {
         "type": "constructor_declaration",
         "named": true
       },
@@ -1857,6 +1861,36 @@
     }
   },
   {
+    "type": "conditional_method_declaration",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "arrow_expression_clause",
+            "named": true
+          },
+          {
+            "type": "block",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "preproc_if",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "constant_pattern",
     "named": true,
     "fields": {},
@@ -2657,6 +2691,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "conditional_method_declaration",
+          "named": true
+        },
         {
           "type": "method_declaration",
           "named": true
@@ -4086,6 +4124,78 @@
     }
   },
   {
+    "type": "method_signature",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "parameters": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "parameter_list",
+            "named": true
+          }
+        ]
+      },
+      "returns": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type",
+            "named": true
+          }
+        ]
+      },
+      "type_parameters": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_parameter_list",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute_list",
+          "named": true
+        },
+        {
+          "type": "explicit_interface_specifier",
+          "named": true
+        },
+        {
+          "type": "modifier",
+          "named": true
+        },
+        {
+          "type": "preproc_if_in_attribute_list",
+          "named": true
+        },
+        {
+          "type": "type_parameter_constraints_clause",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "modifier",
     "named": true,
     "fields": {}
@@ -4849,6 +4959,10 @@
           "named": true
         },
         {
+          "type": "method_signature",
+          "named": true
+        },
+        {
           "type": "statement",
           "named": true
         },
@@ -4893,6 +5007,10 @@
         },
         {
           "type": "global_attribute",
+          "named": true
+        },
+        {
+          "type": "method_signature",
           "named": true
         },
         {
@@ -5018,6 +5136,10 @@
         },
         {
           "type": "global_attribute",
+          "named": true
+        },
+        {
+          "type": "method_signature",
           "named": true
         },
         {
