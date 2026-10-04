@@ -1802,7 +1802,7 @@ module.exports = grammar({
         choice(
           'default',
           'hidden',
-          seq($.integer_literal, optional($.string_literal)),
+          seq($.integer_literal, optional(alias($._preproc_filename, $.string_literal))),
           seq(
             '(',
             $.integer_literal,
@@ -1816,10 +1816,28 @@ module.exports = grammar({
             $.integer_literal,
             ')',
             optional($.integer_literal),
-            $.string_literal
+            alias($._preproc_filename, $.string_literal)
           )
         ),
         directiveEnd($)
+      ),
+
+    _preproc_filename: ($) =>
+      seq(
+        '"',
+        repeat(
+          choice(
+            alias(token.immediate(prec(1, /[^"\\\r\n\u0085\u2028\u2029]+/)), $.string_literal_content),
+            alias(token.immediate(prec(-1, '\\')), $.string_literal_content),
+            alias(
+              token.immediate(
+                choice(/\\x[0-9a-fA-F]{1,4}/, /\\u[0-9a-fA-F]{4}/, /\\U[0-9a-fA-F]{8}/, /\\[abefnrtv'\\?0]/)
+              ),
+              $.escape_sequence
+            )
+          )
+        ),
+        token.immediate('"')
       ),
 
     preproc_pragma: ($) =>
@@ -1827,7 +1845,7 @@ module.exports = grammar({
         preprocessor('pragma'),
         choice(
           seq('warning', choice('disable', 'restore'), commaSep(choice($.identifier, $.integer_literal))),
-          seq('checksum', $.string_literal, $.string_literal, $.string_literal)
+          seq('checksum', alias($._preproc_filename, $.string_literal), $.string_literal, $.string_literal)
         ),
         directiveEnd($)
       ),

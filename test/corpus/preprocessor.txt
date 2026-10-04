@@ -282,3 +282,133 @@ class A {}
     name: (identifier)
     body: (declaration_list))
   (preproc_nullable))
+
+================================================================================
+Line directive filenames with literal backslashes
+================================================================================
+
+class LineNames {
+    void M() {
+#line 10 "raw\path.cs"
+#line (1,1)-(5,60) "raw\span.cs"
+#line 20 "C:\"
+#line 30 "literal\u00zz\xunknown.cs"
+#line 40 "plain.cs"
+#line 50 "escape\nlike\u0061\x41\\path.cs"
+#line 60 ""
+#line hidden
+#line default
+        string ordinary = "line\ntext\u0061\x41\\path";
+        _ = ordinary;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list)
+        body: (block
+          (preproc_line
+            (integer_literal)
+            (string_literal
+              (string_literal_content)
+              (string_literal_content)
+              (string_literal_content)))
+          (preproc_line
+            (integer_literal)
+            (integer_literal)
+            (integer_literal)
+            (integer_literal)
+            (string_literal
+              (string_literal_content)
+              (string_literal_content)
+              (string_literal_content)))
+          (preproc_line
+            (integer_literal)
+            (string_literal
+              (string_literal_content)
+              (string_literal_content)))
+          (preproc_line
+            (integer_literal)
+            (string_literal
+              (string_literal_content)
+              (string_literal_content)
+              (string_literal_content)
+              (string_literal_content)
+              (string_literal_content)))
+          (preproc_line
+            (integer_literal)
+            (string_literal
+              (string_literal_content)))
+          (preproc_line
+            (integer_literal)
+            (string_literal
+              (string_literal_content)
+              (escape_sequence)
+              (string_literal_content)
+              (escape_sequence)
+              (escape_sequence)
+              (escape_sequence)
+              (string_literal_content)))
+          (preproc_line
+            (integer_literal)
+            (string_literal))
+          (preproc_line)
+          (preproc_line)
+          (local_declaration_statement
+            (variable_declaration
+              type: (predefined_type)
+              (variable_declarator
+                name: (identifier)
+                (string_literal
+                  (string_literal_content)
+                  (escape_sequence)
+                  (string_literal_content)
+                  (escape_sequence)
+                  (escape_sequence)
+                  (escape_sequence)
+                  (string_literal_content)))))
+          (expression_statement
+            (assignment_expression
+              left: (identifier)
+              right: (identifier))))))))
+
+================================================================================
+Checksum filenames with literal backslashes
+================================================================================
+
+#pragma checksum "C:\src\path.cs" "{406EA660-64CF-4C82-B6F0-42D48172A799}" "ab"
+#pragma checksum "C:\" "{406EA660-64CF-4C82-B6F0-42D48172A799}" "ab007f1d23d9"
+class Following {}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (preproc_pragma
+    (string_literal
+      (string_literal_content)
+      (string_literal_content)
+      (string_literal_content)
+      (string_literal_content)
+      (string_literal_content))
+    (string_literal
+      (string_literal_content))
+    (string_literal
+      (string_literal_content)))
+  (preproc_pragma
+    (string_literal
+      (string_literal_content)
+      (string_literal_content))
+    (string_literal
+      (string_literal_content))
+    (string_literal
+      (string_literal_content)))
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list)))
