@@ -5505,3 +5505,151 @@ unsafe class C {
             (assignment_expression
               left: (identifier)
               right: (null_literal))))))))
+
+================================================================================
+Generic constructors with arguments and initializers
+================================================================================
+
+using System;
+using System.Collections.Generic;
+class PointUi {}
+class C {
+    void M(double t, double pow_es, int a, int b, int c, int d, List<PointUi> points, PointUi point) {
+        var comparison = a < b;
+        var empty = new List<PointUi>();
+        var filled = new List<PointUi>(points) { point };
+        var nested = new List<List<PointUi>>(new List<List<PointUi>>()) { points };
+        var shifted = a >> b;
+        var both = a < b && c > d;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (using_directive
+    (identifier))
+  (using_directive
+    (qualified_name
+      qualifier: (qualified_name
+        qualifier: (identifier)
+        name: (identifier))
+      name: (identifier)))
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list))
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (generic_name
+              (identifier)
+              (type_argument_list
+                (identifier)))
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (binary_expression
+                  left: (identifier)
+                  right: (identifier)))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (object_creation_expression
+                  type: (generic_name
+                    (identifier)
+                    (type_argument_list
+                      (identifier)))
+                  arguments: (argument_list)))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (object_creation_expression
+                  type: (generic_name
+                    (identifier)
+                    (type_argument_list
+                      (identifier)))
+                  arguments: (argument_list
+                    (argument
+                      (identifier)))
+                  initializer: (initializer_expression
+                    (identifier))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (object_creation_expression
+                  type: (generic_name
+                    (identifier)
+                    (type_argument_list
+                      (generic_name
+                        (identifier)
+                        (type_argument_list
+                          (identifier)))))
+                  arguments: (argument_list
+                    (argument
+                      (object_creation_expression
+                        type: (generic_name
+                          (identifier)
+                          (type_argument_list
+                            (generic_name
+                              (identifier)
+                              (type_argument_list
+                                (identifier)))))
+                        arguments: (argument_list))))
+                  initializer: (initializer_expression
+                    (identifier))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (binary_expression
+                  left: (identifier)
+                  right: (identifier)))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (binary_expression
+                  left: (binary_expression
+                    left: (identifier)
+                    right: (identifier))
+                  right: (binary_expression
+                    left: (identifier)
+                    right: (identifier)))))))))))

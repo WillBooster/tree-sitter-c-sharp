@@ -696,7 +696,7 @@ module.exports = grammar({
 
     qualified_name: ($) => prec(PREC.DOT, seq(field('qualifier', $._name), '.', field('name', $._simple_name))),
 
-    generic_name: ($) => seq($.identifier, $.type_argument_list),
+    generic_name: ($) => prec.dynamic(1, seq($.identifier, $.type_argument_list)),
 
     type_argument_list: ($) => seq('<', choice(repeat(','), commaSep1($.type)), '>'),
 
