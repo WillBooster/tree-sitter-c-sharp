@@ -2788,6 +2788,16 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "file_directive_kind",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -7076,6 +7086,10 @@
   {
     "type": "file",
     "named": false
+  },
+  {
+    "type": "file_directive_kind",
+    "named": true
   },
   {
     "type": "file_directive_name",

@@ -13122,11 +13122,27 @@
                   "type": "CHOICE",
                   "members": [
                     {
-                      "type": "STRING",
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "TOKEN",
+                        "content": {
+                          "type": "PATTERN",
+                          "value": "#:[sS][dD][kK]"
+                        }
+                      },
+                      "named": false,
                       "value": "#:sdk"
                     },
                     {
-                      "type": "STRING",
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "TOKEN",
+                        "content": {
+                          "type": "PATTERN",
+                          "value": "#:[pP][aA][cC][kK][aA][gG][eE]"
+                        }
+                      },
+                      "named": false,
                       "value": "#:package"
                     }
                   ]
@@ -13235,7 +13251,15 @@
               "type": "SEQ",
               "members": [
                 {
-                  "type": "STRING",
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "TOKEN",
+                    "content": {
+                      "type": "PATTERN",
+                      "value": "#:[pP][rR][oO][pP][eE][rR][tT][yY]"
+                    }
+                  },
+                  "named": false,
                   "value": "#:property"
                 },
                 {
@@ -13306,19 +13330,51 @@
                   "type": "CHOICE",
                   "members": [
                     {
-                      "type": "STRING",
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "TOKEN",
+                        "content": {
+                          "type": "PATTERN",
+                          "value": "#:[pP][rR][oO][jJ][eE][cC][tT]"
+                        }
+                      },
+                      "named": false,
                       "value": "#:project"
                     },
                     {
-                      "type": "STRING",
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "TOKEN",
+                        "content": {
+                          "type": "PATTERN",
+                          "value": "#:[rR][eE][fF]"
+                        }
+                      },
+                      "named": false,
                       "value": "#:ref"
                     },
                     {
-                      "type": "STRING",
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "TOKEN",
+                        "content": {
+                          "type": "PATTERN",
+                          "value": "#:[iI][nN][cC][lL][uU][dD][eE]"
+                        }
+                      },
+                      "named": false,
                       "value": "#:include"
                     },
                     {
-                      "type": "STRING",
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "TOKEN",
+                        "content": {
+                          "type": "PATTERN",
+                          "value": "#:[eE][xX][cC][lL][uU][dD][eE]"
+                        }
+                      },
+                      "named": false,
                       "value": "#:exclude"
                     }
                   ]
@@ -13334,6 +13390,48 @@
                     "type": "SYMBOL",
                     "name": "file_directive_value"
                   }
+                }
+              ]
+            },
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "file_directive_kind"
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SEQ",
+                      "members": [
+                        {
+                          "type": "SYMBOL",
+                          "name": "_file_directive_spacing"
+                        },
+                        {
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "FIELD",
+                              "name": "value",
+                              "content": {
+                                "type": "SYMBOL",
+                                "name": "file_directive_value"
+                              }
+                            },
+                            {
+                              "type": "BLANK"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "BLANK"
+                    }
+                  ]
                 }
               ]
             }
@@ -13355,8 +13453,11 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "PATTERN",
-              "value": "\\r\\n|[\\n\\r\\u0085\\u2028\\u2029]"
+              "type": "IMMEDIATE_TOKEN",
+              "content": {
+                "type": "PATTERN",
+                "value": "\\r\\n|[\\n\\r\\u0085\\u2028\\u2029]"
+              }
             },
             {
               "type": "SYMBOL",
@@ -13365,6 +13466,13 @@
           ]
         }
       ]
+    },
+    "file_directive_kind": {
+      "type": "TOKEN",
+      "content": {
+        "type": "PATTERN",
+        "value": "#:[^\\s\\u0085\\u2028\\u2029]*"
+      }
     },
     "_file_directive_spacing": {
       "type": "IMMEDIATE_TOKEN",

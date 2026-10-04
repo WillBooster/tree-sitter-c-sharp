@@ -1870,7 +1870,10 @@ module.exports = grammar({
       seq(
         choice(
           seq(
-            choice('#:sdk', '#:package'),
+            choice(
+              alias(token(/#:[sS][dD][kK]/), '#:sdk'),
+              alias(token(/#:[pP][aA][cC][kK][aA][gG][eE]/), '#:package')
+            ),
             $._file_directive_spacing,
             field('name', $.file_directive_name),
             optional(
@@ -1886,7 +1889,7 @@ module.exports = grammar({
             )
           ),
           seq(
-            '#:property',
+            alias(token(/#:[pP][rR][oO][pP][eE][rR][tT][yY]/), '#:property'),
             $._file_directive_spacing,
             field('name', $.file_directive_name),
             optional($._file_directive_spacing),
@@ -1895,14 +1898,25 @@ module.exports = grammar({
             optional(field('value', $.file_directive_value))
           ),
           seq(
-            choice('#:project', '#:ref', '#:include', '#:exclude'),
+            choice(
+              alias(token(/#:[pP][rR][oO][jJ][eE][cC][tT]/), '#:project'),
+              alias(token(/#:[rR][eE][fF]/), '#:ref'),
+              alias(token(/#:[iI][nN][cC][lL][uU][dD][eE]/), '#:include'),
+              alias(token(/#:[eE][xX][cC][lL][uU][dD][eE]/), '#:exclude')
+            ),
             $._file_directive_spacing,
             field('value', $.file_directive_value)
+          ),
+          seq(
+            $.file_directive_kind,
+            optional(seq($._file_directive_spacing, optional(field('value', $.file_directive_value))))
           )
         ),
         optional($._file_directive_spacing),
-        choice(/\r\n|[\n\r\u0085\u2028\u2029]/, $._end_of_input)
+        choice(token.immediate(/\r\n|[\n\r\u0085\u2028\u2029]/), $._end_of_input)
       ),
+
+    file_directive_kind: () => token(/#:[^\s\u0085\u2028\u2029]*/),
 
     _file_directive_spacing: () => token.immediate(prec(1, /[ \t]+/)),
     file_directive_name: () =>

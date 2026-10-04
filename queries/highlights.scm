@@ -216,3 +216,5 @@
 ["#:sdk" "#:package" "#:property" "#:project" "#:ref" "#:include" "#:exclude"] @keyword.directive
 (file_directive_name) @property
 (file_directive_value) @string
+
+(file_directive_kind) @keyword.directive
