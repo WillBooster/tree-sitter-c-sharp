@@ -52,7 +52,6 @@ module.exports = grammar({
 
     [$.tuple_element, $.type_pattern],
     [$.tuple_element, $.using_variable_declarator],
-    [$.tuple_element, $.declaration_expression],
 
     [$.tuple_pattern, $.parameter],
     [$.tuple_pattern, $._simple_name],

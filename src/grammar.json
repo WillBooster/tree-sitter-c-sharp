@@ -13100,10 +13100,6 @@
       "using_variable_declarator"
     ],
     [
-      "tuple_element",
-      "declaration_expression"
-    ],
-    [
       "tuple_pattern",
       "parameter"
     ],
