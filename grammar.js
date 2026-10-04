@@ -1848,59 +1848,16 @@ module.exports = grammar({
     file_directive: ($) =>
       seq(
         choice(
-          seq(
+          fileDirectiveArguments(
+            $,
             choice(
               alias(token(/#:[sS][dD][kK]/), '#:sdk'),
               alias(token(/#:[pP][aA][cC][kK][aA][gG][eE]/), '#:package')
             ),
-            optional(
-              seq(
-                $._file_directive_spacing,
-                choice(
-                  seq(
-                    field('name', $.file_directive_name),
-                    optional(
-                      choice(
-                        seq(
-                          optional($._file_directive_spacing),
-                          token.immediate(prec(2, '@')),
-                          optional($._file_directive_spacing),
-                          optional(field('value', $.file_directive_value))
-                        ),
-                        seq(optional($._file_directive_spacing), field('metadata', $.file_directive_value))
-                      )
-                    )
-                  ),
-                  field('value', $.file_directive_value)
-                )
-              )
-            )
+            '@',
+            'metadata'
           ),
-          seq(
-            alias(token(/#:[pP][rR][oO][pP][eE][rR][tT][yY]/), '#:property'),
-            optional(
-              seq(
-                $._file_directive_spacing,
-                choice(
-                  seq(
-                    field('name', $.file_directive_name),
-                    optional(
-                      choice(
-                        seq(
-                          optional($._file_directive_spacing),
-                          token.immediate(prec(2, '=')),
-                          optional($._file_directive_spacing),
-                          optional(field('value', $.file_directive_value))
-                        ),
-                        seq(optional($._file_directive_spacing), field('value', $.file_directive_value))
-                      )
-                    )
-                  ),
-                  field('value', $.file_directive_value)
-                )
-              )
-            )
-          ),
+          fileDirectiveArguments($, alias(token(/#:[pP][rR][oO][pP][eE][rR][tT][yY]/), '#:property'), '=', 'value'),
           seq(
             choice(
               alias(token(/#:[pP][rR][oO][jJ][eE][cC][tT]/), '#:project'),
@@ -1940,6 +1897,41 @@ module.exports = grammar({
     comment: () => token(choice(seq('//', /[^\n\r]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
   },
 });
+
+/**
+ * @param {GrammarSymbols<string>} $
+ * @param {Rule} kind
+ * @param {string} separator
+ * @param {string} extraField
+ * @returns {SeqRule}
+ */
+function fileDirectiveArguments($, kind, separator, extraField) {
+  return seq(
+    kind,
+    optional(
+      seq(
+        $._file_directive_spacing,
+        choice(
+          seq(
+            field('name', $.file_directive_name),
+            optional(
+              choice(
+                seq(
+                  optional($._file_directive_spacing),
+                  token.immediate(prec(2, separator)),
+                  optional($._file_directive_spacing),
+                  optional(field('value', $.file_directive_value))
+                ),
+                seq(optional($._file_directive_spacing), field(extraField, $.file_directive_value))
+              )
+            )
+          ),
+          field('value', $.file_directive_value)
+        )
+      )
+    )
+  );
+}
 
 /**
  * Ends a directive that opens no conditional section: at a line break, or at the end of the input, which a file may
