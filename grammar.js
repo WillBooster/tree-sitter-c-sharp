@@ -149,7 +149,7 @@ module.exports = grammar({
   ],
 
   extras: ($) => [
-    /[\s\u00A0\uFEFF\u3000]+/,
+    /[\s\u0085\u00A0\u2028\u2029\uFEFF\u3000]+/,
     $.comment,
     $.preproc_region,
     $.preproc_endregion,
@@ -1854,9 +1854,9 @@ module.exports = grammar({
 
     preproc_undef: ($) => seq(preprocessor('undef'), $.preproc_arg, directiveEnd($)),
 
-    shebang_directive: () => token(seq('#!', /.*/)),
+    shebang_directive: () => token(seq('#!', /[^\r\n\u0085\u2028\u2029]*/)),
 
-    comment: () => token(choice(seq('//', /[^\n\r]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
+    comment: () => token(choice(seq('//', /[^\r\n\u0085\u2028\u2029]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
   },
 });
 
