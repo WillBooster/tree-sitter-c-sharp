@@ -1783,7 +1783,7 @@ module.exports = grammar({
         choice(
           'default',
           'hidden',
-          seq($.integer_literal, optional(alias($._preproc_line_filename, $.string_literal))),
+          seq($.integer_literal, optional(alias($._preproc_filename, $.string_literal))),
           seq(
             '(',
             $.integer_literal,
@@ -1797,13 +1797,13 @@ module.exports = grammar({
             $.integer_literal,
             ')',
             optional($.integer_literal),
-            alias($._preproc_line_filename, $.string_literal)
+            alias($._preproc_filename, $.string_literal)
           )
         ),
         directiveEnd($)
       ),
 
-    _preproc_line_filename: ($) =>
+    _preproc_filename: ($) =>
       seq(
         '"',
         repeat(
@@ -1826,7 +1826,7 @@ module.exports = grammar({
         preprocessor('pragma'),
         choice(
           seq('warning', choice('disable', 'restore'), commaSep(choice($.identifier, $.integer_literal))),
-          seq('checksum', $.string_literal, $.string_literal, $.string_literal)
+          seq('checksum', alias($._preproc_filename, $.string_literal), $.string_literal, $.string_literal)
         ),
         directiveEnd($)
       ),

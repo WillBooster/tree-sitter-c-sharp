@@ -378,3 +378,37 @@ class LineNames {
             (assignment_expression
               left: (identifier)
               right: (identifier))))))))
+
+================================================================================
+Checksum filenames with literal backslashes
+================================================================================
+
+#pragma checksum "C:\src\path.cs" "{406EA660-64CF-4C82-B6F0-42D48172A799}" "ab"
+#pragma checksum "C:\" "{406EA660-64CF-4C82-B6F0-42D48172A799}" "ab007f1d23d9"
+class Following {}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (preproc_pragma
+    (string_literal
+      (string_literal_content)
+      (string_literal_content)
+      (string_literal_content)
+      (string_literal_content)
+      (string_literal_content))
+    (string_literal
+      (string_literal_content))
+    (string_literal
+      (string_literal_content)))
+  (preproc_pragma
+    (string_literal
+      (string_literal_content)
+      (string_literal_content))
+    (string_literal
+      (string_literal_content))
+    (string_literal
+      (string_literal_content)))
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list)))

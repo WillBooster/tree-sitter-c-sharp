@@ -12472,7 +12472,7 @@
                       "type": "ALIAS",
                       "content": {
                         "type": "SYMBOL",
-                        "name": "_preproc_line_filename"
+                        "name": "_preproc_filename"
                       },
                       "named": true,
                       "value": "string_literal"
@@ -12547,7 +12547,7 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "SYMBOL",
-                    "name": "_preproc_line_filename"
+                    "name": "_preproc_filename"
                   },
                   "named": true,
                   "value": "string_literal"
@@ -12571,7 +12571,7 @@
         }
       ]
     },
-    "_preproc_line_filename": {
+    "_preproc_filename": {
       "type": "SEQ",
       "members": [
         {
@@ -12752,8 +12752,13 @@
                   "value": "checksum"
                 },
                 {
-                  "type": "SYMBOL",
-                  "name": "string_literal"
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_preproc_filename"
+                  },
+                  "named": true,
+                  "value": "string_literal"
                 },
                 {
                   "type": "SYMBOL",

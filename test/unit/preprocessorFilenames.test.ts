@@ -62,3 +62,35 @@ test('rejects line breaks and string-only syntax in line-directive filenames', a
     parser.delete();
   }
 });
+
+test('preserves checksum operands and the following declaration with literal filename backslashes', async () => {
+  await Parser.init();
+  const language = await Language.load('tree-sitter-c_sharp.wasm');
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const query = new Query(language, '(string_literal) @string');
+  const algorithm = '"{406EA660-64CF-4C82-B6F0-42D48172A799}"';
+  const checksum = '"ab"';
+  try {
+    for (const filename of [String.raw`"C:\src\path.cs"`, String.raw`"C:\"`]) {
+      const source = `#pragma checksum ${filename} ${algorithm} ${checksum}\nclass Following { }\n`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          query.captures(tree.rootNode).map(({ node }) => node.text),
+          source
+        ).toEqual([filename, algorithm, checksum]);
+        expect(
+          tree.rootNode.namedChildren.map(({ type }) => type),
+          source
+        ).toEqual(['preproc_pragma', 'class_declaration']);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
