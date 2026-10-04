@@ -27,7 +27,7 @@ The grammar is based upon the Roslyn grammar with changes in order to:
 
 Known gaps:
 
-- `async`, `var` and `await` cannot be used as identifiers everywhere they are valid
+- `var` and `await` cannot be used as identifiers everywhere they are valid
 - A pointer dereference can be assigned to only when its operand is a variable, an address, a parenthesized or
   postfix expression, or a cast of one of these or of an invocation (`*p = 1`, `*(p + 1) = 1`, `*(int*)p = 1`,
   `*dst++ = 1`); `*++p = 1` and `*f() = 1` are not recognized

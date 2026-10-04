@@ -51,6 +51,7 @@ module.exports = grammar({
     [$._simple_name, $.subpattern],
 
     [$.tuple_element, $.type_pattern],
+    [$.type_pattern, $.declaration_pattern],
     [$.tuple_element, $.using_variable_declarator],
 
     [$.tuple_pattern, $.parameter],
@@ -93,6 +94,13 @@ module.exports = grammar({
     [$.collection_expression, $.list_pattern],
 
     [$._reserved_identifier, $.modifier],
+    [$._reserved_identifier],
+    [$._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
+    [$._lambda_expression_init, $._reserved_identifier],
+    [$.modifier, $._lambda_expression_init, $.anonymous_method_expression],
+    [$.modifier, $._lambda_expression_init],
+    [$.modifier, $._lambda_expression_init, $._reserved_identifier],
+    [$.modifier, $._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
     [$._reserved_identifier, $.scoped_type],
     [$._reserved_identifier, $.implicit_type],
     [$._reserved_identifier, $.from_clause],
@@ -1511,9 +1519,11 @@ module.exports = grammar({
         -1,
         seq(
           repeat($._attribute_list),
-          repeat(prec(-1, alias(choice('static', 'async'), $.modifier))),
-          optional(field('type', $.type)),
-          field('parameters', $._lambda_parameters)
+          repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
+          choice(
+            field('parameters', prec(-1, alias($.identifier, $.implicit_parameter))),
+            seq(optional(field('type', $.type)), field('parameters', $._lambda_parameters))
+          )
         )
       ),
 
@@ -1522,7 +1532,6 @@ module.exports = grammar({
         -1,
         choice(
           $.parameter_list,
-          alias($.identifier, $.implicit_parameter),
           // C# 14: `(ref x) => x`, `(out y) => ...`, `(text, out result) => ...`
           // The opening '(' is recognized via the external _lambda_paren_open
           // token, which the scanner only emits when it can confirm a closing
@@ -1555,7 +1564,7 @@ module.exports = grammar({
 
     anonymous_method_expression: ($) =>
       seq(
-        repeat(prec(-1, alias(choice('static', 'async'), $.modifier))),
+        repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
         'delegate',
         optional(field('parameters', $.parameter_list)),
         $.block
@@ -1692,7 +1701,9 @@ module.exports = grammar({
 
     _reserved_identifier: () =>
       choice(
+        prec(-1, '_'),
         'alias',
+        'async',
         'ascending',
         'by',
         'descending',

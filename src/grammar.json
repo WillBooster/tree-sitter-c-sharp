@@ -9560,8 +9560,8 @@
           {
             "type": "REPEAT",
             "content": {
-              "type": "PREC",
-              "value": -1,
+              "type": "PREC_DYNAMIC",
+              "value": 1,
               "content": {
                 "type": "ALIAS",
                 "content": {
@@ -9587,24 +9587,51 @@
             "members": [
               {
                 "type": "FIELD",
-                "name": "type",
+                "name": "parameters",
                 "content": {
-                  "type": "SYMBOL",
-                  "name": "type"
+                  "type": "PREC",
+                  "value": -1,
+                  "content": {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "identifier"
+                    },
+                    "named": true,
+                    "value": "implicit_parameter"
+                  }
                 }
               },
               {
-                "type": "BLANK"
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "FIELD",
+                        "name": "type",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "type"
+                        }
+                      },
+                      {
+                        "type": "BLANK"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "FIELD",
+                    "name": "parameters",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_lambda_parameters"
+                    }
+                  }
+                ]
               }
             ]
-          },
-          {
-            "type": "FIELD",
-            "name": "parameters",
-            "content": {
-              "type": "SYMBOL",
-              "name": "_lambda_parameters"
-            }
           }
         ]
       }
@@ -9618,15 +9645,6 @@
           {
             "type": "SYMBOL",
             "name": "parameter_list"
-          },
-          {
-            "type": "ALIAS",
-            "content": {
-              "type": "SYMBOL",
-              "name": "identifier"
-            },
-            "named": true,
-            "value": "implicit_parameter"
           },
           {
             "type": "SYMBOL",
@@ -9826,8 +9844,8 @@
         {
           "type": "REPEAT",
           "content": {
-            "type": "PREC",
-            "value": -1,
+            "type": "PREC_DYNAMIC",
+            "value": 1,
             "content": {
               "type": "ALIAS",
               "content": {
@@ -11144,8 +11162,20 @@
       "type": "CHOICE",
       "members": [
         {
+          "type": "PREC",
+          "value": -1,
+          "content": {
+            "type": "STRING",
+            "value": "_"
+          }
+        },
+        {
           "type": "STRING",
           "value": "alias"
+        },
+        {
+          "type": "STRING",
+          "value": "async"
         },
         {
           "type": "STRING",
@@ -13196,6 +13226,10 @@
       "type_pattern"
     ],
     [
+      "type_pattern",
+      "declaration_pattern"
+    ],
+    [
       "tuple_element",
       "using_variable_declarator"
     ],
@@ -13316,6 +13350,38 @@
     [
       "_reserved_identifier",
       "modifier"
+    ],
+    [
+      "_reserved_identifier"
+    ],
+    [
+      "_lambda_expression_init",
+      "anonymous_method_expression",
+      "_reserved_identifier"
+    ],
+    [
+      "_lambda_expression_init",
+      "_reserved_identifier"
+    ],
+    [
+      "modifier",
+      "_lambda_expression_init",
+      "anonymous_method_expression"
+    ],
+    [
+      "modifier",
+      "_lambda_expression_init"
+    ],
+    [
+      "modifier",
+      "_lambda_expression_init",
+      "_reserved_identifier"
+    ],
+    [
+      "modifier",
+      "_lambda_expression_init",
+      "anonymous_method_expression",
+      "_reserved_identifier"
     ],
     [
       "_reserved_identifier",
