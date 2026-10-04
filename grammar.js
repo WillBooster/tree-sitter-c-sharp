@@ -480,6 +480,7 @@ module.exports = grammar({
         $.delegate_declaration,
         $.field_declaration,
         $.method_declaration,
+        $.conditional_method_declaration,
         $.event_declaration,
         $.event_field_declaration,
         $.record_declaration,
@@ -525,7 +526,8 @@ module.exports = grammar({
 
     extension_body: ($) => seq('{', repeat($._extension_member_declaration), '}', optional(';')),
 
-    _extension_member_declaration: ($) => choice($.method_declaration, $.property_declaration, $.operator_declaration),
+    _extension_member_declaration: ($) =>
+      choice($.method_declaration, $.conditional_method_declaration, $.property_declaration, $.operator_declaration),
 
     field_declaration: ($) => seq(repeat($._attribute_list), repeat($.modifier), $.variable_declaration, ';'),
 
@@ -553,7 +555,13 @@ module.exports = grammar({
         $._function_body
       ),
 
-    method_declaration: ($) =>
+    method_declaration: ($) => seq($._method_signature, $._function_body),
+
+    conditional_method_declaration: ($) => seq(alias($.preproc_if_in_method_signature, $.preproc_if), $._function_body),
+
+    method_signature: ($) => $._method_signature,
+
+    _method_signature: ($) =>
       seq(
         repeat($._attribute_list),
         repeat($.modifier),
@@ -562,8 +570,7 @@ module.exports = grammar({
         field('name', $.identifier),
         field('type_parameters', optional($.type_parameter_list)),
         field('parameters', $.parameter_list),
-        repeat($.type_parameter_constraints_clause),
-        $._function_body
+        repeat($.type_parameter_constraints_clause)
       ),
 
     event_declaration: ($) =>
@@ -1717,6 +1724,13 @@ module.exports = grammar({
         'yield'
       ),
 
+    ...preprocIf(
+      '_in_method_signature',
+      ($) => choice($.method_signature, alias($.preproc_if_in_method_signature, $.preproc_if)),
+      0,
+      false,
+      true
+    ),
     ...preprocIf('', ($) => $.declaration),
     ...preprocIf('_in_top_level', ($) => choice($._top_level_item_no_statement, $.statement)),
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),
@@ -1877,9 +1891,11 @@ function preprocessor(command) {
  *
  * @param {boolean} rep
  *
+ * @param {boolean} required
+ *
  * @returns {RuleBuilders<string, string>}
  */
-function preprocIf(suffix, content, precedence = 0, rep = true) {
+function preprocIf(suffix, content, precedence = 0, rep = true, required = false) {
   /**
    *
    * @param {GrammarSymbols<string>} $
@@ -1901,14 +1917,17 @@ function preprocIf(suffix, content, precedence = 0, rep = true) {
           preprocessor('if'),
           field('condition', $._preproc_expression),
           /\n/,
-          rep ? repeat(content($)) : optional(content($)),
+          rep ? repeat(content($)) : required ? content($) : optional(content($)),
           field('alternative', optional(alternativeBlock($))),
           preprocessor('endif')
         )
       ),
 
     ['preproc_else' + suffix]: ($) =>
-      prec(precedence, seq(preprocessor('else'), rep ? repeat(content($)) : optional(content($)))),
+      prec(
+        precedence,
+        seq(preprocessor('else'), rep ? repeat(content($)) : required ? content($) : optional(content($)))
+      ),
 
     ['preproc_elif' + suffix]: ($) =>
       prec(
@@ -1917,7 +1936,7 @@ function preprocIf(suffix, content, precedence = 0, rep = true) {
           preprocessor('elif'),
           field('condition', $._preproc_expression),
           /\n/,
-          rep ? repeat(content($)) : optional(content($)),
+          rep ? repeat(content($)) : required ? content($) : optional(content($)),
           field('alternative', optional(alternativeBlock($)))
         )
       ),

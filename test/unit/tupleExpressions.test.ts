@@ -1,9 +1,14 @@
 import { Edit, Language, Parser, Query, type Node, type Tree } from '@willbooster/web-tree-sitter';
-import { expect, test } from 'vitest';
+import { beforeAll, expect, test } from 'vitest';
 
-test('preserves tuple products as expressions while editing typed deconstruction', async () => {
+let language: Language;
+
+beforeAll(async () => {
   await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+  language = await Language.load('tree-sitter-c_sharp.wasm');
+});
+
+test('preserves tuple products as expressions while editing typed deconstruction', () => {
   const parser = new Parser();
   let query: Query | undefined;
   let tree: Tree | undefined;
