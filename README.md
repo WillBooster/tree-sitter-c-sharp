@@ -31,7 +31,6 @@ Known gaps:
 - A pointer dereference can be assigned to only when its operand is a variable, an address, a parenthesized or
   postfix expression, or a cast of one of these or of an invocation (`*p = 1`, `*(p + 1) = 1`, `*(int*)p = 1`,
   `*dst++ = 1`); `*++p = 1` and `*f() = 1` are not recognized
-- File-based apps preprocessor directives (`#:property`, `#:package`, `#:sdk`, `#:project`) are not yet recognized
 
 ## Usage
 

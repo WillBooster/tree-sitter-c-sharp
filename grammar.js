@@ -1901,12 +1901,16 @@ module.exports = grammar({
           )
         ),
         optional($._file_directive_spacing),
-        choice(/\r\n|\n|\r/, $._end_of_input)
+        choice(/\r\n|[\n\r\u0085\u2028\u2029]/, $._end_of_input)
       ),
 
     _file_directive_spacing: () => token.immediate(prec(1, /[ \t]+/)),
-    file_directive_name: () => token.immediate(choice(/[^\s@="]+/, /"([^"\\\r\n]|\\[^\r\n])*"/)),
-    file_directive_value: () => token.immediate(/[^\s]([^\r\n]*[^\s])?/),
+    file_directive_name: () =>
+      token.immediate(
+        choice(/[^\s\u0085\u2028\u2029@="]+/, /"([^"\\\r\n\u0085\u2028\u2029]|\\[^\r\n\u0085\u2028\u2029])*"/)
+      ),
+    file_directive_value: () =>
+      token.immediate(/[^\s\u0085\u2028\u2029]([^\r\n\u0085\u2028\u2029]*[^\s\u0085\u2028\u2029])?/),
 
     shebang_directive: () => token(seq('#!', /.*/)),
 

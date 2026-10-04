@@ -9,8 +9,8 @@ test('preserves file directive fields and following source across line endings',
   parser.setLanguage(language);
   const query = new Query(language, await readFile('queries/highlights.scm', 'utf8'));
   try {
-    for (const newline of ['\n', '\r\n', '\r']) {
-      for (const ending of ['', newline]) {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const ending of ['', '\n']) {
         const source =
           [
             '#:sdk Microsoft.NET.Sdk',

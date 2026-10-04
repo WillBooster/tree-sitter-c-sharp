@@ -13356,7 +13356,7 @@
           "members": [
             {
               "type": "PATTERN",
-              "value": "\\r\\n|\\n|\\r"
+              "value": "\\r\\n|[\\n\\r\\u0085\\u2028\\u2029]"
             },
             {
               "type": "SYMBOL",
@@ -13384,11 +13384,11 @@
         "members": [
           {
             "type": "PATTERN",
-            "value": "[^\\s@=\"]+"
+            "value": "[^\\s\\u0085\\u2028\\u2029@=\"]+"
           },
           {
             "type": "PATTERN",
-            "value": "\"([^\"\\\\\\r\\n]|\\\\[^\\r\\n])*\""
+            "value": "\"([^\"\\\\\\r\\n\\u0085\\u2028\\u2029]|\\\\[^\\r\\n\\u0085\\u2028\\u2029])*\""
           }
         ]
       }
@@ -13397,7 +13397,7 @@
       "type": "IMMEDIATE_TOKEN",
       "content": {
         "type": "PATTERN",
-        "value": "[^\\s]([^\\r\\n]*[^\\s])?"
+        "value": "[^\\s\\u0085\\u2028\\u2029]([^\\r\\n\\u0085\\u2028\\u2029]*[^\\s\\u0085\\u2028\\u2029])?"
       }
     },
     "shebang_directive": {
