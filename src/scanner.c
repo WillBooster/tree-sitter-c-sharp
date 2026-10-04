@@ -503,6 +503,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         while (lexer->lookahead == '"') {
             advance(lexer);
             quote_count++;
+            if (is_verbatim(current_interpolation) && quote_count == 2) break;
         }
 
         if (quote_count == current_interpolation->quote_count) {
@@ -514,7 +515,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         did_advance = quote_count > 0;
     }
 
-    if (valid_symbols[INTERPOLATION_OPEN_BRACE] && scanner->interpolation_stack.size > 0) {
+    if (!did_advance && valid_symbols[INTERPOLATION_OPEN_BRACE] && scanner->interpolation_stack.size > 0) {
         Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
 
         while (lexer->lookahead == '{' && brace_advanced < current_interpolation->dollar_count) {
@@ -597,6 +598,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
                     advance(lexer);
                     if (lexer->lookahead == '"') {
                         advance(lexer);
+                        did_advance = true;
                         continue;
                     }
                     return did_advance;
