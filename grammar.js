@@ -150,6 +150,7 @@ module.exports = grammar({
     // modifier) closed by ')=>'.
     $._lambda_paren_open,
     $._end_of_input,
+    $._file_directive_preproc_arg,
   ],
 
   extras: ($) => [
@@ -1784,10 +1785,19 @@ module.exports = grammar({
       );
     },
 
-    preproc_region: ($) => seq(preprocessor('region'), optional(field('content', $.preproc_arg)), directiveEnd($)),
+    preproc_region: ($) =>
+      seq(
+        preprocessor('region'),
+        optional(field('content', choice($.preproc_arg, alias($._file_directive_preproc_arg, $.preproc_arg)))),
+        directiveEnd($)
+      ),
 
     preproc_endregion: ($) =>
-      seq(preprocessor('endregion'), optional(field('content', $.preproc_arg)), directiveEnd($)),
+      seq(
+        preprocessor('endregion'),
+        optional(field('content', choice($.preproc_arg, alias($._file_directive_preproc_arg, $.preproc_arg)))),
+        directiveEnd($)
+      ),
 
     preproc_line: ($) =>
       seq(
@@ -1851,13 +1861,33 @@ module.exports = grammar({
         directiveEnd($)
       ),
 
-    preproc_error: ($) => seq(preprocessor('error'), $.preproc_arg, directiveEnd($)),
+    preproc_error: ($) =>
+      seq(
+        preprocessor('error'),
+        choice($.preproc_arg, alias($._file_directive_preproc_arg, $.preproc_arg)),
+        directiveEnd($)
+      ),
 
-    preproc_warning: ($) => seq(preprocessor('warning'), $.preproc_arg, directiveEnd($)),
+    preproc_warning: ($) =>
+      seq(
+        preprocessor('warning'),
+        choice($.preproc_arg, alias($._file_directive_preproc_arg, $.preproc_arg)),
+        directiveEnd($)
+      ),
 
-    preproc_define: ($) => seq(preprocessor('define'), $.preproc_arg, directiveEnd($)),
+    preproc_define: ($) =>
+      seq(
+        preprocessor('define'),
+        choice($.preproc_arg, alias($._file_directive_preproc_arg, $.preproc_arg)),
+        directiveEnd($)
+      ),
 
-    preproc_undef: ($) => seq(preprocessor('undef'), $.preproc_arg, directiveEnd($)),
+    preproc_undef: ($) =>
+      seq(
+        preprocessor('undef'),
+        choice($.preproc_arg, alias($._file_directive_preproc_arg, $.preproc_arg)),
+        directiveEnd($)
+      ),
 
     file_directive: ($) =>
       seq(

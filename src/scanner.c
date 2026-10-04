@@ -20,6 +20,7 @@ enum TokenType {
     RAW_STRING_CONTENT,
     LAMBDA_PAREN_OPEN,
     END_OF_INPUT,
+    FILE_DIRECTIVE_PREPROC_ARG,
 };
 
 typedef enum {
@@ -312,6 +313,28 @@ static LambdaScanResult scan_lambda_paren_open(TSLexer *lexer) {
 }
 #undef BAIL
 
+static bool scan_file_directive_preproc_arg(TSLexer *lexer) {
+    if (lexer->lookahead != '#') return false;
+    advance(lexer);
+    if (lexer->lookahead != ':') return false;
+    advance(lexer);
+    lexer->mark_end(lexer);
+    while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+        int32_t c = lexer->lookahead;
+        advance(lexer);
+        if (c == '/') {
+            if (lexer->eof(lexer) || lexer->lookahead == '*') break;
+            advance(lexer);
+        } else if (c == '\\') {
+            if (lexer->lookahead == '\r') advance(lexer);
+            if (lexer->lookahead == '\n') advance(lexer);
+        }
+        lexer->mark_end(lexer);
+    }
+    lexer->result_symbol = FILE_DIRECTIVE_PREPROC_ARG;
+    return true;
+}
+
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
 
@@ -342,6 +365,11 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     // error recovery, gives better trees this way
     if (valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START]) {
         return false;
+    }
+
+    if (valid_symbols[FILE_DIRECTIVE_PREPROC_ARG]) {
+        while (is_space_but_line_feed(lexer->lookahead)) skip(lexer);
+        if (lexer->lookahead == '#') return scan_file_directive_preproc_arg(lexer);
     }
 
     // A directive may end the input without a line break, which no regex token can match.

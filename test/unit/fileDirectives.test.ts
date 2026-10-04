@@ -263,6 +263,57 @@ test('keeps file-directive-looking text inside preprocessor arguments', async ()
   }
 });
 
+test('preserves classes after directive-looking preprocessor arguments containing comments', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  try {
+    for (const kind of ['region', 'endregion', 'define', 'undef', 'error', 'warning']) {
+      for (const argument of ['#:sdk/*b*/', '#:a/*b*/ more', '#:Newtonsoft.Json/*/x more']) {
+        const source = `#${kind} ${argument}\nclass C{}`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.descendantsOfType('file_directive'), source).toHaveLength(0);
+          expect(
+            tree.rootNode.descendantsOfType('class_declaration').map((n) => n.text),
+            source
+          ).toEqual(['class C{}']);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('keeps slash-containing standalone directive kinds opaque', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  try {
+    for (const kind of ['foo/bar', 'foo/', 'foo/*b*/', 'sdk/*b*/', 'foo//', 'foo/*', 'foo/a/']) {
+      const source = `#:${kind} X\nclass C{}`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('file_directive_kind').map((n) => n.text),
+          source
+        ).toEqual([`#:${kind}`]);
+        expect(tree.rootNode.descendantsOfType('comment'), source).toHaveLength(0);
+        expect(
+          tree.rootNode.descendantsOfType('class_declaration').map((n) => n.text),
+          source
+        ).toEqual(['class C{}']);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('separates and trims Unicode horizontal whitespace without changing interior payload text', async () => {
   await Parser.init();
   const language = await Language.load(wasmPath);

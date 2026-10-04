@@ -12748,8 +12748,22 @@
               "type": "FIELD",
               "name": "content",
               "content": {
-                "type": "SYMBOL",
-                "name": "preproc_arg"
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "preproc_arg"
+                  },
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_file_directive_preproc_arg"
+                    },
+                    "named": true,
+                    "value": "preproc_arg"
+                  }
+                ]
               }
             },
             {
@@ -12791,8 +12805,22 @@
               "type": "FIELD",
               "name": "content",
               "content": {
-                "type": "SYMBOL",
-                "name": "preproc_arg"
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "preproc_arg"
+                  },
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_file_directive_preproc_arg"
+                    },
+                    "named": true,
+                    "value": "preproc_arg"
+                  }
+                ]
               }
             },
             {
@@ -13245,8 +13273,22 @@
           "value": "#error"
         },
         {
-          "type": "SYMBOL",
-          "name": "preproc_arg"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "preproc_arg"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_file_directive_preproc_arg"
+              },
+              "named": true,
+              "value": "preproc_arg"
+            }
+          ]
         },
         {
           "type": "CHOICE",
@@ -13276,8 +13318,22 @@
           "value": "#warning"
         },
         {
-          "type": "SYMBOL",
-          "name": "preproc_arg"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "preproc_arg"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_file_directive_preproc_arg"
+              },
+              "named": true,
+              "value": "preproc_arg"
+            }
+          ]
         },
         {
           "type": "CHOICE",
@@ -13307,8 +13363,22 @@
           "value": "#define"
         },
         {
-          "type": "SYMBOL",
-          "name": "preproc_arg"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "preproc_arg"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_file_directive_preproc_arg"
+              },
+              "named": true,
+              "value": "preproc_arg"
+            }
+          ]
         },
         {
           "type": "CHOICE",
@@ -13338,8 +13408,22 @@
           "value": "#undef"
         },
         {
-          "type": "SYMBOL",
-          "name": "preproc_arg"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "preproc_arg"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_file_directive_preproc_arg"
+              },
+              "named": true,
+              "value": "preproc_arg"
+            }
+          ]
         },
         {
           "type": "CHOICE",
@@ -14359,6 +14443,10 @@
     {
       "type": "SYMBOL",
       "name": "_end_of_input"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_file_directive_preproc_arg"
     }
   ],
   "inline": [
