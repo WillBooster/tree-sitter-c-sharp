@@ -435,8 +435,6 @@ module.exports = grammar({
             '<',
             '>=',
             '<=',
-            // C# 14: user-defined compound assignment operators.
-            // https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-14#user-defined-compound-assignment-operators
             '+=',
             '-=',
             '*=',
@@ -501,14 +499,6 @@ module.exports = grammar({
     // C# 14: extension declarations introduce extension methods, properties,
     // and operators with a shared receiver inside a non-generic static class.
     // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/proposals/csharp-14.0/extensions
-    //
-    //   extension_declaration:
-    //     'extension' type_parameter_list? '(' receiver_parameter ')'
-    //         type_parameter_constraints_clause* extension_body
-    //   extension_body: '{' extension_member_declaration* '}' ';'?
-    //   extension_member_declaration:
-    //     method_declaration | property_declaration | operator_declaration
-    //   receiver_parameter: attributes? parameter_modifiers? type identifier?
     //
     // `extension` is contextual; it is recognized as the start of an
     // extension declaration when followed by `<` or `(` in declaration
@@ -1018,7 +1008,6 @@ module.exports = grammar({
     // Invocation with name - creates conflict with recursive_pattern's Name(positional_pattern_clause)
     _name_invocation_pattern: ($) => seq(field('function', $._name), field('arguments', $.argument_list)),
 
-    // Invocation where function is not a simple name
     // One above `invocation_expression`, which reads the same tokens where both fit.
     _complex_invocation_expression: ($) =>
       prec(
@@ -1067,15 +1056,11 @@ module.exports = grammar({
         )
       ),
 
-    // C# 11 slice pattern: `..` optionally followed by a subpattern that
-    // binds the captured slice. `[a, .. var rest, z]`, `[..]` (bare),
-    // `[.. List<int> rest]` (declaration_pattern), etc.
     slice_pattern: ($) => prec.right(seq('..', optional($.pattern))),
 
     recursive_pattern: ($) =>
       prec.left(
         choice(
-          // name followed by positional pattern WITH variable designation
           prec.dynamic(
             1,
             seq(
@@ -1085,16 +1070,12 @@ module.exports = grammar({
               $._simple_designation
             )
           ),
-          // name followed by positional pattern WITHOUT variable designation
           prec.dynamic(
             -1,
             seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))
           ),
-          // positional pattern with variable designation (no type prefix)
           prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
-          // positional pattern without variable designation (no type prefix)
           $.positional_pattern_clause,
-          // other type followed by a property pattern clause
           seq(field('type', $.type), $.property_pattern_clause, optional($._simple_designation)),
           // A positional clause follows only a name (above), a predefined type, or an array type. Letting any type take
           // one reads `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed
@@ -1166,10 +1147,6 @@ module.exports = grammar({
         $.typeof_expression,
         $.makeref_expression,
         $.ref_expression,
-        // Address-of (see `_address_of_expression` below): aliased to
-        // `prefix_unary_expression` to preserve the public AST shape.
-        // Parallels `_pointer_indirection_expression` (the `*` operator),
-        // which is similarly aliased back into `lvalue_expression`.
         alias($._address_of_expression, $.prefix_unary_expression),
         alias($._value_indirection_expression, $.prefix_unary_expression),
         $.reftype_expression,
@@ -1504,7 +1481,6 @@ module.exports = grammar({
         )
       ),
 
-    // inline
     _object_creation_type: ($) => choice($._name, $.nullable_type, $.predefined_type),
 
     parenthesized_expression: ($) => seq('(', $.non_lvalue_expression, ')'),
@@ -1626,7 +1602,7 @@ module.exports = grammar({
         seq(
           optional(seq(field('name', $.identifier), ':')),
           optional(choice('ref', 'out', 'in')),
-          choice($.expression, $.declaration_expression)
+          choice($.expression, prec.dynamic(-2, $.declaration_expression))
         )
       ),
 
@@ -1740,8 +1716,6 @@ module.exports = grammar({
         'where',
         'yield'
       ),
-
-    // Preprocessor
 
     ...preprocIf('', ($) => $.declaration),
     ...preprocIf('_in_top_level', ($) => choice($._top_level_item_no_statement, $.statement)),
@@ -1885,8 +1859,6 @@ function directiveEnd($) {
 }
 
 /**
- * Creates a preprocessor regex rule
- *
  * @param {string} command
  *
  * @returns {AliasRule}
@@ -1973,8 +1945,6 @@ function postfixOperand($) {
 }
 
 /**
- * Creates a rule to match one or more of the rules separated by a comma
- *
  * @param {Rule} rule
  *
  * @returns {SeqRule}
@@ -1984,8 +1954,6 @@ function commaSep1(rule) {
 }
 
 /**
- * Creates a rule to match two or more of the rules separated by a comma
- *
  * @param {Rule} rule
  *
  * @returns {SeqRule}
@@ -1995,8 +1963,6 @@ function commaSep2(rule) {
 }
 
 /**
- * Creates a rule to optionally match one or more of the rules separated by a comma
- *
  * @param {Rule} rule
  *
  * @returns {ChoiceRule}
@@ -2006,8 +1972,6 @@ function commaSep(rule) {
 }
 
 /**
- * Creates a rule to match one or more of the rules separated by `separator`
- *
  * @param {RuleOrLiteral} rule
  *
  * @param {RuleOrLiteral} separator
@@ -2019,8 +1983,6 @@ function sep1(rule, separator) {
 }
 
 /**
- * Creates a rule to optionally match one or more of the rules separated by `separator`
- *
  * @param {RuleOrLiteral} rule
  *
  * @param {RuleOrLiteral} separator
