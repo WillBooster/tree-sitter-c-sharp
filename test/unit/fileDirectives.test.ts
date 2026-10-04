@@ -1,13 +1,20 @@
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
+
+const wasmPath = path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm');
 
 test('preserves file directive fields and following source across line endings', async () => {
   await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+  const language = await Language.load(wasmPath);
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, await readFile('queries/highlights.scm', 'utf8'));
+  const query = new Query(
+    language,
+    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
+  );
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const ending of ['', '\n']) {
@@ -76,10 +83,13 @@ test('preserves file directive fields and following source across line endings',
 
 test('keeps unknown directive payloads opaque and ends ranges on their own line', async () => {
   await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+  const language = await Language.load(wasmPath);
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, await readFile('queries/highlights.scm', 'utf8'));
+  const query = new Query(
+    language,
+    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
+  );
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const line of [
