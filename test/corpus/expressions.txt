@@ -5653,3 +5653,77 @@ class C {
                   right: (binary_expression
                     left: (identifier)
                     right: (identifier)))))))))))
+
+================================================================================
+Tuple-value multiplication
+================================================================================
+
+using System;
+class C {
+ static (int, int) Multiply(int a, int b, int c) { return (a * b, c); }
+ static void Main() { var pair = Multiply(2, 3, 4); Console.WriteLine(pair); }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (using_directive
+    (identifier))
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        (modifier)
+        returns: (tuple_type
+          (tuple_element
+            type: (predefined_type))
+          (tuple_element
+            type: (predefined_type)))
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (tuple_expression
+              (argument
+                (binary_expression
+                  left: (identifier)
+                  right: (identifier)))
+              (argument
+                (identifier))))))
+      (method_declaration
+        (modifier)
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list)
+        body: (block
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (argument
+                      (integer_literal))
+                    (argument
+                      (integer_literal))
+                    (argument
+                      (integer_literal)))))))
+          (expression_statement
+            (invocation_expression
+              function: (member_access_expression
+                expression: (identifier)
+                name: (identifier))
+              arguments: (argument_list
+                (argument
+                  (identifier))))))))))
