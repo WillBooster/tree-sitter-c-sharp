@@ -374,7 +374,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     if (valid_symbols[FILE_DIRECTIVE_PREPROC_ARG]) {
-        while (is_space_but_line_feed(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) skip(lexer);
+        while (lexer->lookahead == ' ' || lexer->lookahead == '\t' || lexer->lookahead == '\v' || lexer->lookahead == '\f') skip(lexer);
         if (lexer->lookahead == '#') return scan_file_directive_preproc_arg(lexer);
     }
     if (valid_symbols[DIRECTIVE_CRLF]) {

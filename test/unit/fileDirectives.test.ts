@@ -370,8 +370,8 @@ test('preserves ordinary preprocessor argument boundaries for directive-looking 
         separate.delete();
       }
 
-      for (const kind of ['region', 'define', 'error']) {
-        for (const suffix of [
+      for (const kind of ['region', 'warning', 'error', 'define', 'undef', 'endregion']) {
+        const suffixes = [
           '',
           '/',
           '/ ',
@@ -382,16 +382,29 @@ test('preserves ordinary preprocessor argument boundaries for directive-looking 
           String.raw`\/*`,
           '/x',
           '//',
-        ]) {
-          const trees = ['', '#:'].map((prefix) => parser.parse(`#${kind} ${prefix}x${suffix}${newline}class C{}`)!);
+        ];
+        const cases = [
+          ...suffixes.map((suffix) => ({ separator: '', suffix })),
+          ...['\t', '\v', '\f', '\u00A0', '\u3000', '\uFEFF', '\u2000'].flatMap((space) =>
+            [space, space.repeat(2)].map((separator) => ({ separator, suffix: '' }))
+          ),
+        ];
+        for (const { separator, suffix } of cases) {
+          const trees = ['', '#:'].map((prefix) =>
+            parser.parse(`#${kind} ${separator}${prefix}x${suffix}${newline}class C{}`)!
+          );
           try {
             const argumentsByTree = trees.map((tree, i) =>
               tree.rootNode.descendantsOfType('preproc_arg').map((node) => ({
-                text: i === 1 ? node.text.replace(/^#:/, '') : node.text,
+                text: i === 1 ? node.text.replace('#:', '') : node.text,
+                startIndex: node.startIndex,
+                endIndex: node.endIndex - (i === 1 ? 2 : 0),
                 children: node.children.map((child) => child.type),
               }))
             );
-            expect(argumentsByTree[1], JSON.stringify({ kind, suffix })).toEqual(argumentsByTree[0]);
+            expect(argumentsByTree[1], JSON.stringify({ kind, separator, suffix, newline })).toEqual(
+              argumentsByTree[0]
+            );
             expect(trees[1]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)).toEqual(
               trees[0]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)
             );
