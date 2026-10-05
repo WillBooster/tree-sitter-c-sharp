@@ -30,6 +30,7 @@ enum TokenType {
     FILE_DIRECTIVE_INCLUDE,
     FILE_DIRECTIVE_EXCLUDE,
     FILE_DIRECTIVE_KIND,
+    FILE_DIRECTIVE_LITERAL_CONTEXT,
 };
 
 typedef enum {
@@ -386,7 +387,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         }
     }
 
-    if (valid_symbols[FILE_DIRECTIVE_KIND] && !valid_symbols[FILE_DIRECTIVE_PREPROC_ARG] &&
+    if (valid_symbols[FILE_DIRECTIVE_KIND] && !valid_symbols[FILE_DIRECTIVE_LITERAL_CONTEXT] && !valid_symbols[FILE_DIRECTIVE_PREPROC_ARG] &&
         !valid_symbols[END_OF_INPUT] && !valid_symbols[DIRECTIVE_CRLF] && !valid_symbols[OPT_SEMI] &&
         !valid_symbols[RAW_STRING_CONTENT] && !valid_symbols[INTERPOLATION_STRING_CONTENT]) {
         while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {

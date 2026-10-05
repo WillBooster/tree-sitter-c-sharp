@@ -555,3 +555,47 @@ test('updates recovered directives and declarations after preprocessor-tail edit
     parser.delete();
   }
 });
+
+test('keeps directive-looking text inside literals and directive filenames', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  try {
+    for (const literal of [
+      '"#:x"',
+      '" #:package Bad"',
+      String.raw`"before\n#:x"`,
+      '@"#:x"',
+      '@"line\n#:package Bad"',
+      '$"#:x"',
+      '"""#:package Bad"""',
+    ]) {
+      const source = `class C { string s = ${literal}; void M() {} }\n#:package Good\n`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('variable_declarator')[0]?.namedChildren.at(-1)?.text).toBe(literal);
+        expect(tree.rootNode.descendantsOfType('method_declaration')[0]?.childForFieldName('name')?.text).toBe('M');
+        expect(
+          tree.rootNode.descendantsOfType('file_directive').map((node) => node.childForFieldName('name')?.text)
+        ).toEqual(['Good']);
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const directive of [
+      '#line 1 "#:package Bad"',
+      '#pragma checksum "#:x" "{406ea660-64cf-4c82-b6f0-42d48172a799}" "00"',
+    ]) {
+      const tree = parser.parse(`${directive}\nclass C {}`)!;
+      try {
+        expect(tree.rootNode.hasError, directive).toBe(false);
+        expect(tree.rootNode.descendantsOfType('file_directive')).toHaveLength(0);
+        expect(tree.rootNode.descendantsOfType('class_declaration')[0]?.childForFieldName('name')?.text).toBe('C');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

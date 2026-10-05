@@ -11016,6 +11016,10 @@
               {
                 "type": "SYMBOL",
                 "name": "escape_sequence"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_file_directive_literal_context"
               }
             ]
           }
@@ -13182,6 +13186,10 @@
                 "name": "string_literal_content"
               },
               {
+                "type": "SYMBOL",
+                "name": "_file_directive_literal_context"
+              },
+              {
                 "type": "ALIAS",
                 "content": {
                   "type": "IMMEDIATE_TOKEN",
@@ -14651,6 +14659,10 @@
     {
       "type": "SYMBOL",
       "name": "file_directive_kind"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_file_directive_literal_context"
     }
   ],
   "inline": [

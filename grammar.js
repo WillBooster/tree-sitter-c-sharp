@@ -160,6 +160,7 @@ module.exports = grammar({
     $._file_directive_include,
     $._file_directive_exclude,
     $.file_directive_kind,
+    $._file_directive_literal_context,
   ],
 
   extras: ($) => [
@@ -1674,7 +1675,7 @@ module.exports = grammar({
     string_literal: ($) =>
       seq(
         '"',
-        repeat(choice($.string_literal_content, $.escape_sequence)),
+        repeat(choice($.string_literal_content, $.escape_sequence, $._file_directive_literal_context)),
         token.immediate('"'),
         optional($.string_literal_encoding)
       ),
@@ -1851,6 +1852,7 @@ module.exports = grammar({
         repeat(
           choice(
             $.string_literal_content,
+            $._file_directive_literal_context,
             alias(token.immediate(prec(-1, '\\')), $.string_literal_content),
             alias(
               token.immediate(
