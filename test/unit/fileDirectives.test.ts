@@ -347,23 +347,46 @@ test('preserves ordinary preprocessor argument boundaries for directive-looking 
   await Parser.init();
   const parser = new Parser().setLanguage(await Language.load(wasmPath));
   try {
-    for (const kind of ['region', 'define', 'error']) {
-      for (const suffix of ['', '/', '/ ', '/*c*/', '\\\ncontinued', '\\\r\ncontinued', String.raw`\/*`, '/x', '//']) {
-        const trees = ['', '#:'].map((prefix) => parser.parse(`#${kind} ${prefix}x${suffix}\nclass C{}`)!);
-        try {
-          const argumentsByTree = trees.map((tree, i) =>
-            tree.rootNode.descendantsOfType('preproc_arg').map((node) => ({
-              text: i === 1 ? node.text.replace(/^#:/, '') : node.text,
-              children: node.children.map((child) => child.type),
-            }))
-          );
-          expect(argumentsByTree[1], JSON.stringify({ kind, suffix })).toEqual(argumentsByTree[0]);
-          expect(trees[1]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)).toEqual(
-            trees[0]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)
-          );
-          expect(trees[1]!.rootNode.hasError).toBe(trees[0]!.rootNode.hasError);
-        } finally {
-          for (const tree of trees) tree.delete();
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      const separate = parser.parse(`#region${newline}#:package Example${newline}class C{}`)!;
+      try {
+        expect(separate.rootNode.hasError).toBe(false);
+        expect(separate.rootNode.descendantsOfType('preproc_arg')).toHaveLength(0);
+        expect(separate.rootNode.descendantsOfType('file_directive')).toHaveLength(1);
+        expect(separate.rootNode.descendantsOfType('class_declaration')).toHaveLength(1);
+      } finally {
+        separate.delete();
+      }
+
+      for (const kind of ['region', 'define', 'error']) {
+        for (const suffix of [
+          '',
+          '/',
+          '/ ',
+          '\\',
+          '/*c*/',
+          '\\\ncontinued',
+          '\\\r\ncontinued',
+          String.raw`\/*`,
+          '/x',
+          '//',
+        ]) {
+          const trees = ['', '#:'].map((prefix) => parser.parse(`#${kind} ${prefix}x${suffix}${newline}class C{}`)!);
+          try {
+            const argumentsByTree = trees.map((tree, i) =>
+              tree.rootNode.descendantsOfType('preproc_arg').map((node) => ({
+                text: i === 1 ? node.text.replace(/^#:/, '') : node.text,
+                children: node.children.map((child) => child.type),
+              }))
+            );
+            expect(argumentsByTree[1], JSON.stringify({ kind, suffix })).toEqual(argumentsByTree[0]);
+            expect(trees[1]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)).toEqual(
+              trees[0]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)
+            );
+            expect(trees[1]!.rootNode.hasError).toBe(trees[0]!.rootNode.hasError);
+          } finally {
+            for (const tree of trees) tree.delete();
+          }
         }
       }
     }

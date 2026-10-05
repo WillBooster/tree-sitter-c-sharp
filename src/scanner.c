@@ -20,6 +20,7 @@ enum TokenType {
     RAW_STRING_CONTENT,
     LAMBDA_PAREN_OPEN,
     END_OF_INPUT,
+    DIRECTIVE_CRLF,
     FILE_DIRECTIVE_PREPROC_ARG,
 };
 
@@ -51,8 +52,12 @@ static inline void advance(TSLexer *lexer) { lexer->advance(lexer, false); }
 
 static inline void skip(TSLexer *lexer) { lexer->advance(lexer, true); }
 
-// The whitespace of the grammar's first extra other than a line feed, which ends a directive. `iswspace` depends on the
-// C library and its locale, e.g. it rejects U+00A0 on macOS.
+static inline bool is_line_terminator(int32_t c) {
+    return c == '\r' || c == '\n' || c == 0x85 || c == 0x2028 || c == 0x2029;
+}
+
+// Use a fixed set for end-of-input lookahead: `iswspace` depends on the C library and locale (it rejects NBSP on macOS).
+// Line terminators that remain here are handled by the grammar when end-of-input lookahead fails.
 static inline bool is_space_but_line_feed(int32_t c) {
     return c == '\t' || c == '\v' || c == '\f' || c == '\r' || c == ' ' || c == 0xA0 || c == 0x3000 || c == 0xFEFF;
 }
@@ -73,12 +78,12 @@ static inline bool is_id_continue(int32_t c) {
 static void skip_ws_and_comments(TSLexer *lexer) {
     for (;;) {
         int32_t c = lexer->lookahead;
-        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+        if (is_space_but_line_feed(c) || is_line_terminator(c)) {
             advance(lexer);
         } else if (c == '/') {
             advance(lexer);
             if (lexer->lookahead == '/') {
-                while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+                while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
                     advance(lexer);
                 }
             } else if (lexer->lookahead == '*') {
@@ -319,14 +324,22 @@ static bool scan_file_directive_preproc_arg(TSLexer *lexer) {
     if (lexer->lookahead != ':') return false;
     advance(lexer);
     lexer->mark_end(lexer);
-    while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+    while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
         int32_t c = lexer->lookahead;
         advance(lexer);
         if (c == '/') {
-            if (lexer->eof(lexer) || lexer->lookahead == '*') break;
+            if (lexer->lookahead == '*') break;
+            if (lexer->eof(lexer) || is_line_terminator(lexer->lookahead)) {
+                lexer->mark_end(lexer);
+                break;
+            }
             advance(lexer);
         } else if (c == '\\') {
-            if (lexer->lookahead == '\r') advance(lexer);
+            lexer->mark_end(lexer);
+            if (lexer->lookahead == '\r') {
+                advance(lexer);
+                if (lexer->lookahead != '\n') break;
+            }
             if (lexer->lookahead == '\n') advance(lexer);
         }
         lexer->mark_end(lexer);
@@ -368,8 +381,19 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     if (valid_symbols[FILE_DIRECTIVE_PREPROC_ARG]) {
-        while (is_space_but_line_feed(lexer->lookahead)) skip(lexer);
+        while (is_space_but_line_feed(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) skip(lexer);
         if (lexer->lookahead == '#') return scan_file_directive_preproc_arg(lexer);
+    }
+    if (valid_symbols[DIRECTIVE_CRLF]) {
+        while (is_space_but_line_feed(lexer->lookahead) && lexer->lookahead != '\r') skip(lexer);
+        if (lexer->lookahead == '\r') {
+            advance(lexer);
+            if (lexer->lookahead != '\n') return false;
+            advance(lexer);
+            lexer->result_symbol = DIRECTIVE_CRLF;
+            return true;
+        }
+
     }
 
     // A directive may end the input without a line break, which no regex token can match.
