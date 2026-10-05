@@ -98,6 +98,9 @@ test('keeps unknown directive payloads opaque and ends ranges on their own line'
         '#:Package Humanizer@2',
         '#:tool T',
         '#:tool // payload',
+        ...['project', 'ref', 'include', 'exclude', 'tool'].flatMap((kind) =>
+          [' ', '\t', '\u00A0', '\u2000'].map((suffix) => `#:${kind} // payload${suffix}`)
+        ),
         '#:project /* payload',
         '#:sdk A /* payload',
         '#:package A // payload',
@@ -116,6 +119,15 @@ test('keeps unknown directive payloads opaque and ends ranges on their own line'
           expect(directive?.text).toBe(line + newline);
           expect(declaration?.text).toBe('class Program {}');
           expect(tree.rootNode.descendantsOfType('comment')).toHaveLength(0);
+          if (/^#:(project|ref|include|exclude|tool) \/\//.test(line)) {
+            expect(directive?.childForFieldName('value')?.text).toBe(line.slice(line.indexOf('//')));
+            expect(
+              query
+                .captures(tree.rootNode)
+                .filter(({ name }) => name === 'string')
+                .map(({ node }) => node.text)
+            ).toEqual([line.slice(line.indexOf('//'))]);
+          }
           expect(
             query
               .captures(tree.rootNode)

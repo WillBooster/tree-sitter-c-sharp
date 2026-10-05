@@ -1947,7 +1947,12 @@ module.exports = grammar({
       ),
     file_directive_value: () =>
       token.immediate(
-        prec(1, new RegExp(`[^${directiveWhitespace}]([^${directiveLineBreak}]*[^${directiveWhitespace}])?`))
+        prec(
+          1,
+          new RegExp(
+            `[^${directiveWhitespace}]([^${directiveLineBreak}]*[^${directiveWhitespace}])?|//[^${directiveLineBreak}]*`
+          )
+        )
       ),
 
     shebang_directive: () => token(seq('#!', /[^\r\n\u0085\u2028\u2029]*/)),
