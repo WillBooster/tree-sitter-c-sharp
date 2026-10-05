@@ -386,6 +386,7 @@ test('separates and trims Unicode horizontal whitespace without changing interio
 
 test(
   'preserves ordinary preprocessor argument boundaries for directive-looking text',
+  // This exhaustive matrix can take nearly nine seconds on the Intel CI runner.
   { timeout: 30_000 },
   async () => {
     await Parser.init();
