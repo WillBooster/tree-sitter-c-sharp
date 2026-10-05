@@ -54,6 +54,25 @@ test('recovers from an error on each line in linear time', { timeout: 60_000 }, 
   expect(largeFastest).toBeLessThan(5_000_000);
 });
 
+test.each(['@ ) ', '@ #:x/*c*/ '])(
+  'recovers from a long malformed line containing %s in linear time',
+  { timeout: 60_000 },
+  (fragment) => {
+    const small = 'class C { ' + fragment.repeat(1000) + '}';
+    const large = 'class C { ' + fragment.repeat(10_000) + '}';
+    parseCpuTime(large);
+    parseCpuTime(large);
+    let smallFastest = Infinity;
+    let largeFastest = Infinity;
+    for (let run = 0; run < 5; run++) {
+      smallFastest = Math.min(smallFastest, parseCpuTime(small));
+      largeFastest = Math.min(largeFastest, parseCpuTime(large));
+    }
+    expect(largeFastest / smallFastest).toBeLessThan(18);
+    expect(largeFastest).toBeLessThan(5_000_000);
+  }
+);
+
 function parseCpuTime(source: string): number {
   const start = process.threadCpuUsage();
   const tree = parser.parse(source);
