@@ -334,13 +334,6 @@ static bool scan_file_directive_preproc_arg(TSLexer *lexer) {
                 break;
             }
             advance(lexer);
-        } else if (c == '\\') {
-            lexer->mark_end(lexer);
-            if (lexer->lookahead == '\r') {
-                advance(lexer);
-                if (lexer->lookahead != '\n') break;
-            }
-            if (lexer->lookahead == '\n') advance(lexer);
         }
         lexer->mark_end(lexer);
     }

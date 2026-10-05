@@ -77,6 +77,8 @@ test('keeps trailing directive slashes while preserving adjacent block comments'
         ['https://example.com/', 'https://example.com/', undefined],
         ['foo/* note */', 'foo', '/* note */'],
         ['/', '/', undefined],
+        ['C:\\dev\\', 'C:\\dev\\', undefined],
+        ['\\', '\\', undefined],
       ]) {
         const source = `#region ${payload}${newline}class C {}${newline}#endregion`;
         const tree = parser.parse(source)!;
