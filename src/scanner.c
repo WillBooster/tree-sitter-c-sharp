@@ -324,17 +324,38 @@ static LambdaScanResult scan_lambda_paren_open(TSLexer *lexer) {
 }
 #undef BAIL
 
-static bool scan_file_directive_preproc_arg(TSLexer *lexer) {
+static bool scan_file_directive_prefix(TSLexer *lexer) {
     if (lexer->lookahead != '#') return false;
     advance(lexer);
     if (lexer->lookahead != ':') return false;
     advance(lexer);
+    return true;
+}
+
+static bool scan_file_directive_preproc_arg(TSLexer *lexer, bool recovery) {
     lexer->mark_end(lexer);
     while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
         int32_t c = lexer->lookahead;
         advance(lexer);
         if (c == '/') {
-            if (lexer->lookahead == '*') break;
+            if (recovery && lexer->lookahead == '/') {
+                while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) advance(lexer);
+                lexer->mark_end(lexer);
+                break;
+            }
+            if (lexer->lookahead == '*') {
+                if (!recovery) break;
+                advance(lexer);
+                bool star = false;
+                while (!lexer->eof(lexer)) {
+                    int32_t comment_char = lexer->lookahead;
+                    advance(lexer);
+                    if (star && comment_char == '/') break;
+                    star = comment_char == '*';
+                }
+                lexer->mark_end(lexer);
+                continue;
+            }
             if (lexer->eof(lexer) || is_line_terminator(lexer->lookahead)) {
                 lexer->mark_end(lexer);
                 break;
@@ -359,12 +380,15 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
     if (valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START]) {
         bool line_start = false;
+        unsigned skipped = 0;
         while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
             if (is_line_terminator(lexer->lookahead)) line_start = true;
+            skipped++;
             skip(lexer);
         }
-        if (lexer->lookahead != '#') return false;
-        return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer);
+        if (!scan_file_directive_prefix(lexer)) return false;
+        if (!line_start) line_start = lexer->get_column(lexer) == skipped + 2;
+        return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
     }
 
     // Lambda-paren scanning advances forward speculatively past the
@@ -393,13 +417,13 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
             skip(lexer);
         }
-        if (lexer->lookahead == '#') return scan_file_directive_kind(lexer);
+        if (lexer->lookahead == '#') return scan_file_directive_prefix(lexer) && scan_file_directive_kind(lexer);
     }
 
     if (valid_symbols[FILE_DIRECTIVE_PREPROC_ARG]) {
         while (lexer->lookahead == ' ' || lexer->lookahead == '\t' || lexer->lookahead == '\v' || lexer->lookahead == '\f') skip(lexer);
         while (is_space_but_line_feed(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) advance(lexer);
-        if (lexer->lookahead == '#') return scan_file_directive_preproc_arg(lexer);
+        if (lexer->lookahead == '#') return scan_file_directive_prefix(lexer) && scan_file_directive_preproc_arg(lexer, false);
     }
     if (valid_symbols[DIRECTIVE_CRLF]) {
         while (is_space_but_line_feed(lexer->lookahead) && lexer->lookahead != '\r') skip(lexer);
@@ -751,9 +775,6 @@ static bool is_directive_horizontal(int32_t c) {
 }
 
 static bool scan_file_directive_kind(TSLexer *lexer) {
-    advance(lexer);
-    if (lexer->lookahead != ':') return false;
-    advance(lexer);
     char kind[9] = {0};
     unsigned length = 0;
     while (!lexer->eof(lexer) && !is_directive_horizontal(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) {

@@ -54,7 +54,7 @@ test('recovers from an error on each line in linear time', { timeout: 60_000 }, 
   expect(largeFastest).toBeLessThan(5_000_000);
 });
 
-test.each(['@ ) ', '@ #:x/*c*/ '])(
+test.each(['@ ) ', '@ # ', '@ #:x/*c*/ '])(
   'recovers from a long malformed line containing %s in linear time',
   { timeout: 60_000 },
   (fragment) => {

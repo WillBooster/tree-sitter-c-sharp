@@ -469,7 +469,13 @@ test('preserves declarations and standalone directives after malformed preproces
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const directive of ['#pragma warning disable CS0618', '#nullable enable', '#line default']) {
-        for (const tail of ['#:x', '#:package Newtonsoft.Json', '#:package Newtonsoft.Json /* tail */']) {
+        for (const tail of [
+          '#:x',
+          '#:package Newtonsoft.Json',
+          '#:package Newtonsoft.Json /* tail */',
+          '#:x // /* inert',
+          `#:x /* comment${newline}continued */`,
+        ]) {
           for (const following of ['', `  #:package Good${newline}`]) {
             const source = `${directive} ${tail}${newline}${following}${declaration}`;
             const tree = parser.parse(source)!;
@@ -596,6 +602,31 @@ test('keeps directive-looking text inside literals and directive filenames', asy
         expect(tree.rootNode.descendantsOfType('class_declaration')[0]?.childForFieldName('name')?.text).toBe('C');
       } finally {
         tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves standalone directives after consumed preprocessor newlines during recovery', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  try {
+    for (const newline of ['\n', '\r\n']) {
+      for (const middle of ['#nullable enable', '#region r']) {
+        const source = `#pragma warning disable X #:x${newline}${middle}${newline}#:package Good${newline}class C { void M() {} }${newline}`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError).toBe(true);
+          expect(
+            tree.rootNode.descendantsOfType('file_directive').map((node) => node.childForFieldName('name')?.text)
+          ).toEqual(['Good']);
+          expect(tree.rootNode.descendantsOfType('class_declaration')[0]?.childForFieldName('name')?.text).toBe('C');
+          expect(tree.rootNode.descendantsOfType('method_declaration')[0]?.childForFieldName('name')?.text).toBe('M');
+        } finally {
+          tree.delete();
+        }
       }
     }
   } finally {
