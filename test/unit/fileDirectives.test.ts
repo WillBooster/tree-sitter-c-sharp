@@ -18,53 +18,82 @@ test('preserves file directive fields and following source across line endings',
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const ending of ['', '\n']) {
-        const source =
-          [
-            '#:sdk\u00A0Microsoft.NET.Sdk\f',
-            '#:package "Humanizer" @ 2.0',
-            '#:Package Newtonsoft.Json Version=13.0.3',
-            '#:property Description = "Hello world"',
-            '#:property Empty=',
-            '#:project ../my project',
-            'class Program {}',
-          ].join(newline) + ending;
-        const tree = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, tree.rootNode.toString()).toBe(false);
-          const directives = tree.rootNode.descendantsOfType('file_directive');
-          expect(
-            directives.map((node) => [node.childForFieldName('name')?.text, node.childForFieldName('value')?.text])
-          ).toEqual([
-            ['Microsoft.NET.Sdk', undefined],
-            ['"Humanizer"', '2.0'],
-            ['Newtonsoft.Json', undefined],
-            ['Description', '"Hello world"'],
-            ['Empty', undefined],
-            [undefined, '../my project'],
-          ]);
-          expect(directives[2]?.childForFieldName('metadata')?.text).toBe('Version=13.0.3');
-          expect(tree.rootNode.namedChildren.at(-1)?.text).toBe('class Program {}');
-          const captures = query.captures(tree.rootNode);
-          expect(captures.filter(({ name }) => name === 'keyword.directive').map(({ node }) => node.text)).toEqual([
-            '#:sdk',
-            '#:package',
-            '#:Package',
-            '#:property',
-            '#:property',
-            '#:project',
-          ]);
-          for (const [capture, texts] of [
-            ['property', ['Microsoft.NET.Sdk', '"Humanizer"', 'Newtonsoft.Json', 'Description', 'Empty']],
-            ['string', ['2.0', 'Version=13.0.3', '"Hello world"', '../my project']],
-          ] as const) {
+        let lowercaseTree: string | undefined;
+        for (const uppercase of [false, true]) {
+          const source =
+            [
+              '#:sdk\u00A0Microsoft.NET.Sdk\f',
+              '#:package "Humanizer" @ 2.0',
+              '#:Package Newtonsoft.Json Version=13.0.3',
+              '#:property Description = "Hello world"',
+              '#:property Empty=',
+              '#:project ../my project',
+              '#:ref ../reference.cs',
+              '#:include ../included.cs',
+              '#:exclude ../excluded.cs',
+              'class Program {}',
+            ]
+              .map((line) => (uppercase ? line.replace(/^#:\w+/, (kind) => kind.toUpperCase()) : line))
+              .join(newline) + ending;
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, tree.rootNode.toString()).toBe(false);
+            if (uppercase) expect(tree.rootNode.toString()).toBe(lowercaseTree);
+            else lowercaseTree = tree.rootNode.toString();
+            const directives = tree.rootNode.descendantsOfType('file_directive');
             expect(
-              captures
-                .filter(({ name }) => name === capture)
-                .map(({ node }) => [node.text, node.startIndex, node.endIndex])
-            ).toEqual(texts.map((text) => [text, source.indexOf(text), source.indexOf(text) + text.length]));
+              directives.map((node) => [node.childForFieldName('name')?.text, node.childForFieldName('value')?.text])
+            ).toEqual([
+              ['Microsoft.NET.Sdk', undefined],
+              ['"Humanizer"', '2.0'],
+              ['Newtonsoft.Json', undefined],
+              ['Description', '"Hello world"'],
+              ['Empty', undefined],
+              [undefined, '../my project'],
+              [undefined, '../reference.cs'],
+              [undefined, '../included.cs'],
+              [undefined, '../excluded.cs'],
+            ]);
+            expect(directives[2]?.childForFieldName('metadata')?.text).toBe('Version=13.0.3');
+            expect(tree.rootNode.namedChildren.at(-1)?.text).toBe('class Program {}');
+            const captures = query.captures(tree.rootNode);
+            expect(captures.filter(({ name }) => name === 'keyword.directive').map(({ node }) => node.text)).toEqual(
+              [
+                '#:sdk',
+                '#:package',
+                '#:Package',
+                '#:property',
+                '#:property',
+                '#:project',
+                '#:ref',
+                '#:include',
+                '#:exclude',
+              ].map((kind) => (uppercase ? kind.toUpperCase() : kind))
+            );
+            for (const [capture, texts] of [
+              ['property', ['Microsoft.NET.Sdk', '"Humanizer"', 'Newtonsoft.Json', 'Description', 'Empty']],
+              [
+                'string',
+                [
+                  '2.0',
+                  'Version=13.0.3',
+                  '"Hello world"',
+                  '../my project',
+                  '../reference.cs',
+                  '../included.cs',
+                  '../excluded.cs',
+                ],
+              ],
+            ] as const) {
+              expect(
+                captures
+                  .filter(({ name }) => name === capture)
+                  .map(({ node }) => [node.text, node.startIndex, node.endIndex])
+              ).toEqual(texts.map((text) => [text, source.indexOf(text), source.indexOf(text) + text.length]));
+            }
+          } finally {
+            tree.delete();
           }
-        } finally {
-          tree.delete();
         }
       }
     }
