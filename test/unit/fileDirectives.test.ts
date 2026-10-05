@@ -479,6 +479,9 @@ test('preserves declarations and standalone directives after malformed preproces
           '#:package Newtonsoft.Json',
           '#:package Newtonsoft.Json /* tail */',
           '#:x // /* inert',
+          '#:x a/*b',
+          '#:x "/*"',
+          '#:x /*',
           `#:x /* comment${newline}continued */`,
         ]) {
           for (const following of ['', `  #:package Good${newline}`]) {
