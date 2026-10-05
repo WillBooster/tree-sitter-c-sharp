@@ -13129,20 +13129,8 @@
             "type": "CHOICE",
             "members": [
               {
-                "type": "ALIAS",
-                "content": {
-                  "type": "IMMEDIATE_TOKEN",
-                  "content": {
-                    "type": "PREC",
-                    "value": 1,
-                    "content": {
-                      "type": "PATTERN",
-                      "value": "[^\"\\\\\\r\\n\\u0085\\u2028\\u2029]+"
-                    }
-                  }
-                },
-                "named": true,
-                "value": "string_literal_content"
+                "type": "SYMBOL",
+                "name": "string_literal_content"
               },
               {
                 "type": "ALIAS",

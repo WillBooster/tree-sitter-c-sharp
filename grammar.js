@@ -1826,7 +1826,7 @@ module.exports = grammar({
         '"',
         repeat(
           choice(
-            alias(token.immediate(prec(1, /[^"\\\r\n\u0085\u2028\u2029]+/)), $.string_literal_content),
+            $.string_literal_content,
             alias(token.immediate(prec(-1, '\\')), $.string_literal_content),
             alias(
               token.immediate(
