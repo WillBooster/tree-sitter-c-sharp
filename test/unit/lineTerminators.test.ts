@@ -148,3 +148,37 @@ test('preserves directive source ranges before blank LF and CRLF lines', () => {
     parser.delete();
   }
 });
+
+test('rejects source newlines in ordinary literals while retaining verbatim and escaped content', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const literal of [`"a${newline}b"`, `"a${newline}"`, `"${newline}\\n"`, `'a${newline}'`, `'${newline}'`]) {
+        const source = `class C { object value = ${literal}; }`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(true);
+        } finally {
+          tree.delete();
+        }
+      }
+      const source = `class C { string text = @"a${newline}b"; char escaped = '\\n'; string escapedText = "a\\r\\nb"; }`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(false);
+        expect(tree.rootNode.descendantsOfType('verbatim_string_literal').map((node) => node.text)).toEqual([
+          `@"a${newline}b"`,
+        ]);
+        expect(tree.rootNode.descendantsOfType('escape_sequence').map((node) => node.text)).toEqual([
+          String.raw`\n`,
+          String.raw`\r`,
+          String.raw`\n`,
+        ]);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

@@ -5915,6 +5915,11 @@
     }
   },
   {
+    "type": "string_literal_content",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "struct_declaration",
     "named": true,
     "fields": {
@@ -7398,10 +7403,6 @@
   },
   {
     "type": "string_content",
-    "named": true
-  },
-  {
-    "type": "string_literal_content",
     "named": true
   },
   {
