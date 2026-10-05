@@ -774,4 +774,3 @@ static bool scan_file_directive_kind(TSLexer *lexer) {
     lexer->mark_end(lexer);
     return true;
 }
-
