@@ -1,9 +1,14 @@
+import path from 'node:path';
 import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
-import { expect, test } from 'vitest';
+import { beforeAll, expect, test } from 'vitest';
 
-test('captures literal backslashes within line-directive filename boundaries', async () => {
+let language: Language;
+beforeAll(async () => {
   await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+  language = await Language.load(path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm'));
+}, 60_000);
+
+test('captures literal backslashes within line-directive filename boundaries', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   const query = new Query(language, '(preproc_line (string_literal) @filename)');
@@ -32,9 +37,7 @@ test('captures literal backslashes within line-directive filename boundaries', a
   }
 });
 
-test('rejects line breaks and string-only syntax in line-directive filenames', async () => {
-  await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+test('rejects line breaks and string-only syntax in line-directive filenames', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   try {
@@ -63,9 +66,7 @@ test('rejects line breaks and string-only syntax in line-directive filenames', a
   }
 });
 
-test('preserves checksum operands and the following declaration with literal filename backslashes', async () => {
-  await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+test('preserves checksum operands and the following declaration with literal filename backslashes', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   const query = new Query(language, '(string_literal) @string');
