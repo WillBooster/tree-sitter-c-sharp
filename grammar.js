@@ -1634,9 +1634,9 @@ module.exports = grammar({
 
     null_literal: () => 'null',
 
-    character_literal: ($) => seq("'", choice($.character_literal_content, $.escape_sequence), "'"),
+    character_literal: ($) => seq("'", choice($.character_literal_content, $.escape_sequence), token.immediate("'")),
 
-    character_literal_content: () => token.immediate(/[^'\\]/),
+    character_literal_content: () => token.immediate(/[^'\\\r\n\u0085\u2028\u2029]/),
 
     integer_literal: () =>
       token(
@@ -1664,12 +1664,17 @@ module.exports = grammar({
     },
 
     string_literal: ($) =>
-      seq('"', repeat(choice($.string_literal_content, $.escape_sequence)), '"', optional($.string_literal_encoding)),
+      seq(
+        '"',
+        repeat(choice($.string_literal_content, $.escape_sequence)),
+        token.immediate('"'),
+        optional($.string_literal_encoding)
+      ),
 
-    string_literal_content: () => token.immediate(prec(1, /[^"\\\n]+/)),
+    string_literal_content: () => token.immediate(prec(1, /[^"\\\r\n\u0085\u2028\u2029]+/)),
 
     escape_sequence: () =>
-      token(choice(/\\x[0-9a-fA-F]{1,4}/, /\\u[0-9a-fA-F]{4}/, /\\U[0-9a-fA-F]{8}/, /\\[abefnrtv'"\\?0]/)),
+      token.immediate(choice(/\\x[0-9a-fA-F]{1,4}/, /\\u[0-9a-fA-F]{4}/, /\\U[0-9a-fA-F]{8}/, /\\[abefnrtv'"\\?0]/)),
 
     string_literal_encoding: () => token.immediate(stringEncoding),
 
@@ -1837,7 +1842,7 @@ module.exports = grammar({
         '"',
         repeat(
           choice(
-            alias(token.immediate(prec(1, /[^"\\\r\n\u0085\u2028\u2029]+/)), $.string_literal_content),
+            $.string_literal_content,
             alias(token.immediate(prec(-1, '\\')), $.string_literal_content),
             alias(
               token.immediate(
