@@ -30,14 +30,8 @@ test('uses a Wasm build built from the current parser', () => {
   ).toBe(false);
 });
 
-// Consumers parse files being edited, so recovering from many errors must stay linear: ten times the lines take about
-// ten times as long, against a hundred times for quadratic recovery. The ratio catches a cost that grows faster than
-// the input even on a slow CI runner; it would pass a parser that is uniformly slower, so the larger parse also has a
-// generous ceiling, about 25 times the 0.2 s of CPU time it takes here. The parses are timed in the CPU time of the
-// thread that runs them: wall-clock time is inflated unevenly by the test files running alongside, and the process's
-// CPU time also counts the engine's background threads, which compile the Wasm build and collect garbage during the
-// parses. 5,000 and 50,000 lines measured after warm-up parses and in alternation, each keeping its fastest run, give
-// 10.8 to 12.3 in full local test runs; 18 leaves a margin over that and fails for growth faster than about n^1.25.
+// Thread CPU time excludes competing test files and background compilation. The growth limit permits roughly n^1.25
+// scaling across a tenfold input increase; the absolute limit also catches a uniformly slow parser.
 test('recovers from an error on each line in linear time', { timeout: 60_000 }, () => {
   const small = '$ a\n'.repeat(5000);
   const large = '$ a\n'.repeat(50_000);
@@ -75,11 +69,19 @@ test.each(['@ ) ', '@ # ', '@ #:x/*c*/ '])(
 
 function parseCpuTime(source: string): number {
   const start = process.threadCpuUsage();
-  const tree = parser.parse(source);
-  const { system, user } = process.threadCpuUsage(start);
-  if (!tree) throw new Error('The parser returned no tree');
-  const { hasError } = tree.rootNode;
-  tree.delete();
-  expect(hasError).toBe(true);
-  return system + user;
+  let samples = 0;
+  let elapsed = 0;
+  let allHaveErrors = true;
+  // Short parses can take less than one CPU timer tick on Linux ARM. Measure a batch before averaging.
+  do {
+    const tree = parser.parse(source);
+    if (!tree) throw new Error('The parser returned no tree');
+    allHaveErrors &&= tree.rootNode.hasError;
+    tree.delete();
+    samples++;
+    const { system, user } = process.threadCpuUsage(start);
+    elapsed = system + user;
+  } while (elapsed < 50_000);
+  expect(allHaveErrors).toBe(true);
+  return elapsed / samples;
 }

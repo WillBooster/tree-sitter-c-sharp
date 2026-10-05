@@ -333,49 +333,17 @@ static bool scan_file_directive_prefix(TSLexer *lexer) {
 }
 
 static bool scan_file_directive_preproc_arg(TSLexer *lexer, bool recovery) {
-    bool quoted = false;
-    bool escaped = false;
     lexer->mark_end(lexer);
     while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
         int32_t c = lexer->lookahead;
         advance(lexer);
-        bool comment_allowed = !quoted;
-        if (recovery && c == '"' && !escaped) quoted = !quoted;
-        escaped = c == '\\' && !escaped;
-        if (c == '/' && (!recovery || comment_allowed)) {
-            if (recovery && lexer->lookahead == '/') {
-                while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) advance(lexer);
-                lexer->mark_end(lexer);
-                break;
-            }
-            if (lexer->lookahead == '*') {
-                if (!recovery) break;
-                advance(lexer);
-                bool star = false;
-                bool closed = false;
-                bool line_end = false;
-                while (!lexer->eof(lexer)) {
-                    int32_t comment_char = lexer->lookahead;
-                    if (!line_end && is_line_terminator(comment_char)) {
-                        lexer->mark_end(lexer);
-                        line_end = true;
-                    }
-                    advance(lexer);
-                    if (star && comment_char == '/') {
-                        closed = true;
-                        break;
-                    }
-                    star = comment_char == '*';
-                }
-                if (!closed && line_end) break;
-                lexer->mark_end(lexer);
-                continue;
-            }
+        if (!recovery && c == '/') {
+            if (lexer->lookahead == '*') break;
             if (lexer->eof(lexer) || is_line_terminator(lexer->lookahead)) {
                 lexer->mark_end(lexer);
                 break;
             }
-            if (!recovery) advance(lexer);
+            advance(lexer);
         }
         lexer->mark_end(lexer);
     }

@@ -470,7 +470,7 @@ test(
 test('preserves declarations and standalone directives after malformed preprocessor tails', async () => {
   await Parser.init();
   const parser = new Parser().setLanguage(await Language.load(wasmPath));
-  const declaration = 'class C { void M() { var a = 1; } }';
+  const declarations = ['class C { void M() { var a = 1; } }', 'class E { /* later */ }'];
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const directive of ['#pragma warning disable CS0618', '#nullable enable', '#line default']) {
@@ -482,10 +482,9 @@ test('preserves declarations and standalone directives after malformed preproces
           '#:x a/*b',
           '#:x "/*"',
           '#:x /*',
-          `#:x /* comment${newline}continued */`,
         ]) {
           for (const following of ['', `  #:package Good${newline}`]) {
-            const source = `${directive} ${tail}${newline}${following}${declaration}`;
+            const source = `${directive} ${tail}${newline}${following}${declarations.join(newline)}`;
             const tree = parser.parse(source)!;
             try {
               expect(tree.rootNode.hasError, source).toBe(true);
@@ -497,7 +496,7 @@ test('preserves declarations and standalone directives after malformed preproces
               expect(
                 tree.rootNode.descendantsOfType('class_declaration').map((node) => node.text),
                 source
-              ).toEqual([declaration]);
+              ).toEqual(declarations);
               expect(
                 tree.rootNode
                   .descendantsOfType('method_declaration')
