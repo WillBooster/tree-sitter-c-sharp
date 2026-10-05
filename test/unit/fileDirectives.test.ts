@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Edit, Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
 const wasmPath = path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm');
@@ -458,6 +458,100 @@ test('preserves ordinary preprocessor argument boundaries for directive-looking 
       }
     }
   } finally {
+    parser.delete();
+  }
+});
+
+test('preserves declarations and standalone directives after malformed preprocessor tails', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  const declaration = 'class C { void M() { var a = 1; } }';
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const directive of ['#pragma warning disable CS0618', '#nullable enable', '#line default']) {
+        for (const tail of ['#:x', '#:package Newtonsoft.Json', '#:package Newtonsoft.Json /* tail */']) {
+          for (const following of ['', `  #:package Good${newline}`]) {
+            const source = `${directive} ${tail}${newline}${following}${declaration}`;
+            const tree = parser.parse(source)!;
+            try {
+              expect(tree.rootNode.hasError, source).toBe(true);
+              const directives = tree.rootNode.descendantsOfType('file_directive');
+              expect(
+                directives.map((node) => node.childForFieldName('name')?.text),
+                source
+              ).toEqual(following ? ['Good'] : []);
+              expect(
+                tree.rootNode.descendantsOfType('class_declaration').map((node) => node.text),
+                source
+              ).toEqual([declaration]);
+              expect(
+                tree.rootNode
+                  .descendantsOfType('method_declaration')
+                  .map((node) => node.childForFieldName('name')?.text)
+              ).toEqual(['M']);
+            } finally {
+              tree.delete();
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('updates recovered directives and declarations after preprocessor-tail edits', async () => {
+  await Parser.init();
+  const language = await Language.load(wasmPath);
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(
+    language,
+    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
+  );
+  const prefix = '#pragma warning disable CS0618';
+  const suffix = '\n#:package Good\nclass C { void M() {} }';
+  let tail = '';
+  let tree = parser.parse(prefix + suffix)!;
+  const captures = (root: typeof tree.rootNode): unknown[] =>
+    query
+      .captures(root)
+      .map(({ name, node }) => ({ name, text: node.text, start: node.startIndex, end: node.endIndex }));
+  try {
+    for (const nextTail of [' #:package Bad', ' #:x', '', ' #:package Bad /* tail */', '']) {
+      tree.edit(
+        new Edit({
+          startIndex: prefix.length,
+          oldEndIndex: prefix.length + tail.length,
+          newEndIndex: prefix.length + nextTail.length,
+          startPosition: { row: 0, column: prefix.length },
+          oldEndPosition: { row: 0, column: prefix.length + tail.length },
+          newEndPosition: { row: 0, column: prefix.length + nextTail.length },
+        })
+      );
+      const source = prefix + nextTail + suffix;
+      const next = parser.parse(source, tree)!;
+      tree.delete();
+      tree = next;
+      const fresh = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError).toBe(Boolean(nextTail));
+        expect(tree.rootNode.toString()).toBe(fresh.rootNode.toString());
+        expect(captures(tree.rootNode)).toEqual(captures(fresh.rootNode));
+        expect(
+          tree.rootNode.descendantsOfType('file_directive').map((node) => node.childForFieldName('name')?.text)
+        ).toEqual(['Good']);
+        expect(
+          tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
+        ).toEqual(['C']);
+      } finally {
+        fresh.delete();
+      }
+      tail = nextTail;
+    }
+  } finally {
+    tree.delete();
+    query.delete();
     parser.delete();
   }
 });

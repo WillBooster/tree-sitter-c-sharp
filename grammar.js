@@ -152,6 +152,14 @@ module.exports = grammar({
     $._end_of_input,
     $._directive_crlf,
     $._file_directive_preproc_arg,
+    $._file_directive_sdk,
+    $._file_directive_package,
+    $._file_directive_property,
+    $._file_directive_project,
+    $._file_directive_ref,
+    $._file_directive_include,
+    $._file_directive_exclude,
+    $.file_directive_kind,
   ],
 
   extras: ($) => [
@@ -1906,25 +1914,17 @@ module.exports = grammar({
         choice(
           fileDirectiveArguments(
             $,
-            choice(
-              alias(token(prec(-2, /#:[sS][dD][kK]/)), '#:sdk'),
-              alias(token(prec(-2, /#:[pP][aA][cC][kK][aA][gG][eE]/)), '#:package')
-            ),
+            choice(alias($._file_directive_sdk, '#:sdk'), alias($._file_directive_package, '#:package')),
             '@',
             'metadata'
           ),
-          fileDirectiveArguments(
-            $,
-            alias(token(prec(-2, /#:[pP][rR][oO][pP][eE][rR][tT][yY]/)), '#:property'),
-            '=',
-            'value'
-          ),
+          fileDirectiveArguments($, alias($._file_directive_property, '#:property'), '=', 'value'),
           seq(
             choice(
-              alias(token(prec(-2, /#:[pP][rR][oO][jJ][eE][cC][tT]/)), '#:project'),
-              alias(token(prec(-2, /#:[rR][eE][fF]/)), '#:ref'),
-              alias(token(prec(-2, /#:[iI][nN][cC][lL][uU][dD][eE]/)), '#:include'),
-              alias(token(prec(-2, /#:[eE][xX][cC][lL][uU][dD][eE]/)), '#:exclude')
+              alias($._file_directive_project, '#:project'),
+              alias($._file_directive_ref, '#:ref'),
+              alias($._file_directive_include, '#:include'),
+              alias($._file_directive_exclude, '#:exclude')
             ),
             optional(seq($._file_directive_spacing, field('value', $.file_directive_value)))
           ),
@@ -1936,8 +1936,6 @@ module.exports = grammar({
         optional($._file_directive_spacing),
         choice(token.immediate(new RegExp(String.raw`\r\n|[${directiveLineBreak}]`)), $._end_of_input)
       ),
-
-    file_directive_kind: () => token(prec(-2, new RegExp(`#:[^${directiveWhitespace}]*`))),
 
     _file_directive_spacing: () => token.immediate(prec(1, new RegExp(`[${directiveHorizontal}]+`))),
     file_directive_name: () =>

@@ -13683,15 +13683,8 @@
                     {
                       "type": "ALIAS",
                       "content": {
-                        "type": "TOKEN",
-                        "content": {
-                          "type": "PREC",
-                          "value": -2,
-                          "content": {
-                            "type": "PATTERN",
-                            "value": "#:[sS][dD][kK]"
-                          }
-                        }
+                        "type": "SYMBOL",
+                        "name": "_file_directive_sdk"
                       },
                       "named": false,
                       "value": "#:sdk"
@@ -13699,15 +13692,8 @@
                     {
                       "type": "ALIAS",
                       "content": {
-                        "type": "TOKEN",
-                        "content": {
-                          "type": "PREC",
-                          "value": -2,
-                          "content": {
-                            "type": "PATTERN",
-                            "value": "#:[pP][aA][cC][kK][aA][gG][eE]"
-                          }
-                        }
+                        "type": "SYMBOL",
+                        "name": "_file_directive_package"
                       },
                       "named": false,
                       "value": "#:package"
@@ -13859,15 +13845,8 @@
                 {
                   "type": "ALIAS",
                   "content": {
-                    "type": "TOKEN",
-                    "content": {
-                      "type": "PREC",
-                      "value": -2,
-                      "content": {
-                        "type": "PATTERN",
-                        "value": "#:[pP][rR][oO][pP][eE][rR][tT][yY]"
-                      }
-                    }
+                    "type": "SYMBOL",
+                    "name": "_file_directive_property"
                   },
                   "named": false,
                   "value": "#:property"
@@ -14020,15 +13999,8 @@
                     {
                       "type": "ALIAS",
                       "content": {
-                        "type": "TOKEN",
-                        "content": {
-                          "type": "PREC",
-                          "value": -2,
-                          "content": {
-                            "type": "PATTERN",
-                            "value": "#:[pP][rR][oO][jJ][eE][cC][tT]"
-                          }
-                        }
+                        "type": "SYMBOL",
+                        "name": "_file_directive_project"
                       },
                       "named": false,
                       "value": "#:project"
@@ -14036,15 +14008,8 @@
                     {
                       "type": "ALIAS",
                       "content": {
-                        "type": "TOKEN",
-                        "content": {
-                          "type": "PREC",
-                          "value": -2,
-                          "content": {
-                            "type": "PATTERN",
-                            "value": "#:[rR][eE][fF]"
-                          }
-                        }
+                        "type": "SYMBOL",
+                        "name": "_file_directive_ref"
                       },
                       "named": false,
                       "value": "#:ref"
@@ -14052,15 +14017,8 @@
                     {
                       "type": "ALIAS",
                       "content": {
-                        "type": "TOKEN",
-                        "content": {
-                          "type": "PREC",
-                          "value": -2,
-                          "content": {
-                            "type": "PATTERN",
-                            "value": "#:[iI][nN][cC][lL][uU][dD][eE]"
-                          }
-                        }
+                        "type": "SYMBOL",
+                        "name": "_file_directive_include"
                       },
                       "named": false,
                       "value": "#:include"
@@ -14068,15 +14026,8 @@
                     {
                       "type": "ALIAS",
                       "content": {
-                        "type": "TOKEN",
-                        "content": {
-                          "type": "PREC",
-                          "value": -2,
-                          "content": {
-                            "type": "PATTERN",
-                            "value": "#:[eE][xX][cC][lL][uU][dD][eE]"
-                          }
-                        }
+                        "type": "SYMBOL",
+                        "name": "_file_directive_exclude"
                       },
                       "named": false,
                       "value": "#:exclude"
@@ -14183,17 +14134,6 @@
           ]
         }
       ]
-    },
-    "file_directive_kind": {
-      "type": "TOKEN",
-      "content": {
-        "type": "PREC",
-        "value": -2,
-        "content": {
-          "type": "PATTERN",
-          "value": "#:[^ \\t\\v\\f\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000\\uFEFF\\r\\n\\u0085\\u2028\\u2029]*"
-        }
-      }
     },
     "_file_directive_spacing": {
       "type": "IMMEDIATE_TOKEN",
@@ -14679,6 +14619,38 @@
     {
       "type": "SYMBOL",
       "name": "_file_directive_preproc_arg"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_file_directive_sdk"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_file_directive_package"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_file_directive_property"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_file_directive_project"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_file_directive_ref"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_file_directive_include"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_file_directive_exclude"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "file_directive_kind"
     }
   ],
   "inline": [
