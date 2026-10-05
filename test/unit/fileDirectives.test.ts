@@ -386,7 +386,9 @@ test('preserves ordinary preprocessor argument boundaries for directive-looking 
         const cases = [
           ...suffixes.map((suffix) => ({ separator: '', suffix })),
           ...['\t', '\v', '\f', '\u00A0', '\u3000', '\uFEFF', '\u2000'].flatMap((space) =>
-            [space, space.repeat(2)].map((separator) => ({ separator, suffix: '' }))
+            [space, space.repeat(2), `${space} `, `${space}\t${space}`].flatMap((separator) =>
+              suffixes.map((suffix) => ({ separator, suffix }))
+            )
           ),
         ];
         for (const { separator, suffix } of cases) {
@@ -412,6 +414,17 @@ test('preserves ordinary preprocessor argument boundaries for directive-looking 
           } finally {
             for (const tree of trees) tree.delete();
           }
+        }
+      }
+    }
+    for (const kind of ['region', 'endregion']) {
+      for (const separator of [' ', '\u00A0', '\u3000', '\uFEFF', '\u00A0\t\u3000']) {
+        const tree = parser.parse(`#${kind} ${separator}`)!;
+        try {
+          expect(tree.rootNode.hasError).toBe(false);
+          expect(tree.rootNode.descendantsOfType('preproc_arg')).toHaveLength(0);
+        } finally {
+          tree.delete();
         }
       }
     }
