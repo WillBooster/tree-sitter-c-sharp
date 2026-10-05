@@ -384,80 +384,85 @@ test('separates and trims Unicode horizontal whitespace without changing interio
   }
 });
 
-test('preserves ordinary preprocessor argument boundaries for directive-looking text', async () => {
-  await Parser.init();
-  const parser = new Parser().setLanguage(await Language.load(wasmPath));
-  try {
-    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
-      const separate = parser.parse(`#region${newline}#:package Example${newline}class C{}`)!;
-      try {
-        expect(separate.rootNode.hasError).toBe(false);
-        expect(separate.rootNode.descendantsOfType('preproc_arg')).toHaveLength(0);
-        expect(separate.rootNode.descendantsOfType('file_directive')).toHaveLength(1);
-        expect(separate.rootNode.descendantsOfType('class_declaration')).toHaveLength(1);
-      } finally {
-        separate.delete();
-      }
+test(
+  'preserves ordinary preprocessor argument boundaries for directive-looking text',
+  // This exhaustive matrix can take nearly nine seconds on the Intel CI runner.
+  { timeout: 30_000 },
+  async () => {
+    await Parser.init();
+    const parser = new Parser().setLanguage(await Language.load(wasmPath));
+    try {
+      for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+        const separate = parser.parse(`#region${newline}#:package Example${newline}class C{}`)!;
+        try {
+          expect(separate.rootNode.hasError).toBe(false);
+          expect(separate.rootNode.descendantsOfType('preproc_arg')).toHaveLength(0);
+          expect(separate.rootNode.descendantsOfType('file_directive')).toHaveLength(1);
+          expect(separate.rootNode.descendantsOfType('class_declaration')).toHaveLength(1);
+        } finally {
+          separate.delete();
+        }
 
-      for (const kind of ['region', 'warning', 'error', 'define', 'undef', 'endregion']) {
-        const suffixes = [
-          '',
-          '/',
-          '/ ',
-          '\\',
-          '/*c*/',
-          '\\\ncontinued',
-          '\\\r\ncontinued',
-          String.raw`\/*`,
-          '/x',
-          '//',
-        ];
-        const cases = [
-          ...suffixes.map((suffix) => ({ separator: '', suffix })),
-          ...['\t', '\v', '\f', '\u00A0', '\u3000', '\uFEFF', '\u2000'].flatMap((space) =>
-            [space, space.repeat(2), `${space} `, `${space}\t${space}`].flatMap((separator) =>
-              suffixes.map((suffix) => ({ separator, suffix }))
-            )
-          ),
-        ];
-        for (const { separator, suffix } of cases) {
-          const trees = ['', '#:'].map((prefix) =>
-            parser.parse(`#${kind} ${separator}${prefix}x${suffix}${newline}class C{}`)!
-          );
-          try {
-            const argumentsByTree = trees.map((tree, i) =>
-              tree.rootNode.descendantsOfType('preproc_arg').map((node) => ({
-                text: i === 1 ? node.text.replace('#:', '') : node.text,
-                startIndex: node.startIndex,
-                endIndex: node.endIndex - (i === 1 ? 2 : 0),
-                children: node.children.map((child) => child.type),
-              }))
+        for (const kind of ['region', 'warning', 'error', 'define', 'undef', 'endregion']) {
+          const suffixes = [
+            '',
+            '/',
+            '/ ',
+            '\\',
+            '/*c*/',
+            '\\\ncontinued',
+            '\\\r\ncontinued',
+            String.raw`\/*`,
+            '/x',
+            '//',
+          ];
+          const cases = [
+            ...suffixes.map((suffix) => ({ separator: '', suffix })),
+            ...['\t', '\v', '\f', '\u00A0', '\u3000', '\uFEFF', '\u2000'].flatMap((space) =>
+              [space, space.repeat(2), `${space} `, `${space}\t${space}`].flatMap((separator) =>
+                suffixes.map((suffix) => ({ separator, suffix }))
+              )
+            ),
+          ];
+          for (const { separator, suffix } of cases) {
+            const trees = ['', '#:'].map((prefix) =>
+              parser.parse(`#${kind} ${separator}${prefix}x${suffix}${newline}class C{}`)!
             );
-            expect(argumentsByTree[1], JSON.stringify({ kind, separator, suffix, newline })).toEqual(
-              argumentsByTree[0]
-            );
-            expect(trees[1]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)).toEqual(
-              trees[0]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)
-            );
-            expect(trees[1]!.rootNode.hasError).toBe(trees[0]!.rootNode.hasError);
-          } finally {
-            for (const tree of trees) tree.delete();
+            try {
+              const argumentsByTree = trees.map((tree, i) =>
+                tree.rootNode.descendantsOfType('preproc_arg').map((node) => ({
+                  text: i === 1 ? node.text.replace('#:', '') : node.text,
+                  startIndex: node.startIndex,
+                  endIndex: node.endIndex - (i === 1 ? 2 : 0),
+                  children: node.children.map((child) => child.type),
+                }))
+              );
+              expect(argumentsByTree[1], JSON.stringify({ kind, separator, suffix, newline })).toEqual(
+                argumentsByTree[0]
+              );
+              expect(trees[1]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)).toEqual(
+                trees[0]!.rootNode.descendantsOfType('class_declaration').map((node) => node.text)
+              );
+              expect(trees[1]!.rootNode.hasError).toBe(trees[0]!.rootNode.hasError);
+            } finally {
+              for (const tree of trees) tree.delete();
+            }
           }
         }
       }
-    }
-    for (const kind of ['region', 'endregion']) {
-      for (const separator of [' ', '\u00A0', '\u3000', '\uFEFF', '\u00A0\t\u3000']) {
-        const tree = parser.parse(`#${kind} ${separator}`)!;
-        try {
-          expect(tree.rootNode.hasError).toBe(false);
-          expect(tree.rootNode.descendantsOfType('preproc_arg')).toHaveLength(0);
-        } finally {
-          tree.delete();
+      for (const kind of ['region', 'endregion']) {
+        for (const separator of [' ', '\u00A0', '\u3000', '\uFEFF', '\u00A0\t\u3000']) {
+          const tree = parser.parse(`#${kind} ${separator}`)!;
+          try {
+            expect(tree.rootNode.hasError).toBe(false);
+            expect(tree.rootNode.descendantsOfType('preproc_arg')).toHaveLength(0);
+          } finally {
+            tree.delete();
+          }
         }
       }
+    } finally {
+      parser.delete();
     }
-  } finally {
-    parser.delete();
   }
-});
+);
