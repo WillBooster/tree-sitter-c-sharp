@@ -578,6 +578,12 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         while (lexer->lookahead == '{' && brace_advanced < current_interpolation->dollar_count) {
             advance(lexer);
             brace_advanced++;
+            if (is_raw(current_interpolation) && !did_advance && brace_advanced == 1) lexer->mark_end(lexer);
+        }
+
+        if (is_raw(current_interpolation) && brace_advanced == current_interpolation->dollar_count && lexer->lookahead == '{') {
+            lexer->result_symbol = INTERPOLATION_STRING_CONTENT;
+            return valid_symbols[INTERPOLATION_STRING_CONTENT];
         }
 
         if (brace_advanced > 0 && brace_advanced == current_interpolation->dollar_count &&
@@ -586,6 +592,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
                 lexer->result_symbol = INTERPOLATION_STRING_CONTENT;
                 return valid_symbols[INTERPOLATION_STRING_CONTENT];
             }
+            lexer->mark_end(lexer);
             current_interpolation->open_brace_count = brace_advanced;
             lexer->result_symbol = INTERPOLATION_OPEN_BRACE;
             return true;
