@@ -146,10 +146,11 @@ module.exports = grammar({
     // modifier) closed by ')=>'.
     $._lambda_paren_open,
     $._end_of_input,
+    $._directive_crlf,
   ],
 
   extras: ($) => [
-    /[\s\u00A0\uFEFF\u3000]+/,
+    /[\s\u0085\u00A0\u2028\u2029\uFEFF\u3000]+/,
     $.comment,
     $.preproc_region,
     $.preproc_endregion,
@@ -1737,7 +1738,12 @@ module.exports = grammar({
     ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
     ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
 
-    preproc_arg: () => token(prec(-1, /\S([^/\n]|\/[^*]|\\\r?\n)*/)),
+    preproc_arg: ($) =>
+      seq(
+        token(prec(-1, /[^\s\u0085\u2028\u2029]([^/\r\n\u0085\u2028\u2029]|\/[^*\r\n\u0085\u2028\u2029]|\\\r?\n)*/)),
+        optional($._preproc_arg_slash)
+      ),
+    _preproc_arg_slash: () => token.immediate(/\//),
     preproc_directive: () => /#[ \t]*[a-zA-Z0-9]\w*/,
 
     _preproc_expression: ($) =>
@@ -1854,9 +1860,9 @@ module.exports = grammar({
 
     preproc_undef: ($) => seq(preprocessor('undef'), $.preproc_arg, directiveEnd($)),
 
-    shebang_directive: () => token(seq('#!', /.*/)),
+    shebang_directive: () => token(seq('#!', /[^\r\n\u0085\u2028\u2029]*/)),
 
-    comment: () => token(choice(seq('//', /[^\n\r]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
+    comment: () => token(choice(seq('//', /[^\r\n\u0085\u2028\u2029]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
   },
 });
 
@@ -1869,7 +1875,12 @@ module.exports = grammar({
  * @returns {ChoiceRule}
  */
 function directiveEnd($) {
-  return choice(/\n/, $._end_of_input);
+  return choice(directiveNewLine($), $._end_of_input);
+}
+
+/** @param {GrammarSymbols<string>} $ */
+function directiveNewLine($) {
+  return choice($._directive_crlf, /[\r\n\u0085\u2028\u2029]/);
 }
 
 /**
@@ -1916,7 +1927,7 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         seq(
           preprocessor('if'),
           field('condition', $._preproc_expression),
-          /\n/,
+          directiveNewLine($),
           rep ? repeat(content($)) : required ? content($) : optional(content($)),
           field('alternative', optional(alternativeBlock($))),
           preprocessor('endif')
@@ -1935,7 +1946,7 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         seq(
           preprocessor('elif'),
           field('condition', $._preproc_expression),
-          /\n/,
+          directiveNewLine($),
           rep ? repeat(content($)) : required ? content($) : optional(content($)),
           field('alternative', optional(alternativeBlock($)))
         )
