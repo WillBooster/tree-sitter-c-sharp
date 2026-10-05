@@ -567,6 +567,9 @@ test('keeps directive-looking text inside literals and directive filenames', asy
       '@"#:x"',
       '@"line\n#:package Bad"',
       '$"#:x"',
+      '$"{x:#:00}"',
+      '$@"{x:#:00}"',
+      '$"""{x:#:00}"""',
       '"""#:package Bad"""',
     ]) {
       const source = `class C { string s = ${literal}; void M() {} }\n#:package Good\n`;

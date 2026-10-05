@@ -1480,7 +1480,7 @@ module.exports = grammar({
 
     interpolation_alignment_clause: ($) => seq(',', $.expression),
 
-    interpolation_format_clause: () => seq(':', /[^}"]+/),
+    interpolation_format_clause: ($) => seq(':', optional($._file_directive_literal_context), /[^}"]+/),
 
     member_access_expression: ($) =>
       prec(
