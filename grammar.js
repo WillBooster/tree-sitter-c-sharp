@@ -1740,7 +1740,7 @@ module.exports = grammar({
 
     preproc_arg: ($) =>
       seq(
-        token(prec(-1, /[^\s\u0085\u2028\u2029]([^/\r\n\u0085\u2028\u2029]|\/[^*\r\n\u0085\u2028\u2029]|\\\r?\n)*/)),
+        token(prec(-1, /[^\s\u0085\u2028\u2029]([^/\r\n\u0085\u2028\u2029]|\/[^*\r\n\u0085\u2028\u2029])*/)),
         optional($._preproc_arg_slash)
       ),
     _preproc_arg_slash: () => token.immediate(/\//),
