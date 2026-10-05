@@ -20,7 +20,7 @@ enum TokenType {
     RAW_STRING_CONTENT,
     LAMBDA_PAREN_OPEN,
     END_OF_INPUT,
-    DIRECTIVE_CRLF,
+    DIRECTIVE_NEWLINE,
     FILE_DIRECTIVE_PREPROC_ARG,
     FILE_DIRECTIVE_SDK,
     FILE_DIRECTIVE_PACKAGE,
@@ -31,6 +31,8 @@ enum TokenType {
     FILE_DIRECTIVE_EXCLUDE,
     FILE_DIRECTIVE_KIND,
     FILE_DIRECTIVE_LITERAL_CONTEXT,
+    DIRECTIVE_BOUNDARY,
+    FILE_DIRECTIVE_NEWLINE,
 };
 
 typedef enum {
@@ -54,6 +56,7 @@ static inline bool is_raw(Interpolation *interpolation) { return interpolation->
 
 typedef struct {
     uint8_t quote_count;
+    bool after_directive;
     Array(Interpolation) interpolation_stack;
 } Scanner;
 
@@ -147,13 +150,14 @@ void tree_sitter_c_sharp_external_scanner_destroy(void *payload) {
 unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buffer) {
     Scanner *scanner = (Scanner *)payload;
 
-    if (scanner->interpolation_stack.size * 4 + 2 > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
+    if (scanner->interpolation_stack.size * 4 + 3 > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
         return 0;
     }
 
     unsigned size = 0;
 
     buffer[size++] = (char)scanner->quote_count;
+    buffer[size++] = (char)scanner->after_directive;
     buffer[size++] = (char)scanner->interpolation_stack.size;
 
     for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
@@ -171,11 +175,13 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
     Scanner *scanner = (Scanner *)payload;
 
     scanner->quote_count = 0;
+    scanner->after_directive = false;
     array_clear(&scanner->interpolation_stack);
     unsigned size = 0;
 
     if (length > 0) {
         scanner->quote_count = (unsigned char)buffer[size++];
+        scanner->after_directive = buffer[size++];
         scanner->interpolation_stack.size = (unsigned char)buffer[size++];
         array_reserve(&scanner->interpolation_stack, scanner->interpolation_stack.size);
 
@@ -361,15 +367,29 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     uint8_t quote_count = 0;
     bool did_advance = false;
 
-    if (valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START]) {
-        bool line_start = false;
+    bool recovery = valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START];
+    // The runtime column resets only at LF; other consumed directive endings need explicit boundary state.
+    bool after_directive = scanner->after_directive;
+    if (after_directive) {
+        scanner->after_directive = false;
+        lexer->mark_end(lexer);
+        if (!recovery) {
+            lexer->result_symbol = DIRECTIVE_BOUNDARY;
+            return true;
+        }
+    }
+    if (recovery) {
+        bool line_start = after_directive;
         unsigned skipped = 0;
         while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
             if (is_line_terminator(lexer->lookahead)) line_start = true;
             skipped++;
             skip(lexer);
         }
-        if (!scan_file_directive_prefix(lexer)) return false;
+        if (!scan_file_directive_prefix(lexer)) {
+            lexer->result_symbol = DIRECTIVE_BOUNDARY;
+            return after_directive;
+        }
         if (!line_start) line_start = lexer->get_column(lexer) == skipped + 2;
         return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
     }
@@ -395,7 +415,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     if (valid_symbols[FILE_DIRECTIVE_KIND] && !valid_symbols[FILE_DIRECTIVE_LITERAL_CONTEXT] && !valid_symbols[FILE_DIRECTIVE_PREPROC_ARG] &&
-        !valid_symbols[END_OF_INPUT] && !valid_symbols[DIRECTIVE_CRLF] && !valid_symbols[OPT_SEMI] &&
+        !valid_symbols[END_OF_INPUT] && !valid_symbols[DIRECTIVE_NEWLINE] && !valid_symbols[FILE_DIRECTIVE_NEWLINE] && !valid_symbols[OPT_SEMI] &&
         !valid_symbols[RAW_STRING_CONTENT] && !valid_symbols[INTERPOLATION_STRING_CONTENT]) {
         while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
             skip(lexer);
@@ -408,16 +428,25 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         while (is_space_but_line_feed(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) advance(lexer);
         if (lexer->lookahead == '#') return scan_file_directive_prefix(lexer) && scan_file_directive_preproc_arg(lexer, false);
     }
-    if (valid_symbols[DIRECTIVE_CRLF]) {
-        while (is_space_but_line_feed(lexer->lookahead) && lexer->lookahead != '\r') skip(lexer);
-        if (lexer->lookahead == '\r') {
+    if (valid_symbols[DIRECTIVE_NEWLINE] || valid_symbols[FILE_DIRECTIVE_NEWLINE]) {
+        while (is_directive_horizontal(lexer->lookahead)) skip(lexer);
+        if (is_line_terminator(lexer->lookahead)) {
+            bool cr = lexer->lookahead == '\r';
             advance(lexer);
-            if (lexer->lookahead != '\n') return false;
-            advance(lexer);
-            lexer->result_symbol = DIRECTIVE_CRLF;
+            bool crlf = cr && lexer->lookahead == '\n';
+            if (crlf) advance(lexer);
+            lexer->mark_end(lexer);
+            if (!valid_symbols[FILE_DIRECTIVE_NEWLINE] && !crlf) {
+                while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
+                    bool newline = is_line_terminator(lexer->lookahead);
+                    advance(lexer);
+                    if (newline) lexer->mark_end(lexer);
+                }
+            }
+            scanner->after_directive = true;
+            lexer->result_symbol = valid_symbols[FILE_DIRECTIVE_NEWLINE] ? FILE_DIRECTIVE_NEWLINE : DIRECTIVE_NEWLINE;
             return true;
         }
-
     }
 
     // A directive may end the input without a line break, which no regex token can match.

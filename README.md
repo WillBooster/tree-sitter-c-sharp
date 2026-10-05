@@ -80,8 +80,8 @@ parser.setLanguage(await Language.load(cSharp));
 ```
 
 The package also ships the queries in `queries/` and the node types in `src/node-types.json`.
-Source-grammar consumers must update their scanner alongside `grammar.js`: file-directive prefix tokens are external.
-Use `src/scanner.c` from the same repository release tag when extending the grammar.
+When extending the source grammar, use `grammar.js` and `src/scanner.c` from the same repository release tag.
+Their external directive tokens and serialized scanner state must match.
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and

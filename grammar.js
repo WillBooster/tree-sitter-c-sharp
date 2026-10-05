@@ -150,7 +150,7 @@ module.exports = grammar({
     // modifier) closed by ')=>'.
     $._lambda_paren_open,
     $._end_of_input,
-    $._directive_crlf,
+    $._directive_newline,
     $._file_directive_preproc_arg,
     $._file_directive_sdk,
     $._file_directive_package,
@@ -161,9 +161,12 @@ module.exports = grammar({
     $._file_directive_exclude,
     $.file_directive_kind,
     $._file_directive_literal_context,
+    $._directive_boundary,
+    $._file_directive_newline,
   ],
 
   extras: ($) => [
+    $._directive_boundary,
     /[\s\u0085\u00A0\u2028\u2029\uFEFF\u3000]+/,
     $.comment,
     $.preproc_region,
@@ -1936,7 +1939,7 @@ module.exports = grammar({
           )
         ),
         optional($._file_directive_spacing),
-        choice(token.immediate(new RegExp(String.raw`\r\n|[${directiveLineBreak}]`)), $._end_of_input)
+        choice($._file_directive_newline, $._end_of_input)
       ),
 
     _file_directive_spacing: () => token.immediate(prec(1, new RegExp(`[${directiveHorizontal}]+`))),
@@ -2015,7 +2018,7 @@ function directiveEnd($) {
 
 /** @param {GrammarSymbols<string>} $ */
 function directiveNewLine($) {
-  return choice($._directive_crlf, /[\r\n\u0085\u2028\u2029]/);
+  return $._directive_newline;
 }
 
 /**
