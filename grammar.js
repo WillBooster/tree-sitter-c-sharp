@@ -36,6 +36,10 @@ const PREC = {
   SELECT: 0,
 };
 
+const directiveHorizontal = String.raw` \t\v\f\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF`;
+const directiveLineBreak = String.raw`\r\n\u0085\u2028\u2029`;
+const directiveWhitespace = directiveHorizontal + directiveLineBreak;
+
 const decimalDigitSequence = /([0-9][0-9_]*[0-9]|[0-9])/;
 
 const stringEncoding = /(u|U)8/;
@@ -147,6 +151,7 @@ module.exports = grammar({
     $._lambda_paren_open,
     $._end_of_input,
     $._directive_crlf,
+    $._file_directive_preproc_arg,
   ],
 
   extras: ($) => [
@@ -161,6 +166,7 @@ module.exports = grammar({
     $.preproc_warning,
     $.preproc_define,
     $.preproc_undef,
+    $.file_directive,
   ],
 
   inline: ($) => [
@@ -1748,6 +1754,7 @@ module.exports = grammar({
         token(prec(-1, /[^\s\u0085\u2028\u2029]([^/\r\n\u0085\u2028\u2029]|\/[^*\r\n\u0085\u2028\u2029])*/)),
         optional($._preproc_arg_slash)
       ),
+    _file_directive_argument: ($) => seq($._file_directive_preproc_arg, optional($._preproc_arg_slash)),
     _preproc_arg_slash: () => token.immediate(/\//),
     preproc_directive: () => /#[ \t]*[a-zA-Z0-9]\w*/,
 
@@ -1790,10 +1797,19 @@ module.exports = grammar({
       );
     },
 
-    preproc_region: ($) => seq(preprocessor('region'), optional(field('content', $.preproc_arg)), directiveEnd($)),
+    preproc_region: ($) =>
+      seq(
+        preprocessor('region'),
+        optional(field('content', choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)))),
+        directiveEnd($)
+      ),
 
     preproc_endregion: ($) =>
-      seq(preprocessor('endregion'), optional(field('content', $.preproc_arg)), directiveEnd($)),
+      seq(
+        preprocessor('endregion'),
+        optional(field('content', choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)))),
+        directiveEnd($)
+      ),
 
     preproc_line: ($) =>
       seq(
@@ -1857,19 +1873,133 @@ module.exports = grammar({
         directiveEnd($)
       ),
 
-    preproc_error: ($) => seq(preprocessor('error'), $.preproc_arg, directiveEnd($)),
+    preproc_error: ($) =>
+      seq(
+        preprocessor('error'),
+        choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)),
+        directiveEnd($)
+      ),
 
-    preproc_warning: ($) => seq(preprocessor('warning'), $.preproc_arg, directiveEnd($)),
+    preproc_warning: ($) =>
+      seq(
+        preprocessor('warning'),
+        choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)),
+        directiveEnd($)
+      ),
 
-    preproc_define: ($) => seq(preprocessor('define'), $.preproc_arg, directiveEnd($)),
+    preproc_define: ($) =>
+      seq(
+        preprocessor('define'),
+        choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)),
+        directiveEnd($)
+      ),
 
-    preproc_undef: ($) => seq(preprocessor('undef'), $.preproc_arg, directiveEnd($)),
+    preproc_undef: ($) =>
+      seq(
+        preprocessor('undef'),
+        choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)),
+        directiveEnd($)
+      ),
+
+    file_directive: ($) =>
+      seq(
+        choice(
+          fileDirectiveArguments(
+            $,
+            choice(
+              alias(token(prec(-2, /#:[sS][dD][kK]/)), '#:sdk'),
+              alias(token(prec(-2, /#:[pP][aA][cC][kK][aA][gG][eE]/)), '#:package')
+            ),
+            '@',
+            'metadata'
+          ),
+          fileDirectiveArguments(
+            $,
+            alias(token(prec(-2, /#:[pP][rR][oO][pP][eE][rR][tT][yY]/)), '#:property'),
+            '=',
+            'value'
+          ),
+          seq(
+            choice(
+              alias(token(prec(-2, /#:[pP][rR][oO][jJ][eE][cC][tT]/)), '#:project'),
+              alias(token(prec(-2, /#:[rR][eE][fF]/)), '#:ref'),
+              alias(token(prec(-2, /#:[iI][nN][cC][lL][uU][dD][eE]/)), '#:include'),
+              alias(token(prec(-2, /#:[eE][xX][cC][lL][uU][dD][eE]/)), '#:exclude')
+            ),
+            optional(seq($._file_directive_spacing, field('value', $.file_directive_value)))
+          ),
+          seq(
+            $.file_directive_kind,
+            optional(seq($._file_directive_spacing, optional(field('value', $.file_directive_value))))
+          )
+        ),
+        optional($._file_directive_spacing),
+        choice(token.immediate(new RegExp(String.raw`\r\n|[${directiveLineBreak}]`)), $._end_of_input)
+      ),
+
+    file_directive_kind: () => token(prec(-2, new RegExp(`#:[^${directiveWhitespace}]*`))),
+
+    _file_directive_spacing: () => token.immediate(prec(1, new RegExp(`[${directiveHorizontal}]+`))),
+    file_directive_name: () =>
+      token.immediate(
+        prec(
+          2,
+          choice(
+            new RegExp(`[^${directiveWhitespace}@="]+`),
+            new RegExp(String.raw`"([^"\\${directiveLineBreak}]|\\[^${directiveLineBreak}])*"`)
+          )
+        )
+      ),
+    file_directive_value: () =>
+      token.immediate(
+        prec(
+          1,
+          new RegExp(
+            `[^${directiveWhitespace}]([^${directiveLineBreak}]*[^${directiveWhitespace}])?|//[^${directiveLineBreak}]*`
+          )
+        )
+      ),
 
     shebang_directive: () => token(seq('#!', /[^\r\n\u0085\u2028\u2029]*/)),
 
     comment: () => token(choice(seq('//', /[^\r\n\u0085\u2028\u2029]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
   },
 });
+
+/**
+ * @param {GrammarSymbols<string>} $
+ * @param {Rule} kind
+ * @param {string} separator
+ * @param {string} extraField
+ * @returns {SeqRule}
+ */
+function fileDirectiveArguments($, kind, separator, extraField) {
+  return seq(
+    kind,
+    optional(
+      seq(
+        $._file_directive_spacing,
+        choice(
+          seq(
+            field('name', $.file_directive_name),
+            optional(
+              choice(
+                seq(
+                  optional($._file_directive_spacing),
+                  token.immediate(prec(2, separator)),
+                  optional($._file_directive_spacing),
+                  optional(field('value', $.file_directive_value))
+                ),
+                seq(optional($._file_directive_spacing), field(extraField, $.file_directive_value))
+              )
+            )
+          ),
+          field('value', $.file_directive_value)
+        )
+      )
+    )
+  );
+}
 
 /**
  * Ends a directive that opens no conditional section: at a line break, or at the end of the input, which a file may

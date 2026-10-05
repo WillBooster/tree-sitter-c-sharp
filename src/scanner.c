@@ -21,6 +21,7 @@ enum TokenType {
     LAMBDA_PAREN_OPEN,
     END_OF_INPUT,
     DIRECTIVE_CRLF,
+    FILE_DIRECTIVE_PREPROC_ARG,
 };
 
 typedef enum {
@@ -317,6 +318,29 @@ static LambdaScanResult scan_lambda_paren_open(TSLexer *lexer) {
 }
 #undef BAIL
 
+static bool scan_file_directive_preproc_arg(TSLexer *lexer) {
+    if (lexer->lookahead != '#') return false;
+    advance(lexer);
+    if (lexer->lookahead != ':') return false;
+    advance(lexer);
+    lexer->mark_end(lexer);
+    while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
+        int32_t c = lexer->lookahead;
+        advance(lexer);
+        if (c == '/') {
+            if (lexer->lookahead == '*') break;
+            if (lexer->eof(lexer) || is_line_terminator(lexer->lookahead)) {
+                lexer->mark_end(lexer);
+                break;
+            }
+            advance(lexer);
+        }
+        lexer->mark_end(lexer);
+    }
+    lexer->result_symbol = FILE_DIRECTIVE_PREPROC_ARG;
+    return true;
+}
+
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
 
@@ -349,6 +373,11 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         return false;
     }
 
+    if (valid_symbols[FILE_DIRECTIVE_PREPROC_ARG]) {
+        while (lexer->lookahead == ' ' || lexer->lookahead == '\t' || lexer->lookahead == '\v' || lexer->lookahead == '\f') skip(lexer);
+        while (is_space_but_line_feed(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) advance(lexer);
+        if (lexer->lookahead == '#') return scan_file_directive_preproc_arg(lexer);
+    }
     if (valid_symbols[DIRECTIVE_CRLF]) {
         while (is_space_but_line_feed(lexer->lookahead) && lexer->lookahead != '\r') skip(lexer);
         if (lexer->lookahead == '\r') {
@@ -358,6 +387,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             lexer->result_symbol = DIRECTIVE_CRLF;
             return true;
         }
+
     }
 
     // A directive may end the input without a line break, which no regex token can match.

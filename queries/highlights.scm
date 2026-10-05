@@ -213,3 +213,9 @@
 ;; Method calls
 
 (invocation_expression (member_access_expression name: (identifier) @function))
+
+["#:sdk" "#:package" "#:property" "#:project" "#:ref" "#:include" "#:exclude"] @keyword.directive
+(file_directive_name) @property
+(file_directive_value) @string
+
+(file_directive_kind) @keyword.directive

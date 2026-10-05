@@ -31,13 +31,16 @@ Known gaps:
 - A pointer dereference can be assigned to only when its operand is a variable, an address, a parenthesized or
   postfix expression, or a cast of one of these or of an invocation (`*p = 1`, `*(p + 1) = 1`, `*(int*)p = 1`,
   `*dst++ = 1`); `*++p = 1` and `*f() = 1` are not recognized
-- File-based apps preprocessor directives (`#:property`, `#:package`, `#:sdk`, `#:project`) are not yet recognized
 
 ## Usage
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
-browsers, and Cloudflare Workers. In Node.js and Bun, load it from the package:
+browsers, and Cloudflare Workers. Use runtime version 1.1.2 or later: browser loading requires its asynchronous
+instantiation support for this grammar. Install the runtime alongside the grammar when using the Wasm parser; it
+remains an optional peer for consumers that only use the grammar source or queries.
+
+In Node.js and Bun, load it from the package:
 
 ```js
 import { fileURLToPath } from 'node:url';
@@ -85,8 +88,8 @@ fuzzed with, whose fixes keep incremental reparses consistent with fresh parses 
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "1.0.4" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "1" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "1.1.2" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "2" }
 ```
 
 ```rust

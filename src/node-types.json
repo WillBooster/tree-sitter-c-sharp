@@ -2789,6 +2789,53 @@
     }
   },
   {
+    "type": "file_directive",
+    "named": true,
+    "extra": true,
+    "fields": {
+      "metadata": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "file_directive_value",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "file_directive_name",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "file_directive_value",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "file_directive_kind",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "file_scoped_namespace_declaration",
     "named": true,
     "fields": {
@@ -6712,6 +6759,34 @@
     "named": false
   },
   {
+    "type": "#:exclude",
+    "named": false
+  },
+  {
+    "type": "#:include",
+    "named": false
+  },
+  {
+    "type": "#:package",
+    "named": false
+  },
+  {
+    "type": "#:project",
+    "named": false
+  },
+  {
+    "type": "#:property",
+    "named": false
+  },
+  {
+    "type": "#:ref",
+    "named": false
+  },
+  {
+    "type": "#:sdk",
+    "named": false
+  },
+  {
     "type": "#define",
     "named": false
   },
@@ -6928,6 +7003,10 @@
     "named": false
   },
   {
+    "type": "@",
+    "named": false
+  },
+  {
     "type": "Cdecl",
     "named": false
   },
@@ -7131,6 +7210,18 @@
   {
     "type": "file",
     "named": false
+  },
+  {
+    "type": "file_directive_kind",
+    "named": true
+  },
+  {
+    "type": "file_directive_name",
+    "named": true
+  },
+  {
+    "type": "file_directive_value",
+    "named": true
   },
   {
     "type": "finally",
