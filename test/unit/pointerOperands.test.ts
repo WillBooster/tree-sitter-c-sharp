@@ -7,6 +7,8 @@ const language = await Language.load(path.join(import.meta.dirname, '../../tree-
 
 const operands = [
   '(int*)++p',
+  '(int*)*f()',
+  '(int*)*++p',
   '(int*)--p',
   '++p',
   '--p',
@@ -44,7 +46,7 @@ test('retains assignable pointer operands and fresh query ranges through edits',
       tree = parser.parse(prefix + statement + suffix)!;
       const original = tree.rootNode.toString();
       expect(tree.rootNode.hasError, statement).toBe(false);
-      for (const replacement of [`${expression} = v;`, statement]) {
+      for (const replacement of [`${expression} = v;`, `${expression} += v;`, statement]) {
         tree.edit(
           new Edit({
             startIndex: prefix.length,

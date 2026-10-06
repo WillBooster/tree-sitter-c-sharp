@@ -1265,6 +1265,7 @@ module.exports = grammar({
               $.parenthesized_expression,
               $.invocation_expression,
               $.postfix_unary_expression,
+              alias($._assignment_pointer_expression, $.prefix_unary_expression),
               alias($._pointer_prefix_update, $.prefix_unary_expression)
             )
           )

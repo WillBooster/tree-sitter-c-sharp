@@ -7442,6 +7442,15 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "SYMBOL",
+                    "name": "_assignment_pointer_expression"
+                  },
+                  "named": true,
+                  "value": "prefix_unary_expression"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
                     "name": "_pointer_prefix_update"
                   },
                   "named": true,
