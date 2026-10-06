@@ -80,6 +80,8 @@ parser.setLanguage(await Language.load(cSharp));
 ```
 
 The package also ships the queries in `queries/` and the node types in `src/node-types.json`.
+When extending the source grammar, use `grammar.js` and `src/scanner.c` from the same repository release tag.
+Their external directive tokens and serialized scanner state must match.
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
@@ -89,7 +91,7 @@ fuzzed with, whose fixes keep incremental reparses consistent with fresh parses 
 ```toml
 [dependencies]
 tree-sitter = { package = "willbooster-tree-sitter", version = "1.1.2" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "2" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "3" }
 ```
 
 ```rust

@@ -20,8 +20,18 @@ enum TokenType {
     RAW_STRING_CONTENT,
     LAMBDA_PAREN_OPEN,
     END_OF_INPUT,
-    DIRECTIVE_CRLF,
+    DIRECTIVE_NEWLINE,
     FILE_DIRECTIVE_PREPROC_ARG,
+    FILE_DIRECTIVE_SDK,
+    FILE_DIRECTIVE_PACKAGE,
+    FILE_DIRECTIVE_PROPERTY,
+    FILE_DIRECTIVE_PROJECT,
+    FILE_DIRECTIVE_REF,
+    FILE_DIRECTIVE_INCLUDE,
+    FILE_DIRECTIVE_EXCLUDE,
+    FILE_DIRECTIVE_KIND,
+    FILE_DIRECTIVE_LITERAL_CONTEXT,
+    FILE_DIRECTIVE_NEWLINE,
 };
 
 typedef enum {
@@ -45,6 +55,7 @@ static inline bool is_raw(Interpolation *interpolation) { return interpolation->
 
 typedef struct {
     uint8_t quote_count;
+    bool next_file_directive;
     Array(Interpolation) interpolation_stack;
 } Scanner;
 
@@ -61,8 +72,6 @@ static inline bool is_line_terminator(int32_t c) {
 static inline bool is_space_but_line_feed(int32_t c) {
     return c == '\t' || c == '\v' || c == '\f' || c == '\r' || c == ' ' || c == 0xA0 || c == 0x3000 || c == 0xFEFF;
 }
-
-// ---- Helpers for LAMBDA_PAREN_OPEN scanning ---------------------------
 
 static inline bool is_id_start(int32_t c) {
     return c == '_' || iswalpha(c);
@@ -120,7 +129,6 @@ static size_t consume_identifier_into(TSLexer *lexer, char *buf, size_t max) {
     return n;
 }
 
-// True iff the first `n` bytes of `buf` equal the C string `kw`.
 static bool buf_equals(const char *buf, size_t n, const char *kw) {
     size_t klen = strlen(kw);
     return n == klen && memcmp(buf, kw, klen) == 0;
@@ -141,13 +149,14 @@ void tree_sitter_c_sharp_external_scanner_destroy(void *payload) {
 unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buffer) {
     Scanner *scanner = (Scanner *)payload;
 
-    if (scanner->interpolation_stack.size * 4 + 2 > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
+    if (scanner->interpolation_stack.size * 4 + 3 > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
         return 0;
     }
 
     unsigned size = 0;
 
     buffer[size++] = (char)scanner->quote_count;
+    buffer[size++] = (char)scanner->next_file_directive;
     buffer[size++] = (char)scanner->interpolation_stack.size;
 
     for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
@@ -165,11 +174,13 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
     Scanner *scanner = (Scanner *)payload;
 
     scanner->quote_count = 0;
+    scanner->next_file_directive = false;
     array_clear(&scanner->interpolation_stack);
     unsigned size = 0;
 
     if (length > 0) {
         scanner->quote_count = (unsigned char)buffer[size++];
+        scanner->next_file_directive = buffer[size++];
         scanner->interpolation_stack.size = (unsigned char)buffer[size++];
         array_reserve(&scanner->interpolation_stack, scanner->interpolation_stack.size);
 
@@ -318,16 +329,20 @@ static LambdaScanResult scan_lambda_paren_open(TSLexer *lexer) {
 }
 #undef BAIL
 
-static bool scan_file_directive_preproc_arg(TSLexer *lexer) {
+static bool scan_file_directive_prefix(TSLexer *lexer) {
     if (lexer->lookahead != '#') return false;
     advance(lexer);
     if (lexer->lookahead != ':') return false;
     advance(lexer);
+    return true;
+}
+
+static bool scan_file_directive_preproc_arg(TSLexer *lexer, bool recovery) {
     lexer->mark_end(lexer);
     while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
         int32_t c = lexer->lookahead;
         advance(lexer);
-        if (c == '/') {
+        if (!recovery && c == '/') {
             if (lexer->lookahead == '*') break;
             if (lexer->eof(lexer) || is_line_terminator(lexer->lookahead)) {
                 lexer->mark_end(lexer);
@@ -341,12 +356,28 @@ static bool scan_file_directive_preproc_arg(TSLexer *lexer) {
     return true;
 }
 
+static bool is_directive_horizontal(int32_t c);
+static bool scan_file_directive_kind(TSLexer *lexer);
+
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
 
     uint8_t brace_advanced = 0;
     uint8_t quote_count = 0;
     bool did_advance = false;
+
+    bool recovery = valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START];
+    bool next_file_directive = scanner->next_file_directive;
+    scanner->next_file_directive = false;
+    if (recovery) {
+        bool line_start = next_file_directive;
+        while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
+            if (is_line_terminator(lexer->lookahead)) line_start = true;
+            skip(lexer);
+        }
+        if (!scan_file_directive_prefix(lexer)) return false;
+        return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
+    }
 
     // Lambda-paren scanning advances forward speculatively past the
     // opening `(`. If it consumes input and then bails, the lexer
@@ -368,26 +399,37 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         }
     }
 
-    // error recovery, gives better trees this way
-    if (valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START]) {
-        return false;
+    if (valid_symbols[FILE_DIRECTIVE_KIND] && !valid_symbols[FILE_DIRECTIVE_LITERAL_CONTEXT] && !valid_symbols[FILE_DIRECTIVE_PREPROC_ARG] &&
+        !valid_symbols[END_OF_INPUT] && !valid_symbols[DIRECTIVE_NEWLINE] && !valid_symbols[FILE_DIRECTIVE_NEWLINE] && !valid_symbols[OPT_SEMI] &&
+        !valid_symbols[RAW_STRING_CONTENT] && !valid_symbols[INTERPOLATION_STRING_CONTENT]) {
+        while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
+            skip(lexer);
+        }
+        if (lexer->lookahead == '#') return scan_file_directive_prefix(lexer) && scan_file_directive_kind(lexer);
     }
 
     if (valid_symbols[FILE_DIRECTIVE_PREPROC_ARG]) {
         while (lexer->lookahead == ' ' || lexer->lookahead == '\t' || lexer->lookahead == '\v' || lexer->lookahead == '\f') skip(lexer);
         while (is_space_but_line_feed(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) advance(lexer);
-        if (lexer->lookahead == '#') return scan_file_directive_preproc_arg(lexer);
+        if (lexer->lookahead == '#') return scan_file_directive_prefix(lexer) && scan_file_directive_preproc_arg(lexer, false);
     }
-    if (valid_symbols[DIRECTIVE_CRLF]) {
-        while (is_space_but_line_feed(lexer->lookahead) && lexer->lookahead != '\r') skip(lexer);
-        if (lexer->lookahead == '\r') {
+    if (valid_symbols[DIRECTIVE_NEWLINE] || valid_symbols[FILE_DIRECTIVE_NEWLINE]) {
+        while (is_directive_horizontal(lexer->lookahead)) skip(lexer);
+        if (is_line_terminator(lexer->lookahead)) {
+            bool cr = lexer->lookahead == '\r';
             advance(lexer);
-            if (lexer->lookahead != '\n') return false;
-            advance(lexer);
-            lexer->result_symbol = DIRECTIVE_CRLF;
+            bool crlf = cr && lexer->lookahead == '\n';
+            if (crlf) advance(lexer);
+            lexer->mark_end(lexer);
+            if (!valid_symbols[FILE_DIRECTIVE_NEWLINE] && !crlf) {
+                while (is_line_terminator(lexer->lookahead)) advance(lexer);
+                lexer->mark_end(lexer);
+            }
+            while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) advance(lexer);
+            scanner->next_file_directive = scan_file_directive_prefix(lexer);
+            lexer->result_symbol = valid_symbols[FILE_DIRECTIVE_NEWLINE] ? FILE_DIRECTIVE_NEWLINE : DIRECTIVE_NEWLINE;
             return true;
         }
-
     }
 
     // A directive may end the input without a line break, which no regex token can match.
@@ -626,7 +668,6 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
 
         while (!lexer->eof(lexer)) {
-            // top-down approach, first see if it's raw
             if (is_raw(current_interpolation)) {
                 if (lexer->lookahead == '"') {
                     lexer->mark_end(lexer);
@@ -687,7 +728,6 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
                 }
             }
 
-            // finally regular
             else if (is_regular(current_interpolation)) {
                 if (lexer->lookahead == '\\' || lexer->lookahead == '\n' || lexer->lookahead == '"') {
                     lexer->mark_end(lexer);
@@ -722,4 +762,32 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     return false;
+}
+
+static bool is_directive_horizontal(int32_t c) {
+    return c == ' ' || c == '\t' || c == '\v' || c == '\f' || c == 0xA0 || c == 0x1680 ||
+        (c >= 0x2000 && c <= 0x200A) || c == 0x202F || c == 0x205F || c == 0x3000 || c == 0xFEFF;
+}
+
+static bool scan_file_directive_kind(TSLexer *lexer) {
+    char kind[9] = {0};
+    unsigned length = 0;
+    while (!lexer->eof(lexer) && !is_directive_horizontal(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) {
+        int32_t c = lexer->lookahead;
+        if (length < sizeof(kind) - 1) kind[length] = c >= 'A' && c <= 'Z' ? c + 'a' - 'A' : c > 0 && c < 128 ? c : '?';
+        if (length < sizeof(kind)) length++;
+        advance(lexer);
+    }
+    const char *kinds[] = {"sdk", "package", "property", "project", "ref", "include", "exclude"};
+    lexer->result_symbol = FILE_DIRECTIVE_KIND;
+    if (length < sizeof(kind)) {
+        for (unsigned i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
+            if (strcmp(kind, kinds[i]) == 0) {
+                lexer->result_symbol = FILE_DIRECTIVE_SDK + i;
+                break;
+            }
+        }
+    }
+    lexer->mark_end(lexer);
+    return true;
 }

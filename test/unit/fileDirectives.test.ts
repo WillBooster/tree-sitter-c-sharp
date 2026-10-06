@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Edit, Language, Parser, Query, type Node } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
 const wasmPath = path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm');
@@ -466,3 +466,245 @@ test(
     }
   }
 );
+
+test('preserves declarations and standalone directives after malformed preprocessor tails', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  const declarations = ['class C { void M() { var a = 1; } }', 'class E { /* later */ }'];
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const directive of ['#pragma warning disable CS0618', '#nullable enable', '#line default']) {
+        for (const tail of [
+          '#:x',
+          '#:package Newtonsoft.Json',
+          '#:package Newtonsoft.Json /* tail */',
+          '#:x // /* inert',
+          '#:x a/*b',
+          '#:x "/*"',
+          '#:x /*',
+        ]) {
+          for (const following of ['', `  #:package Good${newline}`]) {
+            const source = `${directive} ${tail}${newline}${following}${declarations.join(newline)}`;
+            const tree = parser.parse(source)!;
+            try {
+              expect(tree.rootNode.hasError, source).toBe(true);
+              const directives = tree.rootNode.descendantsOfType('file_directive');
+              expect(
+                directives.map((node) => node.childForFieldName('name')?.text),
+                source
+              ).toEqual(following ? ['Good'] : []);
+              expect(
+                tree.rootNode.descendantsOfType('class_declaration').map((node) => node.text),
+                source
+              ).toEqual(declarations);
+              expect(
+                tree.rootNode
+                  .descendantsOfType('method_declaration')
+                  .map((node) => node.childForFieldName('name')?.text)
+              ).toEqual(['M']);
+            } finally {
+              tree.delete();
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('updates recovered directives and declarations after preprocessor-tail edits', async () => {
+  await Parser.init();
+  const language = await Language.load(wasmPath);
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(
+    language,
+    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
+  );
+  const prefix = '#pragma warning disable CS0618';
+  const captures = (root: Node): unknown[] =>
+    query
+      .captures(root)
+      .map(({ name, node }) => ({ name, text: node.text, start: node.startIndex, end: node.endIndex }));
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      const suffix = `${newline}#nullable enable${newline}#:package Good${newline}class C { void M() {} }`;
+      let tail = '';
+      let tree = parser.parse(prefix + suffix)!;
+      try {
+        for (const nextTail of [' #:package Bad', ' #:x', '', ' #:package Bad /* tail */', '']) {
+          tree.edit(
+            new Edit({
+              startIndex: prefix.length,
+              oldEndIndex: prefix.length + tail.length,
+              newEndIndex: prefix.length + nextTail.length,
+              startPosition: { row: 0, column: prefix.length },
+              oldEndPosition: { row: 0, column: prefix.length + tail.length },
+              newEndPosition: { row: 0, column: prefix.length + nextTail.length },
+            })
+          );
+          const source = prefix + nextTail + suffix;
+          const next = parser.parse(source, tree)!;
+          tree.delete();
+          tree = next;
+          const fresh = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError).toBe(Boolean(nextTail));
+            expect(tree.rootNode.toString()).toBe(fresh.rootNode.toString());
+            expect(captures(tree.rootNode)).toEqual(captures(fresh.rootNode));
+            expect(
+              tree.rootNode.descendantsOfType('file_directive').map((node) => node.childForFieldName('name')?.text)
+            ).toEqual(['Good']);
+            expect(
+              tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
+            ).toEqual(['C']);
+          } finally {
+            fresh.delete();
+          }
+          tail = nextTail;
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('keeps directive-looking text inside literals and directive filenames', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  try {
+    for (const literal of [
+      '"#:x"',
+      '" #:package Bad"',
+      String.raw`"before\n#:x"`,
+      '@"#:x"',
+      '@"line\n#:package Bad"',
+      '$"#:x"',
+      '$"{x:#:00}"',
+      '$@"{x:#:00}"',
+      '$"""{x:#:00}"""',
+      '"""#:package Bad"""',
+    ]) {
+      const source = `class C { string s = ${literal}; void M() {} }\n#:package Good\n`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('variable_declarator')[0]?.namedChildren.at(-1)?.text).toBe(literal);
+        expect(tree.rootNode.descendantsOfType('method_declaration')[0]?.childForFieldName('name')?.text).toBe('M');
+        expect(
+          tree.rootNode.descendantsOfType('file_directive').map((node) => node.childForFieldName('name')?.text)
+        ).toEqual(['Good']);
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const directive of [
+      '#line 1 "#:package Bad"',
+      '#pragma checksum "#:x" "{406ea660-64cf-4c82-b6f0-42d48172a799}" "00"',
+    ]) {
+      const tree = parser.parse(`${directive}\nclass C {}`)!;
+      try {
+        expect(tree.rootNode.hasError, directive).toBe(false);
+        expect(tree.rootNode.descendantsOfType('file_directive')).toHaveLength(0);
+        expect(tree.rootNode.descendantsOfType('class_declaration')[0]?.childForFieldName('name')?.text).toBe('C');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves standalone directives after consumed preprocessor newlines during recovery', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const middle of ['#nullable enable', '#region r', '#:weird v']) {
+        const source = `#:package Before${newline}#pragma warning disable X #:x${newline}${middle}${newline}#:package Good${newline}class C { void M() {} }${newline}`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError).toBe(true);
+          expect(tree.rootNode.descendantsOfType('file_directive').map((node) => node.text)).toEqual([
+            `#:package Before${newline}`,
+            ...(middle.startsWith('#:') ? [middle + newline] : []),
+            `#:package Good${newline}`,
+          ]);
+          expect(tree.rootNode.descendantsOfType('class_declaration')[0]?.childForFieldName('name')?.text).toBe('C');
+          expect(tree.rootNode.descendantsOfType('method_declaration')[0]?.childForFieldName('name')?.text).toBe('M');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('keeps recovery trees and highlights consistent after editing a trailing directive', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  const query = new Query(
+    parser.language!,
+    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
+  );
+  const source = [
+    '#:package Before',
+    'class C {',
+    '#prag#:package Ama warning#endif',
+    'disable X #:x',
+    'string s = "#:x";',
+    'void M(#) ',
+    '}',
+    '}',
+    '#:package Good',
+    '',
+  ].join('\n');
+  const index = 113;
+  const inserted = '#region R\n';
+  const next = source.slice(0, index) + inserted + source.slice(index);
+
+  const old = parser.parse(source)!;
+  try {
+    old.edit(
+      new Edit({
+        startIndex: index,
+        oldEndIndex: index,
+        newEndIndex: index + inserted.length,
+        startPosition: point(source.slice(0, index)),
+        oldEndPosition: point(source.slice(0, index)),
+        newEndPosition: point(next.slice(0, index + inserted.length)),
+      })
+    );
+    const incremental = parser.parse(next, old)!;
+    const fresh = parser.parse(next)!;
+    try {
+      expect(incremental.rootNode.hasError).toBe(true);
+      expect(incremental.rootNode.toString()).toBe(fresh.rootNode.toString());
+      const captures = (node: Node): unknown =>
+        query
+          .captures(node)
+          .map(({ name, node: capture }) => [name, capture.type, capture.text, capture.startIndex, capture.endIndex]);
+      expect(captures(incremental.rootNode)).toEqual(captures(fresh.rootNode));
+    } finally {
+      incremental.delete();
+      fresh.delete();
+    }
+  } finally {
+    old.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
+function point(text: string): { row: number; column: number } {
+  const lines = text.split('\n');
+  return { row: lines.length - 1, column: lines.at(-1)!.length };
+}
