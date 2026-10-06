@@ -602,7 +602,11 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
     if (valid_symbols[INTERPOLATION_FORMAT_START] && scanner->interpolation_stack.size > 0) {
         lexer->mark_end(lexer);
-        while (iswspace(lexer->lookahead)) advance(lexer);
+        bool format_only_whitespace = false;
+        while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
+            format_only_whitespace |= !iswspace(lexer->lookahead);
+            advance(lexer);
+        }
         if (lexer->lookahead == ':') {
             advance(lexer);
             Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
@@ -615,6 +619,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             lexer->result_symbol = INTERPOLATION_FORMAT_START;
             return true;
         }
+        if (format_only_whitespace) return false;
     }
 
     if (valid_symbols[INTERPOLATION_CLOSE_BRACE] && scanner->interpolation_stack.size > 0) {

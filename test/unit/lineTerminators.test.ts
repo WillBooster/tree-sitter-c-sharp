@@ -196,7 +196,7 @@ test('distinguishes regular interpolation text and formats from multiline expres
           tree.delete();
         }
       }
-      for (const spacing of [' ', '\t', newline, ' /* c */ ']) {
+      for (const spacing of [' ', '\t', newline, '\u00A0', '\u3000', '\uFEFF', ' /* c */ ']) {
         for (const prefix of ['$"', '$@"', '$"""']) {
           const closing = prefix === '$"""' ? '"""' : '"';
           const source = `class C { string value = ${prefix}{1${spacing}:D}${closing}; }`;
