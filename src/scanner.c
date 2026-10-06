@@ -601,6 +601,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     if (valid_symbols[INTERPOLATION_FORMAT_START] && scanner->interpolation_stack.size > 0) {
+        while (iswspace(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
         if (lexer->lookahead == ':') {
             advance(lexer);
             lexer->mark_end(lexer);

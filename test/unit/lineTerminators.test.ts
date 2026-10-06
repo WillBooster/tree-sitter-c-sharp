@@ -196,6 +196,22 @@ test('distinguishes regular interpolation text and formats from multiline expres
           tree.delete();
         }
       }
+      for (const spacing of [' ', '\t', newline, ' /* c */ ']) {
+        for (const prefix of ['$"', '$@"', '$"""']) {
+          const closing = prefix === '$"""' ? '"""' : '"';
+          const source = `class C { string value = ${prefix}{1${spacing}:D}${closing}; }`;
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(false);
+            const format = tree.rootNode.descendantsOfType('interpolation_format_clause')[0]!;
+            expect(format.text).toBe(':D');
+            expect(format.startIndex).toBe(source.indexOf(':D'));
+            expect(format.firstChild?.text).toBe(':');
+          } finally {
+            tree.delete();
+          }
+        }
+      }
       for (const literal of [
         `$@"a${newline}b"`,
         `$@"{1:a${newline}b}"`,
