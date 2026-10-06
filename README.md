@@ -33,8 +33,8 @@ Known gaps:
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
-browsers, and Cloudflare Workers. Use runtime version 1.1.6 or later for asynchronous browser loading and
-scanner-state restoration after malformed input. Install the runtime alongside the grammar when using the Wasm parser; it
+browsers, and Cloudflare Workers. Use runtime version 1.1.2 or later for asynchronous browser loading.
+Install the runtime alongside the grammar when using the Wasm parser; it
 remains an optional peer for consumers that only use the grammar source or queries.
 
 In Node.js and Bun, load it from the package:
