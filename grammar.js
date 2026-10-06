@@ -1325,6 +1325,9 @@ module.exports = grammar({
         )
       ),
 
+    // Keep the lvalue operand set restricted: a general expression also permits assignment after every operand,
+    // substantially increasing parser states. Additional call and prefix-update operands use the assignment-only
+    // `_assignment_pointer_expression` path to preserve the shared read derivations and their query captures.
     // Dynamic precedences: an assignable dereference -2, a read-only one -4, a read-only cast +1, an assignable cast -1,
     // and a unary `+`, `-`, `^`, or `&` -2. C# reads a parenthesized name as a cast only when the token after `)` is
     // `~`, `!`, `(`, an identifier, a literal, or a keyword (C# spec §12.9.8 Cast expressions), and these values keep
