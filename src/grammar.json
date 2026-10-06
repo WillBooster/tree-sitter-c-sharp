@@ -9437,8 +9437,13 @@
           "value": "string_content"
         },
         {
-          "type": "SYMBOL",
-          "name": "interpolation"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_multiline_interpolation"
+          },
+          "named": true,
+          "value": "interpolation"
         }
       ]
     },
@@ -9455,8 +9460,13 @@
           "value": "string_content"
         },
         {
-          "type": "SYMBOL",
-          "name": "interpolation"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_multiline_interpolation"
+          },
+          "named": true,
+          "value": "interpolation"
         }
       ]
     },
@@ -9492,22 +9502,36 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "SYMBOL",
-              "name": "interpolation_format_clause"
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "interpolation_close_brace"
+              },
+              "named": true,
+              "value": "interpolation_brace"
             },
             {
-              "type": "BLANK"
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "interpolation_format_clause"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "IMMEDIATE_TOKEN",
+                    "content": {
+                      "type": "STRING",
+                      "value": "}"
+                    }
+                  },
+                  "named": true,
+                  "value": "interpolation_brace"
+                }
+              ]
             }
           ]
-        },
-        {
-          "type": "ALIAS",
-          "content": {
-            "type": "SYMBOL",
-            "name": "interpolation_close_brace"
-          },
-          "named": true,
-          "value": "interpolation_brace"
         }
       ]
     },
@@ -9525,6 +9549,78 @@
       ]
     },
     "interpolation_format_clause": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": ":"
+        },
+        {
+          "type": "IMMEDIATE_TOKEN",
+          "content": {
+            "type": "PATTERN",
+            "value": "[^}\"\\n\\r\\u0085\\u2028\\u2029]+"
+          }
+        }
+      ]
+    },
+    "_multiline_interpolation": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "interpolation_open_brace"
+          },
+          "named": true,
+          "value": "interpolation_brace"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "expression"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "interpolation_alignment_clause"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_multiline_interpolation_format_clause"
+              },
+              "named": true,
+              "value": "interpolation_format_clause"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "interpolation_close_brace"
+          },
+          "named": true,
+          "value": "interpolation_brace"
+        }
+      ]
+    },
+    "_multiline_interpolation_format_clause": {
       "type": "SEQ",
       "members": [
         {

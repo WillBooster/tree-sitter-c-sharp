@@ -613,6 +613,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
             if (brace_advanced == current_interpolation->open_brace_count) {
                 current_interpolation->open_brace_count = 0;
+                lexer->mark_end(lexer);
                 lexer->result_symbol = INTERPOLATION_CLOSE_BRACE;
                 return true;
             }
@@ -689,7 +690,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
             // finally regular
             else if (is_regular(current_interpolation)) {
-                if (lexer->lookahead == '\\' || lexer->lookahead == '\n' || lexer->lookahead == '"') {
+                if (lexer->lookahead == '\\' || is_line_terminator(lexer->lookahead) || lexer->lookahead == '"') {
                     lexer->mark_end(lexer);
                     return did_advance;
                 }
