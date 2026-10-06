@@ -187,7 +187,13 @@ test('distinguishes regular interpolation text and formats from multiline expres
   const parser = new Parser().setLanguage(language);
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
-      for (const literal of [`$"a${newline}b"`, `$"${newline}"`, `$"{1:a${newline}b}"`, `$"{1:a${newline}}"`]) {
+      for (const literal of [
+        `$"a${newline}b"`,
+        `$"${newline}"`,
+        `$"{1:a${newline}b}"`,
+        `$"{1:a${newline}}"`,
+        `$"{1:::${newline}b}"`,
+      ]) {
         const source = `class C { string value = ${literal}; }`;
         const tree = parser.parse(source)!;
         try {
@@ -199,16 +205,18 @@ test('distinguishes regular interpolation text and formats from multiline expres
       for (const spacing of [' ', '\t', newline, '\u00A0', '\u3000', '\uFEFF', ' /* c */ ']) {
         for (const prefix of ['$"', '$@"', '$"""']) {
           const closing = prefix === '$"""' ? '"""' : '"';
-          const source = `class C { string value = ${prefix}{1${spacing}:D}${closing}; }`;
-          const tree = parser.parse(source)!;
-          try {
-            expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(false);
-            const format = tree.rootNode.descendantsOfType('interpolation_format_clause')[0]!;
-            expect(format.text).toBe(':D');
-            expect(format.startIndex).toBe(source.indexOf(':D'));
-            expect(format.firstChild?.text).toBe(':');
-          } finally {
-            tree.delete();
+          for (const formatText of ['D', '::D']) {
+            const source = `class C { string value = ${prefix}{1${spacing}:${formatText}}${closing}; }`;
+            const tree = parser.parse(source)!;
+            try {
+              expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(false);
+              const format = tree.rootNode.descendantsOfType('interpolation_format_clause')[0]!;
+              expect(format.text).toBe(`:${formatText}`);
+              expect(format.startIndex).toBe(source.indexOf(`:${formatText}`));
+              expect(format.firstChild?.text).toBe(':');
+            } finally {
+              tree.delete();
+            }
           }
         }
       }

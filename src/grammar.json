@@ -9495,8 +9495,16 @@
               "type": "SEQ",
               "members": [
                 {
-                  "type": "SYMBOL",
-                  "name": "_interpolation_format_start"
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "_interpolation_format_padding"
+                    },
+                    {
+                      "type": "BLANK"
+                    }
+                  ]
                 },
                 {
                   "type": "SYMBOL",
@@ -9537,7 +9545,12 @@
       "type": "SEQ",
       "members": [
         {
-          "type": "STRING",
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_interpolation_format_start"
+          },
+          "named": false,
           "value": ":"
         },
         {
@@ -14881,6 +14894,10 @@
     {
       "type": "SYMBOL",
       "name": "_interpolation_format_start"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_interpolation_format_padding"
     }
   ],
   "inline": [

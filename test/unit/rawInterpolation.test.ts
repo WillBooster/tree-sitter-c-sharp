@@ -202,6 +202,69 @@ test('preserves interpolation brace and format ranges when adding and removing a
   }
 });
 
+test('retains declarations around incomplete raw interpolation formats through edits', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
+  try {
+    for (const literal of [
+      '$"""a{{1:}"""',
+      '$$"""a{{{1:X}"""',
+      '$$"""}}{{{1:X}"""',
+      '$$"""ab{{{1:X}"""',
+      '$$"""{{1:X}{2:Y}"',
+      '$$"""a{{1:X}{2:Y}"',
+      '$$"""a{{1:X} {2:Y}"',
+      '$$"""{{1:X} {2:Y}"',
+    ]) {
+      const source = `class C { string value = ${literal}; }`;
+      const tree = parser.parse(source)!;
+      try {
+        check(tree);
+        const index = source.indexOf('1');
+        const next = source.slice(0, index) + '3' + source.slice(index + 1);
+        tree.edit(
+          new Edit({
+            startIndex: index,
+            oldEndIndex: index + 1,
+            newEndIndex: index + 1,
+            startPosition: position(source, index),
+            oldEndPosition: position(source, index + 1),
+            newEndPosition: position(next, index + 1),
+          })
+        );
+        const incremental = parser.parse(next, tree)!;
+        const fresh = parser.parse(next)!;
+        try {
+          check(incremental);
+          expect(snapshot(incremental.rootNode)).toEqual(snapshot(fresh.rootNode));
+        } finally {
+          incremental.delete();
+          fresh.delete();
+        }
+      } finally {
+        tree.delete();
+      }
+
+      function check(current: Tree): void {
+        expect(current.rootNode.hasError, literal).toBe(true);
+        expect(
+          current.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
+        ).toEqual(['C']);
+        const fields = current.rootNode.descendantsOfType('field_declaration');
+        expect(fields, literal).toHaveLength(1);
+        expect(
+          fields[0]!.descendantsOfType('variable_declarator').map((node) => node.childForFieldName('name')?.text)
+        ).toEqual(['value']);
+        expect(current.rootNode.descendantsOfType('interpolation_format_clause'), literal).toHaveLength(
+          literal.includes(':X') ? 1 : 0
+        );
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 function position(source: string, index: number): Point {
   const lines = source.slice(0, index).split('\n');
   return { row: lines.length - 1, column: lines.at(-1)!.length };

@@ -155,6 +155,7 @@ module.exports = grammar({
     $._directive_crlf,
     $._file_directive_preproc_arg,
     $._interpolation_format_start,
+    $._interpolation_format_padding,
   ],
 
   extras: ($) => [
@@ -1519,13 +1520,13 @@ module.exports = grammar({
         alias($.interpolation_open_brace, $.interpolation_brace),
         $.expression,
         optional($.interpolation_alignment_clause),
-        optional(seq($._interpolation_format_start, $.interpolation_format_clause)),
+        optional(seq(optional($._interpolation_format_padding), $.interpolation_format_clause)),
         alias($.interpolation_close_brace, $.interpolation_brace)
       ),
 
     interpolation_alignment_clause: ($) => seq(',', $.expression),
 
-    interpolation_format_clause: () => seq(':', /[^}"]+/),
+    interpolation_format_clause: ($) => seq(alias($._interpolation_format_start, ':'), /[^}"]+/),
 
     member_access_expression: ($) =>
       prec(
