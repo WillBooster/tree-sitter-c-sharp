@@ -161,12 +161,10 @@ module.exports = grammar({
     $._file_directive_exclude,
     $.file_directive_kind,
     $._file_directive_literal_context,
-    $._directive_boundary,
     $._file_directive_newline,
   ],
 
   extras: ($) => [
-    $._directive_boundary,
     /[\s\u0085\u00A0\u2028\u2029\uFEFF\u3000]+/,
     $.comment,
     $.preproc_region,

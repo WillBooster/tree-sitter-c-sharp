@@ -31,7 +31,6 @@ enum TokenType {
     FILE_DIRECTIVE_EXCLUDE,
     FILE_DIRECTIVE_KIND,
     FILE_DIRECTIVE_LITERAL_CONTEXT,
-    DIRECTIVE_BOUNDARY,
     FILE_DIRECTIVE_NEWLINE,
 };
 
@@ -56,7 +55,7 @@ static inline bool is_raw(Interpolation *interpolation) { return interpolation->
 
 typedef struct {
     uint8_t quote_count;
-    bool after_directive;
+    bool next_file_directive;
     Array(Interpolation) interpolation_stack;
 } Scanner;
 
@@ -157,7 +156,7 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
     unsigned size = 0;
 
     buffer[size++] = (char)scanner->quote_count;
-    buffer[size++] = (char)scanner->after_directive;
+    buffer[size++] = (char)scanner->next_file_directive;
     buffer[size++] = (char)scanner->interpolation_stack.size;
 
     for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
@@ -175,13 +174,13 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
     Scanner *scanner = (Scanner *)payload;
 
     scanner->quote_count = 0;
-    scanner->after_directive = false;
+    scanner->next_file_directive = false;
     array_clear(&scanner->interpolation_stack);
     unsigned size = 0;
 
     if (length > 0) {
         scanner->quote_count = (unsigned char)buffer[size++];
-        scanner->after_directive = buffer[size++];
+        scanner->next_file_directive = buffer[size++];
         scanner->interpolation_stack.size = (unsigned char)buffer[size++];
         array_reserve(&scanner->interpolation_stack, scanner->interpolation_stack.size);
 
@@ -368,29 +367,15 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     bool did_advance = false;
 
     bool recovery = valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START];
-    // The runtime column resets only at LF; other consumed directive endings need explicit boundary state.
-    bool after_directive = scanner->after_directive;
-    if (after_directive) {
-        scanner->after_directive = false;
-        lexer->mark_end(lexer);
-        if (!recovery) {
-            lexer->result_symbol = DIRECTIVE_BOUNDARY;
-            return true;
-        }
-    }
+    bool next_file_directive = scanner->next_file_directive;
+    scanner->next_file_directive = false;
     if (recovery) {
-        bool line_start = after_directive;
-        unsigned skipped = 0;
+        bool line_start = next_file_directive;
         while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
             if (is_line_terminator(lexer->lookahead)) line_start = true;
-            skipped++;
             skip(lexer);
         }
-        if (!scan_file_directive_prefix(lexer)) {
-            lexer->result_symbol = DIRECTIVE_BOUNDARY;
-            return after_directive;
-        }
-        if (!line_start) line_start = lexer->get_column(lexer) == skipped + 2;
+        if (!scan_file_directive_prefix(lexer)) return false;
         return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
     }
 
@@ -437,13 +422,11 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             if (crlf) advance(lexer);
             lexer->mark_end(lexer);
             if (!valid_symbols[FILE_DIRECTIVE_NEWLINE] && !crlf) {
-                while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
-                    bool newline = is_line_terminator(lexer->lookahead);
-                    advance(lexer);
-                    if (newline) lexer->mark_end(lexer);
-                }
+                while (is_line_terminator(lexer->lookahead)) advance(lexer);
+                lexer->mark_end(lexer);
             }
-            scanner->after_directive = true;
+            while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) advance(lexer);
+            scanner->next_file_directive = scan_file_directive_prefix(lexer);
             lexer->result_symbol = valid_symbols[FILE_DIRECTIVE_NEWLINE] ? FILE_DIRECTIVE_NEWLINE : DIRECTIVE_NEWLINE;
             return true;
         }

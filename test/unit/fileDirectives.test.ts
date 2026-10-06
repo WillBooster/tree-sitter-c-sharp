@@ -647,3 +647,64 @@ test('preserves standalone directives after consumed preprocessor newlines durin
     parser.delete();
   }
 });
+
+test('keeps recovery trees and highlights consistent after editing a trailing directive', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  const query = new Query(
+    parser.language!,
+    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
+  );
+  const source = [
+    '#:package Before',
+    'class C {',
+    '#prag#:package Ama warning#endif',
+    'disable X #:x',
+    'string s = "#:x";',
+    'void M(#) ',
+    '}',
+    '}',
+    '#:package Good',
+    '',
+  ].join('\n');
+  const index = 113;
+  const inserted = '#region R\n';
+  const next = source.slice(0, index) + inserted + source.slice(index);
+
+  const old = parser.parse(source)!;
+  try {
+    old.edit(
+      new Edit({
+        startIndex: index,
+        oldEndIndex: index,
+        newEndIndex: index + inserted.length,
+        startPosition: point(source.slice(0, index)),
+        oldEndPosition: point(source.slice(0, index)),
+        newEndPosition: point(next.slice(0, index + inserted.length)),
+      })
+    );
+    const incremental = parser.parse(next, old)!;
+    const fresh = parser.parse(next)!;
+    try {
+      expect(incremental.rootNode.hasError).toBe(true);
+      expect(incremental.rootNode.toString()).toBe(fresh.rootNode.toString());
+      const captures = (node: Node): unknown =>
+        query
+          .captures(node)
+          .map(({ name, node: capture }) => [name, capture.type, capture.text, capture.startIndex, capture.endIndex]);
+      expect(captures(incremental.rootNode)).toEqual(captures(fresh.rootNode));
+    } finally {
+      incremental.delete();
+      fresh.delete();
+    }
+  } finally {
+    old.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
+function point(text: string): { row: number; column: number } {
+  const lines = text.split('\n');
+  return { row: lines.length - 1, column: lines.at(-1)!.length };
+}

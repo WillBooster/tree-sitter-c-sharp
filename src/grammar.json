@@ -14062,10 +14062,6 @@
   },
   "extras": [
     {
-      "type": "SYMBOL",
-      "name": "_directive_boundary"
-    },
-    {
       "type": "PATTERN",
       "value": "[\\s\\u0085\\u00A0\\u2028\\u2029\\uFEFF\\u3000]+"
     },
@@ -14487,10 +14483,6 @@
     {
       "type": "SYMBOL",
       "name": "_file_directive_literal_context"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_directive_boundary"
     },
     {
       "type": "SYMBOL",
