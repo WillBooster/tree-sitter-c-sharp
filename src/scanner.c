@@ -22,8 +22,6 @@ enum TokenType {
     END_OF_INPUT,
     DIRECTIVE_CRLF,
     FILE_DIRECTIVE_PREPROC_ARG,
-    INTERPOLATION_FORMAT_START,
-    INTERPOLATION_FORMAT_PADDING,
 };
 
 typedef enum {
@@ -599,36 +597,6 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             lexer->result_symbol = INTERPOLATION_OPEN_BRACE;
             return true;
         }
-    }
-
-    if ((valid_symbols[INTERPOLATION_FORMAT_START] || valid_symbols[INTERPOLATION_FORMAT_PADDING]) &&
-        scanner->interpolation_stack.size > 0) {
-        bool has_padding = false;
-        bool format_only_whitespace = false;
-        while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
-            format_only_whitespace |= !iswspace(lexer->lookahead);
-            has_padding = true;
-            advance(lexer);
-        }
-        if (lexer->lookahead == ':') {
-            if (!has_padding && !valid_symbols[INTERPOLATION_FORMAT_START]) return false;
-            if (has_padding) {
-                if (!valid_symbols[INTERPOLATION_FORMAT_PADDING]) return false;
-                lexer->mark_end(lexer);
-            }
-            advance(lexer);
-            if (!has_padding) lexer->mark_end(lexer);
-            Interpolation *interpolation = array_back(&scanner->interpolation_stack);
-            if (is_regular(interpolation) && !is_verbatim(interpolation) && !is_raw(interpolation)) {
-                while (!lexer->eof(lexer) && lexer->lookahead != '}' && lexer->lookahead != '"') {
-                    if (is_line_terminator(lexer->lookahead)) return false;
-                    advance(lexer);
-                }
-            }
-            lexer->result_symbol = has_padding ? INTERPOLATION_FORMAT_PADDING : INTERPOLATION_FORMAT_START;
-            return true;
-        }
-        if (format_only_whitespace) return false;
     }
 
     if (valid_symbols[INTERPOLATION_CLOSE_BRACE] && scanner->interpolation_stack.size > 0) {

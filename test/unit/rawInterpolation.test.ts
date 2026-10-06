@@ -285,3 +285,50 @@ function snapshot(node: Node): unknown {
     node.children.map(snapshot),
   ];
 }
+
+test('retains declarations while a raw interpolation is missing its expression', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
+  try {
+    for (const tail of ['{{{:', '{{{ :', '{{{ : x']) {
+      const source = `class C { string value = $$"""${tail}; int other; }\nclass D { }\n`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError).toBe(true);
+        expect(
+          tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
+        ).toEqual(['C', 'D']);
+        expect(tree.rootNode.descendantsOfType('field_declaration')).toHaveLength(2);
+        const start = source.indexOf('other');
+        tree.edit(
+          new Edit({
+            startIndex: start,
+            oldEndIndex: start + 5,
+            newEndIndex: start + 4,
+            startPosition: position(source, start),
+            oldEndPosition: position(source, start + 5),
+            newEndPosition: position(source, start + 4),
+          })
+        );
+        const changed = source.slice(0, start) + 'next' + source.slice(start + 5);
+        const incremental = parser.parse(changed, tree)!;
+        const fresh = parser.parse(changed)!;
+        try {
+          expect(snapshot(incremental.rootNode)).toEqual(snapshot(fresh.rootNode));
+          expect(
+            incremental.rootNode
+              .descendantsOfType('class_declaration')
+              .map((node) => node.childForFieldName('name')?.text)
+          ).toEqual(['C', 'D']);
+        } finally {
+          incremental.delete();
+          fresh.delete();
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
