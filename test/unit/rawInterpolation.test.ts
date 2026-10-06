@@ -139,6 +139,69 @@ test('updates format newline validity when an interpolated string changes betwee
   }
 });
 
+test('preserves interpolation brace and format ranges when adding and removing a format', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
+  const highlights = new Query(parser.language!, readFileSync('queries/highlights.scm', 'utf8'));
+  try {
+    for (const prefix of ['$"', '$@"', '$"""']) {
+      for (const spacing of [' ', '\t', '\n', '\r\n', '\r']) {
+        const closing = prefix === '$"""' ? '"""' : '"';
+        let source = `class C { string value = ${prefix}{1${spacing}}${closing}; }`;
+        let tree = parser.parse(source)!;
+        try {
+          check(tree, false);
+          const index = source.indexOf(`}${closing}`);
+          for (const format of [':D', '']) {
+            const oldEnd = index + (format ? 0 : 2);
+            const next = source.slice(0, index) + format + source.slice(oldEnd);
+            tree.edit(
+              new Edit({
+                startIndex: index,
+                oldEndIndex: oldEnd,
+                newEndIndex: index + format.length,
+                startPosition: position(source, index),
+                oldEndPosition: position(source, oldEnd),
+                newEndPosition: position(next, index + format.length),
+              })
+            );
+            const previous = tree;
+            tree = parser.parse(next, previous)!;
+            previous.delete();
+            const fresh = parser.parse(next)!;
+            try {
+              check(tree, Boolean(format));
+              expect(snapshot(tree.rootNode)).toEqual(snapshot(fresh.rootNode));
+            } finally {
+              fresh.delete();
+            }
+            source = next;
+          }
+        } finally {
+          tree.delete();
+        }
+
+        function check(current: Tree, formatted: boolean): void {
+          expect(current.rootNode.hasError).toBe(false);
+          const braces = highlights
+            .captures(current.rootNode)
+            .filter(({ name, node }) => name === 'punctuation.bracket' && node.type === 'interpolation_brace')
+            .map(({ node }) => [node.text, node.startIndex, node.endIndex]);
+          const end = current.rootNode.text.indexOf(`}${closing}`) + 1;
+          const text = formatted ? '}' : `${spacing}}`;
+          expect(braces.at(-1)).toEqual([text, end - text.length, end]);
+          expect(current.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text)).toEqual(
+            formatted ? [':D'] : []
+          );
+        }
+      }
+    }
+  } finally {
+    highlights.delete();
+    parser.delete();
+  }
+});
+
 function position(source: string, index: number): Point {
   const lines = source.slice(0, index).split('\n');
   return { row: lines.length - 1, column: lines.at(-1)!.length };

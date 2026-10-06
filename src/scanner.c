@@ -601,10 +601,10 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     if (valid_symbols[INTERPOLATION_FORMAT_START] && scanner->interpolation_stack.size > 0) {
-        while (iswspace(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+        lexer->mark_end(lexer);
+        while (iswspace(lexer->lookahead)) advance(lexer);
         if (lexer->lookahead == ':') {
             advance(lexer);
-            lexer->mark_end(lexer);
             Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
             if (is_regular(current_interpolation) && !is_verbatim(current_interpolation) && !is_raw(current_interpolation)) {
                 while (!lexer->eof(lexer) && lexer->lookahead != '}' && lexer->lookahead != '"') {
@@ -631,6 +631,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
             if (brace_advanced == current_interpolation->open_brace_count) {
                 current_interpolation->open_brace_count = 0;
+                lexer->mark_end(lexer);
                 lexer->result_symbol = INTERPOLATION_CLOSE_BRACE;
                 return true;
             }

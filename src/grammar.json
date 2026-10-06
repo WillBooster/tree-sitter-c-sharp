@@ -9311,8 +9311,17 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "SYMBOL",
-              "name": "interpolation_format_clause"
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "_interpolation_format_start"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "interpolation_format_clause"
+                }
+              ]
             },
             {
               "type": "BLANK"
@@ -9347,12 +9356,7 @@
       "type": "SEQ",
       "members": [
         {
-          "type": "ALIAS",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_interpolation_format_start"
-          },
-          "named": false,
+          "type": "STRING",
           "value": ":"
         },
         {
