@@ -22,6 +22,7 @@ enum TokenType {
     END_OF_INPUT,
     DIRECTIVE_CRLF,
     FILE_DIRECTIVE_PREPROC_ARG,
+    INTERPOLATION_FORMAT_START,
 };
 
 typedef enum {
@@ -599,6 +600,22 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         }
     }
 
+    if (valid_symbols[INTERPOLATION_FORMAT_START] && scanner->interpolation_stack.size > 0) {
+        if (lexer->lookahead == ':') {
+            advance(lexer);
+            lexer->mark_end(lexer);
+            Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
+            if (is_regular(current_interpolation) && !is_verbatim(current_interpolation) && !is_raw(current_interpolation)) {
+                while (!lexer->eof(lexer) && lexer->lookahead != '}' && lexer->lookahead != '"') {
+                    if (is_line_terminator(lexer->lookahead)) return false;
+                    advance(lexer);
+                }
+            }
+            lexer->result_symbol = INTERPOLATION_FORMAT_START;
+            return true;
+        }
+    }
+
     if (valid_symbols[INTERPOLATION_CLOSE_BRACE] && scanner->interpolation_stack.size > 0) {
         uint8_t brace_advanced = 0;
         Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
@@ -689,7 +706,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
             // finally regular
             else if (is_regular(current_interpolation)) {
-                if (lexer->lookahead == '\\' || lexer->lookahead == '\n' || lexer->lookahead == '"') {
+                if (lexer->lookahead == '\\' || is_line_terminator(lexer->lookahead) || lexer->lookahead == '"') {
                     lexer->mark_end(lexer);
                     return did_advance;
                 }

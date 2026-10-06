@@ -182,3 +182,38 @@ test('rejects source newlines in ordinary literals while retaining verbatim and 
     parser.delete();
   }
 });
+
+test('distinguishes regular interpolation text and formats from multiline expression contexts', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const literal of [`$"a${newline}b"`, `$"${newline}"`, `$"{1:a${newline}b}"`, `$"{1:a${newline}}"`]) {
+        const source = `class C { string value = ${literal}; }`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(true);
+        } finally {
+          tree.delete();
+        }
+      }
+      for (const literal of [
+        `$@"a${newline}b"`,
+        `$@"{1:a${newline}b}"`,
+        `$"{1+${newline}2}"`,
+        `$"{$@"{1:a${newline}b}"}"`,
+        `$"""${newline}a${newline}{1}${newline}"""`,
+      ]) {
+        const source = `class C { string value = ${literal}; }`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(false);
+          expect(tree.rootNode.descendantsOfType('interpolated_string_expression')[0]?.text).toBe(literal);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

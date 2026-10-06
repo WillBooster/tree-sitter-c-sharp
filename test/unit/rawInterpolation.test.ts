@@ -82,6 +82,63 @@ var location = ${'$'.repeat(dollars)}"""
   }
 });
 
+test('updates format newline validity when an interpolated string changes between regular and verbatim', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
+  const highlights = new Query(parser.language!, readFileSync('queries/highlights.scm', 'utf8'));
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      let source = `class C { string value = $"{1:a${newline}b}"; }`;
+      let tree = parser.parse(source)!;
+      const start = source.indexOf('$') + 1;
+      try {
+        expect(tree.rootNode.hasError).toBe(true);
+        for (const verbatim of [true, false, true]) {
+          const removed = verbatim ? 0 : 1;
+          const inserted = verbatim ? '@' : '';
+          const next = source.slice(0, start) + inserted + source.slice(start + removed);
+          tree.edit(
+            new Edit({
+              startIndex: start,
+              oldEndIndex: start + removed,
+              newEndIndex: start + inserted.length,
+              startPosition: position(source, start),
+              oldEndPosition: position(source, start + removed),
+              newEndPosition: position(next, start + inserted.length),
+            })
+          );
+          const previous = tree;
+          tree = parser.parse(next, previous)!;
+          previous.delete();
+          const fresh = parser.parse(next)!;
+          try {
+            expect(tree.rootNode.hasError, JSON.stringify(next)).toBe(!verbatim);
+            expect(snapshot(tree.rootNode)).toEqual(snapshot(fresh.rootNode));
+            const captures = (current: Tree): unknown =>
+              highlights
+                .captures(current.rootNode)
+                .map(({ name, node }) => [name, node.type, node.text, node.startIndex, node.endIndex]);
+            expect(captures(tree)).toEqual(captures(fresh));
+            if (verbatim) {
+              expect(tree.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text)).toEqual([
+                `:a${newline}b`,
+              ]);
+            }
+          } finally {
+            fresh.delete();
+          }
+          source = next;
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    highlights.delete();
+    parser.delete();
+  }
+});
+
 function position(source: string, index: number): Point {
   const lines = source.slice(0, index).split('\n');
   return { row: lines.length - 1, column: lines.at(-1)!.length };

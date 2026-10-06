@@ -9347,7 +9347,12 @@
       "type": "SEQ",
       "members": [
         {
-          "type": "STRING",
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_interpolation_format_start"
+          },
+          "named": false,
           "value": ":"
         },
         {
@@ -14679,6 +14684,10 @@
     {
       "type": "SYMBOL",
       "name": "_file_directive_preproc_arg"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_interpolation_format_start"
     }
   ],
   "inline": [
