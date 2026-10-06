@@ -49,6 +49,8 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._assignment_pointer_cast, $._lvalue_cast_expression],
+    [$._assignment_pointer_expression, $._pointer_indirection_expression],
     [$.modifier, $._constructor_declaration_initializer, $._reserved_identifier],
     [$._simple_name, $.generic_name],
     [$._simple_name, $.type_parameter],
@@ -1210,9 +1212,65 @@ module.exports = grammar({
       seq(
         // An invocation can return a reference (`Unsafe.Add(ref x, i) = v`). It ends with `)`, so `=` after it adds few
         // parse states, unlike making any expression assignable.
-        field('left', choice($.lvalue_expression, $.invocation_expression)),
+        field(
+          'left',
+          choice(
+            $.lvalue_expression,
+            $.invocation_expression,
+            alias($._assignment_pointer_expression, $.prefix_unary_expression)
+          )
+        ),
         field('operator', choice('=', '+=', '-=', '*=', '/=', '%=', '&=', '^=', '|=', '<<=', '>>=', '>>>=', '??=')),
         field('right', $.expression)
+      ),
+
+    // Keep this alternative confined to assignment targets: sharing it with ordinary dereferences changes hidden
+    // expression-supertype captures in nested reads. -3 prefers the existing lvalue path (-2) when both fit.
+    _assignment_pointer_expression: ($) =>
+      prec.dynamic(
+        -3,
+        prec.right(
+          PREC.UNARY,
+          seq(
+            '*',
+            choice(
+              $.lvalue_expression,
+              $.parenthesized_expression,
+              $.invocation_expression,
+              $.postfix_unary_expression,
+              alias($._assignment_pointer_expression, $.prefix_unary_expression),
+              alias($._pointer_prefix_update, $.prefix_unary_expression),
+              alias($._assignment_pointer_cast, $.cast_expression)
+            )
+          )
+        )
+      ),
+
+    _pointer_prefix_update: ($) =>
+      prec(
+        PREC.UNARY,
+        seq(choice('++', '--'), choice($.lvalue_expression, $.invocation_expression, $.parenthesized_expression))
+      ),
+
+    _assignment_pointer_cast: ($) =>
+      prec(
+        PREC.CAST,
+        seq(
+          '(',
+          field('type', $.type),
+          ')',
+          field(
+            'value',
+            choice(
+              $.lvalue_expression,
+              $.parenthesized_expression,
+              $.invocation_expression,
+              $.postfix_unary_expression,
+              alias($._assignment_pointer_expression, $.prefix_unary_expression),
+              alias($._pointer_prefix_update, $.prefix_unary_expression)
+            )
+          )
+        )
       ),
 
     binary_expression: ($) =>
@@ -1268,14 +1326,9 @@ module.exports = grammar({
         )
       ),
 
-    // Pointer indirection is split by its operand. The assignable form, surfaced in `lvalue_expression`, takes an
-    // lvalue (`*p`, `*(p)`, `**pp`) or an operand that ends in a closing token or an lvalue: a parenthesized
-    // expression (`*(p + 1)`), a postfix expression (`*p++`), an address (`*&v`), or a cast of an lvalue, a
-    // parenthesized, postfix, or invocation expression, or an address (`*(int*)p`, `*(long*)(p + 4)`, `*(T*)f()`,
-    // `*(long*)&v`). Dereferencing any other expression (`*++p`) is only read: letting any expression be the assignable
-    // form's operand lets `=` follow every expression that can be the operand, which grows the parser by about 4,800
-    // states and nearly doubles the Wasm build, while these operands add about 550.
-    //
+    // Keep the lvalue operand set restricted: a general expression also permits assignment after every operand,
+    // substantially increasing parser states. Additional call and prefix-update operands use the assignment-only
+    // `_assignment_pointer_expression` path to preserve the shared read derivations and their query captures.
     // Dynamic precedences: an assignable dereference -2, a read-only one -4, a read-only cast +1, an assignable cast -1,
     // and a unary `+`, `-`, `^`, or `&` -2. C# reads a parenthesized name as a cast only when the token after `)` is
     // `~`, `!`, `(`, an identifier, a literal, or a keyword (C# spec §12.9.8 Cast expressions), and these values keep
