@@ -49,9 +49,8 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
-    [$.expression, $._pointer_prefix_update],
-    [$.assignment_expression, $._pointer_prefix_update],
-    [$._expression_statement_expression, $._pointer_prefix_update],
+    [$._assignment_pointer_cast, $._lvalue_cast_expression],
+    [$._assignment_pointer_expression, $._pointer_indirection_expression],
     [$.modifier, $._constructor_declaration_initializer, $._reserved_identifier],
     [$._simple_name, $.generic_name],
     [$._simple_name, $.type_parameter],
@@ -1212,9 +1211,64 @@ module.exports = grammar({
       seq(
         // An invocation can return a reference (`Unsafe.Add(ref x, i) = v`). It ends with `)`, so `=` after it adds few
         // parse states, unlike making any expression assignable.
-        field('left', choice($.lvalue_expression, $.invocation_expression)),
+        field(
+          'left',
+          choice(
+            $.lvalue_expression,
+            $.invocation_expression,
+            alias($._assignment_pointer_expression, $.prefix_unary_expression)
+          )
+        ),
         field('operator', choice('=', '+=', '-=', '*=', '/=', '%=', '&=', '^=', '|=', '<<=', '>>=', '>>>=', '??=')),
         field('right', $.expression)
+      ),
+
+    // Keep this alternative confined to assignment targets: sharing it with ordinary dereferences changes hidden
+    // expression-supertype captures in nested reads. -3 prefers the existing lvalue path (-2) when both fit.
+    _assignment_pointer_expression: ($) =>
+      prec.dynamic(
+        -3,
+        prec.right(
+          PREC.UNARY,
+          seq(
+            '*',
+            choice(
+              $.lvalue_expression,
+              $.parenthesized_expression,
+              $.invocation_expression,
+              $.postfix_unary_expression,
+              alias($._assignment_pointer_expression, $.prefix_unary_expression),
+              alias($._pointer_prefix_update, $.prefix_unary_expression),
+              alias($._assignment_pointer_cast, $.cast_expression)
+            )
+          )
+        )
+      ),
+
+    _pointer_prefix_update: ($) =>
+      prec(
+        PREC.UNARY,
+        seq(choice('++', '--'), choice($.lvalue_expression, $.invocation_expression, $.parenthesized_expression))
+      ),
+
+    _assignment_pointer_cast: ($) =>
+      prec(
+        PREC.CAST,
+        seq(
+          '(',
+          field('type', $.type),
+          ')',
+          field(
+            'value',
+            choice(
+              $.lvalue_expression,
+              $.parenthesized_expression,
+              $.invocation_expression,
+              $.postfix_unary_expression,
+              alias($._pointer_prefix_update, $.prefix_unary_expression)
+            )
+          )
+        )
       ),
 
     binary_expression: ($) =>
@@ -1270,10 +1324,6 @@ module.exports = grammar({
         )
       ),
 
-    // Letting every expression become an assignable dereference operand adds thousands of parser states.
-    // Prefix updates use a weaker alternate path so existing reads keep their expression-supertype captures.
-    // Invocations reuse the ordinary rule to retain postfix binding and the same parenthesized-name/cast ambiguity.
-    //
     // Dynamic precedences: an assignable dereference -2, a read-only one -4, a read-only cast +1, an assignable cast -1,
     // and a unary `+`, `-`, `^`, or `&` -2. C# reads a parenthesized name as a cast only when the token after `)` is
     // `~`, `!`, `(`, an identifier, a literal, or a keyword (C# spec §12.9.8 Cast expressions), and these values keep
@@ -1293,18 +1343,10 @@ module.exports = grammar({
               $.parenthesized_expression,
               alias($._address_of_expression, $.prefix_unary_expression),
               alias($._lvalue_cast_expression, $.cast_expression),
-              $.postfix_unary_expression,
-              alias($._pointer_prefix_update, $.prefix_unary_expression),
-              prec.dynamic(-4, $.invocation_expression)
+              $.postfix_unary_expression
             )
           )
         )
-      ),
-
-    _pointer_prefix_update: ($) =>
-      prec.dynamic(
-        -4,
-        seq(choice('++', '--'), choice($.lvalue_expression, $.invocation_expression, $.parenthesized_expression))
       ),
 
     _lvalue_cast_expression: ($) =>
@@ -1323,7 +1365,6 @@ module.exports = grammar({
                 $.parenthesized_expression,
                 alias($._address_of_expression, $.prefix_unary_expression),
                 $.postfix_unary_expression,
-                alias($._pointer_prefix_update, $.prefix_unary_expression),
                 $.invocation_expression
               )
             )

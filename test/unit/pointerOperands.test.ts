@@ -97,6 +97,8 @@ test('preserves cast and postfix binding around pointer reads', () => {
     for (const expression of [
       '*++p',
       '*--p',
+      '**++p',
+      '*(int*)*f()',
       '*f()',
       '*f().g',
       '*(T*)f()',
@@ -111,8 +113,20 @@ test('preserves cast and postfix binding around pointer reads', () => {
         expect(tree.rootNode.hasError, expression).toBe(false);
         const captured = query.captures(tree.rootNode).map(({ node }) => node.text);
         expect(captured).toContain(expression);
-        if (expression === '*++p' || expression === '*--p') expect(captured).toContain('p');
+        if (expression === '*++p' || expression === '*--p' || expression === '**++p') expect(captured).toContain('p');
+        if (expression === '*(int*)*f()') expect(captured).toContain('*f()');
         const pointer = tree.rootNode.descendantsOfType('prefix_unary_expression')[0]!;
+        expect(pointer.text).toBe(expression);
+        if (expression === '*f()') expect(pointer.firstNamedChild?.type).toBe('invocation_expression');
+        if (expression.startsWith('*(T*)')) {
+          const cast = pointer.firstNamedChild!;
+          expect(cast.type).toBe('cast_expression');
+          const value = cast.childForFieldName('value')!;
+          expect(value.text).toBe(expression.slice(5));
+          if (expression.endsWith('f()')) expect(value.type).toBe('invocation_expression');
+          if (expression.endsWith('a[0]')) expect(value.type).toBe('element_access_expression');
+          if (expression.endsWith('p!')) expect(value.type).toBe('postfix_unary_expression');
+        }
         if (expression === '*f().g') expect(pointer.firstNamedChild?.type).toBe('member_access_expression');
         if (expression === '*(b)(c)') expect(pointer.firstNamedChild?.type).toBe('cast_expression');
         if (expression === '*(b)[0]') expect(pointer.firstNamedChild?.type).toBe('element_access_expression');
@@ -122,6 +136,39 @@ test('preserves cast and postfix binding around pointer reads', () => {
     }
   } finally {
     query?.delete();
+    parser.delete();
+  }
+});
+
+test('binds pointer assignments inside larger expressions', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pointer of ['*++p', '*--p', '*(int*)++p', '*++p.x', '*f()']) {
+      const assignment = `${pointer} = v`;
+      for (const statement of [
+        `F(${assignment});`,
+        `x = ${assignment};`,
+        `x = (${assignment});`,
+        `return ${assignment};`,
+        `for (;;${assignment}) {}`,
+        `for (${assignment};;) {}`,
+        `x = c ? ${assignment} : 0;`,
+      ]) {
+        const tree = parser.parse(`unsafe class C { void M() { ${statement} } }`)!;
+        try {
+          expect(tree.rootNode.hasError, statement).toBe(false);
+          const node = tree.rootNode
+            .descendantsOfType('assignment_expression')
+            .find((node) => node.text === assignment);
+          expect(node, statement).toBeDefined();
+          expect(node!.childForFieldName('left')?.text, statement).toBe(pointer);
+          expect(node!.childForFieldName('right')?.text, statement).toBe('v');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
     parser.delete();
   }
 });
