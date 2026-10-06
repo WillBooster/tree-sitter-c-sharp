@@ -49,6 +49,9 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.expression, $._pointer_prefix_update],
+    [$.assignment_expression, $._pointer_prefix_update],
+    [$._expression_statement_expression, $._pointer_prefix_update],
     [$.modifier, $._constructor_declaration_initializer, $._reserved_identifier],
     [$._simple_name, $.generic_name],
     [$._simple_name, $.type_parameter],
@@ -1267,13 +1270,9 @@ module.exports = grammar({
         )
       ),
 
-    // Pointer indirection is split by its operand. The assignable form, surfaced in `lvalue_expression`, takes an
-    // lvalue (`*p`, `*(p)`, `**pp`) or an operand that ends in a closing token or an lvalue: a parenthesized
-    // expression (`*(p + 1)`), a postfix expression (`*p++`), an address (`*&v`), or a cast of an lvalue, a
-    // parenthesized, postfix, or invocation expression, or an address (`*(int*)p`, `*(long*)(p + 4)`, `*(T*)f()`,
-    // `*(long*)&v`). Dereferencing any other expression (`*++p`) is only read: letting any expression be the assignable
-    // form's operand lets `=` follow every expression that can be the operand, which grows the parser by about 4,800
-    // states and nearly doubles the Wasm build, while these operands add about 550.
+    // Letting every expression become an assignable dereference operand adds thousands of parser states.
+    // Prefix updates use a weaker alternate path so existing reads keep their expression-supertype captures.
+    // Invocations reuse the ordinary rule to retain postfix binding and the same parenthesized-name/cast ambiguity.
     //
     // Dynamic precedences: an assignable dereference -2, a read-only one -4, a read-only cast +1, an assignable cast -1,
     // and a unary `+`, `-`, `^`, or `&` -2. C# reads a parenthesized name as a cast only when the token after `)` is
@@ -1294,10 +1293,18 @@ module.exports = grammar({
               $.parenthesized_expression,
               alias($._address_of_expression, $.prefix_unary_expression),
               alias($._lvalue_cast_expression, $.cast_expression),
-              $.postfix_unary_expression
+              $.postfix_unary_expression,
+              alias($._pointer_prefix_update, $.prefix_unary_expression),
+              prec.dynamic(-4, $.invocation_expression)
             )
           )
         )
+      ),
+
+    _pointer_prefix_update: ($) =>
+      prec.dynamic(
+        -4,
+        seq(choice('++', '--'), choice($.lvalue_expression, $.invocation_expression, $.parenthesized_expression))
       ),
 
     _lvalue_cast_expression: ($) =>
@@ -1316,6 +1323,7 @@ module.exports = grammar({
                 $.parenthesized_expression,
                 alias($._address_of_expression, $.prefix_unary_expression),
                 $.postfix_unary_expression,
+                alias($._pointer_prefix_update, $.prefix_unary_expression),
                 $.invocation_expression
               )
             )

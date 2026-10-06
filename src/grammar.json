@@ -8111,11 +8111,67 @@
                 {
                   "type": "SYMBOL",
                   "name": "postfix_unary_expression"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_pointer_prefix_update"
+                  },
+                  "named": true,
+                  "value": "prefix_unary_expression"
+                },
+                {
+                  "type": "PREC_DYNAMIC",
+                  "value": -4,
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "invocation_expression"
+                  }
                 }
               ]
             }
           ]
         }
+      }
+    },
+    "_pointer_prefix_update": {
+      "type": "PREC_DYNAMIC",
+      "value": -4,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "++"
+              },
+              {
+                "type": "STRING",
+                "value": "--"
+              }
+            ]
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "lvalue_expression"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "invocation_expression"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "parenthesized_expression"
+              }
+            ]
+          }
+        ]
       }
     },
     "_lvalue_cast_expression": {
@@ -8169,6 +8225,15 @@
                   {
                     "type": "SYMBOL",
                     "name": "postfix_unary_expression"
+                  },
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_pointer_prefix_update"
+                    },
+                    "named": true,
+                    "value": "prefix_unary_expression"
                   },
                   {
                     "type": "SYMBOL",
@@ -14343,6 +14408,18 @@
     }
   ],
   "conflicts": [
+    [
+      "expression",
+      "_pointer_prefix_update"
+    ],
+    [
+      "assignment_expression",
+      "_pointer_prefix_update"
+    ],
+    [
+      "_expression_statement_expression",
+      "_pointer_prefix_update"
+    ],
     [
       "modifier",
       "_constructor_declaration_initializer",
