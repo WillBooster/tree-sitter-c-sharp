@@ -121,10 +121,10 @@ and the release build regenerate the parsers before compiling them.
 - an incremental-parsing check (`test/unit/incremental.test.ts`): `script/fuzz-corpus` runs `tree-sitter fuzz`, which
   edits each corpus case at random, reparses it, undoes the edits, and reparses again. `TREE_SITTER_SEED`,
   `TREE_SITTER_ITERATIONS`, and `TREE_SITTER_EDITS` run other or more edits;
-- a check that the real-world C# files cloned into `examples/` fail to parse exactly as listed in
-  `script/known-failures.txt`. The first run clones them. The example repositories are pinned to commits in
-  `script/parse-examples`. After a grammar change or a moved pin alters that list, `script/parse-examples` rewrites
-  it; review its diff before committing;
+- a check that every C# file under `examples/`, including Git-tracked generation examples and pinned clones, fails to
+  parse exactly as listed in `script/known-failures.txt`. The first run fetches the pinned repositories listed in
+  `script/parse-examples`. After adding, removing, or changing an example, changing the grammar, or moving a pin,
+  run `script/parse-examples` and review the failure-list diff before committing;
 - a performance check (`test/unit/performance.test.ts`) that recovering from an error on each line takes linear time
   (ten times the lines take about ten times the CPU time, under a ceiling), since consumers parse files while they are
   being edited. It loads the Wasm build through @willbooster/web-tree-sitter, which `bun run build/ci` rebuilds after
