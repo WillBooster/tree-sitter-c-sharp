@@ -110,7 +110,8 @@ runtime this package ships. The first run downloads that CLI from its GitHub Rel
 only the types of the grammar DSL that `grammar.js` checks against; its `tree-sitter` binary is upstream's.
 
 `bun run generate` records a fresh ABI 16 generation profile from the applicable `test/corpus` cases and Git-tracked
-files in `examples/`, then generates compact parser tables. After changing a grammar, corpus case, or tracked example,
+files in `examples/`, then generates compact parser tables. The parser also embeds metadata from `tree-sitter.json`. After changing a grammar,
+`tree-sitter.json`, a corpus case, or a tracked example,
 regenerate and commit `src/`. Stage added or removed examples with `git add -A examples` before generation so the profile uses the intended file list.
 Profiles in `.tmp/generation-profiles/` are temporary and must not be committed. `bun run build-wasm`, `bun run build/ci`,
 and the release build regenerate the parsers before compiling them.
