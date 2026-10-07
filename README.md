@@ -33,8 +33,7 @@ Known gaps:
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
-browsers, and Cloudflare Workers. Use runtime version 1.1.2 or later: browser loading requires its asynchronous
-instantiation support for this grammar. Install the runtime alongside the grammar when using the Wasm parser; it
+browsers, and Cloudflare Workers. Use runtime version 1.3.0 or later for the compact ABI 16 parser. Install the runtime alongside the grammar when using the Wasm parser; it
 remains an optional peer for consumers that only use the grammar source or queries.
 
 In Node.js and Bun, load it from the package:
@@ -80,13 +79,12 @@ The package also ships the queries in `queries/` and the node types in `src/node
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
-fuzzed with, whose fixes keep incremental reparses consistent with fresh parses (the grammar also loads in the upstream
-`tree-sitter` crate 0.27, whose error recovery never ends on some malformed input):
+fuzzed with. The compact ABI 16 parser requires runtime 1.3.0 or later:
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "1.1.2" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "2" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "1.3.0" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "3" }
 ```
 
 ```rust

@@ -1,3 +1,5 @@
+examples/JsonSerializerInternalWriter.cs
+examples/JsonWriter.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json.Tests/Linq/DynamicTests.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json.Tests/Linq/JsonPath/JPathExecuteTests.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json.Tests/Serialization/ModernNumericTests.cs
