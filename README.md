@@ -116,6 +116,11 @@ regenerate and commit `src/`. Stage added or removed examples with `git add -A e
 Profiles in `.tmp/generation-profiles/` are temporary and must not be committed. `bun run build-wasm`, `bun run build/ci`,
 and the release build regenerate the parsers before compiling them.
 
+The tracked `examples/JsonWriter.cs` and `examples/JsonSerializerInternalWriter.cs` are verbatim MIT-licensed
+snapshots from Newtonsoft.Json commit `52fa3aef1f2cadcd3a3f874251eddc98d3efbbaa`, under `Src/Newtonsoft.Json/`
+and its `Serialization/` directory respectively. Refresh these training inputs independently of the clone pins in
+`script/parse-examples` so changing a test checkout does not change profile training.
+
 `bun run test` runs:
 
 - the corpus in `test/corpus`, with the native build and with the Wasm build (the first run downloads the WASI SDK);
