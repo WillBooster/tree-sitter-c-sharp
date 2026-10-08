@@ -122,8 +122,8 @@ and the release build regenerate the parsers before compiling them.
 - an incremental-parsing check (`test/unit/incremental.test.ts`): `script/fuzz-corpus` runs `tree-sitter fuzz`, which
   edits each corpus case at random, reparses it, undoes the edits, and reparses again. `TREE_SITTER_SEED`,
   `TREE_SITTER_ITERATIONS`, and `TREE_SITTER_EDITS` run other or more edits;
-- a check that every C# file under `examples/`, including Git-tracked generation examples and pinned clones, fails to
-  parse exactly as listed in `script/known-failures.txt`. The first run fetches the pinned repositories listed in
+- a check that the C# files under `examples/` that fail to parse are exactly those listed in
+  `script/known-failures.txt`. Inputs include Git-tracked generation examples and pinned clones. The first run fetches the pinned repositories listed in
   `script/parse-examples`. After adding, removing, or changing an example, changing the grammar, or moving a pin,
   run `script/parse-examples` and review the failure-list diff before committing;
 - a performance check (`test/unit/performance.test.ts`) that recovering from an error on each line takes linear time
