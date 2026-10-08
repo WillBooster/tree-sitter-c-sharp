@@ -33,8 +33,7 @@ Known gaps:
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
-browsers, and Cloudflare Workers. Use runtime version 1.1.2 or later: browser loading requires its asynchronous
-instantiation support for this grammar. Install the runtime alongside the grammar when using the Wasm parser; it
+browsers, and Cloudflare Workers. Use runtime version 1.3.0 or later for the compact ABI 16 parser. Install the runtime alongside the grammar when using the Wasm parser; it
 remains an optional peer for consumers that only use the grammar source or queries.
 
 In Node.js and Bun, load it from the package:
@@ -80,13 +79,12 @@ The package also ships the queries in `queries/` and the node types in `src/node
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
-fuzzed with, whose fixes keep incremental reparses consistent with fresh parses (the grammar also loads in the upstream
-`tree-sitter` crate 0.27, whose error recovery never ends on some malformed input):
+fuzzed with. The compact ABI 16 parser requires runtime 1.3.0 or later:
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "1.1.2" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "2" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "1.3.0" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "3" }
 ```
 
 ```rust
@@ -111,16 +109,28 @@ runtime this package ships. The first run downloads that CLI from its GitHub Rel
 `cargo` (with the `cmake` that `mise.toml` pins) when the download fails or the release has no binary that runs here. The `tree-sitter-cli` package provides
 only the types of the grammar DSL that `grammar.js` checks against; its `tree-sitter` binary is upstream's.
 
+`bun run generate` records a fresh ABI 16 generation profile from the applicable `test/corpus` cases and Git-tracked
+files in `examples/`, then generates compact parser tables. The parser also embeds metadata from `tree-sitter.json`. After changing a grammar,
+`tree-sitter.json`, a corpus case, or a tracked example,
+regenerate and commit `src/`. Stage added or removed examples with `git add -A examples` before generation so the profile uses the intended file list.
+Profiles in `.tmp/generation-profiles/` are temporary and must not be committed. `bun run build-wasm`, `bun run build/ci`,
+and the release build regenerate the parsers before compiling them.
+
+The tracked `examples/JsonWriter.cs` and `examples/JsonSerializerInternalWriter.cs` are verbatim MIT-licensed
+snapshots from Newtonsoft.Json commit `52fa3aef1f2cadcd3a3f874251eddc98d3efbbaa`, under `Src/Newtonsoft.Json/`
+and its `Serialization/` directory respectively. Refresh these training inputs independently of the clone pins in
+`script/parse-examples` so changing a test checkout does not change profile training.
+
 `bun run test` runs:
 
 - the corpus in `test/corpus`, with the native build and with the Wasm build (the first run downloads the WASI SDK);
 - an incremental-parsing check (`test/unit/incremental.test.ts`): `script/fuzz-corpus` runs `tree-sitter fuzz`, which
   edits each corpus case at random, reparses it, undoes the edits, and reparses again. `TREE_SITTER_SEED`,
   `TREE_SITTER_ITERATIONS`, and `TREE_SITTER_EDITS` run other or more edits;
-- a check that the real-world C# files cloned into `examples/` fail to parse exactly as listed in
-  `script/known-failures.txt`. The first run clones them. The example repositories are pinned to commits in
-  `script/parse-examples`. After a grammar change or a moved pin alters that list, `script/parse-examples` rewrites
-  it; review its diff before committing;
+- a check that the C# files under `examples/` that fail to parse are exactly those listed in
+  `script/known-failures.txt`. Inputs include Git-tracked generation examples and pinned clones. The first run fetches the pinned repositories listed in
+  `script/parse-examples`. After adding, removing, or changing an example, changing the grammar, or moving a pin,
+  run `script/parse-examples` and review the failure-list diff before committing;
 - a performance check (`test/unit/performance.test.ts`) that recovering from an error on each line takes linear time
   (ten times the lines take about ten times the CPU time, under a ceiling), since consumers parse files while they are
   being edited. It loads the Wasm build through @willbooster/web-tree-sitter, which `bun run build/ci` rebuilds after
