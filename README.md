@@ -33,8 +33,9 @@ Known gaps:
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
-browsers, and Cloudflare Workers. Use runtime version 1.3.0 or later for the compact ABI 16 parser. Install the runtime alongside the grammar when using the Wasm parser; it
-remains an optional peer for consumers that only use the grammar source or queries.
+browsers, and Cloudflare Workers. The parser carries the ABI number of WillBooster/tree-sitter, so it loads only with
+that runtime, version 2.0.0 or later; upstream's runtime rejects it. Install the runtime alongside the grammar when using
+the Wasm parser; it remains an optional peer for consumers that only use the grammar source or queries.
 
 In Node.js and Bun, load it from the package:
 
@@ -79,12 +80,12 @@ The package also ships the queries in `queries/` and the node types in `src/node
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
-fuzzed with. The compact ABI 16 parser requires runtime 1.3.0 or later:
+fuzzed with. The parser requires runtime 2.0.0 or later:
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "1.3.0" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "3" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "2.0.0" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "4" }
 ```
 
 ```rust
@@ -109,7 +110,7 @@ runtime this package ships. The first run downloads that CLI from its GitHub Rel
 `cargo` (with the `cmake` that `mise.toml` pins) when the download fails or the release has no binary that runs here. The `tree-sitter-cli` package provides
 only the types of the grammar DSL that `grammar.js` checks against; its `tree-sitter` binary is upstream's.
 
-`bun run generate` records a fresh ABI 16 generation profile from the applicable `test/corpus` cases and Git-tracked
+`bun run generate` records a fresh generation profile from the applicable `test/corpus` cases and Git-tracked
 files in `examples/`, then generates compact parser tables. The parser also embeds metadata from `tree-sitter.json`. After changing a grammar,
 `tree-sitter.json`, a corpus case, or a tracked example,
 regenerate and commit `src/`. Stage added or removed examples with `git add -A examples` before generation so the profile uses the intended file list.
