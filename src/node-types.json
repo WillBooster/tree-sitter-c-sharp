@@ -1907,6 +1907,10 @@
           "named": true
         },
         {
+          "type": "conditional_access_expression",
+          "named": true
+        },
+        {
           "type": "default_expression",
           "named": true
         },

@@ -5988,6 +5988,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "conditional_access_expression"
+        },
+        {
+          "type": "SYMBOL",
           "name": "default_expression"
         },
         {
@@ -14630,6 +14634,18 @@
     [
       "_address_of_expression",
       "_expression_statement_expression",
+      "_conditional_non_lvalue_receiver"
+    ],
+    [
+      "constant_pattern",
+      "non_lvalue_expression",
+      "lvalue_expression"
+    ],
+    [
+      "constant_pattern",
+      "non_lvalue_expression",
+      "lvalue_expression",
+      "_conditional_lvalue_receiver",
       "_conditional_non_lvalue_receiver"
     ],
     [

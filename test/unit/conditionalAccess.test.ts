@@ -365,3 +365,33 @@ test('retains the full expression supertype chain on restricted receivers', () =
     parser.delete();
   }
 });
+
+test('preserves conditional access inside constant patterns without fabricated postfix operators', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const receiver of ['null', '5', '"text"', 'true', 'default(T)', 'typeof(T)', 'sizeof(T)']) {
+      for (const suffix of ['?.Member', '?[0]']) {
+        for (const pattern of [`${receiver}${suffix}`, `not ${receiver}${suffix}`, `(${receiver}${suffix})`]) {
+          for (const source of [
+            `var result = x is ${pattern};`,
+            `switch (x) { case ${pattern}: break; }`,
+            `var result = x switch { ${pattern} => 1, _ => 0 };`,
+          ]) {
+            const tree = parser.parse(source)!;
+            try {
+              expect(tree.rootNode.hasError, source).toBe(false);
+              const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
+              expect(access?.childForFieldName('condition')?.text, source).toBe(receiver);
+              expect(access?.parent?.type, source).toBe('constant_pattern');
+            } finally {
+              tree.delete();
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

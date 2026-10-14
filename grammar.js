@@ -59,6 +59,14 @@ module.exports = grammar({
     [$._expression_statement_expression, $._address_of_expression],
     [$._pointer_indirection_expression, $._expression_statement_expression, $._conditional_non_lvalue_receiver],
     [$._address_of_expression, $._expression_statement_expression, $._conditional_non_lvalue_receiver],
+    [$.constant_pattern, $.non_lvalue_expression, $.lvalue_expression],
+    [
+      $.constant_pattern,
+      $.non_lvalue_expression,
+      $.lvalue_expression,
+      $._conditional_lvalue_receiver,
+      $._conditional_non_lvalue_receiver,
+    ],
     [$.constant_pattern, $.lvalue_expression, $._conditional_lvalue_receiver],
     [$.constant_pattern, $.non_lvalue_expression, $._conditional_non_lvalue_receiver],
     [$.constant_pattern, $._expression_statement_expression, $._conditional_non_lvalue_receiver],
@@ -1041,6 +1049,7 @@ module.exports = grammar({
     constant_pattern: ($) =>
       choice(
         $.binary_expression,
+        $.conditional_access_expression,
         $.default_expression,
         $.interpolated_string_expression,
         $.parenthesized_expression,
