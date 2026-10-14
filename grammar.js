@@ -11,6 +11,8 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
+
 const PREC = {
   GENERIC: 19,
   DOT: 18,
@@ -1821,16 +1823,16 @@ module.exports = grammar({
 
     ...preprocIf(
       '_in_method_signature',
-      () => choice(sym('method_signature'), alias(sym('preproc_if_in_method_signature'), sym('preproc_if'))),
+      ($) => choice($.method_signature, alias(sym('preproc_if_in_method_signature'), sym('preproc_if'))),
       0,
       false,
       true
     ),
-    ...preprocIf('', () => sym('declaration')),
-    ...preprocIf('_in_top_level', () => choice(sym('_top_level_item_no_statement'), sym('statement'))),
-    ...preprocIf('_in_expression', () => sym('expression'), -2, false),
-    ...preprocIf('_in_enum_member_declaration', () => sym('enum_member_declaration'), 0, false),
-    ...preprocIf('_in_attribute_list', () => sym('attribute_list'), -1, false),
+    ...preprocIf('', ($) => $.declaration),
+    ...preprocIf('_in_top_level', ($) => choice($._top_level_item_no_statement, $.statement)),
+    ...preprocIf('_in_expression', ($) => $.expression, -2, false),
+    ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
+    ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
 
     preproc_arg: ($) =>
       seq(
@@ -2102,7 +2104,7 @@ function preprocessor(command) {
  *
  * @param {string} suffix
  *
- * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<string>} content
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>} content
  *
  * @param {number} precedence
  *
@@ -2110,10 +2112,10 @@ function preprocessor(command) {
  *
  * @param {boolean} required
  *
- * @returns {import('@willbooster/web-tree-sitter/dsl').RuleBuilders<string, string>}
+ * @returns {Record<string, import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>>}
  */
 function preprocIf(suffix, content, precedence = 0, rep = true, required = false) {
-  /** @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<string>} $ */
+  /** @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<PreprocContentRule>} $ */
   function contentRule($) {
     const rule = content($);
     return rep ? repeat(rule) : required ? rule : optional(rule);
@@ -2136,7 +2138,7 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         precedence,
         seq(
           preprocessor('if'),
-          field('condition', sym('_preproc_expression')),
+          field('condition', $._preproc_expression),
           directiveNewLine(),
           contentRule($),
           field('alternative', optional(alternativeBlock())),
@@ -2151,7 +2153,7 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         precedence,
         seq(
           preprocessor('elif'),
-          field('condition', sym('_preproc_expression')),
+          field('condition', $._preproc_expression),
           directiveNewLine(),
           contentRule($),
           field('alternative', optional(alternativeBlock()))
