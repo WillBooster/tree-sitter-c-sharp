@@ -774,7 +774,8 @@ static bool scan_file_directive_kind(TSLexer *lexer) {
     unsigned length = 0;
     while (!lexer->eof(lexer) && !is_directive_horizontal(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) {
         int32_t c = lexer->lookahead;
-        if (length < sizeof(kind) - 1) kind[length] = c >= 'A' && c <= 'Z' ? c + 'a' - 'A' : c > 0 && c < 128 ? c : '?';
+        if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
+        if (length < sizeof(kind) - 1) kind[length] = c > 0 && c < 128 ? c : '?';
         if (length < sizeof(kind)) length++;
         advance(lexer);
     }
