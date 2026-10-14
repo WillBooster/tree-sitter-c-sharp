@@ -182,3 +182,29 @@ test('rejects source newlines in ordinary literals while retaining verbatim and 
     parser.delete();
   }
 });
+
+test('does not extend preprocessor ranges over whitespace-only following lines', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const gap of ['   ', '\t']) {
+        for (const emptyLines of [0, 1]) {
+          for (const directive of ['#region R', '#endregion', '#nullable enable', '#pragma warning disable CS0618']) {
+            const source = directive + newline.repeat(1 + emptyLines) + gap + newline + 'class C {}';
+            const tree = parser.parse(source)!;
+            try {
+              expect(tree.rootNode.hasError, JSON.stringify(source)).toBe(false);
+              expect(tree.rootNode.firstNamedChild?.text).toBe(
+                directive + newline.repeat(newline === '\r\n' ? 1 : 1 + emptyLines)
+              );
+            } finally {
+              tree.delete();
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
