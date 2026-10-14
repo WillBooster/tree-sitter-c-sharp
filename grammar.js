@@ -1518,23 +1518,43 @@ module.exports = grammar({
       choice(alias($.interpolation_string_content, $.string_content), $.escape_sequence, $.interpolation),
 
     _interpolated_verbatim_string_content: ($) =>
-      choice(alias($.interpolation_string_content, $.string_content), $.interpolation),
+      choice(
+        alias($.interpolation_string_content, $.string_content),
+        alias($._multiline_interpolation, $.interpolation)
+      ),
 
     _interpolated_raw_string_content: ($) =>
-      choice(alias($.interpolation_string_content, $.string_content), $.interpolation),
+      choice(
+        alias($.interpolation_string_content, $.string_content),
+        alias($._multiline_interpolation, $.interpolation)
+      ),
 
     interpolation: ($) =>
       seq(
         alias($.interpolation_open_brace, $.interpolation_brace),
         $.expression,
         optional($.interpolation_alignment_clause),
-        optional($.interpolation_format_clause),
-        alias($.interpolation_close_brace, $.interpolation_brace)
+        choice(
+          alias($.interpolation_close_brace, $.interpolation_brace),
+          seq($.interpolation_format_clause, alias(token.immediate('}'), $.interpolation_brace))
+        )
       ),
 
     interpolation_alignment_clause: ($) => seq(',', $.expression),
 
-    interpolation_format_clause: ($) => seq(':', optional($._file_directive_literal_context), /[^}"]+/),
+    interpolation_format_clause: ($) =>
+      seq(':', optional($._file_directive_literal_context), token.immediate(/[^}"\n\r\u0085\u2028\u2029]+/)),
+
+    _multiline_interpolation: ($) =>
+      seq(
+        alias($.interpolation_open_brace, $.interpolation_brace),
+        $.expression,
+        optional($.interpolation_alignment_clause),
+        optional(alias($._multiline_interpolation_format_clause, $.interpolation_format_clause)),
+        alias($.interpolation_close_brace, $.interpolation_brace)
+      ),
+
+    _multiline_interpolation_format_clause: ($) => seq(':', optional($._file_directive_literal_context), /[^}"]+/),
 
     member_access_expression: ($) =>
       prec(
