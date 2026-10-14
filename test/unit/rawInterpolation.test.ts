@@ -188,8 +188,7 @@ test('preserves interpolation brace and format ranges when adding and removing a
             .filter(({ name, node }) => name === 'punctuation.bracket' && node.type === 'interpolation_brace')
             .map(({ node }) => [node.text, node.startIndex, node.endIndex]);
           const end = current.rootNode.text.indexOf(`}${closing}`) + 1;
-          const text = formatted ? '}' : `${spacing}}`;
-          expect(braces.at(-1)).toEqual([text, end - text.length, end]);
+          expect(braces.at(-1)).toEqual(['}', end - 1, end]);
           expect(current.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text)).toEqual(
             formatted ? [':D'] : []
           );
