@@ -7184,10 +7184,23 @@
           "name": "object_creation_expression"
         },
         {
-          "type": "SYMBOL",
-          "name": "parenthesized_expression"
+          "type": "PREC",
+          "value": 17,
+          "content": {
+            "type": "SYMBOL",
+            "name": "parenthesized_expression"
+          }
         }
       ]
+    },
+    "_index_initializer_target": {
+      "type": "ALIAS",
+      "content": {
+        "type": "SYMBOL",
+        "name": "bracketed_argument_list"
+      },
+      "named": true,
+      "value": "element_binding_expression"
     },
     "assignment_expression": {
       "type": "SEQ",
@@ -7206,10 +7219,10 @@
                 "type": "ALIAS",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "bracketed_argument_list"
+                  "name": "_index_initializer_target"
                 },
                 "named": true,
-                "value": "element_binding_expression"
+                "value": "lvalue_expression"
               },
               {
                 "type": "SYMBOL",
@@ -8848,12 +8861,31 @@
       "type": "CHOICE",
       "members": [
         {
-          "type": "STRING",
-          "value": "this"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_conditional_non_lvalue_receiver"
+          },
+          "named": true,
+          "value": "non_lvalue_expression"
         },
         {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_conditional_lvalue_receiver"
+          },
+          "named": true,
+          "value": "lvalue_expression"
+        }
+      ]
+    },
+    "_conditional_lvalue_receiver": {
+      "type": "CHOICE",
+      "members": [
+        {
           "type": "STRING",
-          "value": "base"
+          "value": "this"
         },
         {
           "type": "SYMBOL",
@@ -8872,16 +8904,8 @@
           "name": "conditional_access_expression"
         },
         {
-          "type": "PREC",
-          "value": 17,
-          "content": {
-            "type": "SYMBOL",
-            "name": "invocation_expression"
-          }
-        },
-        {
           "type": "SYMBOL",
-          "name": "parenthesized_expression"
+          "name": "tuple_expression"
         },
         {
           "type": "ALIAS",
@@ -8891,6 +8915,35 @@
           },
           "named": true,
           "value": "parenthesized_expression"
+        }
+      ]
+    },
+    "_conditional_non_lvalue_receiver": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "base"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "conditional_access_expression"
+        },
+        {
+          "type": "PREC",
+          "value": 17,
+          "content": {
+            "type": "SYMBOL",
+            "name": "invocation_expression"
+          }
+        },
+        {
+          "type": "PREC",
+          "value": 17,
+          "content": {
+            "type": "SYMBOL",
+            "name": "parenthesized_expression"
+          }
         },
         {
           "type": "PREC",
@@ -8907,10 +8960,6 @@
         {
           "type": "SYMBOL",
           "name": "interpolated_string_expression"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "tuple_expression"
         },
         {
           "type": "SYMBOL",
@@ -8954,6 +9003,18 @@
         },
         {
           "type": "SYMBOL",
+          "name": "anonymous_method_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "stackalloc_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "implicit_stackalloc_expression"
+        },
+        {
+          "type": "SYMBOL",
           "name": "implicit_array_creation_expression"
         },
         {
@@ -8985,8 +9046,13 @@
             "type": "FIELD",
             "name": "condition",
             "content": {
-              "type": "SYMBOL",
-              "name": "_conditional_access_receiver"
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_conditional_access_receiver"
+              },
+              "named": true,
+              "value": "expression"
             }
           },
           {
@@ -14542,7 +14608,7 @@
     [
       "_expression_statement_expression",
       "_lvalue_cast_expression",
-      "_conditional_access_receiver"
+      "_conditional_non_lvalue_receiver"
     ],
     [
       "_expression_statement_expression",
@@ -14559,55 +14625,56 @@
     [
       "_pointer_indirection_expression",
       "_expression_statement_expression",
-      "_conditional_access_receiver"
+      "_conditional_non_lvalue_receiver"
     ],
     [
       "_address_of_expression",
       "_expression_statement_expression",
-      "_conditional_access_receiver"
+      "_conditional_non_lvalue_receiver"
     ],
     [
       "constant_pattern",
       "lvalue_expression",
-      "_conditional_access_receiver"
+      "_conditional_lvalue_receiver"
     ],
     [
       "constant_pattern",
       "non_lvalue_expression",
-      "_conditional_access_receiver"
+      "_conditional_non_lvalue_receiver"
     ],
     [
       "constant_pattern",
       "_expression_statement_expression",
-      "_conditional_access_receiver"
+      "_conditional_non_lvalue_receiver"
     ],
     [
       "_name",
       "constant_pattern",
       "lvalue_expression",
-      "_conditional_access_receiver"
+      "_conditional_lvalue_receiver"
     ],
     [
       "_name",
       "lvalue_expression",
-      "_conditional_access_receiver"
+      "_conditional_lvalue_receiver"
     ],
     [
       "lvalue_expression",
       "non_lvalue_expression",
-      "_conditional_access_receiver"
+      "_conditional_lvalue_receiver",
+      "_conditional_non_lvalue_receiver"
     ],
     [
       "lvalue_expression",
-      "_conditional_access_receiver"
+      "_conditional_lvalue_receiver"
     ],
     [
       "non_lvalue_expression",
-      "_conditional_access_receiver"
+      "_conditional_non_lvalue_receiver"
     ],
     [
       "_expression_statement_expression",
-      "_conditional_access_receiver"
+      "_conditional_non_lvalue_receiver"
     ],
     [
       "_assignment_pointer_cast",
@@ -15003,6 +15070,10 @@
     "_top_level_item_no_statement"
   ],
   "supertypes": [
+    "_conditional_access_receiver",
+    "_conditional_lvalue_receiver",
+    "_conditional_non_lvalue_receiver",
+    "_index_initializer_target",
     "declaration",
     "expression",
     "non_lvalue_expression",

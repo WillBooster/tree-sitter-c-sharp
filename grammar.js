@@ -53,21 +53,21 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
-    [$._expression_statement_expression, $._lvalue_cast_expression, $._conditional_access_receiver],
+    [$._expression_statement_expression, $._lvalue_cast_expression, $._conditional_non_lvalue_receiver],
     [$._expression_statement_expression, $._lvalue_cast_expression],
     [$._expression_statement_expression, $._pointer_indirection_expression],
     [$._expression_statement_expression, $._address_of_expression],
-    [$._pointer_indirection_expression, $._expression_statement_expression, $._conditional_access_receiver],
-    [$._address_of_expression, $._expression_statement_expression, $._conditional_access_receiver],
-    [$.constant_pattern, $.lvalue_expression, $._conditional_access_receiver],
-    [$.constant_pattern, $.non_lvalue_expression, $._conditional_access_receiver],
-    [$.constant_pattern, $._expression_statement_expression, $._conditional_access_receiver],
-    [$._name, $.constant_pattern, $.lvalue_expression, $._conditional_access_receiver],
-    [$._name, $.lvalue_expression, $._conditional_access_receiver],
-    [$.lvalue_expression, $.non_lvalue_expression, $._conditional_access_receiver],
-    [$.lvalue_expression, $._conditional_access_receiver],
-    [$.non_lvalue_expression, $._conditional_access_receiver],
-    [$._expression_statement_expression, $._conditional_access_receiver],
+    [$._pointer_indirection_expression, $._expression_statement_expression, $._conditional_non_lvalue_receiver],
+    [$._address_of_expression, $._expression_statement_expression, $._conditional_non_lvalue_receiver],
+    [$.constant_pattern, $.lvalue_expression, $._conditional_lvalue_receiver],
+    [$.constant_pattern, $.non_lvalue_expression, $._conditional_non_lvalue_receiver],
+    [$.constant_pattern, $._expression_statement_expression, $._conditional_non_lvalue_receiver],
+    [$._name, $.constant_pattern, $.lvalue_expression, $._conditional_lvalue_receiver],
+    [$._name, $.lvalue_expression, $._conditional_lvalue_receiver],
+    [$.lvalue_expression, $.non_lvalue_expression, $._conditional_lvalue_receiver, $._conditional_non_lvalue_receiver],
+    [$.lvalue_expression, $._conditional_lvalue_receiver],
+    [$.non_lvalue_expression, $._conditional_non_lvalue_receiver],
+    [$._expression_statement_expression, $._conditional_non_lvalue_receiver],
     [$._assignment_pointer_cast, $._lvalue_cast_expression],
     [$._assignment_pointer_expression, $._pointer_indirection_expression],
     [$.modifier, $._constructor_declaration_initializer, $._reserved_identifier],
@@ -214,6 +214,10 @@ module.exports = grammar({
   ],
 
   supertypes: ($) => [
+    $._conditional_access_receiver,
+    $._conditional_lvalue_receiver,
+    $._conditional_non_lvalue_receiver,
+    $._index_initializer_target,
     $.declaration,
     $.expression,
     $.non_lvalue_expression,
@@ -1235,8 +1239,10 @@ module.exports = grammar({
         $.prefix_unary_expression,
         $.await_expression,
         $.object_creation_expression,
-        $.parenthesized_expression
+        prec(PREC.UNARY, $.parenthesized_expression)
       ),
+
+    _index_initializer_target: ($) => alias($.bracketed_argument_list, sym('element_binding_expression')),
 
     assignment_expression: ($) =>
       seq(
@@ -1246,7 +1252,7 @@ module.exports = grammar({
           'left',
           choice(
             $.lvalue_expression,
-            alias($.bracketed_argument_list, sym('element_binding_expression')),
+            alias($._index_initializer_target, $.lvalue_expression),
             $.invocation_expression,
             alias($._assignment_pointer_expression, $.prefix_unary_expression)
           )
@@ -1458,19 +1464,30 @@ module.exports = grammar({
 
     _conditional_access_receiver: ($) =>
       choice(
+        alias($._conditional_non_lvalue_receiver, $.non_lvalue_expression),
+        alias($._conditional_lvalue_receiver, $.lvalue_expression)
+      ),
+
+    _conditional_lvalue_receiver: ($) =>
+      choice(
         'this',
-        'base',
         $._simple_name,
         $.member_access_expression,
         $.element_access_expression,
         $.conditional_access_expression,
+        $.tuple_expression,
+        alias($._parenthesized_lvalue_expression, $.parenthesized_expression)
+      ),
+
+    _conditional_non_lvalue_receiver: ($) =>
+      choice(
+        'base',
+        $.conditional_access_expression,
         prec(PREC.UNARY, $.invocation_expression),
-        $.parenthesized_expression,
-        alias($._parenthesized_lvalue_expression, $.parenthesized_expression),
+        prec(PREC.UNARY, $.parenthesized_expression),
         prec(PREC.UNARY, $.postfix_unary_expression),
         $.literal,
         $.interpolated_string_expression,
-        $.tuple_expression,
         $.checked_expression,
         $.default_expression,
         $.typeof_expression,
@@ -1481,6 +1498,9 @@ module.exports = grammar({
         $.object_creation_expression,
         $.array_creation_expression,
         $.anonymous_object_creation_expression,
+        $.anonymous_method_expression,
+        $.stackalloc_expression,
+        $.implicit_stackalloc_expression,
         $.implicit_array_creation_expression,
         $.implicit_object_creation_expression,
         $.collection_expression,
@@ -1491,7 +1511,7 @@ module.exports = grammar({
       prec.right(
         PREC.DOT,
         seq(
-          field('condition', $._conditional_access_receiver),
+          field('condition', alias($._conditional_access_receiver, $.expression)),
           '?',
           choice($.member_binding_expression, alias($.bracketed_argument_list, sym('element_binding_expression')))
         )
