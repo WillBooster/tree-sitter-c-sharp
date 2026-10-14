@@ -6,8 +6,10 @@
  * @license MIT
  */
 
-/// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
+
+const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
+  /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
 const PREC = {
   GENERIC: 19,
@@ -134,36 +136,36 @@ module.exports = grammar({
     [$.receiver_parameter, $.scoped_type, $._reserved_identifier],
   ],
 
-  externals: ($) => [
-    $._optional_semi,
-    $.interpolation_regular_start,
-    $.interpolation_verbatim_start,
-    $.interpolation_raw_start,
-    $.interpolation_start_quote,
-    $.interpolation_end_quote,
-    $.interpolation_open_brace,
-    $.interpolation_close_brace,
-    $.interpolation_string_content,
-    $.raw_string_start,
-    $.raw_string_end,
-    $.raw_string_content,
+  externals: () => [
+    sym('_optional_semi'),
+    sym('interpolation_regular_start'),
+    sym('interpolation_verbatim_start'),
+    sym('interpolation_raw_start'),
+    sym('interpolation_start_quote'),
+    sym('interpolation_end_quote'),
+    sym('interpolation_open_brace'),
+    sym('interpolation_close_brace'),
+    sym('interpolation_string_content'),
+    sym('raw_string_start'),
+    sym('raw_string_end'),
+    sym('raw_string_content'),
     // C# 14: emitted by the scanner at '(' when forward-scanning shows a
     // simple-lambda parameter list (at least one element has a parameter
     // modifier) closed by ')=>'.
-    $._lambda_paren_open,
-    $._end_of_input,
-    $._directive_newline,
-    $._file_directive_preproc_arg,
-    $._file_directive_sdk,
-    $._file_directive_package,
-    $._file_directive_property,
-    $._file_directive_project,
-    $._file_directive_ref,
-    $._file_directive_include,
-    $._file_directive_exclude,
-    $.file_directive_kind,
-    $._file_directive_literal_context,
-    $._file_directive_newline,
+    sym('_lambda_paren_open'),
+    sym('_end_of_input'),
+    sym('_directive_newline'),
+    sym('_file_directive_preproc_arg'),
+    sym('_file_directive_sdk'),
+    sym('_file_directive_package'),
+    sym('_file_directive_property'),
+    sym('_file_directive_project'),
+    sym('_file_directive_ref'),
+    sym('_file_directive_include'),
+    sym('_file_directive_exclude'),
+    sym('file_directive_kind'),
+    sym('_file_directive_literal_context'),
+    sym('_file_directive_newline'),
   ],
 
   extras: ($) => [
@@ -218,7 +220,7 @@ module.exports = grammar({
         $.extern_alias_directive,
         $.using_directive,
         $.global_attribute,
-        alias($.preproc_if_in_top_level, $.preproc_if),
+        alias(sym('preproc_if_in_top_level'), sym('preproc_if')),
         $._namespace_member_declaration,
         $.file_scoped_namespace_declaration
       ),
@@ -249,7 +251,7 @@ module.exports = grammar({
 
     attribute_list: ($) => seq('[', optional($.attribute_target_specifier), commaSep1($.attribute), optional(','), ']'),
 
-    _attribute_list: ($) => choice($.attribute_list, $.preproc_if_in_attribute_list),
+    _attribute_list: ($) => choice($.attribute_list, sym('preproc_if_in_attribute_list')),
 
     // Higher precedence than `_reserved_identifier`: when both interpretations
     // are valid (e.g. `[field :` could be `_reserved_identifier` followed by
@@ -262,7 +264,7 @@ module.exports = grammar({
     _namespace_member_declaration: ($) => choice($.namespace_declaration, $.type_declaration),
 
     namespace_declaration: ($) =>
-      seq('namespace', field('name', $._name), field('body', $.declaration_list), $._optional_semi),
+      seq('namespace', field('name', $._name), field('body', $.declaration_list), sym('_optional_semi')),
 
     file_scoped_namespace_declaration: ($) => seq('namespace', field('name', $._name), ';'),
 
@@ -304,7 +306,7 @@ module.exports = grammar({
     enum_declaration: ($) =>
       seq(
         $._enum_declaration_initializer,
-        choice(seq(field('body', $.enum_member_declaration_list), $._optional_semi), ';')
+        choice(seq(field('body', $.enum_member_declaration_list), sym('_optional_semi')), ';')
       ),
 
     _enum_declaration_initializer: ($) =>
@@ -313,7 +315,9 @@ module.exports = grammar({
     enum_member_declaration_list: ($) =>
       seq(
         '{',
-        commaSep(choice($.enum_member_declaration, alias($.preproc_if_in_enum_member_declaration, $.preproc_if))),
+        commaSep(
+          choice($.enum_member_declaration, alias(sym('preproc_if_in_enum_member_declaration'), sym('preproc_if')))
+        ),
         optional(','),
         '}'
       ),
@@ -368,7 +372,7 @@ module.exports = grammar({
         seq(':', $.primary_constructor_base_type, optional(seq(',', commaSep1($._name))))
       ),
 
-    _declaration_list_body: ($) => choice(seq(field('body', $.declaration_list), $._optional_semi), ';'),
+    _declaration_list_body: ($) => choice(seq(field('body', $.declaration_list), sym('_optional_semi')), ';'),
 
     primary_constructor_base_type: ($) => seq(field('type', $._name), $.argument_list),
 
@@ -512,7 +516,7 @@ module.exports = grammar({
         $.conversion_operator_declaration,
         $.property_declaration,
         $.using_directive,
-        $.preproc_if,
+        sym('preproc_if'),
         $.extension_declaration
       ),
 
@@ -576,7 +580,8 @@ module.exports = grammar({
 
     method_declaration: ($) => seq($._method_signature, $._function_body),
 
-    conditional_method_declaration: ($) => seq(alias($.preproc_if_in_method_signature, $.preproc_if), $._function_body),
+    conditional_method_declaration: ($) =>
+      seq(alias(sym('preproc_if_in_method_signature'), sym('preproc_if')), $._function_body),
 
     method_signature: ($) => $._method_signature,
 
@@ -860,7 +865,7 @@ module.exports = grammar({
           $.while_statement,
           $.local_declaration_statement,
           $.local_function_statement,
-          alias($.preproc_if_in_top_level, $.preproc_if)
+          alias(sym('preproc_if_in_top_level'), sym('preproc_if'))
         )
       ),
 
@@ -1187,7 +1192,7 @@ module.exports = grammar({
         $.implicit_stackalloc_expression,
         $.initializer_expression,
         $.query_expression,
-        alias($.preproc_if_in_expression, $.preproc_if)
+        alias(sym('preproc_if_in_expression'), sym('preproc_if'))
       ),
 
     lvalue_expression: ($) =>
@@ -1197,7 +1202,7 @@ module.exports = grammar({
         $.tuple_expression,
         $._simple_name,
         $.element_access_expression,
-        alias($.bracketed_argument_list, $.element_binding_expression),
+        alias($.bracketed_argument_list, sym('element_binding_expression')),
         alias($._pointer_indirection_expression, $.prefix_unary_expression),
         alias($._parenthesized_lvalue_expression, $.parenthesized_expression),
         // C# 14 null-conditional assignment: `obj?.x = v`, `obj?[i] = v`.
@@ -1284,7 +1289,7 @@ module.exports = grammar({
 
     binary_expression: ($) =>
       choice(
-        ...[
+        .../** @type {[string, number][]} */ ([
           ['&&', PREC.LOGICAL_AND],
           ['||', PREC.LOGICAL_OR],
           ['>>', PREC.SHIFT],
@@ -1304,15 +1309,10 @@ module.exports = grammar({
           ['!=', PREC.EQUAL],
           ['>=', PREC.REL],
           ['>', PREC.REL],
-        ].map(([operator, precedence]) =>
+        ]).map(([operator, precedence]) =>
           prec.left(
             precedence,
-            seq(
-              field('left', $.expression),
-              // @ts-ignore
-              field('operator', operator),
-              field('right', $.expression)
-            )
+            seq(field('left', $.expression), field('operator', operator), field('right', $.expression))
           )
         ),
         prec.right(
@@ -1445,7 +1445,7 @@ module.exports = grammar({
         seq(
           field('condition', $.expression),
           '?',
-          choice($.member_binding_expression, alias($.bracketed_argument_list, $.element_binding_expression))
+          choice($.member_binding_expression, alias($.bracketed_argument_list, sym('element_binding_expression')))
         )
       ),
 
@@ -1495,66 +1495,66 @@ module.exports = grammar({
     interpolated_string_expression: ($) =>
       choice(
         seq(
-          alias($.interpolation_regular_start, $.interpolation_start),
-          alias($.interpolation_start_quote, '"'),
+          alias(sym('interpolation_regular_start'), sym('interpolation_start')),
+          alias(sym('interpolation_start_quote'), '"'),
           repeat($._interpolated_string_content),
-          alias($.interpolation_end_quote, '"')
+          alias(sym('interpolation_end_quote'), '"')
         ),
         seq(
-          alias($.interpolation_verbatim_start, $.interpolation_start),
-          alias($.interpolation_start_quote, '"'),
+          alias(sym('interpolation_verbatim_start'), sym('interpolation_start')),
+          alias(sym('interpolation_start_quote'), '"'),
           repeat($._interpolated_verbatim_string_content),
-          alias($.interpolation_end_quote, '"')
+          alias(sym('interpolation_end_quote'), '"')
         ),
         seq(
-          alias($.interpolation_raw_start, $.interpolation_start),
-          alias($.interpolation_start_quote, $.interpolation_quote),
+          alias(sym('interpolation_raw_start'), sym('interpolation_start')),
+          alias(sym('interpolation_start_quote'), sym('interpolation_quote')),
           repeat($._interpolated_raw_string_content),
-          alias($.interpolation_end_quote, $.interpolation_quote)
+          alias(sym('interpolation_end_quote'), sym('interpolation_quote'))
         )
       ),
 
     _interpolated_string_content: ($) =>
-      choice(alias($.interpolation_string_content, $.string_content), $.escape_sequence, $.interpolation),
+      choice(alias(sym('interpolation_string_content'), sym('string_content')), $.escape_sequence, $.interpolation),
 
     _interpolated_verbatim_string_content: ($) =>
       choice(
-        alias($.interpolation_string_content, $.string_content),
+        alias(sym('interpolation_string_content'), sym('string_content')),
         alias($._multiline_interpolation, $.interpolation)
       ),
 
     _interpolated_raw_string_content: ($) =>
       choice(
-        alias($.interpolation_string_content, $.string_content),
+        alias(sym('interpolation_string_content'), sym('string_content')),
         alias($._multiline_interpolation, $.interpolation)
       ),
 
     interpolation: ($) =>
       seq(
-        alias($.interpolation_open_brace, $.interpolation_brace),
+        alias(sym('interpolation_open_brace'), sym('interpolation_brace')),
         $.expression,
         optional($.interpolation_alignment_clause),
         choice(
-          alias($.interpolation_close_brace, $.interpolation_brace),
-          seq($.interpolation_format_clause, alias(token.immediate('}'), $.interpolation_brace))
+          alias(sym('interpolation_close_brace'), sym('interpolation_brace')),
+          seq($.interpolation_format_clause, alias(token.immediate('}'), sym('interpolation_brace')))
         )
       ),
 
     interpolation_alignment_clause: ($) => seq(',', $.expression),
 
-    interpolation_format_clause: ($) =>
-      seq(':', optional($._file_directive_literal_context), token.immediate(/[^}"\n\r\u0085\u2028\u2029]+/)),
+    interpolation_format_clause: () =>
+      seq(':', optional(sym('_file_directive_literal_context')), token.immediate(/[^}"\n\r\u0085\u2028\u2029]+/)),
 
     _multiline_interpolation: ($) =>
       seq(
-        alias($.interpolation_open_brace, $.interpolation_brace),
+        alias(sym('interpolation_open_brace'), sym('interpolation_brace')),
         $.expression,
         optional($.interpolation_alignment_clause),
         optional(alias($._multiline_interpolation_format_clause, $.interpolation_format_clause)),
-        alias($.interpolation_close_brace, $.interpolation_brace)
+        alias(sym('interpolation_close_brace'), sym('interpolation_brace'))
       ),
 
-    _multiline_interpolation_format_clause: ($) => seq(':', optional($._file_directive_literal_context), /[^}"]+/),
+    _multiline_interpolation_format_clause: () => seq(':', optional(sym('_file_directive_literal_context')), /[^}"]+/),
 
     member_access_expression: ($) =>
       prec(
@@ -1594,7 +1594,7 @@ module.exports = grammar({
           repeat($._attribute_list),
           repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
           choice(
-            field('parameters', prec(-1, alias($.identifier, $.implicit_parameter))),
+            field('parameters', prec(-1, alias($.identifier, sym('implicit_parameter')))),
             seq(optional(field('type', $.type)), field('parameters', $._lambda_parameters))
           )
         )
@@ -1619,14 +1619,14 @@ module.exports = grammar({
     // external _lambda_paren_open; the closing ')' is the regular literal.
     _implicit_parameter_list_with_modifiers: ($) =>
       seq(
-        $._lambda_paren_open,
+        sym('_lambda_paren_open'),
         commaSep1(
           choice(
             seq(
               repeat1(alias(choice('scoped', 'ref', 'out', 'in', 'readonly'), $.modifier)),
-              alias($.identifier, $.implicit_parameter)
+              alias($.identifier, sym('implicit_parameter'))
             ),
-            alias($.identifier, $.implicit_parameter)
+            alias($.identifier, sym('implicit_parameter'))
           )
         ),
         ')'
@@ -1749,7 +1749,7 @@ module.exports = grammar({
     string_literal: ($) =>
       seq(
         '"',
-        repeat(choice($.string_literal_content, $.escape_sequence, $._file_directive_literal_context)),
+        repeat(choice($.string_literal_content, $.escape_sequence, sym('_file_directive_literal_context'))),
         token.immediate('"'),
         optional($.string_literal_encoding)
       ),
@@ -1763,8 +1763,8 @@ module.exports = grammar({
 
     verbatim_string_literal: () => token(seq('@"', repeat(choice(/[^"]/, '""')), '"', optional(stringEncoding))),
 
-    raw_string_literal: ($) =>
-      seq($.raw_string_start, $.raw_string_content, $.raw_string_end, optional(stringEncoding)),
+    raw_string_literal: () =>
+      seq(sym('raw_string_start'), sym('raw_string_content'), sym('raw_string_end'), optional(stringEncoding)),
 
     boolean_literal: () => choice('true', 'false'),
 
@@ -1821,23 +1821,23 @@ module.exports = grammar({
 
     ...preprocIf(
       '_in_method_signature',
-      ($) => choice($.method_signature, alias($.preproc_if_in_method_signature, $.preproc_if)),
+      () => choice(sym('method_signature'), alias(sym('preproc_if_in_method_signature'), sym('preproc_if'))),
       0,
       false,
       true
     ),
-    ...preprocIf('', ($) => $.declaration),
-    ...preprocIf('_in_top_level', ($) => choice($._top_level_item_no_statement, $.statement)),
-    ...preprocIf('_in_expression', ($) => $.expression, -2, false),
-    ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
-    ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
+    ...preprocIf('', () => sym('declaration')),
+    ...preprocIf('_in_top_level', () => choice(sym('_top_level_item_no_statement'), sym('statement'))),
+    ...preprocIf('_in_expression', () => sym('expression'), -2, false),
+    ...preprocIf('_in_enum_member_declaration', () => sym('enum_member_declaration'), 0, false),
+    ...preprocIf('_in_attribute_list', () => sym('attribute_list'), -1, false),
 
     preproc_arg: ($) =>
       seq(
         token(prec(-1, /[^\s\u0085\u2028\u2029]([^/\r\n\u0085\u2028\u2029]|\/[^*\r\n\u0085\u2028\u2029])*/)),
         optional($._preproc_arg_slash)
       ),
-    _file_directive_argument: ($) => seq($._file_directive_preproc_arg, optional($._preproc_arg_slash)),
+    _file_directive_argument: ($) => seq(sym('_file_directive_preproc_arg'), optional($._preproc_arg_slash)),
     _preproc_arg_slash: () => token.immediate(/\//),
     preproc_directive: () => /#[ \t]*[a-zA-Z0-9]\w*/,
 
@@ -1847,7 +1847,7 @@ module.exports = grammar({
         $.boolean_literal,
         $.integer_literal,
         $.character_literal,
-        alias($.preproc_unary_expression, $.unary_expression),
+        alias($.preproc_unary_expression, sym('unary_expression')),
         alias($.preproc_binary_expression, $.binary_expression),
         alias($.preproc_parenthesized_expression, $.parenthesized_expression)
       ),
@@ -1858,6 +1858,7 @@ module.exports = grammar({
       prec.left(PREC.UNARY, seq(field('operator', '!'), field('argument', $._preproc_expression))),
 
     preproc_binary_expression: ($) => {
+      /** @type {[string, number][]} */
       const table = [
         ['||', PREC.LOGICAL_OR],
         ['&&', PREC.LOGICAL_AND],
@@ -1871,7 +1872,6 @@ module.exports = grammar({
             precedence,
             seq(
               field('left', $._preproc_expression),
-              // @ts-ignore
               field('operator', operator),
               field('right', $._preproc_expression)
             )
@@ -1884,14 +1884,14 @@ module.exports = grammar({
       seq(
         preprocessor('region'),
         optional(field('content', choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)))),
-        directiveEnd($)
+        directiveEnd()
       ),
 
     preproc_endregion: ($) =>
       seq(
         preprocessor('endregion'),
         optional(field('content', choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)))),
-        directiveEnd($)
+        directiveEnd()
       ),
 
     preproc_line: ($) =>
@@ -1917,7 +1917,7 @@ module.exports = grammar({
             alias($._preproc_filename, $.string_literal)
           )
         ),
-        directiveEnd($)
+        directiveEnd()
       ),
 
     _preproc_filename: ($) =>
@@ -1926,7 +1926,7 @@ module.exports = grammar({
         repeat(
           choice(
             $.string_literal_content,
-            $._file_directive_literal_context,
+            sym('_file_directive_literal_context'),
             alias(token.immediate(prec(-1, '\\')), $.string_literal_content),
             alias(
               token.immediate(
@@ -1946,43 +1946,43 @@ module.exports = grammar({
           seq('warning', choice('disable', 'restore'), commaSep(choice($.identifier, $.integer_literal))),
           seq('checksum', alias($._preproc_filename, $.string_literal), $.string_literal, $.string_literal)
         ),
-        directiveEnd($)
+        directiveEnd()
       ),
 
-    preproc_nullable: ($) =>
+    preproc_nullable: () =>
       seq(
         preprocessor('nullable'),
         choice('enable', 'disable', 'restore'),
         optional(choice('annotations', 'warnings')),
-        directiveEnd($)
+        directiveEnd()
       ),
 
     preproc_error: ($) =>
       seq(
         preprocessor('error'),
         choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)),
-        directiveEnd($)
+        directiveEnd()
       ),
 
     preproc_warning: ($) =>
       seq(
         preprocessor('warning'),
         choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)),
-        directiveEnd($)
+        directiveEnd()
       ),
 
     preproc_define: ($) =>
       seq(
         preprocessor('define'),
         choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)),
-        directiveEnd($)
+        directiveEnd()
       ),
 
     preproc_undef: ($) =>
       seq(
         preprocessor('undef'),
         choice($.preproc_arg, alias($._file_directive_argument, $.preproc_arg)),
-        directiveEnd($)
+        directiveEnd()
       ),
 
     file_directive: ($) =>
@@ -1990,27 +1990,27 @@ module.exports = grammar({
         choice(
           fileDirectiveArguments(
             $,
-            choice(alias($._file_directive_sdk, '#:sdk'), alias($._file_directive_package, '#:package')),
+            choice(alias(sym('_file_directive_sdk'), '#:sdk'), alias(sym('_file_directive_package'), '#:package')),
             '@',
             'metadata'
           ),
-          fileDirectiveArguments($, alias($._file_directive_property, '#:property'), '=', 'value'),
+          fileDirectiveArguments($, alias(sym('_file_directive_property'), '#:property'), '=', 'value'),
           seq(
             choice(
-              alias($._file_directive_project, '#:project'),
-              alias($._file_directive_ref, '#:ref'),
-              alias($._file_directive_include, '#:include'),
-              alias($._file_directive_exclude, '#:exclude')
+              alias(sym('_file_directive_project'), '#:project'),
+              alias(sym('_file_directive_ref'), '#:ref'),
+              alias(sym('_file_directive_include'), '#:include'),
+              alias(sym('_file_directive_exclude'), '#:exclude')
             ),
             optional(seq($._file_directive_spacing, field('value', $.file_directive_value)))
           ),
           seq(
-            $.file_directive_kind,
+            sym('file_directive_kind'),
             optional(seq($._file_directive_spacing, optional(field('value', $.file_directive_value))))
           )
         ),
         optional($._file_directive_spacing),
-        choice($._file_directive_newline, $._end_of_input)
+        choice(sym('_file_directive_newline'), sym('_end_of_input'))
       ),
 
     _file_directive_spacing: () => token.immediate(prec(1, new RegExp(`[${directiveHorizontal}]+`))),
@@ -2041,11 +2041,11 @@ module.exports = grammar({
 });
 
 /**
- * @param {GrammarSymbols<string>} $
- * @param {Rule} kind
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_file_directive_spacing' | 'file_directive_name' | 'file_directive_value'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} kind
  * @param {string} separator
  * @param {string} extraField
- * @returns {SeqRule}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').SeqRule}
  */
 function fileDirectiveArguments($, kind, separator, extraField) {
   return seq(
@@ -2079,23 +2079,20 @@ function fileDirectiveArguments($, kind, separator, extraField) {
  * Ends a directive that opens no conditional section: at a line break, or at the end of the input, which a file may
  * reach without a final line break.
  *
- * @param {GrammarSymbols<string>} $
- *
- * @returns {ChoiceRule}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').ChoiceRule}
  */
-function directiveEnd($) {
-  return choice(directiveNewLine($), $._end_of_input);
+function directiveEnd() {
+  return choice(directiveNewLine(), sym('_end_of_input'));
 }
 
-/** @param {GrammarSymbols<string>} $ */
-function directiveNewLine($) {
-  return $._directive_newline;
+function directiveNewLine() {
+  return sym('_directive_newline');
 }
 
 /**
  * @param {string} command
  *
- * @returns {AliasRule}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').AliasRule}
  */
 function preprocessor(command) {
   return alias(new RegExp('#[ \t]*' + command), '#' + command);
@@ -2105,7 +2102,7 @@ function preprocessor(command) {
  *
  * @param {string} suffix
  *
- * @param {RuleBuilder<string>} content
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<string>} content
  *
  * @param {number} precedence
  *
@@ -2113,19 +2110,23 @@ function preprocessor(command) {
  *
  * @param {boolean} required
  *
- * @returns {RuleBuilders<string, string>}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').RuleBuilders<string, string>}
  */
 function preprocIf(suffix, content, precedence = 0, rep = true, required = false) {
+  /** @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<string>} $ */
+  function contentRule($) {
+    const rule = content($);
+    return rep ? repeat(rule) : required ? rule : optional(rule);
+  }
+
   /**
    *
-   * @param {GrammarSymbols<string>} $
-   *
-   * @returns {ChoiceRule}
+   * @returns {import('@willbooster/web-tree-sitter/dsl').ChoiceRule}
    */
-  function alternativeBlock($) {
+  function alternativeBlock() {
     return choice(
-      suffix ? alias($['preproc_else' + suffix], $.preproc_else) : $.preproc_else,
-      suffix ? alias($['preproc_elif' + suffix], $.preproc_elif) : $.preproc_elif
+      suffix ? alias(sym('preproc_else' + suffix), sym('preproc_else')) : sym('preproc_else'),
+      suffix ? alias(sym('preproc_elif' + suffix), sym('preproc_elif')) : sym('preproc_elif')
     );
   }
 
@@ -2135,29 +2136,25 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         precedence,
         seq(
           preprocessor('if'),
-          field('condition', $._preproc_expression),
-          directiveNewLine($),
-          rep ? repeat(content($)) : required ? content($) : optional(content($)),
-          field('alternative', optional(alternativeBlock($))),
+          field('condition', sym('_preproc_expression')),
+          directiveNewLine(),
+          contentRule($),
+          field('alternative', optional(alternativeBlock())),
           preprocessor('endif')
         )
       ),
 
-    ['preproc_else' + suffix]: ($) =>
-      prec(
-        precedence,
-        seq(preprocessor('else'), rep ? repeat(content($)) : required ? content($) : optional(content($)))
-      ),
+    ['preproc_else' + suffix]: ($) => prec(precedence, seq(preprocessor('else'), contentRule($))),
 
     ['preproc_elif' + suffix]: ($) =>
       prec(
         precedence,
         seq(
           preprocessor('elif'),
-          field('condition', $._preproc_expression),
-          directiveNewLine($),
-          rep ? repeat(content($)) : required ? content($) : optional(content($)),
-          field('alternative', optional(alternativeBlock($)))
+          field('condition', sym('_preproc_expression')),
+          directiveNewLine(),
+          contentRule($),
+          field('alternative', optional(alternativeBlock()))
         )
       ),
   };
@@ -2169,9 +2166,9 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
  * through `expression` would reduce the unary operator or the cast (precedence UNARY or CAST) before `expression`
  * (precedence 0) lets the postfix operator apply, reading `&a[0]` as `(&a)[0]` and `*(T*)f()[0]` as `(*(T*)f())[0]`.
  *
- * @param {GrammarSymbols<string>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'expression' | 'invocation_expression' | 'lvalue_expression' | 'parenthesized_expression' | 'postfix_unary_expression'>} $
  *
- * @returns {ChoiceRule}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').ChoiceRule}
  */
 function postfixOperand($) {
   return choice(
@@ -2184,49 +2181,49 @@ function postfixOperand($) {
 }
 
 /**
- * @param {Rule} rule
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} rule
  *
- * @returns {SeqRule}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').SeqRule}
  */
 function commaSep1(rule) {
   return seq(rule, repeat(seq(',', rule)));
 }
 
 /**
- * @param {Rule} rule
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} rule
  *
- * @returns {SeqRule}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').SeqRule}
  */
 function commaSep2(rule) {
   return seq(rule, repeat1(seq(',', rule)));
 }
 
 /**
- * @param {Rule} rule
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} rule
  *
- * @returns {ChoiceRule}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').ChoiceRule}
  */
 function commaSep(rule) {
   return optional(commaSep1(rule));
 }
 
 /**
- * @param {RuleOrLiteral} rule
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} rule
  *
- * @param {RuleOrLiteral} separator
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} separator
  *
- * @returns {SeqRule}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').SeqRule}
  */
 function sep1(rule, separator) {
   return seq(rule, repeat(seq(separator, rule)));
 }
 
 /**
- * @param {RuleOrLiteral} rule
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} rule
  *
- * @param {RuleOrLiteral} separator
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} separator
  *
- * @returns {ChoiceRule}
+ * @returns {import('@willbooster/web-tree-sitter/dsl').ChoiceRule}
  */
 function sep(rule, separator) {
   return optional(sep1(rule, separator));

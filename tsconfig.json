@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "alwaysStrict": true,
     "esModuleInterop": true,
@@ -15,5 +16,5 @@
   },
   "exclude": ["test/fixtures"],
   "extends": "@tsconfig/bun/tsconfig.json",
-  "include": ["*.config.mts", "*.config.ts", "scripts/**/*", "src/**/*", "test/**/*"]
+  "include": ["grammar.js", "*.config.mts", "*.config.ts", "scripts/**/*", "src/**/*", "test/**/*"]
 }
