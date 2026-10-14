@@ -53,6 +53,15 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.constant_pattern, $.lvalue_expression, $._conditional_access_receiver],
+    [$.constant_pattern, $.non_lvalue_expression, $._conditional_access_receiver],
+    [$.constant_pattern, $._expression_statement_expression, $._conditional_access_receiver],
+    [$._name, $.constant_pattern, $.lvalue_expression, $._conditional_access_receiver],
+    [$._name, $.lvalue_expression, $._conditional_access_receiver],
+    [$.lvalue_expression, $.non_lvalue_expression, $._conditional_access_receiver],
+    [$.lvalue_expression, $._conditional_access_receiver],
+    [$.non_lvalue_expression, $._conditional_access_receiver],
+    [$._expression_statement_expression, $._conditional_access_receiver],
     [$._assignment_pointer_cast, $._lvalue_cast_expression],
     [$._assignment_pointer_expression, $._pointer_indirection_expression],
     [$.modifier, $._constructor_declaration_initializer, $._reserved_identifier],
@@ -1441,11 +1450,36 @@ module.exports = grammar({
         )
       ),
 
+    _conditional_access_receiver: ($) =>
+      choice(
+        'this',
+        $._simple_name,
+        $.member_access_expression,
+        $.element_access_expression,
+        $.conditional_access_expression,
+        $.invocation_expression,
+        $.parenthesized_expression,
+        $.postfix_unary_expression,
+        $.literal,
+        $.interpolated_string_expression,
+        $.tuple_expression,
+        $.checked_expression,
+        $.default_expression,
+        $.typeof_expression,
+        $.sizeof_expression,
+        $.object_creation_expression,
+        $.array_creation_expression,
+        $.anonymous_object_creation_expression,
+        $.implicit_array_creation_expression,
+        $.implicit_object_creation_expression,
+        $.collection_expression
+      ),
+
     conditional_access_expression: ($) =>
       prec.right(
-        PREC.CONDITIONAL,
+        PREC.DOT,
         seq(
-          field('condition', $.expression),
+          field('condition', $._conditional_access_receiver),
           '?',
           choice($.member_binding_expression, alias($.bracketed_argument_list, sym('element_binding_expression')))
         )

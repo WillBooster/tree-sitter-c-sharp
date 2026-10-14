@@ -1,0 +1,32 @@
+================================================================================
+Conditional access binds before logical operators
+================================================================================
+var result = a || b?.C;
+var element = a && b?[0];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (binary_expression
+            (identifier)
+            (conditional_access_expression
+              (identifier)
+              (member_binding_expression (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        (implicit_type)
+        (variable_declarator
+          (identifier)
+          (binary_expression
+            (identifier)
+            (conditional_access_expression
+              (identifier)
+              (element_binding_expression
+                (argument (integer_literal))))))))))

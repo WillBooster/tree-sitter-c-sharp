@@ -8836,9 +8836,98 @@
         ]
       }
     },
+    "_conditional_access_receiver": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "this"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_simple_name"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "member_access_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "element_access_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "conditional_access_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "invocation_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "parenthesized_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "postfix_unary_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "literal"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "interpolated_string_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "tuple_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "checked_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "default_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "typeof_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "sizeof_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "object_creation_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "array_creation_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "anonymous_object_creation_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "implicit_array_creation_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "implicit_object_creation_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "collection_expression"
+        }
+      ]
+    },
     "conditional_access_expression": {
       "type": "PREC_RIGHT",
-      "value": 2,
+      "value": 18,
       "content": {
         "type": "SEQ",
         "members": [
@@ -8847,7 +8936,7 @@
             "name": "condition",
             "content": {
               "type": "SYMBOL",
-              "name": "expression"
+              "name": "_conditional_access_receiver"
             }
           },
           {
@@ -14400,6 +14489,49 @@
     }
   ],
   "conflicts": [
+    [
+      "constant_pattern",
+      "lvalue_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "constant_pattern",
+      "non_lvalue_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "constant_pattern",
+      "_expression_statement_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "_name",
+      "constant_pattern",
+      "lvalue_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "_name",
+      "lvalue_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "lvalue_expression",
+      "non_lvalue_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "lvalue_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "non_lvalue_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "_expression_statement_expression",
+      "_conditional_access_receiver"
+    ],
     [
       "_assignment_pointer_cast",
       "_lvalue_cast_expression"
