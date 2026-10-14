@@ -109,8 +109,7 @@ cargo test
 `script/tree-sitter` (also `bun run tree-sitter`) runs the tree-sitter CLI of WillBooster/tree-sitter at the runtime
 version locked in `Cargo.lock`, so the parser is generated, built, tested, and fuzzed with the generator and the
 runtime this package ships. The first run downloads that CLI from its GitHub Release into `.tmp/`, or builds it with
-`cargo` (with the `cmake` that `mise.toml` pins) when the download fails or the release has no binary that runs here. The `tree-sitter-cli` package provides
-only the types of the grammar DSL that `grammar.js` checks against; its `tree-sitter` binary is upstream's.
+`cargo` (with the `cmake` that `mise.toml` pins) when the download fails or the release has no binary that runs here.
 
 `bun run generate` records a fresh generation profile from the applicable `test/corpus` cases and Git-tracked
 files in `examples/`, then generates compact parser tables. The parser also embeds metadata from `tree-sitter.json`. After changing a grammar,
