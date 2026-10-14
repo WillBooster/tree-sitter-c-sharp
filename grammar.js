@@ -53,6 +53,12 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._expression_statement_expression, $._lvalue_cast_expression, $._conditional_access_receiver],
+    [$._expression_statement_expression, $._lvalue_cast_expression],
+    [$._expression_statement_expression, $._pointer_indirection_expression],
+    [$._expression_statement_expression, $._address_of_expression],
+    [$._pointer_indirection_expression, $._expression_statement_expression, $._conditional_access_receiver],
+    [$._address_of_expression, $._expression_statement_expression, $._conditional_access_receiver],
     [$.constant_pattern, $.lvalue_expression, $._conditional_access_receiver],
     [$.constant_pattern, $.non_lvalue_expression, $._conditional_access_receiver],
     [$.constant_pattern, $._expression_statement_expression, $._conditional_access_receiver],
@@ -1224,8 +1230,8 @@ module.exports = grammar({
     _expression_statement_expression: ($) =>
       choice(
         $.assignment_expression,
-        $.invocation_expression,
-        $.postfix_unary_expression,
+        prec(PREC.UNARY, $.invocation_expression),
+        prec(PREC.UNARY, $.postfix_unary_expression),
         $.prefix_unary_expression,
         $.await_expression,
         $.object_creation_expression,
@@ -1458,10 +1464,10 @@ module.exports = grammar({
         $.member_access_expression,
         $.element_access_expression,
         $.conditional_access_expression,
-        $.invocation_expression,
+        prec(PREC.UNARY, $.invocation_expression),
         $.parenthesized_expression,
         alias($._parenthesized_lvalue_expression, $.parenthesized_expression),
-        $.postfix_unary_expression,
+        prec(PREC.UNARY, $.postfix_unary_expression),
         $.literal,
         $.interpolated_string_expression,
         $.tuple_expression,

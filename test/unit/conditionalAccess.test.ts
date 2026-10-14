@@ -202,3 +202,51 @@ test('queries index initializer targets separately from ternary collection value
     parser.delete();
   }
 });
+
+test('keeps conditional receivers inside pointer unary operands', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const prefix of ['*', '&']) {
+      for (const receiver of ['x', 'x!', 'Get()', 'x.y', 'x[0]', '(x)', 'this']) {
+        for (const suffix of ['?.Member', '?[0]']) {
+          const source = `var result = ${prefix}${receiver}${suffix};`;
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
+            expect(access?.childForFieldName('condition')?.text, source).toBe(receiver);
+            expect(access?.parent?.type, source).toBe('prefix_unary_expression');
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+    for (const operand of ['*x!', '&Get()']) {
+      const tree = parser.parse(`var result = ${operand} ? y : z;`)!;
+      try {
+        expect(tree.rootNode.hasError).toBe(false);
+        expect(tree.rootNode.descendantsOfType('conditional_expression')[0]?.childForFieldName('condition')?.text).toBe(
+          operand
+        );
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const receiver of ['x!', 'Get()']) {
+      const tree = parser.parse(`var result = *(T*)${receiver}?.Member;`)!;
+      try {
+        expect(tree.rootNode.hasError).toBe(false);
+        const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
+        expect(access?.childForFieldName('condition')?.text).toBe(receiver);
+        expect(access?.parent?.type).toBe('cast_expression');
+        expect(access?.parent?.parent?.type).toBe('prefix_unary_expression');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

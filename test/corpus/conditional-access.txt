@@ -111,3 +111,27 @@ class C { void M() { var a = base?.Foo(); var b = base?[i]; var c = __makeref(x)
 --------------------------------------------------------------------------------
 
 (compilation_unit (class_declaration (identifier) (declaration_list (method_declaration (predefined_type) (identifier) (parameter_list) (block (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (invocation_expression (conditional_access_expression (member_binding_expression (identifier))) (argument_list))))) (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_access_expression (element_binding_expression (argument (identifier))))))) (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (invocation_expression (conditional_access_expression (makeref_expression (identifier)) (member_binding_expression (identifier))) (argument_list))))) (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_access_expression (makeref_expression (identifier)) (element_binding_expression (argument (identifier))))))))))))
+
+================================================================================
+Pointer operands retain conditional access
+================================================================================
+var a = *x!?.Member;
+var b = *x!?[0];
+var c = &Get()?.Member;
+var d = &Get()?[0];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (postfix_unary_expression (identifier)) (member_binding_expression (identifier)))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (postfix_unary_expression (identifier)) (element_binding_expression (argument (integer_literal))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (invocation_expression (identifier) (argument_list)) (member_binding_expression (identifier)))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (invocation_expression (identifier) (argument_list)) (element_binding_expression (argument (integer_literal))))))))))
+
+================================================================================
+Pointer casts and ternary conditions
+================================================================================
+var a = *(T*)x!?.Member;
+var b = *(T*)Get()?.Member;
+var c = *x! ? y : z;
+var d = &Get() ? y : z;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (postfix_unary_expression (identifier)) (member_binding_expression (identifier))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (invocation_expression (identifier) (argument_list)) (member_binding_expression (identifier))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (prefix_unary_expression (postfix_unary_expression (identifier))) (identifier) (identifier)))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (prefix_unary_expression (invocation_expression (identifier) (argument_list))) (identifier) (identifier)))))))

@@ -7156,12 +7156,20 @@
           "name": "assignment_expression"
         },
         {
-          "type": "SYMBOL",
-          "name": "invocation_expression"
+          "type": "PREC",
+          "value": 17,
+          "content": {
+            "type": "SYMBOL",
+            "name": "invocation_expression"
+          }
         },
         {
-          "type": "SYMBOL",
-          "name": "postfix_unary_expression"
+          "type": "PREC",
+          "value": 17,
+          "content": {
+            "type": "SYMBOL",
+            "name": "postfix_unary_expression"
+          }
         },
         {
           "type": "SYMBOL",
@@ -8864,8 +8872,12 @@
           "name": "conditional_access_expression"
         },
         {
-          "type": "SYMBOL",
-          "name": "invocation_expression"
+          "type": "PREC",
+          "value": 17,
+          "content": {
+            "type": "SYMBOL",
+            "name": "invocation_expression"
+          }
         },
         {
           "type": "SYMBOL",
@@ -8881,8 +8893,12 @@
           "value": "parenthesized_expression"
         },
         {
-          "type": "SYMBOL",
-          "name": "postfix_unary_expression"
+          "type": "PREC",
+          "value": 17,
+          "content": {
+            "type": "SYMBOL",
+            "name": "postfix_unary_expression"
+          }
         },
         {
           "type": "SYMBOL",
@@ -14523,6 +14539,33 @@
     }
   ],
   "conflicts": [
+    [
+      "_expression_statement_expression",
+      "_lvalue_cast_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "_expression_statement_expression",
+      "_lvalue_cast_expression"
+    ],
+    [
+      "_expression_statement_expression",
+      "_pointer_indirection_expression"
+    ],
+    [
+      "_expression_statement_expression",
+      "_address_of_expression"
+    ],
+    [
+      "_pointer_indirection_expression",
+      "_expression_statement_expression",
+      "_conditional_access_receiver"
+    ],
+    [
+      "_address_of_expression",
+      "_expression_statement_expression",
+      "_conditional_access_receiver"
+    ],
     [
       "constant_pattern",
       "lvalue_expression",
