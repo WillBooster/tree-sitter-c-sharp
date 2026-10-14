@@ -7125,13 +7125,17 @@
           "name": "element_access_expression"
         },
         {
-          "type": "ALIAS",
+          "type": "PREC_DYNAMIC",
+          "value": -1,
           "content": {
-            "type": "SYMBOL",
-            "name": "bracketed_argument_list"
-          },
-          "named": true,
-          "value": "element_binding_expression"
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "bracketed_argument_list"
+            },
+            "named": true,
+            "value": "element_binding_expression"
+          }
         },
         {
           "type": "ALIAS",
@@ -8868,6 +8872,15 @@
           "name": "parenthesized_expression"
         },
         {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_parenthesized_lvalue_expression"
+          },
+          "named": true,
+          "value": "parenthesized_expression"
+        },
+        {
           "type": "SYMBOL",
           "name": "postfix_unary_expression"
         },
@@ -8897,6 +8910,14 @@
         },
         {
           "type": "SYMBOL",
+          "name": "reftype_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "refvalue_expression"
+        },
+        {
+          "type": "SYMBOL",
           "name": "sizeof_expression"
         },
         {
@@ -8922,6 +8943,15 @@
         {
           "type": "SYMBOL",
           "name": "collection_expression"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "preproc_if_in_expression"
+          },
+          "named": true,
+          "value": "preproc_if"
         }
       ]
     },

@@ -1875,6 +1875,18 @@
             "named": true
           },
           {
+            "type": "preproc_if",
+            "named": true
+          },
+          {
+            "type": "reftype_expression",
+            "named": true
+          },
+          {
+            "type": "refvalue_expression",
+            "named": true
+          },
+          {
             "type": "sizeof_expression",
             "named": true
           },

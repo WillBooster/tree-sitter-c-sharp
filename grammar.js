@@ -1213,7 +1213,7 @@ module.exports = grammar({
         $.tuple_expression,
         $._simple_name,
         $.element_access_expression,
-        alias($.bracketed_argument_list, sym('element_binding_expression')),
+        prec.dynamic(-1, alias($.bracketed_argument_list, sym('element_binding_expression'))),
         alias($._pointer_indirection_expression, $.prefix_unary_expression),
         alias($._parenthesized_lvalue_expression, $.parenthesized_expression),
         // C# 14 null-conditional assignment: `obj?.x = v`, `obj?[i] = v`.
@@ -1459,6 +1459,7 @@ module.exports = grammar({
         $.conditional_access_expression,
         $.invocation_expression,
         $.parenthesized_expression,
+        alias($._parenthesized_lvalue_expression, $.parenthesized_expression),
         $.postfix_unary_expression,
         $.literal,
         $.interpolated_string_expression,
@@ -1466,13 +1467,16 @@ module.exports = grammar({
         $.checked_expression,
         $.default_expression,
         $.typeof_expression,
+        $.reftype_expression,
+        $.refvalue_expression,
         $.sizeof_expression,
         $.object_creation_expression,
         $.array_creation_expression,
         $.anonymous_object_creation_expression,
         $.implicit_array_creation_expression,
         $.implicit_object_creation_expression,
-        $.collection_expression
+        $.collection_expression,
+        alias(sym('preproc_if_in_expression'), sym('preproc_if'))
       ),
 
     conditional_access_expression: ($) =>
