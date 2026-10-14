@@ -92,3 +92,22 @@ var result =
               (identifier)
               (preproc_else (identifier)))
             (member_binding_expression (identifier))))))))
+
+================================================================================
+Conditional indexing before type tests and ternary collections
+================================================================================
+var r = items?[0] is Foo ? [1] : [2];
+var s = items?[0] is Foo?[] ? [1] : [2];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (is_pattern_expression (conditional_access_expression (identifier) (element_binding_expression (argument (integer_literal)))) (constant_pattern (identifier))) (collection_expression (collection_element (expression_element (integer_literal)))) (collection_expression (collection_element (expression_element (integer_literal))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (is_expression (conditional_access_expression (identifier) (element_binding_expression (argument (integer_literal)))) (array_type (nullable_type (identifier)) (array_rank_specifier))) (collection_expression (collection_element (expression_element (integer_literal)))) (collection_expression (collection_element (expression_element (integer_literal))))))))))
+
+================================================================================
+Base and makeref conditional receivers
+================================================================================
+class C { void M() { var a = base?.Foo(); var b = base?[i]; var c = __makeref(x)?.GetHashCode(); var d = __makeref(x)?[i]; } }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit (class_declaration (identifier) (declaration_list (method_declaration (predefined_type) (identifier) (parameter_list) (block (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (invocation_expression (conditional_access_expression (member_binding_expression (identifier))) (argument_list))))) (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_access_expression (element_binding_expression (argument (identifier))))))) (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (invocation_expression (conditional_access_expression (makeref_expression (identifier)) (member_binding_expression (identifier))) (argument_list))))) (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_access_expression (makeref_expression (identifier)) (element_binding_expression (argument (identifier))))))))))))

@@ -7125,19 +7125,6 @@
           "name": "element_access_expression"
         },
         {
-          "type": "PREC_DYNAMIC",
-          "value": -1,
-          "content": {
-            "type": "ALIAS",
-            "content": {
-              "type": "SYMBOL",
-              "name": "bracketed_argument_list"
-            },
-            "named": true,
-            "value": "element_binding_expression"
-          }
-        },
-        {
           "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
@@ -7206,6 +7193,15 @@
               {
                 "type": "SYMBOL",
                 "name": "lvalue_expression"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "bracketed_argument_list"
+                },
+                "named": true,
+                "value": "element_binding_expression"
               },
               {
                 "type": "SYMBOL",
@@ -8848,6 +8844,10 @@
           "value": "this"
         },
         {
+          "type": "STRING",
+          "value": "base"
+        },
+        {
           "type": "SYMBOL",
           "name": "_simple_name"
         },
@@ -8907,6 +8907,10 @@
         {
           "type": "SYMBOL",
           "name": "typeof_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "makeref_expression"
         },
         {
           "type": "SYMBOL",

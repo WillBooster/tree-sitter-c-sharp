@@ -11,7 +11,7 @@ beforeAll(async () => {
 test('binds conditional member and element access before surrounding operators', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const receivers = new Query(language, '(conditional_access_expression condition: (_) @receiver)');
+  const receivers = new Query(language, '(conditional_access_expression condition: _ @receiver)');
   try {
     for (const access of ['x?.Member', 'x?[0]']) {
       for (const expression of [
@@ -53,6 +53,7 @@ test('binds conditional member and element access before surrounding operators',
       '(this)',
       '((x))',
       '(x[0])',
+      '__makeref(tr)',
       '__refvalue(tr, string)',
       '__refvalue(tr, string[])',
       '__reftype(tr)',
@@ -63,6 +64,7 @@ test('binds conditional member and element access before surrounding operators',
       'new C[1]',
       'x!',
       'this',
+      'base',
     ]) {
       for (const suffix of ['?.Member', '?[0]']) {
         const tree = parser.parse(`var result = ${receiver}${suffix};`)!;
@@ -70,6 +72,10 @@ test('binds conditional member and element access before surrounding operators',
           expect(tree.rootNode.hasError, receiver).toBe(false);
           const node = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
           expect(node?.childForFieldName('condition')?.text, receiver).toBe(receiver);
+          expect(
+            receivers.captures(tree.rootNode).map(({ node }) => node.text),
+            receiver
+          ).toEqual([receiver]);
         } finally {
           tree.delete();
         }
@@ -130,6 +136,69 @@ test('preserves preprocessor-selected conditional receivers', () => {
       }
     }
   } finally {
+    parser.delete();
+  }
+});
+
+test('keeps conditional indexing and type tests inside ternary conditions', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const access of ['items?[0]', 'items?.Value']) {
+      for (const check of [
+        'is Foo',
+        'is Foo<int>',
+        'is Foo[]',
+        'is Foo?[]',
+        'is string',
+        'is not null',
+        'is Foo value',
+        '!= null',
+        'as Foo',
+      ]) {
+        for (const separator of [' ? ', '?']) {
+          const condition = `${access} ${check}`;
+          const source = `var result = ${condition}${separator}[1] : [2];`;
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+            expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+            expect(ternary?.childForFieldName('consequence')?.type, source).toBe('collection_expression');
+            expect(ternary?.childForFieldName('alternative')?.type, source).toBe('collection_expression');
+            expect(
+              tree.rootNode.descendantsOfType('conditional_access_expression').map((node) => node.text),
+              source
+            ).toEqual([access]);
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('queries index initializer targets separately from ternary collection values', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const query = new Query(
+    language,
+    '(assignment_expression left: (element_binding_expression) @target right: (conditional_expression) @value)'
+  );
+  const tree = parser.parse('var result = new C { [key] = choose ? [1] : [2] };')!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(query.captures(tree.rootNode).map(({ name, node }) => [name, node.text])).toEqual([
+      ['target', '[key]'],
+      ['value', 'choose ? [1] : [2]'],
+    ]);
+    expect(tree.rootNode.descendantsOfType('collection_expression').map((node) => node.text)).toEqual(['[1]', '[2]']);
+  } finally {
+    tree.delete();
+    query.delete();
     parser.delete();
   }
 });

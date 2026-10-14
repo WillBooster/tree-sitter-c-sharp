@@ -154,10 +154,6 @@
         "named": true
       },
       {
-        "type": "element_binding_expression",
-        "named": true
-      },
-      {
         "type": "generic_name",
         "named": true
       },
@@ -1011,6 +1007,10 @@
         "required": true,
         "types": [
           {
+            "type": "element_binding_expression",
+            "named": true
+          },
+          {
             "type": "invocation_expression",
             "named": true
           },
@@ -1811,6 +1811,10 @@
             "named": true
           },
           {
+            "type": "base",
+            "named": false
+          },
+          {
             "type": "checked_expression",
             "named": true
           },
@@ -1856,6 +1860,10 @@
           },
           {
             "type": "literal",
+            "named": true
+          },
+          {
+            "type": "makeref_expression",
             "named": true
           },
           {
