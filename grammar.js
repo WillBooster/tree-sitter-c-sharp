@@ -163,6 +163,7 @@ module.exports = grammar({
 
     [$.expression_element, $.argument],
     [$.spread_element, $.range_expression],
+    [$.slice_pattern, $.range_expression],
     [$.collection_expression, $.list_pattern],
 
     [$._reserved_identifier, $.modifier],
@@ -1160,7 +1161,7 @@ module.exports = grammar({
         )
       ),
 
-    slice_pattern: ($) => prec.right(seq('..', optional(alias($._full_pattern, $.pattern)))),
+    slice_pattern: ($) => choice(prec(PREC.RANGE, '..'), prec.right(seq('..', alias($._full_pattern, $.pattern)))),
 
     recursive_pattern: ($) =>
       prec.left(
@@ -2132,7 +2133,7 @@ module.exports = grammar({
         $.relational_pattern,
         alias($._full_or_pattern, $.or_pattern),
         alias($._full_and_pattern, $.and_pattern),
-        $.list_pattern,
+        prec.dynamic(1, $.list_pattern),
         $.type_pattern
       ),
 

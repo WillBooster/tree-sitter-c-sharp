@@ -826,3 +826,62 @@ test('preserves tuple-var patterns through negation and nested named positional 
     parser.delete();
   }
 });
+
+test('distinguishes parenthesized list subpatterns from collection arguments of constant calls', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const list of ['[]', '[1]', '[1, 2]', '[..]']) {
+      const pattern = `Foo((${list}))`;
+      for (const source of [
+        `var result = value is ${pattern};`,
+        `var result = value is not ${pattern};`,
+        `var result = value is { P: ${pattern} };`,
+        `var result = value is [${pattern}];`,
+        `var result = value switch { ${pattern} => 1, _ => 2 };`,
+        `switch (value) { case ${pattern}: break; }`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('recursive_pattern').map((node) => node.text),
+            source
+          ).toContain(pattern);
+          expect(
+            tree.rootNode.descendantsOfType('list_pattern').map((node) => node.text),
+            source
+          ).toContain(list);
+          expect(tree.rootNode.descendantsOfType('collection_expression'), source).toHaveLength(0);
+          expect(tree.rootNode.descendantsOfType('element_binding_expression'), source).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    for (const collection of ['[]', '[1]', '[1, 2]']) {
+      for (const target of ['nameof', 'A.B!', 'new C().Call']) {
+        const source = `var result = value is ${target}((${collection}));`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('collection_expression').map((node) => node.text),
+            source
+          ).toEqual([collection]);
+          expect(tree.rootNode.descendantsOfType('element_binding_expression'), source).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    const indexed = parser.parse('var result = value?[1, 2];')!;
+    try {
+      expect(indexed.rootNode.hasError).toBe(false);
+      expect(indexed.rootNode.descendantsOfType('element_binding_expression')).toHaveLength(1);
+    } finally {
+      indexed.delete();
+    }
+  } finally {
+    parser.delete();
+  }
+});

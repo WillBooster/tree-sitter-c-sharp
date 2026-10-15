@@ -6352,18 +6352,26 @@
       }
     },
     "slice_pattern": {
-      "type": "PREC_RIGHT",
-      "value": 0,
-      "content": {
-        "type": "SEQ",
-        "members": [
-          {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "PREC",
+          "value": 16,
+          "content": {
             "type": "STRING",
             "value": ".."
-          },
-          {
-            "type": "CHOICE",
+          }
+        },
+        {
+          "type": "PREC_RIGHT",
+          "value": 0,
+          "content": {
+            "type": "SEQ",
             "members": [
+              {
+                "type": "STRING",
+                "value": ".."
+              },
               {
                 "type": "ALIAS",
                 "content": {
@@ -6372,14 +6380,11 @@
                 },
                 "named": true,
                 "value": "pattern"
-              },
-              {
-                "type": "BLANK"
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "recursive_pattern": {
       "type": "PREC_LEFT",
@@ -14969,8 +14974,12 @@
           "value": "and_pattern"
         },
         {
-          "type": "SYMBOL",
-          "name": "list_pattern"
+          "type": "PREC_DYNAMIC",
+          "value": 1,
+          "content": {
+            "type": "SYMBOL",
+            "name": "list_pattern"
+          }
         },
         {
           "type": "SYMBOL",
@@ -16431,6 +16440,10 @@
     ],
     [
       "spread_element",
+      "range_expression"
+    ],
+    [
+      "slice_pattern",
       "range_expression"
     ],
     [
