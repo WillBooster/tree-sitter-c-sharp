@@ -53,6 +53,7 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.slice_pattern, $.range_expression],
     [$._is_completed_property_pattern],
     [$._is_completed_declaration_type, $._is_completed_type],
     [$._is_completed_array_pattern, $._is_completed_type],
@@ -1389,7 +1390,7 @@ module.exports = grammar({
         )
       ),
 
-    slice_pattern: ($) => prec.right(seq('..', optional($.pattern))),
+    slice_pattern: ($) => prec.right(PREC.RANGE, seq('..', optional($.pattern))),
 
     recursive_pattern: ($) =>
       prec.left(

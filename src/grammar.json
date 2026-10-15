@@ -7702,7 +7702,7 @@
     },
     "slice_pattern": {
       "type": "PREC_RIGHT",
-      "value": 0,
+      "value": 16,
       "content": {
         "type": "SEQ",
         "members": [
@@ -16207,6 +16207,10 @@
     }
   ],
   "conflicts": [
+    [
+      "slice_pattern",
+      "range_expression"
+    ],
     [
       "_is_completed_property_pattern"
     ],

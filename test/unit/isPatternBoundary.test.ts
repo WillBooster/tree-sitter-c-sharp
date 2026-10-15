@@ -1267,3 +1267,58 @@ test('preserves mixed binary precedence in every full-constant pattern owner', (
     parser.delete();
   }
 });
+
+test('keeps bare slices in list patterns before guards and in nested owners', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const source of [
+      'var r = x is [..];',
+      'var r = x is [..] && done;',
+      'var r = x is [..] || done;',
+      'if (x is [..] && done) {}',
+      'switch (x) { case [..] when ready: break; }',
+      'var r = x switch { [..] when ready => 1, _ => 0 };',
+      'var r = x is { Property: [..] };',
+      'var r = x is Foo([..]) matched;',
+      'var r = x is [[..]];',
+      'var r = x is not [..];',
+    ]) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('slice_pattern').map((node) => node.text),
+          source
+        ).toEqual(['..']);
+        expect(
+          tree.rootNode.descendantsOfType('list_pattern').some((node) => node.text === '[..]'),
+          source
+        ).toBe(true);
+        const logical = tree.rootNode
+          .descendantsOfType('binary_expression')
+          .find((node) => ['&&', '||'].includes(node.childForFieldName('operator')?.text ?? ''));
+        if (logical) expect(logical.childForFieldName('left')?.text, source).toBe('x is [..]');
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const [source, kind, text] of [
+      ['var r = items[..];', 'range_expression', '..'],
+      ['var r = [..items];', 'spread_element', '..items'],
+    ] as const) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType(kind).map((node) => node.text),
+          source
+        ).toEqual([text]);
+        expect(tree.rootNode.descendantsOfType('slice_pattern'), source).toHaveLength(0);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
