@@ -3347,10 +3347,9 @@ int a = 1 is Object ? 1 : 2;
         (variable_declarator
           name: (identifier)
           (conditional_expression
-            condition: (is_pattern_expression
-              expression: (integer_literal)
-              pattern: (constant_pattern
-                (identifier)))
+            condition: (is_expression
+              left: (integer_literal)
+              right: (identifier))
             consequence: (integer_literal)
             alternative: (integer_literal)))))))
 

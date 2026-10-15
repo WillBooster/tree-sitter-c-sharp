@@ -6109,8 +6109,12 @@
           }
         },
         {
-          "type": "SYMBOL",
-          "name": "_simple_name"
+          "type": "PREC_DYNAMIC",
+          "value": -1,
+          "content": {
+            "type": "SYMBOL",
+            "name": "_simple_name"
+          }
         },
         {
           "type": "SYMBOL",

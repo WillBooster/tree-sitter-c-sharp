@@ -1111,7 +1111,7 @@ module.exports = grammar({
         alias($._name_invocation_pattern, $.invocation_expression),
         alias($._complex_invocation_expression, $.invocation_expression),
         prec.dynamic(1, $.cast_expression),
-        $._simple_name,
+        prec.dynamic(-1, $._simple_name),
         $.literal
       ),
 

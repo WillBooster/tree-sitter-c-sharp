@@ -40,6 +40,24 @@ test('keeps logical operators and collection ternaries outside an is constant pa
     } finally {
       guardedCall.delete();
     }
+    for (const [expression, bounded] of [
+      ['x is a && y', 'x is a'],
+      ['x is not null && y', 'x is not null'],
+    ]) {
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        const binary = tree.rootNode.descendantsOfType('binary_expression').find((node) => node.text === expression)!;
+        expect(binary?.childForFieldName('left')?.text, expression).toBe(bounded);
+        expect(binary?.childForFieldName('operator')?.text, expression).toBe('&&');
+        expect(
+          tree.rootNode.descendantsOfType(['is_expression', 'is_pattern_expression']).map((node) => node.text),
+          expression
+        ).toEqual([bounded]);
+      } finally {
+        tree.delete();
+      }
+    }
   } finally {
     query.delete();
     parser.delete();
@@ -1011,6 +1029,33 @@ test('distinguishes contextual attribute targets from reserved keywords in colle
       }
     }
   } finally {
+    parser.delete();
+  }
+});
+
+test('keeps name-shaped is types in later logical operands', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(is_expression) @typeTest');
+  try {
+    for (const operator of ['||', '&&']) {
+      for (const name of ['C', 'C<T>', '@nameof']) {
+        const source = `var result = x is null ${operator} x is ${name} ? x : null;`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            query.captures(tree.rootNode).map(({ node }) => node.text),
+            source
+          ).toEqual([`x is ${name}`]);
+          const conditional = tree.rootNode.descendantsOfType('conditional_expression')[0]!;
+          expect(conditional.childForFieldName('condition')?.text, source).toBe(`x is null ${operator} x is ${name}`);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
     parser.delete();
   }
 });
