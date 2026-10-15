@@ -98,21 +98,21 @@ test('preserves full constant expressions in switch and delimited patterns', () 
   const parser = new Parser();
   parser.setLanguage(language);
   try {
-    for (const source of [
-      'switch (value) { case 1 | 2: break; }',
-      'var result = value switch { 1 | 2 => true, _ => false };',
-      'var result = value is (1 | 2);',
-      'var result = value is { Property: 1 | 2 };',
-      'var result = value is [1 | 2];',
-      'var result = value is (1 | 2, 3 & 4);',
-    ]) {
+    for (const [source, constants] of [
+      ['switch (value) { case 1 | 2: break; }', ['1 | 2']],
+      ['var result = value switch { 1 | 2 => true, _ => false };', ['1 | 2']],
+      ['var result = value is (1 | 2);', ['(1 | 2)']],
+      ['var result = value is { Property: 1 | 2 };', ['1 | 2']],
+      ['var result = value is [1 | 2];', ['1 | 2']],
+      ['var result = value is (1 | 2, 3 & 4);', ['(1 | 2, 3 & 4)']],
+    ] as const) {
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
         expect(
-          tree.rootNode.descendantsOfType('constant_pattern').some((node) => node.text.includes('1 | 2')),
+          tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
           source
-        ).toBe(true);
+        ).toEqual(constants);
       } finally {
         tree.delete();
       }
@@ -311,6 +311,107 @@ test('retains parenthesized postfix arithmetic inside is before logical operator
     }
   } finally {
     query.delete();
+    parser.delete();
+  }
+});
+
+test('keeps arithmetic constants with nonliteral right operands before surrounding operators', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const constant of [
+      'nameof(C) + C.S',
+      '1 + K',
+      '2 * K',
+      '1 << K',
+      '-1 + K',
+      '"a" + K',
+      '1 + K.Max',
+      '1 + K[0]',
+      '1 + (K)',
+    ]) {
+      for (const suffix of [' && ready', ' || ready', ' == other', ' ?? other']) {
+        const source = `var result = value is ${constant}${suffix};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
+            source
+          ).toEqual([`value is ${constant}`]);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves parenthesized constant nodes in every delimited pattern context', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const constant of ['(1)', '(1 + 2)', '(1 | 2)', '(null)', '("s")', '(sizeof(int))', '(A.B + 1)']) {
+      for (const source of [
+        `var result = value is ${constant};`,
+        `switch (value) { case ${constant}: break; }`,
+        `var result = value switch { ${constant} => true, _ => false };`,
+        `var result = value is { Property: ${constant} };`,
+        `var result = value is [${constant}];`,
+        `var result = value is [.. ${constant}];`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const pattern = tree.rootNode.descendantsOfType('constant_pattern').find((node) => node.text === constant);
+          expect(
+            pattern?.namedChildren.map((node) => node.type),
+            source
+          ).toEqual(['parenthesized_expression']);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    const pattern = parser.parse('var result = value is (var item);')!;
+    try {
+      expect(pattern.rootNode.hasError).toBe(false);
+      expect(pattern.rootNode.descendantsOfType('parenthesized_pattern').map((node) => node.text)).toEqual([
+        '(var item)',
+      ]);
+    } finally {
+      pattern.delete();
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('keeps conditional case labels intact alongside constant and declaration patterns', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const condition of ['A', 'A.B', 'global::A.B']) {
+      const source = `switch (value) { case ${condition} ? First : Second: break; case 1: break; case nameof(value): break; case int item: break; }`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const sections = tree.rootNode.descendantsOfType('switch_section');
+        expect(
+          sections[0]?.namedChildren.map((node) => node.type),
+          source
+        ).toEqual(['conditional_expression', 'break_statement']);
+        expect(sections[0]?.namedChild(0)?.text).toBe(`${condition} ? First : Second`);
+        expect(sections[1]?.namedChild(0)?.type).toBe('constant_pattern');
+        expect(sections[2]?.namedChild(0)?.type).toBe('constant_pattern');
+        expect(sections[3]?.namedChild(0)?.type).toBe('declaration_pattern');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
     parser.delete();
   }
 });
