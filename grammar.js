@@ -2147,7 +2147,7 @@ module.exports = grammar({
         $.postfix_unary_expression,
         $.prefix_unary_expression,
         $.sizeof_expression,
-        prec.dynamic(1, $.tuple_expression),
+        $.tuple_expression,
         $.typeof_expression,
         $.member_access_expression,
         alias($._name_invocation_pattern, $.invocation_expression),

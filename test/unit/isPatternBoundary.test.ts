@@ -885,3 +885,58 @@ test('distinguishes parenthesized list subpatterns from collection arguments of 
     parser.delete();
   }
 });
+
+test('retains nested multi-element positional patterns and actual tuple-expression call arguments', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const inner of [
+      '(1, 2)',
+      '((1, 2))',
+      '(1 | 2, 3 & 4)',
+      '(A.B, C.D)',
+      '(int.MaxValue, 2)',
+      '(var a, var b)',
+      '(_, _)',
+    ]) {
+      for (const tail of ['', ' item', ' { P: 1 } item']) {
+        const pattern = `Foo(${inner})${tail}`;
+        for (const source of [
+          `var result = value is ${pattern};`,
+          `var result = value is ${pattern} && ready;`,
+          `var result = value is not ${pattern};`,
+          `var result = value is { P: ${pattern} };`,
+          `var result = value is [${pattern}];`,
+          `var result = value switch { ${pattern} => 1, _ => 2 };`,
+          `switch (value) { case ${pattern}: break; }`,
+        ]) {
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            const parsed = tree.rootNode.descendantsOfType('recursive_pattern').find((node) => node.text === pattern)!;
+            expect(parsed.childForFieldName('type')?.text, source).toBe('Foo');
+            expect(parsed.descendantsOfType('positional_pattern_clause'), source).toHaveLength(2);
+            expect(parsed.descendantsOfType('tuple_expression'), source).toHaveLength(0);
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+    for (const target of ['nameof', 'A.B!', 'new C().Call']) {
+      const source = `var result = value is ${target}((1, 2));`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('tuple_expression').map((node) => node.text),
+          source
+        ).toEqual(['(1, 2)']);
+        expect(tree.rootNode.descendantsOfType('positional_pattern_clause'), source).toHaveLength(0);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
