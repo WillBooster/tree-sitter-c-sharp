@@ -109,6 +109,13 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.nullable_type, $._is_completed_nullable_type],
+    [$._is_completed_nullable_type, $._is_completed_type],
+    [$._is_completed_array_type, $._is_completed_type],
+    [$.type, $.nullable_type, $._is_completed_nullable_type],
+    [$.array_rank_specifier, $._is_unsized_array_rank],
+    [$._name, $._is_alias_qualified_receiver],
+    [$._name, $._pattern_name, $._pattern_qualified_name, $._is_alias_qualified_receiver],
     [$._name, $.lvalue_expression, $._constant_lvalue_expression, $._full_constant_pattern],
     [$.lvalue_expression, $._constant_lvalue_expression],
     [$._positional_full_constant, $._constant_lvalue_expression, $._full_constant_pattern],
@@ -322,6 +329,7 @@ module.exports = grammar({
   ],
 
   supertypes: ($) => [
+    $._is_completed_type,
     $._constant_lvalue_expression,
     $._positional_full_pattern,
     $._positional_full_expression,
@@ -1614,8 +1622,36 @@ module.exports = grammar({
     as_expression: ($) =>
       prec(PREC.REL, seq(field('left', $.expression), field('operator', 'as'), field('right', $.type))),
 
+    _is_completed_array_type: ($) =>
+      seq(
+        field(
+          'type',
+          choice(
+            $._array_base_type,
+            $._pattern_name,
+            alias($._is_completed_array_type, $.array_type),
+            alias($._is_completed_nullable_type, $.nullable_type)
+          )
+        ),
+        field('rank', alias($._is_unsized_array_rank, $.array_rank_specifier))
+      ),
+    _is_completed_nullable_type: ($) =>
+      seq(
+        field('type', choice($._nullable_base_type, $._pattern_name, alias($._is_completed_array_type, $.array_type))),
+        '?'
+      ),
+    _is_unsized_array_rank: () => seq('[', repeat(','), ']'),
+    _is_completed_type: ($) =>
+      choice(alias($._is_completed_array_type, $.array_type), alias($._is_completed_nullable_type, $.nullable_type)),
     is_expression: ($) =>
-      prec(PREC.REL, seq(field('left', $.expression), field('operator', 'is'), field('right', $.type))),
+      prec(
+        PREC.REL,
+        seq(
+          field('left', $.expression),
+          field('operator', 'is'),
+          field('right', choice($.type, alias($._is_completed_type, $.type)))
+        )
+      ),
 
     is_pattern_expression: ($) =>
       prec(PREC.REL, seq(field('expression', $.expression), 'is', field('pattern', $.pattern))),
@@ -2322,6 +2358,8 @@ module.exports = grammar({
       ),
     _anchored_parenthesized_lvalue_expression: ($) =>
       seq('(', alias($._is_qualified_member_lvalue, $.lvalue_expression), ')'),
+    _is_alias_qualified_receiver: ($) => $.alias_qualified_name,
+
     _is_qualified_member: ($) =>
       prec.dynamic(
         1,
@@ -2337,7 +2375,7 @@ module.exports = grammar({
                 alias($._is_primary_expression, $.expression),
                 alias($._is_receiver_invocation, $.invocation_expression),
                 $.predefined_type,
-                $.alias_qualified_name
+                $._is_alias_qualified_receiver
               )
             ),
             choice('.', '->'),

@@ -1137,8 +1137,12 @@ test('retains receiver captures in parenthesized negated patterns', () => {
 
 test('parses unnamed tuple patterns as positional subpatterns', () => {
   const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue');
   try {
-    for (const pattern of ['(A.B, C.D)', '(1 | 2, 3 & 4)']) {
+    for (const [pattern, receivers] of [
+      ['(A.B, C.D)', ['value', 'A', 'C']],
+      ['(1 | 2, 3 & 4)', ['value']],
+    ] as const) {
       const source = `var result = value is ${pattern};`;
       const tree = parser.parse(source)!;
       try {
@@ -1157,11 +1161,16 @@ test('parses unnamed tuple patterns as positional subpatterns', () => {
           tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
           source
         ).toEqual(pattern.slice(1, -1).split(', '));
+        expect(
+          query.captures(tree.rootNode).map(({ node }) => node.text),
+          source
+        ).toEqual(receivers);
       } finally {
         tree.delete();
       }
     }
   } finally {
+    query.delete();
     parser.delete();
   }
 });
@@ -1250,6 +1259,42 @@ test('distinguishes named singleton positionals from unnamed pattern parentheses
           ).toEqual([pattern]);
           expect(positional[0]?.namedChildCount, source).toBe(1);
           expect(positional[0]?.namedChild(0)?.type, source).toBe('subpattern');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves complete alias-qualified is types beside anchored member constants', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const type of [
+      'global::A.B[]',
+      'global::A.B[][]',
+      'global::A.B[,]',
+      'global::A.B<int>[]',
+      'global::A.B<T>[]',
+      'global::A.B<T[]>[]',
+      'global::A.B.C[]',
+      'Foo::A.B[]',
+      'global::A.B?',
+      'System.Collections.Generic.List<global::A.B>[]',
+    ]) {
+      for (const suffix of ['', ' && ready', ' || ready']) {
+        const source = `var result = value is ${type}${suffix};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const tests = tree.rootNode.descendantsOfType('is_expression');
+          expect(
+            tests.map((node) => node.text),
+            source
+          ).toEqual([`value is ${type}`]);
+          expect(tests[0]?.childForFieldName('right')?.text, source).toBe(type);
         } finally {
           tree.delete();
         }
