@@ -53,6 +53,8 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.implicit_type, $._is_constant_pattern, $.var_pattern, $._reserved_identifier],
+    [$.implicit_type, $._is_constant_pattern, $._reserved_identifier],
     [$.slice_pattern, $.range_expression],
     [$._is_completed_property_pattern],
     [$._is_completed_declaration_type, $._is_completed_type],
@@ -1090,6 +1092,7 @@ module.exports = grammar({
         alias($._complex_invocation_expression, $.invocation_expression),
         alias($._is_conditional_invocation, $.invocation_expression),
         $.cast_expression,
+        alias('var', $.identifier),
         prec.dynamic(-1, $._simple_name),
         $.literal
       ),

@@ -6108,6 +6108,15 @@
           "name": "cast_expression"
         },
         {
+          "type": "ALIAS",
+          "content": {
+            "type": "STRING",
+            "value": "var"
+          },
+          "named": true,
+          "value": "identifier"
+        },
+        {
           "type": "PREC_DYNAMIC",
           "value": -1,
           "content": {
@@ -16207,6 +16216,17 @@
     }
   ],
   "conflicts": [
+    [
+      "implicit_type",
+      "_is_constant_pattern",
+      "var_pattern",
+      "_reserved_identifier"
+    ],
+    [
+      "implicit_type",
+      "_is_constant_pattern",
+      "_reserved_identifier"
+    ],
     [
       "slice_pattern",
       "range_expression"
