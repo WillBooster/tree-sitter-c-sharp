@@ -175,6 +175,7 @@ module.exports = grammar({
     [$._name, $.lvalue_expression, $._is_qualified_member_lvalue],
     [$._simple_name, $._pattern_qualified_name],
     [$._simple_name, $._positional_subpattern],
+    [$._simple_name, $._following_positional_subpattern],
     [$._name, $._pattern_name],
     [$.type, $._name_invocation_pattern],
     [$.identifier, $._pattern_identifier],
@@ -1287,7 +1288,17 @@ module.exports = grammar({
             2,
             seq(field('type', $._pattern_name), $.positional_pattern_clause, optional($.property_pattern_clause))
           ),
-          prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
+          prec.dynamic(
+            1,
+            seq(
+              choice(
+                $.positional_pattern_clause,
+                alias($._bare_other_positional_clause, $.positional_pattern_clause),
+                alias($._bare_named_singleton_positional_clause, $.positional_pattern_clause)
+              ),
+              $._simple_designation
+            )
+          ),
           alias($._bare_other_positional_clause, $.positional_pattern_clause),
           alias($._bare_named_singleton_positional_clause, $.positional_pattern_clause),
           seq(field('type', $.type), $.property_pattern_clause, optional($._simple_designation)),
@@ -1340,7 +1351,7 @@ module.exports = grammar({
             seq(
               alias($._positional_subpattern, $.subpattern),
               ',',
-              commaSep1(alias($._positional_subpattern, $.subpattern))
+              commaSep1(alias($._following_positional_subpattern, $.subpattern))
             )
           ),
           ')'
@@ -1348,7 +1359,19 @@ module.exports = grammar({
       ),
 
     positional_pattern_clause: ($) =>
-      prec(1, seq('(', optional(commaSep(alias($._positional_subpattern, $.subpattern))), ')')),
+      prec(
+        1,
+        seq(
+          '(',
+          optional(
+            seq(
+              alias($._positional_subpattern, $.subpattern),
+              repeat(seq(',', alias($._following_positional_subpattern, $.subpattern)))
+            )
+          ),
+          ')'
+        )
+      ),
 
     property_pattern_clause: ($) => prec(1, seq('{', commaSep($.subpattern), optional(','), '}')),
 
@@ -2217,13 +2240,11 @@ module.exports = grammar({
       prec.right(
         seq(
           optional(choice(prec.dynamic(1, seq($.identifier, ':')), seq($.expression, ':'))),
-          choice(
-            alias($._full_pattern, $.pattern),
-            alias($._positional_member_pattern, $.pattern),
-            alias($._positional_full_pattern, $.pattern)
-          )
+          positionalPatternOperand($)
         )
       ),
+    _following_positional_subpattern: ($) =>
+      prec.right(seq(optional(choice(seq($.expression, ':'), seq($.identifier, ':'))), positionalPatternOperand($))),
 
     _positional_member_pattern: ($) => alias($._positional_member_constant, $.constant_pattern),
     _positional_member_constant: ($) => alias($._is_qualified_member, $.member_access_expression),

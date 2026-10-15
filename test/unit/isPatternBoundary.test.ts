@@ -1397,3 +1397,91 @@ test('preserves canonical receiver queries across full pattern contexts', () => 
     parser.delete();
   }
 });
+
+test('retains designations after completed untyped positional patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const [clause, declarations] of [
+      [
+        '(int item, string name)',
+        [
+          ['int', 'item'],
+          ['string', 'name'],
+        ],
+      ],
+      ['(int item, C)', [['int', 'item']]],
+      ['(Name: int item, Other: C)', [['int', 'item']]],
+      ['(Name: int item)', [['int', 'item']]],
+      ['(A.B, C.D)', []],
+      ['(A.B<T>, C.D<U>)', []],
+    ] as const) {
+      const pattern = `${clause} matched`;
+      for (const source of [
+        `var result = value is ${pattern};`,
+        `var result = value is ${pattern} && ready;`,
+        `var result = value is not ${pattern};`,
+        `var result = value is (${pattern});`,
+        `var result = value is Foo(${pattern});`,
+        `var result = value is { P: ${pattern} };`,
+        `var result = value is [${pattern}];`,
+        `var result = value switch { ${pattern} => 1, _ => 2 };`,
+        `switch (value) { case ${pattern}: break; }`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const parsed = tree.rootNode.descendantsOfType('recursive_pattern').find((node) => node.text === pattern)!;
+          expect(parsed.childForFieldName('name')?.text, source).toBe('matched');
+          expect(parsed.namedChildren.find((node) => node.type === 'positional_pattern_clause')?.text, source).toBe(
+            clause
+          );
+          expect(
+            parsed
+              .descendantsOfType('declaration_pattern')
+              .map((node) => [node.childForFieldName('type')?.text, node.childForFieldName('name')?.text]),
+            source
+          ).toEqual(declarations);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves expression and lvalue queries on positional labels', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(expression) @expression\n(lvalue_expression) @lvalue');
+  try {
+    for (const pattern of ['(Name: int item, Other: C)', '(Name: int item, Other: C) matched']) {
+      for (const source of [
+        `var result = value is ${pattern};`,
+        `var result = value is Foo(${pattern});`,
+        `var result = value is [${pattern}];`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            query
+              .captures(tree.rootNode)
+              .filter(({ node }) => node.text === 'Other')
+              .map(({ name }) => name),
+            source
+          ).toEqual(['expression', 'lvalue']);
+          expect(
+            query.captures(tree.rootNode).filter(({ node }) => node.text === 'Name'),
+            source
+          ).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
