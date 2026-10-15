@@ -677,3 +677,43 @@ test('keeps casts complete in delimited constants without changing unary-minus a
     parser.delete();
   }
 });
+
+test('preserves parenthesized tuple-designation patterns and genuine positional clauses', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of ['(var (a, b))', '((var (a, _)))', '(((var (a, (b, c)))))']) {
+      for (const source of [
+        `var result = value is ${pattern};`,
+        `var result = value is not ${pattern};`,
+        `var result = value is { P: ${pattern} };`,
+        `var result = value is [${pattern}];`,
+        `var result = value switch { ${pattern} => 1, _ => 2 };`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('parenthesized_pattern').map((node) => node.text),
+            source
+          ).toContain(pattern);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    for (const pattern of ['M(var (a, b))', '(var (a, b), other)', 'M() item', '(var (a, b)) item']) {
+      const tree = parser.parse(`var result = value is ${pattern};`)!;
+      try {
+        expect(tree.rootNode.hasError, pattern).toBe(false);
+        expect(tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.childForFieldName('pattern')?.type).toBe(
+          'recursive_pattern'
+        );
+        expect(tree.rootNode.descendantsOfType('positional_pattern_clause').length, pattern).toBeGreaterThan(0);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

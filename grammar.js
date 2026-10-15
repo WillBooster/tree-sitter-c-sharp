@@ -53,6 +53,8 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._parenthesized_var_pattern_content, $._positional_pattern],
+    [$._parenthesized_var_pattern_content, $._positional_pattern, $._full_pattern],
     [$.argument_list, $.positional_pattern_clause, $._is_empty_argument_list],
     [$.type, $._name_invocation_pattern, $.recursive_pattern, $._is_qualified_invocation],
     [$.constant_pattern, $._is_qualified_member_lvalue, $._is_qualified_invocation],
@@ -251,6 +253,7 @@ module.exports = grammar({
     $._is_primary_expression,
     $._is_primary_non_lvalue_expression,
     $._positional_pattern,
+    $._parenthesized_var_pattern_content,
   ],
 
   word: ($) => $._identifier_token,
@@ -1054,6 +1057,7 @@ module.exports = grammar({
         $.negated_pattern,
         prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
         $.parenthesized_pattern,
+        alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern),
         $.relational_pattern,
         $.or_pattern,
         $.and_pattern,
@@ -2077,6 +2081,12 @@ module.exports = grammar({
     shebang_directive: () => token(seq('#!', /[^\r\n\u0085\u2028\u2029]*/)),
 
     comment: () => token(choice(seq('//', /[^\r\n\u0085\u2028\u2029]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
+    _preferred_var_parenthesized_pattern: ($) =>
+      prec.dynamic(1, seq('(', alias($._parenthesized_var_pattern_content, $.pattern), ')')),
+
+    _parenthesized_var_pattern_content: ($) =>
+      choice($.var_pattern, alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern)),
+
     _positional_subpattern: ($) =>
       prec.right(
         seq(optional(choice(seq($.expression, ':'), seq($.identifier, ':'))), alias($._positional_pattern, $.pattern))
@@ -2092,6 +2102,7 @@ module.exports = grammar({
         alias($._positional_negated_pattern, $.negated_pattern),
         prec.dynamic(1, alias($._positional_parenthesized_pattern_with_designation, $.recursive_pattern)),
         alias($._positional_parenthesized_pattern, $.parenthesized_pattern),
+        alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern),
         $.relational_pattern,
         alias($._positional_or_pattern, $.or_pattern),
         alias($._positional_and_pattern, $.and_pattern),
@@ -2151,6 +2162,7 @@ module.exports = grammar({
         alias($._full_negated_pattern, $.negated_pattern),
         prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
         prec.dynamic(1, $.parenthesized_pattern),
+        prec.dynamic(1, alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern)),
         $.relational_pattern,
         alias($._full_or_pattern, $.or_pattern),
         alias($._full_and_pattern, $.and_pattern),
@@ -2168,6 +2180,7 @@ module.exports = grammar({
         alias($._full_negated_pattern, $.negated_pattern),
         alias($._parenthesized_pattern_with_designation, $.recursive_pattern),
         $.parenthesized_pattern,
+        alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern),
         $.relational_pattern,
         alias($._full_or_pattern, $.or_pattern),
         alias($._full_and_pattern, $.and_pattern),
