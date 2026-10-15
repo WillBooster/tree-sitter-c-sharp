@@ -53,8 +53,10 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.parenthesized_expression, $._constant_parenthesized_expression],
+    [$._full_constant_pattern, $._constant_parenthesized_non_lvalue_expression],
     [$.lvalue_expression, $._is_parenthesized_lvalue],
-    [$.constant_pattern, $._expression_statement_expression, $._is_constant_non_lvalue_expression],
+    [$.constant_pattern, $.non_lvalue_expression, $._is_constant_non_lvalue_expression],
     [$.constant_pattern, $._is_constant_non_lvalue_expression],
     [$.member_access_expression, $._is_qualified_member],
     [$.constant_pattern, $._is_qualified_member_lvalue],
@@ -226,6 +228,7 @@ module.exports = grammar({
     $._is_constant_non_lvalue_expression,
     $._is_parenthesized_lvalue,
     $._switch_pattern,
+    $._constant_parenthesized_non_lvalue_expression,
   ],
 
   word: ($) => $._identifier_token,
@@ -1046,7 +1049,7 @@ module.exports = grammar({
         alias($._is_constant_binary_expression, $.binary_expression),
         $.default_expression,
         $.interpolated_string_expression,
-        prec.dynamic(1, $.parenthesized_expression),
+        alias($._constant_parenthesized_expression, $.parenthesized_expression),
         $.postfix_unary_expression,
         $.prefix_unary_expression,
         $.sizeof_expression,
@@ -1058,7 +1061,7 @@ module.exports = grammar({
         alias($._is_qualified_postfix, $.postfix_unary_expression),
         alias($._name_invocation_pattern, $.invocation_expression),
         alias($._complex_invocation_expression, $.invocation_expression),
-        $.cast_expression,
+        prec.dynamic(1, $.cast_expression),
         $._simple_name,
         $.literal
       ),
@@ -2076,7 +2079,7 @@ module.exports = grammar({
         $.var_pattern,
         alias($._full_negated_pattern, $.negated_pattern),
         prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
-        $.parenthesized_pattern,
+        prec.dynamic(1, $.parenthesized_pattern),
         $.relational_pattern,
         alias($._full_or_pattern, $.or_pattern),
         alias($._full_and_pattern, $.and_pattern),
@@ -2106,7 +2109,7 @@ module.exports = grammar({
         $.binary_expression,
         $.default_expression,
         $.interpolated_string_expression,
-        prec.dynamic(1, $.parenthesized_expression),
+        alias($._constant_parenthesized_expression, $.parenthesized_expression),
         $.postfix_unary_expression,
         $.prefix_unary_expression,
         $.sizeof_expression,
@@ -2162,6 +2165,22 @@ module.exports = grammar({
         )
       ),
 
+    _constant_parenthesized_non_lvalue_expression: ($) =>
+      alias($._constant_parenthesized_expression, $.parenthesized_expression),
+
+    _constant_parenthesized_expression: ($) =>
+      prec.dynamic(
+        1,
+        seq(
+          '(',
+          choice(
+            $.non_lvalue_expression,
+            alias($._constant_parenthesized_non_lvalue_expression, $.non_lvalue_expression)
+          ),
+          ')'
+        )
+      ),
+
     _is_constant_expression: ($) =>
       choice(
         alias($._is_qualified_member_lvalue, $.lvalue_expression),
@@ -2204,7 +2223,8 @@ module.exports = grammar({
       choice(
         alias($._is_constant_binary_expression, $.binary_expression),
         alias($._is_qualified_postfix, $.postfix_unary_expression),
-        prec.dynamic(1, $.parenthesized_expression)
+        alias($._constant_parenthesized_expression, $.parenthesized_expression),
+        prec.dynamic(1, $.cast_expression)
       ),
 
     _is_constant_binary_expression: ($) =>

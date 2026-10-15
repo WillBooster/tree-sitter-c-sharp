@@ -443,3 +443,102 @@ test('keeps unguarded switch list patterns distinct from collection expressions'
     parser.delete();
   }
 });
+
+test('preserves complete constants through repeated parentheses and genuine nested patterns', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const inner of ['1', '1 + 2', '1 | 2', 'null']) {
+      for (const depth of [1, 2, 3, 5]) {
+        const constant = `${'('.repeat(depth)}${inner}${')'.repeat(depth)}`;
+        for (const source of [
+          `var result = value is ${constant};`,
+          `switch (value) { case ${constant}: break; }`,
+          `var result = value is { Property: ${constant} };`,
+          `var result = value is [${constant}];`,
+        ]) {
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            expect(
+              tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+              source
+            ).toEqual([constant]);
+            expect(tree.rootNode.descendantsOfType('parenthesized_pattern'), source).toHaveLength(0);
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+    for (const pattern of ['((var item))', '((not null))', '((1 or 2))', '((> 1))']) {
+      const tree = parser.parse(`var result = value is ${pattern};`)!;
+      try {
+        expect(tree.rootNode.hasError, pattern).toBe(false);
+        expect(tree.rootNode.descendantsOfType('parenthesized_pattern').map((node) => node.text)).toContain(pattern);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('keeps identifier-type cast constants complete through arithmetic and qualified values', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const cast of ['(T)A.B', '(Color)Colors.Red', '(T)A.B.C', '(T)A.B!', '(T)A.B(1)']) {
+      for (const arithmetic of ['', ' + 1', ' << K']) {
+        const constant = `${cast}${arithmetic}`;
+        for (const source of [
+          `var result = value is ${constant};`,
+          `var result = value is ${constant} && ready;`,
+          `f(value is ${constant}, other);`,
+        ]) {
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            expect(
+              tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
+              source
+            ).toEqual([`value is ${constant}`]);
+            expect(tree.rootNode.descendantsOfType('constant_pattern')[0]?.text).toBe(constant);
+            const castNode = tree.rootNode.descendantsOfType('cast_expression')[0]!;
+            expect(castNode.text).toBe(cast);
+            expect(castNode.childForFieldName('value')?.text).toBe(cast.slice(cast.indexOf(')') + 1));
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('retains qualified parenthesized switch patterns and their query category', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const query = new Query(language, '(pattern) @pattern');
+  try {
+    for (const depth of [1, 2, 3, 5]) {
+      const pattern = `${'('.repeat(depth)}A.B${')'.repeat(depth)}`;
+      const source = `switch (value) { case ${pattern}: break; }`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('switch_section')[0]?.namedChild(0)?.type).toBe('parenthesized_pattern');
+        expect(tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text)).toEqual(['A.B']);
+        expect(query.captures(tree.rootNode).map(({ node }) => node.text)).toContain(pattern);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});

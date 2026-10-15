@@ -6010,12 +6010,13 @@
           "name": "interpolated_string_expression"
         },
         {
-          "type": "PREC_DYNAMIC",
-          "value": 1,
+          "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
-            "name": "parenthesized_expression"
-          }
+            "name": "_constant_parenthesized_expression"
+          },
+          "named": true,
+          "value": "parenthesized_expression"
         },
         {
           "type": "SYMBOL",
@@ -6091,8 +6092,12 @@
           "value": "invocation_expression"
         },
         {
-          "type": "SYMBOL",
-          "name": "cast_expression"
+          "type": "PREC_DYNAMIC",
+          "value": 1,
+          "content": {
+            "type": "SYMBOL",
+            "name": "cast_expression"
+          }
         },
         {
           "type": "SYMBOL",
@@ -14483,8 +14488,12 @@
           }
         },
         {
-          "type": "SYMBOL",
-          "name": "parenthesized_pattern"
+          "type": "PREC_DYNAMIC",
+          "value": 1,
+          "content": {
+            "type": "SYMBOL",
+            "name": "parenthesized_pattern"
+          }
         },
         {
           "type": "SYMBOL",
@@ -14624,12 +14633,13 @@
           "name": "interpolated_string_expression"
         },
         {
-          "type": "PREC_DYNAMIC",
-          "value": 1,
+          "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
-            "name": "parenthesized_expression"
-          }
+            "name": "_constant_parenthesized_expression"
+          },
+          "named": true,
+          "value": "parenthesized_expression"
         },
         {
           "type": "SYMBOL",
@@ -14873,6 +14883,50 @@
         }
       }
     },
+    "_constant_parenthesized_non_lvalue_expression": {
+      "type": "ALIAS",
+      "content": {
+        "type": "SYMBOL",
+        "name": "_constant_parenthesized_expression"
+      },
+      "named": true,
+      "value": "parenthesized_expression"
+    },
+    "_constant_parenthesized_expression": {
+      "type": "PREC_DYNAMIC",
+      "value": 1,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "("
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "non_lvalue_expression"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_constant_parenthesized_non_lvalue_expression"
+                },
+                "named": true,
+                "value": "non_lvalue_expression"
+              }
+            ]
+          },
+          {
+            "type": "STRING",
+            "value": ")"
+          }
+        ]
+      }
+    },
     "_is_constant_expression": {
       "type": "CHOICE",
       "members": [
@@ -15036,11 +15090,20 @@
           "value": "postfix_unary_expression"
         },
         {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_constant_parenthesized_expression"
+          },
+          "named": true,
+          "value": "parenthesized_expression"
+        },
+        {
           "type": "PREC_DYNAMIC",
           "value": 1,
           "content": {
             "type": "SYMBOL",
-            "name": "parenthesized_expression"
+            "name": "cast_expression"
           }
         }
       ]
@@ -15483,12 +15546,20 @@
   ],
   "conflicts": [
     [
+      "parenthesized_expression",
+      "_constant_parenthesized_expression"
+    ],
+    [
+      "_full_constant_pattern",
+      "_constant_parenthesized_non_lvalue_expression"
+    ],
+    [
       "lvalue_expression",
       "_is_parenthesized_lvalue"
     ],
     [
       "constant_pattern",
-      "_expression_statement_expression",
+      "non_lvalue_expression",
       "_is_constant_non_lvalue_expression"
     ],
     [
@@ -15942,7 +16013,8 @@
     "_is_constant_expression",
     "_is_constant_non_lvalue_expression",
     "_is_parenthesized_lvalue",
-    "_switch_pattern"
+    "_switch_pattern",
+    "_constant_parenthesized_non_lvalue_expression"
   ],
   "reserved": {}
 }
