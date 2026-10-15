@@ -1304,3 +1304,96 @@ test('preserves complete alias-qualified is types beside anchored member constan
     parser.delete();
   }
 });
+
+test('retains receiver queries through nested full logical patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue');
+  try {
+    for (const [pattern, receivers] of [
+      ['A.B or C.D', ['A', 'C']],
+      ['A.B and C.D', ['A', 'C']],
+      ['A.B | 1 or C.D & 2', ['A.B', 'A', 'C.D', 'C']],
+      ['(A.B | 1 or C.D & 2)', ['A.B', 'A', 'C.D', 'C']],
+    ] as const) {
+      for (const declaration of ['int item', 'var item']) {
+        const source = `var result = value is Foo(A.Bar<T>(${declaration}, ${pattern})) matched;`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            query.captures(tree.rootNode).map(({ node }) => node.text),
+            source
+          ).toEqual(['value', ...receivers]);
+          expect(tree.rootNode.descendantsOfType('recursive_pattern')[0]?.text, source).toBe(
+            `Foo(A.Bar<T>(${declaration}, ${pattern})) matched`
+          );
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('retains tuple expression receiver ancestry separately from tuple patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue');
+  try {
+    for (const tuple of ['A.B, C.D', 'A.B + 1, C.D']) {
+      const receiver = `((${tuple}))`;
+      const source = `var result = value is ${receiver}.Member;`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('tuple_expression').map((node) => node.text),
+          source
+        ).toEqual([`(${tuple})`]);
+        expect(tree.rootNode.descendantsOfType('positional_pattern_clause'), source).toHaveLength(0);
+        expect(
+          query.captures(tree.rootNode).map(({ node }) => node.text),
+          source
+        ).toEqual(['value', receiver, `(${tuple})`, 'A.B', 'A', 'C.D', 'C']);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('preserves canonical receiver queries across full pattern contexts', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue');
+  try {
+    for (const [source, receivers] of [
+      ['var result = value is not A.B[0];', ['value is not A.B[0]', 'value', 'A']],
+      ['var result = value is other or A.B[0];', ['value is other or A.B[0]', 'value', 'A']],
+      ['var result = value is other and A.B[0];', ['value is other and A.B[0]', 'value', 'A']],
+      ['var result = value is { P: (A.B).C };', ['value', 'P', '(A.B)', 'A.B', 'A']],
+      ['var result = value is [(A.B).C];', ['value', '(A.B)', 'A.B', 'A']],
+      ['var result = value is { P: (A.B + 1).C };', ['value', 'P', 'A.B', 'A']],
+      ['var result = value is [A.B[0].Call()];', ['value', 'A.B[0]', 'A.B', 'A']],
+      ['switch (value) { case A.B[0]: break; }', ['value', 'A.B[0]', 'A.B', 'A']],
+    ] as const) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          query.captures(tree.rootNode).map(({ node }) => node.text),
+          source
+        ).toEqual(receivers);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});

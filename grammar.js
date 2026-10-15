@@ -109,19 +109,33 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._positional_member_constant, $._full_constant_pattern, $._is_qualified_member_lvalue],
+    [$.constant_pattern, $._is_qualified_member_lvalue],
+    [$.constant_pattern, $._positional_member_constant, $._full_constant_pattern],
+    [
+      $._positional_member_constant,
+      $._constant_lvalue_expression,
+      $._full_constant_pattern,
+      $._is_qualified_member_lvalue,
+    ],
+    [$._positional_full_constant, $._positional_full_non_lvalue_expression, $._full_constant_pattern],
     [$.nullable_type, $._is_completed_nullable_type],
     [$._is_completed_nullable_type, $._is_completed_type],
     [$._is_completed_array_type, $._is_completed_type],
     [$.type, $.nullable_type, $._is_completed_nullable_type],
     [$.array_rank_specifier, $._is_unsized_array_rank],
-    [$._name, $._is_alias_qualified_receiver],
+    [$._positional_full_or_pattern, $._full_or_pattern],
+    [$._positional_full_and_pattern, $._full_and_pattern],
+    [$._positional_full_negated_pattern, $._full_negated_pattern],
+    [$.constant_pattern, $._positional_full_constant, $._full_constant_pattern],
+    [$.ref_expression, $._tuple_argument, $._anchored_tuple_argument],
+    [$._tuple_argument, $._anchored_tuple_argument],
+    [$._name, $.lvalue_expression, $._full_constant_pattern, $._is_qualified_member_lvalue],
     [$._name, $._pattern_name, $._pattern_qualified_name, $._is_alias_qualified_receiver],
-    [$._name, $.lvalue_expression, $._constant_lvalue_expression, $._full_constant_pattern],
-    [$.lvalue_expression, $._constant_lvalue_expression],
+    [$._name, $._is_alias_qualified_receiver],
     [$._positional_full_constant, $._constant_lvalue_expression, $._full_constant_pattern],
     [$._positional_full_constant, $._full_constant_pattern],
     [$._constant_lvalue_expression, $._is_qualified_member_lvalue],
-    [$._positional_member_constant, $._constant_lvalue_expression, $._is_qualified_member_lvalue],
     [
       $._name,
       $.lvalue_expression,
@@ -160,10 +174,8 @@ module.exports = grammar({
     [$.parameter, $.lvalue_expression, $._is_qualified_member_lvalue],
     [$._name, $.lvalue_expression, $._is_qualified_member_lvalue],
     [$._simple_name, $._pattern_qualified_name],
-    [$._pattern_qualified_name, $._is_qualified_member],
     [$._simple_name, $._positional_subpattern],
     [$._name, $._pattern_name],
-    [$._name, $._pattern_name, $._pattern_qualified_name],
     [$.type, $._name_invocation_pattern],
     [$.identifier, $._pattern_identifier],
     [$.constant_pattern, $._is_qualified_member_lvalue, $._is_qualified_invocation],
@@ -171,7 +183,6 @@ module.exports = grammar({
     [$.non_lvalue_expression, $._is_primary_non_lvalue_expression],
     [$._expression_statement_expression, $._is_primary_non_lvalue_expression],
     [$.constant_pattern, $.non_lvalue_expression, $._is_primary_non_lvalue_expression],
-    [$.constant_pattern, $.lvalue_expression, $._is_qualified_member_lvalue],
     [$.lvalue_expression, $._is_qualified_member_lvalue],
     [$.parenthesized_expression, $._constant_parenthesized_expression],
     [$.constant_pattern, $.non_lvalue_expression, $._is_constant_non_lvalue_expression],
@@ -329,6 +340,8 @@ module.exports = grammar({
   ],
 
   supertypes: ($) => [
+    $._switch_receiver_expression,
+    $._switch_indexed_lvalue,
     $._is_completed_type,
     $._constant_lvalue_expression,
     $._positional_full_pattern,
@@ -1058,11 +1071,21 @@ module.exports = grammar({
 
     switch_body: ($) => seq('{', repeat($.switch_section), '}'),
 
+    _switch_receiver_expression: ($) => alias($._switch_indexed_lvalue, $.lvalue_expression),
+    _switch_indexed_lvalue: ($) => alias($._is_receiver_element, $.element_access_expression),
+
     switch_section: ($) =>
       prec.left(
         seq(
           choice(
-            seq('case', choice($.expression, seq(alias($._switch_pattern, $.pattern), optional($.when_clause)))),
+            seq(
+              'case',
+              choice(
+                $.expression,
+                alias($._switch_receiver_expression, $.expression),
+                seq(alias($._switch_pattern, $.pattern), optional($.when_clause))
+              )
+            ),
             'default'
           ),
           ':',
@@ -1178,7 +1201,7 @@ module.exports = grammar({
         $.sizeof_expression,
         $.typeof_expression,
         $.member_access_expression,
-        alias($._is_qualified_member, $.member_access_expression),
+        prec(PREC.INVOCATION + 1, alias($._is_qualified_member, $.member_access_expression)),
         alias($._is_qualified_invocation, $.invocation_expression),
         alias($._is_qualified_postfix, $.postfix_unary_expression),
         alias($._name_invocation_pattern, $.invocation_expression),
@@ -1218,7 +1241,8 @@ module.exports = grammar({
         choice(
           alias($._full_pattern, $.pattern),
           alias($._parenthesized_logical_pattern, $.pattern),
-          alias($._positional_member_pattern, $.pattern)
+          alias($._positional_member_pattern, $.pattern),
+          alias($._positional_full_pattern, $.pattern)
         ),
         ')'
       ),
@@ -2204,7 +2228,32 @@ module.exports = grammar({
     _positional_member_pattern: ($) => alias($._positional_member_constant, $.constant_pattern),
     _positional_member_constant: ($) => alias($._is_qualified_member, $.member_access_expression),
 
-    _positional_full_pattern: ($) => alias($._positional_full_constant, $.constant_pattern),
+    _positional_full_pattern: ($) =>
+      choice(
+        alias($._positional_full_constant, $.constant_pattern),
+        alias($._positional_full_negated_pattern, $.negated_pattern),
+        alias($._positional_full_and_pattern, $.and_pattern),
+        alias($._positional_full_or_pattern, $.or_pattern)
+      ),
+    _positional_full_negated_pattern: ($) => seq('not', positionalPatternOperand($)),
+    _positional_full_and_pattern: ($) =>
+      prec.left(
+        PREC.AND,
+        seq(
+          field('left', positionalPatternOperand($)),
+          field('operator', 'and'),
+          field('right', positionalPatternOperand($))
+        )
+      ),
+    _positional_full_or_pattern: ($) =>
+      prec.left(
+        PREC.OR,
+        seq(
+          field('left', positionalPatternOperand($)),
+          field('operator', 'or'),
+          field('right', positionalPatternOperand($))
+        )
+      ),
     _positional_full_constant: ($) =>
       choice(
         alias($._positional_full_binary_expression, $.binary_expression),
@@ -2320,6 +2369,10 @@ module.exports = grammar({
         $.tuple_expression,
         $.typeof_expression,
         $.member_access_expression,
+        prec(PREC.INVOCATION + 1, alias($._is_qualified_member, $.member_access_expression)),
+        alias($._positional_full_binary_expression, $.binary_expression),
+        alias($._is_qualified_postfix, $.postfix_unary_expression),
+        alias($._is_qualified_invocation, $.invocation_expression),
         alias($._name_invocation_pattern, $.invocation_expression),
         alias($._complex_invocation_expression, $.invocation_expression),
         $.cast_expression,
@@ -2354,12 +2407,11 @@ module.exports = grammar({
         prec(PREC.INVOCATION + 1, alias($._is_qualified_member, $.member_access_expression)),
         prec.dynamic(1, alias($._parenthesized_lvalue_expression, $.parenthesized_expression)),
         prec.dynamic(1, alias($._anchored_parenthesized_lvalue_expression, $.parenthesized_expression)),
-        prec.dynamic(1, $.tuple_expression)
+        prec.dynamic(1, $.tuple_expression),
+        prec.dynamic(1, alias($._anchored_tuple_expression, $.tuple_expression))
       ),
     _anchored_parenthesized_lvalue_expression: ($) =>
       seq('(', alias($._is_qualified_member_lvalue, $.lvalue_expression), ')'),
-    _is_alias_qualified_receiver: ($) => $.alias_qualified_name,
-
     _is_qualified_member: ($) =>
       prec.dynamic(
         1,
@@ -2372,6 +2424,7 @@ module.exports = grammar({
                 alias($._is_qualified_member_lvalue, $.lvalue_expression),
                 alias($._is_qualified_postfix, $.postfix_unary_expression),
                 alias($._constant_parenthesized_expression, $.parenthesized_expression),
+                alias($._positional_full_parenthesized_expression, $.parenthesized_expression),
                 alias($._is_primary_expression, $.expression),
                 alias($._is_receiver_invocation, $.invocation_expression),
                 $.predefined_type,
@@ -2383,6 +2436,23 @@ module.exports = grammar({
           )
         )
       ),
+
+    _anchored_tuple_expression: ($) => seq('(', commaSep2(alias($._anchored_tuple_argument, $.argument)), ')'),
+    _anchored_tuple_argument: ($) =>
+      prec(
+        1,
+        seq(
+          optional(seq(field('name', $.identifier), ':')),
+          optional(choice('ref', 'out', 'in')),
+          choice(
+            $.expression,
+            alias($._positional_full_expression, $.expression),
+            prec.dynamic(-1, $.declaration_expression)
+          )
+        )
+      ),
+
+    _is_alias_qualified_receiver: ($) => $.alias_qualified_name,
 
     _is_receiver_element: ($) =>
       prec(
@@ -2426,7 +2496,12 @@ module.exports = grammar({
         'base'
       ),
 
-    _constant_parenthesized_expression: ($) => seq('(', $.non_lvalue_expression, ')'),
+    _constant_parenthesized_expression: ($) =>
+      seq(
+        '(',
+        choice($.non_lvalue_expression, alias($._positional_full_non_lvalue_expression, $.non_lvalue_expression)),
+        ')'
+      ),
 
     _is_constant_expression: ($) =>
       choice(
@@ -2531,6 +2606,18 @@ module.exports = grammar({
       ),
   },
 });
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_full_pattern' | '_positional_member_pattern' | '_positional_full_pattern' | 'pattern'>} $
+ * @returns {import('@willbooster/web-tree-sitter/dsl').ChoiceRule}
+ */
+function positionalPatternOperand($) {
+  return choice(
+    alias($._full_pattern, $.pattern),
+    alias($._positional_member_pattern, $.pattern),
+    alias($._positional_full_pattern, $.pattern)
+  );
+}
 
 /**
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand
