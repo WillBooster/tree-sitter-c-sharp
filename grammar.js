@@ -40,6 +40,29 @@ const PREC = {
   SELECT: 0,
 };
 
+/** @type {[string, number][]} */
+const binaryOperatorPrecedences = [
+  ['&&', PREC.LOGICAL_AND],
+  ['||', PREC.LOGICAL_OR],
+  ['>>', PREC.SHIFT],
+  ['>>>', PREC.SHIFT],
+  ['<<', PREC.SHIFT],
+  ['&', PREC.AND],
+  ['^', PREC.XOR],
+  ['|', PREC.OR],
+  ['+', PREC.ADD],
+  ['-', PREC.ADD],
+  ['*', PREC.MULT],
+  ['/', PREC.MULT],
+  ['%', PREC.MULT],
+  ['<', PREC.REL],
+  ['<=', PREC.REL],
+  ['==', PREC.EQUAL],
+  ['!=', PREC.EQUAL],
+  ['>=', PREC.REL],
+  ['>', PREC.REL],
+];
+
 const directiveHorizontal = String.raw` \t\v\f\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF`;
 const directiveLineBreak = String.raw`\r\n\u0085\u2028\u2029`;
 const directiveWhitespace = directiveHorizontal + directiveLineBreak;
@@ -86,6 +109,33 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._name, $.lvalue_expression, $._constant_lvalue_expression, $._full_constant_pattern],
+    [$.lvalue_expression, $._constant_lvalue_expression],
+    [$._positional_full_constant, $._constant_lvalue_expression, $._full_constant_pattern],
+    [$._positional_full_constant, $._full_constant_pattern],
+    [$._constant_lvalue_expression, $._is_qualified_member_lvalue],
+    [$._positional_member_constant, $._constant_lvalue_expression, $._is_qualified_member_lvalue],
+    [
+      $._name,
+      $.lvalue_expression,
+      $._constant_lvalue_expression,
+      $._full_constant_pattern,
+      $._is_qualified_member_lvalue,
+    ],
+    [$.lvalue_expression, $._constant_lvalue_expression, $._is_qualified_member_lvalue],
+    [$._positional_full_parenthesized_expression, $._constant_parenthesized_expression],
+    [$._named_positional_subpattern, $._positional_subpattern],
+    [$.parenthesized_expression, $._positional_full_parenthesized_expression, $._constant_parenthesized_expression],
+    [$._positional_full_non_lvalue_expression, $._full_constant_pattern],
+    [$._positional_full_constant, $._positional_full_non_lvalue_expression],
+    [$.non_lvalue_expression, $._positional_full_non_lvalue_expression, $._full_constant_pattern],
+    [$.lvalue_expression, $._full_constant_pattern, $._is_qualified_member_lvalue],
+    [$.binary_expression, $._positional_full_binary_expression, $._is_constant_binary_expression],
+    [$.binary_expression, $._positional_full_binary_expression],
+    [$._positional_full_non_lvalue_expression, $._is_constant_non_lvalue_expression],
+    [$._positional_full_expression, $._is_constant_expression],
+    [$.non_lvalue_expression, $._positional_full_non_lvalue_expression, $._is_constant_non_lvalue_expression],
+    [$.non_lvalue_expression, $._positional_full_non_lvalue_expression],
     [$._bare_singleton_positional_clause, $.positional_pattern_clause],
     [$._bare_other_positional_clause, $.positional_pattern_clause],
     [$._is_qualified_member_lvalue, $._is_qualified_invocation],
@@ -272,6 +322,10 @@ module.exports = grammar({
   ],
 
   supertypes: ($) => [
+    $._constant_lvalue_expression,
+    $._positional_full_pattern,
+    $._positional_full_expression,
+    $._positional_full_non_lvalue_expression,
     $._parenthesized_logical_pattern,
     $.declaration,
     $.expression,
@@ -1110,10 +1164,10 @@ module.exports = grammar({
         $.default_expression,
         $.interpolated_string_expression,
         alias($._constant_parenthesized_expression, $.parenthesized_expression),
+        prec.dynamic(1, alias($._constant_parenthesized_lvalue_expression, $.parenthesized_expression)),
         $.postfix_unary_expression,
         $.prefix_unary_expression,
         $.sizeof_expression,
-        prec.dynamic(1, $.tuple_expression),
         $.typeof_expression,
         $.member_access_expression,
         alias($._is_qualified_member, $.member_access_expression),
@@ -1160,7 +1214,7 @@ module.exports = grammar({
         ),
         ')'
       ),
-    _parenthesized_logical_pattern: ($) => choice($.or_pattern, $.and_pattern),
+    _parenthesized_logical_pattern: ($) => choice($.or_pattern, $.and_pattern, $.negated_pattern),
 
     var_pattern: ($) => prec.dynamic(2, seq('var', $.parenthesized_variable_designation)),
 
@@ -1202,8 +1256,8 @@ module.exports = grammar({
             seq(field('type', $._pattern_name), $.positional_pattern_clause, optional($.property_pattern_clause))
           ),
           prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
-          prec.dynamic(-1, alias($._bare_singleton_positional_clause, $.positional_pattern_clause)),
           alias($._bare_other_positional_clause, $.positional_pattern_clause),
+          alias($._bare_named_singleton_positional_clause, $.positional_pattern_clause),
           seq(field('type', $.type), $.property_pattern_clause, optional($._simple_designation)),
           // A positional clause follows only a name (above), a predefined type, or an array type. Letting any type take
           // one reads `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed
@@ -1231,6 +1285,19 @@ module.exports = grammar({
         )
       ),
 
+    _bare_named_singleton_positional_clause: ($) =>
+      prec(1, seq('(', alias($._named_positional_subpattern, $.subpattern), ')')),
+    _named_positional_subpattern: ($) =>
+      prec.right(
+        seq(
+          choice(prec.dynamic(1, seq($.identifier, ':')), seq($.expression, ':')),
+          choice(
+            alias($._full_pattern, $.pattern),
+            alias($._positional_member_pattern, $.pattern),
+            alias($._positional_full_pattern, $.pattern)
+          )
+        )
+      ),
     _bare_singleton_positional_clause: ($) => prec(1, seq('(', alias($._positional_subpattern, $.subpattern), ')')),
     _bare_other_positional_clause: ($) =>
       prec(
@@ -1414,39 +1481,7 @@ module.exports = grammar({
         )
       ),
 
-    binary_expression: ($) =>
-      choice(
-        .../** @type {[string, number][]} */ ([
-          ['&&', PREC.LOGICAL_AND],
-          ['||', PREC.LOGICAL_OR],
-          ['>>', PREC.SHIFT],
-          ['>>>', PREC.SHIFT],
-          ['<<', PREC.SHIFT],
-          ['&', PREC.AND],
-          ['^', PREC.XOR],
-          ['|', PREC.OR],
-          ['+', PREC.ADD],
-          ['-', PREC.ADD],
-          ['*', PREC.MULT],
-          ['/', PREC.MULT],
-          ['%', PREC.MULT],
-          ['<', PREC.REL],
-          ['<=', PREC.REL],
-          ['==', PREC.EQUAL],
-          ['!=', PREC.EQUAL],
-          ['>=', PREC.REL],
-          ['>', PREC.REL],
-        ]).map(([operator, precedence]) =>
-          prec.left(
-            precedence,
-            seq(field('left', $.expression), field('operator', operator), field('right', $.expression))
-          )
-        ),
-        prec.right(
-          PREC.COALESCING,
-          seq(field('left', $.expression), field('operator', '??'), field('right', $.expression))
-        )
-      ),
+    binary_expression: ($) => binaryExpression($.expression),
 
     postfix_unary_expression: ($) => prec(PREC.POSTFIX, seq(postfixOperand($), choice('++', '--', '!'))),
 
@@ -2122,12 +2157,58 @@ module.exports = grammar({
       prec.right(
         seq(
           optional(choice(prec.dynamic(1, seq($.identifier, ':')), seq($.expression, ':'))),
-          choice(alias($._full_pattern, $.pattern), alias($._positional_member_pattern, $.pattern))
+          choice(
+            alias($._full_pattern, $.pattern),
+            alias($._positional_member_pattern, $.pattern),
+            alias($._positional_full_pattern, $.pattern)
+          )
         )
       ),
 
-    _positional_member_pattern: ($) => prec.dynamic(-1, alias($._positional_member_constant, $.constant_pattern)),
+    _positional_member_pattern: ($) => alias($._positional_member_constant, $.constant_pattern),
     _positional_member_constant: ($) => alias($._is_qualified_member, $.member_access_expression),
+
+    _positional_full_pattern: ($) => alias($._positional_full_constant, $.constant_pattern),
+    _positional_full_constant: ($) =>
+      choice(
+        alias($._positional_full_binary_expression, $.binary_expression),
+        alias($._constant_parenthesized_lvalue_expression, $.parenthesized_expression),
+        alias($._positional_full_parenthesized_expression, $.parenthesized_expression),
+        alias($._is_qualified_postfix, $.postfix_unary_expression),
+        alias($._is_qualified_invocation, $.invocation_expression)
+      ),
+    _constant_parenthesized_lvalue_expression: ($) =>
+      seq('(', alias($._constant_lvalue_expression, $.lvalue_expression), ')'),
+    _constant_lvalue_expression: ($) =>
+      choice(
+        'this',
+        $._simple_name,
+        prec(PREC.POSTFIX + 1, alias($._is_receiver_element, $.element_access_expression)),
+        prec(PREC.INVOCATION + 1, alias($._is_qualified_member, $.member_access_expression)),
+        prec.dynamic(1, alias($._constant_parenthesized_lvalue_expression, $.parenthesized_expression))
+      ),
+    _positional_full_expression: ($) =>
+      choice(
+        alias($._is_qualified_member_lvalue, $.lvalue_expression),
+        alias($._positional_full_non_lvalue_expression, $.non_lvalue_expression)
+      ),
+    _positional_full_non_lvalue_expression: ($) =>
+      choice(
+        alias($._positional_full_binary_expression, $.binary_expression),
+        alias($._is_qualified_postfix, $.postfix_unary_expression),
+        alias($._is_receiver_invocation, $.invocation_expression),
+        alias($._constant_parenthesized_expression, $.parenthesized_expression),
+        alias($._positional_full_parenthesized_expression, $.parenthesized_expression),
+        prec.dynamic(1, $.cast_expression)
+      ),
+    _positional_full_parenthesized_expression: ($) =>
+      seq(
+        '(',
+        choice($.non_lvalue_expression, alias($._positional_full_non_lvalue_expression, $.non_lvalue_expression)),
+        ')'
+      ),
+    _positional_full_binary_expression: ($) =>
+      binaryExpression(choice($.expression, alias($._positional_full_expression, $.expression))),
 
     _pattern_name: ($) =>
       choice(
@@ -2196,6 +2277,7 @@ module.exports = grammar({
         $.default_expression,
         $.interpolated_string_expression,
         alias($._constant_parenthesized_expression, $.parenthesized_expression),
+        prec.dynamic(1, alias($._constant_parenthesized_lvalue_expression, $.parenthesized_expression)),
         $.postfix_unary_expression,
         $.prefix_unary_expression,
         $.sizeof_expression,
@@ -2235,8 +2317,11 @@ module.exports = grammar({
         prec(PREC.POSTFIX + 1, alias($._is_receiver_element, $.element_access_expression)),
         prec(PREC.INVOCATION + 1, alias($._is_qualified_member, $.member_access_expression)),
         prec.dynamic(1, alias($._parenthesized_lvalue_expression, $.parenthesized_expression)),
+        prec.dynamic(1, alias($._anchored_parenthesized_lvalue_expression, $.parenthesized_expression)),
         prec.dynamic(1, $.tuple_expression)
       ),
+    _anchored_parenthesized_lvalue_expression: ($) =>
+      seq('(', alias($._is_qualified_member_lvalue, $.lvalue_expression), ')'),
     _is_qualified_member: ($) =>
       prec.dynamic(
         1,
@@ -2408,6 +2493,19 @@ module.exports = grammar({
       ),
   },
 });
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand
+ * @returns {import('@willbooster/web-tree-sitter/dsl').ChoiceRule}
+ */
+function binaryExpression(operand) {
+  return choice(
+    ...binaryOperatorPrecedences.map(([operator, precedence]) =>
+      prec.left(precedence, seq(field('left', operand), field('operator', operator), field('right', operand)))
+    ),
+    prec.right(PREC.COALESCING, seq(field('left', operand), field('operator', '??'), field('right', operand)))
+  );
+}
 
 /**
  * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_file_directive_spacing' | 'file_directive_name' | 'file_directive_value'>} $

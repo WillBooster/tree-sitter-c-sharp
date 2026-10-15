@@ -124,7 +124,7 @@ test('preserves full constant expressions in switch and delimited patterns', () 
       ['var result = value is [1 | 2];', ['1 | 2']],
       ['var result = value is Foo(1 | 2);', ['1 | 2']],
       ['var result = value is Foo(A.B << 2);', ['A.B << 2']],
-      ['var result = value is (1 | 2, 3 & 4);', ['(1 | 2, 3 & 4)']],
+      ['var result = value is (1 | 2, 3 & 4);', ['1 | 2', '3 & 4']],
     ] as const) {
       const tree = parser.parse(source)!;
       try {
@@ -481,11 +481,11 @@ test('preserves complete expressions through repeated pattern parentheses withou
           try {
             expect(tree.rootNode.hasError, source).toBe(false);
             expect(
-              tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+              tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text.replaceAll(/^\(+|\)+$/g, '')),
               source
             ).toEqual([inner]);
             expect(
-              tree.rootNode.descendantsOfType('parenthesized_pattern').map((node) => node.text),
+              tree.rootNode.descendantsOfType(['constant_pattern', 'parenthesized_pattern']).map((node) => node.text),
               source
             ).toContain(constant);
             expect(tree.rootNode.descendantsOfType('positional_pattern_clause'), source).toHaveLength(0);
@@ -543,7 +543,7 @@ test('keeps identifier-type cast constants complete through arithmetic and quali
   }
 });
 
-test('retains qualified parenthesized switch patterns and their query category', () => {
+test('preserves parenthesized qualified switch constant boundaries and captures', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   const query = new Query(language, '(pattern) @pattern');
@@ -554,8 +554,13 @@ test('retains qualified parenthesized switch patterns and their query category',
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
-        expect(tree.rootNode.descendantsOfType('switch_section')[0]?.namedChild(0)?.type).toBe('parenthesized_pattern');
-        expect(tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text)).toEqual(['A.B']);
+        const parsed = tree.rootNode.descendantsOfType('switch_section')[0]?.namedChild(0);
+        expect(['constant_pattern', 'parenthesized_pattern'], source).toContain(parsed?.type);
+        expect(parsed?.text, source).toBe(pattern);
+        expect(tree.rootNode.descendantsOfType('positional_pattern_clause'), source).toHaveLength(0);
+        expect(
+          tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text.replaceAll(/^\(+|\)+$/g, ''))
+        ).toEqual(['A.B']);
         expect(query.captures(tree.rootNode).map(({ node }) => node.text)).toContain(pattern);
       } finally {
         tree.delete();
@@ -1106,6 +1111,61 @@ test('preserves lvalue receiver captures inside nested generic positional patter
   }
 });
 
+test('retains receiver captures in parenthesized negated patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue');
+  try {
+    for (const pattern of ['(not A.B)', '((not A.B))', 'not (A.B or C.D)']) {
+      const source = `var result = value is ${pattern};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.text, source).toBe(`value is ${pattern}`);
+        expect(
+          query.captures(tree.rootNode).map(({ node }) => node.text),
+          source
+        ).toEqual(pattern.includes('C.D') ? ['value', 'A', 'C'] : ['value', 'A']);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('parses unnamed tuple patterns as positional subpatterns', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of ['(A.B, C.D)', '(1 | 2, 3 & 4)']) {
+      const source = `var result = value is ${pattern};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const recursive = tree.rootNode.descendantsOfType('recursive_pattern');
+        expect(
+          recursive.map((node) => node.text),
+          source
+        ).toEqual([pattern]);
+        const positional = recursive[0]?.descendantsOfType('positional_pattern_clause')[0];
+        expect(
+          positional?.namedChildren.map((node) => node.text),
+          source
+        ).toEqual(pattern.slice(1, -1).split(', '));
+        expect(
+          tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+          source
+        ).toEqual(pattern.slice(1, -1).split(', '));
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('keeps indexed receivers inside supported member constants', () => {
   const parser = new Parser().setLanguage(language);
   const query = new Query(language, '(element_access_expression expression: (is_pattern_expression)) @outside');
@@ -1132,6 +1192,70 @@ test('keeps indexed receivers inside supported member constants', () => {
     }
   } finally {
     query.delete();
+    parser.delete();
+  }
+});
+
+test('retains receiver ancestry through nested full-constant operators', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue');
+  try {
+    for (const [constant, receivers] of [
+      ['A.B + 1', ['A.B', 'A']],
+      ['1 + A.B', ['A.B', 'A']],
+      ['A.B << 2', ['A.B', 'A']],
+      ['A.B | C.D', ['A.B', 'A', 'C.D', 'C']],
+      ['A.B && C.D', ['A.B', 'A', 'C.D', 'C']],
+      ['(A.B) + 1', ['(A.B)', 'A.B', 'A']],
+      ['(A.B + 1) << 2', ['A.B', 'A']],
+      ['A.B!', ['A.B', 'A']],
+    ] as const) {
+      for (const parameter of ['int item', 'var item']) {
+        const source = `var result = value is Foo(A.Bar<T>(${parameter}, ${constant})) matched;`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual([constant]);
+          expect(
+            query.captures(tree.rootNode).map(({ node }) => node.text),
+            source
+          ).toEqual(['value', ...receivers]);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('distinguishes named singleton positionals from unnamed pattern parentheses', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const child of ['A.B', 'int item', 'var item']) {
+      const pattern = `(Name: ${child})`;
+      for (const source of [`var result = value is ${pattern};`, `var result = value is [${pattern}];`]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const positional = tree.rootNode.descendantsOfType('positional_pattern_clause');
+          expect(
+            positional.map((node) => node.text),
+            source
+          ).toEqual([pattern]);
+          expect(positional[0]?.namedChildCount, source).toBe(1);
+          expect(positional[0]?.namedChild(0)?.type, source).toBe('subpattern');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
     parser.delete();
   }
 });
