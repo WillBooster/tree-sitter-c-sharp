@@ -109,6 +109,30 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._constant_lvalue_expression, $._full_postfix_lvalue],
+    [$._positional_full_constant, $._constant_lvalue_expression, $._full_constant_pattern, $._full_postfix_lvalue],
+    [$._positional_full_non_lvalue_expression, $._full_postfix_non_lvalue],
+    [$._positional_full_non_lvalue_expression, $._full_operator_non_lvalue],
+    [
+      $._positional_full_constant,
+      $._positional_full_non_lvalue_expression,
+      $._full_constant_pattern,
+      $._full_postfix_non_lvalue,
+    ],
+    [$._full_constant_pattern, $._full_postfix_non_lvalue],
+    [$._positional_full_constant, $._full_constant_pattern, $._full_postfix_lvalue],
+    [$._full_constant_pattern, $._full_postfix_lvalue],
+    [$.is_pattern_expression, $._full_owner_is_pattern_expression],
+    [$.is_expression, $._full_owner_is_expression],
+    [$.type_pattern, $.is_expression, $._full_owner_is_expression],
+    [$.switch_expression, $._full_owner_switch_expression],
+    [$._pattern_receiver_lvalue, $.constant_pattern, $._full_constant_pattern],
+    [$.constant_pattern, $.lvalue_expression, $._full_constant_pattern],
+    [$.constant_pattern, $.non_lvalue_expression, $._full_constant_pattern],
+    [$.constant_pattern, $._expression_statement_expression, $._full_constant_pattern],
+    [$.pattern, $._switch_pattern],
+    [$._name, $.constant_pattern, $.lvalue_expression, $._full_constant_pattern],
+    [$.constant_pattern, $.lvalue_expression, $._is_qualified_member_lvalue],
     [$.argument_list, $._anchored_primary_argument_list],
     [$.range_expression, $._anchored_spread_element],
     [$.spread_element, $.range_expression, $._anchored_spread_element],
@@ -351,6 +375,13 @@ module.exports = grammar({
   ],
 
   supertypes: ($) => [
+    $._full_postfix_expression,
+    $._full_postfix_lvalue,
+    $._full_postfix_non_lvalue,
+    $._full_operator_expression,
+    $._full_operator_non_lvalue,
+    $._conditional_index_expression,
+    $._conditional_index_non_lvalue,
     $._pattern_receiver_expression,
     $._pattern_receiver_lvalue,
     $._pattern_receiver_non_lvalue,
@@ -1088,9 +1119,16 @@ module.exports = grammar({
         alias($._pattern_receiver_lvalue, $.lvalue_expression),
         alias($._pattern_receiver_non_lvalue, $.non_lvalue_expression)
       ),
-    _pattern_receiver_non_lvalue: ($) => alias($._anchored_collection_expression, $.collection_expression),
+    _pattern_receiver_non_lvalue: ($) =>
+      choice(
+        alias($._anchored_collection_expression, $.collection_expression),
+        alias($._is_receiver_invocation, $.invocation_expression)
+      ),
+
     _pattern_receiver_lvalue: ($) =>
       choice(
+        alias($._anchored_parenthesized_lvalue_expression, $.parenthesized_expression),
+        alias($._is_qualified_member, $.member_access_expression),
         alias($._is_receiver_element, $.element_access_expression),
         alias($._is_receiver_conditional, $.conditional_access_expression)
       ),
@@ -1104,6 +1142,8 @@ module.exports = grammar({
               choice(
                 $.expression,
                 alias($._pattern_receiver_expression, $.expression),
+                alias($._full_operator_expression, $.expression),
+                alias($._full_postfix_expression, $.expression),
                 seq(alias($._switch_pattern, $.pattern), optional($.when_clause))
               )
             ),
@@ -1229,6 +1269,7 @@ module.exports = grammar({
         alias($._complex_invocation_expression, $.invocation_expression),
         prec.dynamic(1, $.cast_expression),
         prec.dynamic(-1, $._simple_name),
+        prec.dynamic(-1, $.tuple_expression),
         $.literal
       ),
 
@@ -1255,7 +1296,6 @@ module.exports = grammar({
         )
       ),
 
-    // One above `invocation_expression`, which reads the same tokens where both fit.
     _complex_invocation_expression: ($) =>
       prec(
         PREC.INVOCATION + 1,
@@ -2318,6 +2358,10 @@ module.exports = grammar({
       ),
     _positional_full_constant: ($) =>
       choice(
+        alias($._full_operator_postfix, $.postfix_unary_expression),
+        alias($._full_owner_member, $.member_access_expression),
+        alias($._full_owner_invocation, $.invocation_expression),
+        alias($._full_owner_complex_invocation, $.invocation_expression),
         alias($._positional_full_binary_expression, $.binary_expression),
         alias($._constant_parenthesized_lvalue_expression, $.parenthesized_expression),
         alias($._positional_full_parenthesized_expression, $.parenthesized_expression),
@@ -2328,6 +2372,8 @@ module.exports = grammar({
       seq('(', alias($._constant_lvalue_expression, $.lvalue_expression), ')'),
     _constant_lvalue_expression: ($) =>
       choice(
+        alias($._full_owner_member, $.member_access_expression),
+        alias($._full_owner_element, $.element_access_expression),
         'this',
         $._simple_name,
         prec(PREC.POSTFIX + 1, alias($._is_receiver_element, $.element_access_expression)),
@@ -2337,10 +2383,17 @@ module.exports = grammar({
     _positional_full_expression: ($) =>
       choice(
         alias($._is_qualified_member_lvalue, $.lvalue_expression),
+        alias($._full_postfix_lvalue, $.lvalue_expression),
         alias($._positional_full_non_lvalue_expression, $.non_lvalue_expression)
       ),
     _positional_full_non_lvalue_expression: ($) =>
       choice(
+        alias($._full_operator_postfix, $.postfix_unary_expression),
+        alias($._full_owner_invocation, $.invocation_expression),
+        alias($._full_owner_complex_invocation, $.invocation_expression),
+        alias($._full_owner_is_expression, $.is_expression),
+        alias($._full_owner_is_pattern_expression, $.is_pattern_expression),
+        alias($._full_owner_switch_expression, $.switch_expression),
         alias($._anchored_collection_expression, $.collection_expression),
         alias($._is_receiver_conditional, $.conditional_access_expression),
         alias($._positional_full_binary_expression, $.binary_expression),
@@ -2390,19 +2443,14 @@ module.exports = grammar({
 
     _switch_pattern: ($) =>
       choice(
+        $.pattern,
         prec.dynamic(1, alias($._full_constant_pattern, $.constant_pattern)),
-        $.declaration_pattern,
-        $.discard,
-        $.recursive_pattern,
-        $.var_pattern,
         alias($._full_negated_pattern, $.negated_pattern),
         prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
         prec.dynamic(2, $.parenthesized_pattern),
-        $.relational_pattern,
         alias($._full_or_pattern, $.or_pattern),
         alias($._full_and_pattern, $.and_pattern),
-        prec.dynamic(1, $.list_pattern),
-        $.type_pattern
+        prec.dynamic(1, $.list_pattern)
       ),
 
     _full_pattern: ($) =>
@@ -2424,6 +2472,10 @@ module.exports = grammar({
 
     _full_constant_pattern: ($) =>
       choice(
+        alias($._full_operator_postfix, $.postfix_unary_expression),
+        alias($._full_owner_member, $.member_access_expression),
+        alias($._full_owner_invocation, $.invocation_expression),
+        alias($._full_owner_complex_invocation, $.invocation_expression),
         $.binary_expression,
         alias($._nameof_constant_invocation, $.invocation_expression),
         $.default_expression,
@@ -2546,6 +2598,100 @@ module.exports = grammar({
         prec(PREC.RANGE, seq('..', choice($.expression, alias($._positional_full_expression, $.expression))))
       ),
 
+    _full_operator_postfix: ($) =>
+      prec(
+        PREC.POSTFIX,
+        seq(choice(alias($._full_operator_expression, $.expression), fullOwnerOperand($)), choice('!', '++', '--'))
+      ),
+    _full_postfix_expression: ($) =>
+      choice(
+        alias($._full_postfix_lvalue, $.lvalue_expression),
+        alias($._full_postfix_non_lvalue, $.non_lvalue_expression)
+      ),
+    _full_postfix_lvalue: ($) =>
+      choice(
+        alias($._full_owner_member, $.member_access_expression),
+        alias($._full_owner_element, $.element_access_expression)
+      ),
+    _full_postfix_non_lvalue: ($) =>
+      choice(
+        alias($._full_owner_switch_expression, $.switch_expression),
+        alias($._full_operator_postfix, $.postfix_unary_expression),
+        alias($._full_owner_invocation, $.invocation_expression),
+        alias($._full_owner_complex_invocation, $.invocation_expression),
+        alias($._full_owner_parenthesized, $.parenthesized_expression)
+      ),
+    _full_owner_member: ($) =>
+      prec(PREC.DOT, seq(field('expression', fullOwnerOperand($)), '.', field('name', $._simple_name))),
+    _full_owner_element: ($) =>
+      prec(PREC.POSTFIX, seq(field('expression', fullOwnerOperand($)), field('subscript', $.bracketed_argument_list))),
+    _full_owner_invocation: ($) =>
+      prec(PREC.INVOCATION, seq(field('function', fullOwnerOperand($)), field('arguments', $.argument_list))),
+    _full_owner_complex_invocation: ($) =>
+      prec(
+        PREC.INVOCATION + 1,
+        seq(
+          field(
+            'function',
+            choice(
+              alias($._full_owner_member, $.member_access_expression),
+              alias($._full_owner_element, $.element_access_expression),
+              alias($._full_owner_invocation, $.invocation_expression),
+              alias($._full_owner_complex_invocation, $.invocation_expression),
+              alias($._full_owner_parenthesized, $.parenthesized_expression)
+            )
+          ),
+          field('arguments', $.argument_list)
+        )
+      ),
+    _full_owner_parenthesized: ($) =>
+      seq(
+        '(',
+        choice(
+          alias($._full_operator_non_lvalue, $.non_lvalue_expression),
+          alias($._full_postfix_non_lvalue, $.non_lvalue_expression),
+          alias($._full_postfix_lvalue, $.lvalue_expression)
+        ),
+        ')'
+      ),
+    _full_operator_expression: ($) => alias($._full_operator_non_lvalue, $.non_lvalue_expression),
+    _full_operator_non_lvalue: ($) =>
+      choice(
+        alias($._full_owner_is_expression, $.is_expression),
+        alias($._full_owner_is_pattern_expression, $.is_pattern_expression)
+      ),
+    _full_owner_is_expression: ($) =>
+      prec(
+        PREC.REL,
+        seq(
+          field('left', choice($.expression, alias($._positional_full_expression, $.expression))),
+          field('operator', 'is'),
+          field('right', choice($.type, alias($._is_completed_type, $.type)))
+        )
+      ),
+    _full_owner_is_pattern_expression: ($) =>
+      prec(
+        PREC.REL,
+        seq(
+          field('expression', choice($.expression, alias($._positional_full_expression, $.expression))),
+          'is',
+          field('pattern', $.pattern)
+        )
+      ),
+    _full_owner_switch_expression: ($) =>
+      prec(
+        PREC.SWITCH,
+        seq(
+          choice($.expression, alias($._positional_full_expression, $.expression)),
+          'switch',
+          $._switch_expression_body
+        )
+      ),
+
+    _conditional_index_expression: ($) => alias($._conditional_index_non_lvalue, $.non_lvalue_expression),
+    _conditional_index_non_lvalue: ($) =>
+      prec(PREC.POSTFIX + 1, alias($._is_receiver_conditional, $.conditional_access_expression)),
+
     _is_receiver_element: ($) =>
       prec(
         PREC.POSTFIX,
@@ -2553,6 +2699,7 @@ module.exports = grammar({
           field(
             'expression',
             choice(
+              prec(PREC.POSTFIX + 1, alias($._conditional_index_expression, $.expression)),
               alias($._is_qualified_member_lvalue, $.lvalue_expression),
               alias($._is_qualified_postfix, $.postfix_unary_expression),
               alias($._constant_parenthesized_expression, $.parenthesized_expression),
@@ -2612,6 +2759,7 @@ module.exports = grammar({
               field(
                 'function',
                 choice(
+                  alias($._is_receiver_element, $.element_access_expression),
                   alias($._is_receiver_conditional, $.conditional_access_expression),
                   alias($._is_qualified_member, $.member_access_expression),
                   alias($._is_qualified_postfix, $.postfix_unary_expression),
@@ -2920,4 +3068,19 @@ function sep1(rule, separator) {
  */
 function sep(rule, separator) {
   return optional(sep1(rule, separator));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_full_postfix_expression' | '_full_postfix_lvalue' | '_full_owner_invocation' | '_full_owner_complex_invocation' | '_full_operator_postfix' | '_full_owner_parenthesized' | 'expression' | 'lvalue_expression' | 'invocation_expression' | 'postfix_unary_expression' | 'parenthesized_expression'>} $
+ * @returns {import('@willbooster/web-tree-sitter/dsl').ChoiceRule}
+ */
+function fullOwnerOperand($) {
+  return choice(
+    alias($._full_postfix_expression, $.expression),
+    alias($._full_postfix_lvalue, $.lvalue_expression),
+    alias($._full_owner_invocation, $.invocation_expression),
+    alias($._full_owner_complex_invocation, $.invocation_expression),
+    alias($._full_operator_postfix, $.postfix_unary_expression),
+    alias($._full_owner_parenthesized, $.parenthesized_expression)
+  );
 }

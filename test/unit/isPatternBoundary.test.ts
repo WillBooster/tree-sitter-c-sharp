@@ -1496,7 +1496,7 @@ test('preserves indexed receiver queries in collection and conditional owners', 
       ['switch (x) { case A.B[0]?.C: break; }', ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], false],
       ['var r = x is { P: A.B[0]?.Call() };', ['x', 'P', 'A.B[0]', 'A.B', 'A'], false],
       ['var r = x switch { A.B[0]?.Call() => 1, _ => 2 };', ['x', 'A.B[0]', 'A.B', 'A'], false],
-      ['var r = x is { P: A.B[0]?.C };', ['x', 'P', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], true],
+      ['var r = x is { P: A.B[0]?.C };', ['x', 'A.B[0]', 'A.B', 'A'], true],
       ['var r = x switch { A.B[0]?.C => 1, _ => 2 };', ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], true],
       ['var r = x is Foo([1, A.B[0]?.C]);', ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], false],
       ['var r = x is A.Foo([1, A.B[0]?.C]);', ['x', 'A', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], false],
@@ -1514,6 +1514,204 @@ test('preserves indexed receiver queries in collection and conditional owners', 
           query.captures(tree.rootNode).map(({ node }) => node.text),
           source
         ).toEqual(receivers);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('retains the published tuple fallback for unsupported positional constant children', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const value of [
+      'this',
+      'base',
+      'a?.b',
+      '*p',
+      '&a',
+      'new C()',
+      'a(1)[0]',
+      'nameof(a)[0]',
+      'a is b',
+      'a switch { 1 => 2 }',
+      'a->b[0]',
+      'a[0]?.b',
+      'this[0]',
+      'base[0]',
+    ]) {
+      for (const tuple of [`(${value}, 1)`, `(1, ${value})`, `(${value}, 1, 2)`]) {
+        const source = `var result = value is ${tuple};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const constant = tree.rootNode.descendantsOfType('constant_pattern').find((node) => node.text === tuple)!;
+          expect(constant.namedChild(0)?.type, source).toBe('tuple_expression');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('checks all nine canonical supertype query categories and recovery trees', () => {
+  const parser = new Parser().setLanguage(language);
+  const categories = [
+    'declaration',
+    'expression',
+    'non_lvalue_expression',
+    'lvalue_expression',
+    'literal',
+    'statement',
+    'type',
+    'type_declaration',
+    'pattern',
+  ];
+  const query = new Query(language, categories.map((name) => `(${name}) @${name}`).join('\n'));
+  const fixtures = [
+    [
+      'class C { int M() => 1; }',
+      false,
+      [
+        ['type_declaration', 'class_declaration', 'class C { int M() => 1; }'],
+        ['declaration', 'method_declaration', 'int M() => 1;'],
+        ['type', 'predefined_type', 'int'],
+        ['expression', 'integer_literal', '1'],
+        ['non_lvalue_expression', 'integer_literal', '1'],
+        ['literal', 'integer_literal', '1'],
+      ],
+      [],
+    ],
+    [
+      'if (x is 1) return;',
+      false,
+      [
+        ['statement', 'if_statement', 'if (x is 1) return;'],
+        ['expression', 'is_pattern_expression', 'x is 1'],
+        ['non_lvalue_expression', 'is_pattern_expression', 'x is 1'],
+        ['expression', 'identifier', 'x'],
+        ['lvalue_expression', 'identifier', 'x'],
+        ['pattern', 'constant_pattern', '1'],
+        ['literal', 'integer_literal', '1'],
+        ['statement', 'return_statement', 'return;'],
+      ],
+      [],
+    ],
+    [
+      'var r = x is ([A.B[0]]);',
+      false,
+      [
+        ['statement', 'local_declaration_statement', 'var r = x is ([A.B[0]]);'],
+        ['type', 'implicit_type', 'var'],
+        ['expression', 'is_pattern_expression', 'x is ([A.B[0]])'],
+        ['non_lvalue_expression', 'is_pattern_expression', 'x is ([A.B[0]])'],
+        ['expression', 'identifier', 'x'],
+        ['lvalue_expression', 'identifier', 'x'],
+        ['pattern', 'constant_pattern', '([A.B[0]])'],
+        ['non_lvalue_expression', 'collection_expression', '[A.B[0]]'],
+        ['expression', 'element_access_expression', 'A.B[0]'],
+        ['lvalue_expression', 'element_access_expression', 'A.B[0]'],
+        ['lvalue_expression', 'member_access_expression', 'A.B'],
+        ['lvalue_expression', 'identifier', 'A'],
+        ['expression', 'integer_literal', '0'],
+        ['non_lvalue_expression', 'integer_literal', '0'],
+        ['literal', 'integer_literal', '0'],
+      ],
+      [],
+    ],
+    [
+      'switch (x) { case A.B?.C: break; }',
+      false,
+      [
+        ['statement', 'switch_statement', 'switch (x) { case A.B?.C: break; }'],
+        ['expression', 'identifier', 'x'],
+        ['lvalue_expression', 'identifier', 'x'],
+        ['expression', 'conditional_access_expression', 'A.B?.C'],
+        ['lvalue_expression', 'conditional_access_expression', 'A.B?.C'],
+        ['expression', 'member_access_expression', 'A.B'],
+        ['lvalue_expression', 'member_access_expression', 'A.B'],
+        ['lvalue_expression', 'identifier', 'A'],
+        ['statement', 'break_statement', 'break;'],
+      ],
+      [],
+    ],
+    [
+      'switch (x) { case 1, 2: break; }',
+      true,
+      [
+        ['statement', 'switch_statement', 'switch (x) { case 1, 2: break; }'],
+        ['expression', 'identifier', 'x'],
+        ['lvalue_expression', 'identifier', 'x'],
+        ['literal', 'integer_literal', '1'],
+        ['pattern', 'constant_pattern', '2'],
+        ['literal', 'integer_literal', '2'],
+        ['statement', 'break_statement', 'break;'],
+      ],
+      ['(ERROR (constant_pattern (integer_literal)))'],
+    ],
+    [
+      'switch (x) { case int y, string z: break; }',
+      true,
+      [
+        ['statement', 'switch_statement', 'switch (x) { case int y, string z: break; }'],
+        ['expression', 'identifier', 'x'],
+        ['lvalue_expression', 'identifier', 'x'],
+        ['pattern', 'declaration_pattern', 'int y'],
+        ['type', 'predefined_type', 'int'],
+        ['pattern', 'declaration_pattern', 'string z'],
+        ['type', 'predefined_type', 'string'],
+        ['statement', 'break_statement', 'break;'],
+      ],
+      ['(ERROR (declaration_pattern type: (predefined_type) name: (identifier)))'],
+    ],
+  ] as const;
+  try {
+    for (const [source, hasError, captures, errorTrees] of fixtures) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(hasError);
+        expect(
+          tree.rootNode.descendantsOfType('ERROR').map((node) => node.toString()),
+          source
+        ).toEqual(errorTrees);
+        expect(
+          query.captures(tree.rootNode).map(({ name, node }) => [name, node.type, node.text]),
+          source
+        ).toEqual(captures);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('preserves lvalue query ancestry through full operator owners and their postfix chains', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @value');
+  try {
+    for (const [source, values] of [
+      ['var r=x is (A.B is object);', ['x', 'A.B', 'A']],
+      ['switch(x){case A.B is object:break;}', ['x', 'A.B', 'A']],
+      ['switch(x){case A.B switch {_=>1}!.P[0]():break;}', ['x', 'A.B switch {_=>1}!.P', 'A.B', 'A']],
+      ['switch(x){case (A.B is object)():break;}', ['x', 'A.B', 'A']],
+      ['switch(x){case A.B[0]():break;}', ['x', 'A.B', 'A']],
+    ] as const) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          query.captures(tree.rootNode).map(({ node }) => node.text),
+          source
+        ).toEqual(values);
       } finally {
         tree.delete();
       }
