@@ -101,7 +101,7 @@ test('preserves full constant expressions in switch and delimited patterns', () 
     for (const [source, constants] of [
       ['switch (value) { case 1 | 2: break; }', ['1 | 2']],
       ['var result = value switch { 1 | 2 => true, _ => false };', ['1 | 2']],
-      ['var result = value is (1 | 2);', ['(1 | 2)']],
+      ['var result = value is (1 | 2);', ['1 | 2']],
       ['var result = value is { Property: 1 | 2 };', ['1 | 2']],
       ['var result = value is [1 | 2];', ['1 | 2']],
       ['var result = value is (1 | 2, 3 & 4);', ['(1 | 2, 3 & 4)']],
@@ -147,7 +147,7 @@ test('preserves complete qualified constants and existing member receiver captur
   }
 });
 
-test('retains existing supertype captures inside ordinary name-call arguments', () => {
+test('retains existing supertype captures inside intrinsic nameof arguments', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   const query = new Query(language, '(lvalue_expression) @lvalue\n(expression) @expression');
@@ -170,34 +170,28 @@ test('retains existing supertype captures inside ordinary name-call arguments', 
   }
 });
 
-test('keeps qualified positional arguments inside the is pattern with direct member captures', () => {
-  const parser = new Parser();
-  parser.setLanguage(language);
-  const query = new Query(language, '(expression) @expression\n(lvalue_expression) @lvalue');
+test('keeps qualified type-shaped calls as complete positional patterns before surrounding operators', () => {
+  const parser = new Parser().setLanguage(language);
   try {
-    for (const suffix of ['', ' && ready', ' ? [1] : [2]']) {
-      const source = `var result = shape is Shapes.Point(1, 2)${suffix};`;
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(false);
-        expect(
-          tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
-          source
-        ).toEqual(['shape is Shapes.Point(1, 2)']);
-        const invocation = tree.rootNode.descendantsOfType('invocation_expression')[0]!;
-        expect(invocation.childForFieldName('function')?.text).toBe('Shapes.Point');
-        expect(invocation.childForFieldName('arguments')?.text).toBe('(1, 2)');
-        const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
-        expect(captures).toContainEqual(['lvalue', 'Shapes']);
-        expect(captures).not.toContainEqual(['expression', 'Shapes']);
-        expect(captures).not.toContainEqual(['expression', 'Shapes.Point']);
-        expect(captures).not.toContainEqual(['lvalue', 'Shapes.Point']);
-      } finally {
-        tree.delete();
+    for (const name of ['Shapes.Point', 'A.B<T>', 'global::A.B<T>', '@nameof']) {
+      for (const suffix of ['', ' && ready', ' ? [1] : [2]']) {
+        const pattern = `${name}(1, 2)`;
+        const source = `var result = shape is ${pattern}${suffix};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.text, source).toBe(`shape is ${pattern}`);
+          const parsed = tree.rootNode.descendantsOfType('recursive_pattern')[0]!;
+          expect(parsed.text, source).toBe(pattern);
+          expect(parsed.childForFieldName('type')?.text, source).toBe(name);
+          expect(parsed.descendantsOfType('positional_pattern_clause')[0]?.text, source).toBe('(1, 2)');
+          expect(tree.rootNode.descendantsOfType('invocation_expression'), source).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -252,6 +246,8 @@ test('keeps parenthesized operands and their canonical categories inside arithme
       '(1 | 2) + 3',
       '((1 | 2)) << 3',
       '((A.B)) + 1',
+      '(((A.B))) + K',
+      '((((A.B)))) << K',
     ]) {
       for (const suffix of ['', ' && ready', ' | mask']) {
         const source = `var result = value is ${constant}${suffix};`;
@@ -349,7 +345,7 @@ test('keeps arithmetic constants with nonliteral right operands before surroundi
   }
 });
 
-test('preserves parenthesized constant nodes in every delimited pattern context', () => {
+test('keeps full constant expressions inside parentheses in every delimited pattern context', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   try {
@@ -365,11 +361,15 @@ test('preserves parenthesized constant nodes in every delimited pattern context'
         const tree = parser.parse(source)!;
         try {
           expect(tree.rootNode.hasError, source).toBe(false);
-          const pattern = tree.rootNode.descendantsOfType('constant_pattern').find((node) => node.text === constant);
           expect(
-            pattern?.namedChildren.map((node) => node.type),
+            tree.rootNode.descendantsOfType(['constant_pattern', 'parenthesized_pattern']).map((node) => node.text),
             source
-          ).toEqual(['parenthesized_expression']);
+          ).toContain(constant);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual([constant.slice(1, -1)]);
+          expect(tree.rootNode.descendantsOfType('positional_pattern_clause'), source).toHaveLength(0);
         } finally {
           tree.delete();
         }
@@ -444,7 +444,7 @@ test('keeps unguarded switch list patterns distinct from collection expressions'
   }
 });
 
-test('preserves complete constants through repeated parentheses and genuine nested patterns', () => {
+test('preserves complete expressions through repeated pattern parentheses without singleton deconstruction', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   try {
@@ -463,8 +463,12 @@ test('preserves complete constants through repeated parentheses and genuine nest
             expect(
               tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
               source
-            ).toEqual([constant]);
-            expect(tree.rootNode.descendantsOfType('parenthesized_pattern'), source).toHaveLength(0);
+            ).toEqual([inner]);
+            expect(
+              tree.rootNode.descendantsOfType('parenthesized_pattern').map((node) => node.text),
+              source
+            ).toContain(constant);
+            expect(tree.rootNode.descendantsOfType('positional_pattern_clause'), source).toHaveLength(0);
           } finally {
             tree.delete();
           }
@@ -553,16 +557,13 @@ test('keeps primary receivers and mixed call/member/postfix chains inside is con
       '$"hello{value}".Length',
       'new C().Member().Next!',
       'A.B!(1, 2)',
-      'M()',
-      'A.B()',
-      'M()!',
+      'nameof(C)!',
       '(Colors).Red',
       '((A.B)).C',
       '(1).ToString',
       '(1, 2).Item1',
-      'A.B().Next().Last!',
+      'nameof(C).Next().Last!',
       '"hello".Member().Next!',
-      'global::A<T>(1, 2)',
     ]) {
       for (const suffix of ['', ' && ready', ' | mask']) {
         const source = `var result = value is ${constant}${suffix};`;
@@ -577,11 +578,11 @@ test('keeps primary receivers and mixed call/member/postfix chains inside is con
             tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
             source
           ).toEqual([constant]);
-          if (constant === 'M()!') {
+          if (constant === 'nameof(C)!') {
             const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
-            expect(captures).toContainEqual(['lvalue', 'M']);
-            expect(captures).not.toContainEqual(['expression', 'M']);
-            expect(captures).not.toContainEqual(['expression', 'M()']);
+            expect(captures).toContainEqual(['lvalue', 'nameof']);
+            expect(captures).not.toContainEqual(['expression', 'nameof']);
+            expect(captures).not.toContainEqual(['expression', 'nameof(C)']);
           }
         } finally {
           tree.delete();
@@ -594,30 +595,81 @@ test('keeps primary receivers and mixed call/member/postfix chains inside is con
   }
 });
 
-test('retains invocation constants with parenthesized arguments and genuine positional patterns', () => {
+test('distinguishes ordinary positional calls from intrinsic nameof in nested pattern contexts', () => {
   const parser = new Parser().setLanguage(language);
   try {
-    for (const constant of ['M((1))', 'M((1), (2))', 'M(((1)), ((2)), (((3))))', 'A.B((1), (2))']) {
-      const tree = parser.parse(`var result = value is ${constant};`)!;
-      try {
-        expect(tree.rootNode.hasError, constant).toBe(false);
-        expect(
-          tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
-          constant
-        ).toEqual([constant]);
-        expect(tree.rootNode.descendantsOfType('invocation_expression')[0]?.text, constant).toBe(constant);
-      } finally {
-        tree.delete();
+    for (const pattern of [
+      'M()',
+      'M((1))',
+      'M((1), (2))',
+      'A.B((1), (2))',
+      'global::A<T>(1, 2)',
+      'M(int x)',
+      'M((>1))',
+      'M((1 or 2))',
+      'M((1)) item',
+      'M() item',
+      'M() { P: 1 } item',
+      '@nameof(Type.Member)',
+      'A.nameof(Type.Member)',
+      'nameof<T>(Type.Member)',
+      'nameofValue(C)',
+      'nameofπ(C)',
+      String.raw`nameo\u0066(C)`,
+    ]) {
+      for (const source of [
+        `var result = value is ${pattern};`,
+        `var result = value is { P: ${pattern} };`,
+        `var result = value is [${pattern}];`,
+        `var result = value switch { ${pattern} => 1, _ => 2 };`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('recursive_pattern').map((node) => node.text),
+            source
+          ).toContain(pattern);
+        } finally {
+          tree.delete();
+        }
       }
     }
-    for (const pattern of ['M(int x)', 'M((>1))', 'M((1 or 2))', 'M((1)) item', 'M() item', 'M() { P: 1 } item']) {
-      const tree = parser.parse(`var result = value is ${pattern};`)!;
+    for (const constant of [
+      'nameof(Type.Member)',
+      'nameof((Foo))',
+      'nameof(var(a, b))',
+      'nameof(Foo(var(a, b)))',
+      'nameof(C) + C.S',
+      'nameof(C) << 1',
+    ]) {
+      for (const source of [
+        `var result = value is ${constant} && ready;`,
+        `var result = value is { P: ${constant} };`,
+        `var result = value is [${constant}];`,
+        `var result = value switch { ${constant} => 1, _ => 2 };`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual([constant]);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    for (const name of ['nameofValue', 'nameofπ', 'nameof𐐀', String.raw`nameof\u0061`, '@nameof', 'varValue', '@var']) {
+      const source = `var ${name} = ${name}(value);`;
+      const tree = parser.parse(source)!;
       try {
-        expect(tree.rootNode.hasError, pattern).toBe(false);
-        expect(tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.childForFieldName('pattern')?.type).toBe(
-          'recursive_pattern'
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('invocation_expression')[0]?.childForFieldName('function')?.text).toBe(
+          name
         );
-        expect(tree.rootNode.descendantsOfType('recursive_pattern')[0]?.text, pattern).toBe(pattern);
+        expect(tree.rootNode.descendantsOfType('variable_declarator')[0]?.childForFieldName('name')?.text).toBe(name);
       } finally {
         tree.delete();
       }
@@ -701,7 +753,7 @@ test('preserves parenthesized tuple-designation patterns and genuine positional 
         }
       }
     }
-    for (const pattern of ['M(var (a, b))', '(var (a, b), other)', 'M() item', '(var (a, b)) item']) {
+    for (const pattern of ['M(var (a, b))', '(var (a, b), other)', 'M() item']) {
       const tree = parser.parse(`var result = value is ${pattern};`)!;
       try {
         expect(tree.rootNode.hasError, pattern).toBe(false);
@@ -714,6 +766,63 @@ test('preserves parenthesized tuple-designation patterns and genuine positional 
       }
     }
   } finally {
+    parser.delete();
+  }
+});
+
+test('preserves tuple-var patterns through negation and nested named positional clauses', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(expression) @expression\n(lvalue_expression) @lvalue');
+  try {
+    for (const pattern of [
+      '(not (var (a, b)))',
+      '((not (var (a, _))))',
+      'Foo(Foo(var (a, b)))',
+      'Foo(P: Foo(var (a, b)))',
+    ]) {
+      for (const source of [
+        `var result = value is ${pattern};`,
+        `var result = value is { P: ${pattern} };`,
+        `var result = value is [${pattern}];`,
+        `var result = value switch { ${pattern} => 1, _ => 2 };`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(tree.rootNode.descendantsOfType('var_pattern'), source).toHaveLength(1);
+          expect(tree.rootNode.descendantsOfType('invocation_expression'), source).toHaveLength(0);
+          if (pattern.startsWith('(')) {
+            expect(
+              tree.rootNode.descendantsOfType('parenthesized_pattern').map((node) => node.text),
+              source
+            ).toContain(pattern);
+          }
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    const labeled = parser.parse('var result = value is { P: Foo(Label: Foo(var(a, b))) };')!;
+    try {
+      expect(labeled.rootNode.hasError).toBe(false);
+      const captures = query.captures(labeled.rootNode).map(({ name, node }) => [name, node.text]);
+      expect(captures).toContainEqual(['expression', 'P']);
+      expect(captures).toContainEqual(['lvalue', 'P']);
+      expect(captures).not.toContainEqual(['expression', 'Label']);
+      expect(captures).not.toContainEqual(['lvalue', 'Label']);
+    } finally {
+      labeled.delete();
+    }
+    const call = parser.parse('var result = Foo(Foo(var(a, b)));')!;
+    try {
+      expect(call.rootNode.hasError).toBe(false);
+      expect(call.rootNode.descendantsOfType('var_pattern')).toHaveLength(0);
+      expect(call.rootNode.descendantsOfType('invocation_expression')).toHaveLength(3);
+    } finally {
+      call.delete();
+    }
+  } finally {
+    query.delete();
     parser.delete();
   }
 });

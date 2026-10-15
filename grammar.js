@@ -44,6 +44,39 @@ const directiveHorizontal = String.raw` \t\v\f\u00A0\u1680\u2000-\u200A\u202F\u2
 const directiveLineBreak = String.raw`\r\n\u0085\u2028\u2029`;
 const directiveWhitespace = directiveHorizontal + directiveLineBreak;
 
+const contextualIdentifierNames = [
+  'alias',
+  'async',
+  'ascending',
+  'by',
+  'descending',
+  'equals',
+  'field',
+  'file',
+  'from',
+  'global',
+  'group',
+  'into',
+  'join',
+  'let',
+  'method',
+  'notnull',
+  'on',
+  'orderby',
+  'param',
+  'partial',
+  'property',
+  'scoped',
+  'select',
+  'type',
+  'typevar',
+  'unmanaged',
+  'var',
+  'when',
+  'where',
+  'yield',
+];
+
 const decimalDigitSequence = /([0-9][0-9_]*[0-9]|[0-9])/;
 
 const stringEncoding = /(u|U)8/;
@@ -53,32 +86,27 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
-    [$._parenthesized_var_pattern_content, $._positional_pattern],
-    [$._parenthesized_var_pattern_content, $._positional_pattern, $._full_pattern],
-    [$.argument_list, $.positional_pattern_clause, $._is_empty_argument_list],
-    [$.type, $._name_invocation_pattern, $.recursive_pattern, $._is_qualified_invocation],
+    [$.parameter, $._reserved_identifier, $._pattern_identifier],
+    [$.from_clause, $._reserved_identifier, $._pattern_identifier],
+    [$._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier, $._pattern_identifier],
+    [$._reserved_identifier, $._pattern_identifier],
+    [$.attribute, $.type, $._name_invocation_pattern],
+    [$.identifier, $._nameof_constant_invocation],
+    [$._simple_name, $._pattern_name],
+    [$._pattern_qualified_name, $._is_qualified_member],
+    [$._simple_name, $._positional_subpattern],
+    [$._name, $._pattern_name],
+    [$._name, $._pattern_name, $._pattern_qualified_name],
+    [$.type, $._name_invocation_pattern],
+    [$.identifier, $._pattern_identifier],
     [$.constant_pattern, $._is_qualified_member_lvalue, $._is_qualified_invocation],
     [$._is_qualified_invocation, $._is_receiver_invocation],
     [$.non_lvalue_expression, $._is_primary_non_lvalue_expression],
     [$._expression_statement_expression, $._is_primary_non_lvalue_expression],
-    [$._positional_pattern, $._full_pattern],
-    [$._positional_constant_pattern, $._full_constant_pattern],
-    [$._positional_constant_pattern, $._full_constant_pattern, $.non_lvalue_expression],
-    [$._positional_constant_pattern, $._full_constant_pattern, $._expression_statement_expression],
-    [$._positional_constant_pattern, $._full_constant_pattern, $.lvalue_expression],
-    [$._positional_constant_pattern, $._full_constant_pattern, $._name],
-    [$._name, $.lvalue_expression, $._positional_constant_pattern, $._full_constant_pattern],
-    [$._positional_constant_pattern, $.non_lvalue_expression],
-    [$._positional_constant_pattern, $._expression_statement_expression],
-    [$._positional_constant_pattern, $.lvalue_expression],
-    [$._positional_constant_pattern, $._name],
-    [$._positional_constant_pattern, $.lvalue_expression, $._name],
-    [$._simple_name, $._positional_subpattern],
     [$.constant_pattern, $.non_lvalue_expression, $._is_primary_non_lvalue_expression],
     [$.constant_pattern, $.lvalue_expression, $._is_qualified_member_lvalue],
     [$.lvalue_expression, $._is_qualified_member_lvalue],
     [$.parenthesized_expression, $._constant_parenthesized_expression],
-    [$._full_constant_pattern, $._constant_parenthesized_non_lvalue_expression],
     [$.constant_pattern, $.non_lvalue_expression, $._is_constant_non_lvalue_expression],
     [$.constant_pattern, $._is_constant_non_lvalue_expression],
     [$.member_access_expression, $._is_qualified_member],
@@ -129,9 +157,7 @@ module.exports = grammar({
     [$.constant_pattern, $._name],
     [$.constant_pattern, $.lvalue_expression, $._name],
 
-    [$.type, $._name_invocation_pattern, $.recursive_pattern],
     [$.type, $.recursive_pattern],
-    [$.attribute, $.type, $._name_invocation_pattern, $.recursive_pattern],
 
     [$.parenthesized_pattern, $._parenthesized_pattern_with_designation],
 
@@ -249,11 +275,8 @@ module.exports = grammar({
     $._is_constant_expression,
     $._is_constant_non_lvalue_expression,
     $._switch_pattern,
-    $._constant_parenthesized_non_lvalue_expression,
     $._is_primary_expression,
     $._is_primary_non_lvalue_expression,
-    $._positional_pattern,
-    $._parenthesized_var_pattern_content,
   ],
 
   word: ($) => $._identifier_token,
@@ -1057,7 +1080,6 @@ module.exports = grammar({
         $.negated_pattern,
         prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
         $.parenthesized_pattern,
-        alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern),
         $.relational_pattern,
         $.or_pattern,
         $.and_pattern,
@@ -1071,6 +1093,7 @@ module.exports = grammar({
     constant_pattern: ($) =>
       choice(
         alias($._is_constant_binary_expression, $.binary_expression),
+        alias($._nameof_constant_invocation, $.invocation_expression),
         $.default_expression,
         $.interpolated_string_expression,
         alias($._constant_parenthesized_expression, $.parenthesized_expression),
@@ -1083,6 +1106,7 @@ module.exports = grammar({
         alias($._is_qualified_member, $.member_access_expression),
         alias($._is_qualified_invocation, $.invocation_expression),
         alias($._is_qualified_postfix, $.postfix_unary_expression),
+        alias($._name_invocation_pattern, $.invocation_expression),
         alias($._complex_invocation_expression, $.invocation_expression),
         prec.dynamic(1, $.cast_expression),
         $._simple_name,
@@ -1115,9 +1139,6 @@ module.exports = grammar({
 
     parenthesized_pattern: ($) => seq('(', alias($._full_pattern, $.pattern), ')'),
 
-    // `var x` parses as a declaration_pattern with an implicit_type. `var (x, y)` also reads as a positional pattern
-    // of type `var` or, after `is`, as an invocation of `o is var`; each of those carries the implicit_type's dynamic
-    // precedence of 1, so this needs more.
     var_pattern: ($) => prec.dynamic(2, seq('var', $.parenthesized_variable_designation)),
 
     // No associativity: tree-sitter 0.27 resolves a precedence tie with a right-associative reduce as a shift, which
@@ -1147,15 +1168,15 @@ module.exports = grammar({
           prec.dynamic(
             1,
             seq(
-              field('type', $._name),
+              field('type', $._pattern_name),
               $.positional_pattern_clause,
               optional($.property_pattern_clause),
               $._simple_designation
             )
           ),
           prec.dynamic(
-            -1,
-            seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))
+            2,
+            seq(field('type', $._pattern_name), $.positional_pattern_clause, optional($.property_pattern_clause))
           ),
           prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
           $.positional_pattern_clause,
@@ -1819,49 +1840,15 @@ module.exports = grammar({
           /(\p{XID_Start}|_|\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8})(\p{XID_Continue}|\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8})*/u
         )
       ),
-    identifier: ($) => choice($._identifier_token, $._reserved_identifier),
+    identifier: ($) =>
+      choice($._identifier_token, $._reserved_identifier, $._nameof_token, $._nameof_prefixed_identifier),
 
-    _reserved_identifier: () =>
-      choice(
-        prec(-1, '_'),
-        'alias',
-        'async',
-        'ascending',
-        'by',
-        'descending',
-        'equals',
-        // attribute_target_specifier keywords — contextual only when followed
-        // by `:` in `[target: Attr]` position. Anywhere else they're
-        // identifiers. Without listing them here the LR table preferred the
-        // literal-keyword interpretation, breaking `[type]`, `[field]`, etc.
-        // as collection_expression elements. Excludes `'event'` and `'return'`
-        // from the attribute_target_specifier choice — those are real C#
-        // keywords and must not be accepted as identifiers anywhere else.
-        'field',
-        'file',
-        'from',
-        'global',
-        'group',
-        'into',
-        'join',
-        'let',
-        'method',
-        'notnull',
-        'on',
-        'orderby',
-        'param',
-        'partial',
-        'property',
-        'scoped',
-        'select',
-        'type',
-        'typevar',
-        'unmanaged',
-        'var',
-        'when',
-        'where',
-        'yield'
-      ),
+    _nameof_token: () => token(prec(1, seq('name', 'of'))),
+
+    _nameof_prefixed_identifier: () =>
+      token(prec(2, seq('nameof', /(\p{XID_Continue}|\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8})+/u))),
+
+    _reserved_identifier: () => choice(prec(-1, '_'), ...contextualIdentifierNames),
 
     ...preprocIf(
       '_in_method_signature',
@@ -2081,76 +2068,39 @@ module.exports = grammar({
     shebang_directive: () => token(seq('#!', /[^\r\n\u0085\u2028\u2029]*/)),
 
     comment: () => token(choice(seq('//', /[^\r\n\u0085\u2028\u2029]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
-    _preferred_var_parenthesized_pattern: ($) =>
-      prec.dynamic(1, seq('(', alias($._parenthesized_var_pattern_content, $.pattern), ')')),
-
-    _parenthesized_var_pattern_content: ($) =>
-      choice($.var_pattern, alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern)),
-
     _positional_subpattern: ($) =>
       prec.right(
-        seq(optional(choice(seq($.expression, ':'), seq($.identifier, ':'))), alias($._positional_pattern, $.pattern))
-      ),
-
-    _positional_pattern: ($) =>
-      choice(
-        alias($._positional_constant_pattern, $.constant_pattern),
-        $.declaration_pattern,
-        $.discard,
-        $.recursive_pattern,
-        $.var_pattern,
-        alias($._positional_negated_pattern, $.negated_pattern),
-        prec.dynamic(1, alias($._positional_parenthesized_pattern_with_designation, $.recursive_pattern)),
-        alias($._positional_parenthesized_pattern, $.parenthesized_pattern),
-        alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern),
-        $.relational_pattern,
-        alias($._positional_or_pattern, $.or_pattern),
-        alias($._positional_and_pattern, $.and_pattern),
-        $.list_pattern,
-        $.type_pattern
-      ),
-
-    _positional_constant_pattern: ($) =>
-      choice(
-        $.binary_expression,
-        $.default_expression,
-        $.interpolated_string_expression,
-        $.parenthesized_expression,
-        $.postfix_unary_expression,
-        $.prefix_unary_expression,
-        $.sizeof_expression,
-        $.tuple_expression,
-        $.typeof_expression,
-        $.member_access_expression,
-        alias($._name_invocation_pattern, $.invocation_expression),
-        alias($._complex_invocation_expression, $.invocation_expression),
-        $.cast_expression,
-        $._simple_name,
-        $.literal
-      ),
-
-    _positional_parenthesized_pattern: ($) => seq('(', alias($._positional_pattern, $.pattern), ')'),
-    _positional_parenthesized_pattern_with_designation: ($) =>
-      seq('(', alias($._positional_pattern, $.pattern), ')', $._simple_designation),
-    _positional_negated_pattern: ($) => seq('not', alias($._positional_pattern, $.pattern)),
-    _positional_or_pattern: ($) =>
-      prec.left(
-        PREC.OR,
         seq(
-          field('left', alias($._positional_pattern, $.pattern)),
-          field('operator', 'or'),
-          field('right', alias($._positional_pattern, $.pattern))
+          optional(choice(prec.dynamic(1, seq($.identifier, ':')), seq($.expression, ':'))),
+          alias($._full_pattern, $.pattern)
         )
       ),
-    _positional_and_pattern: ($) =>
-      prec.left(
-        PREC.AND,
+
+    _pattern_name: ($) =>
+      choice(
+        alias($._pattern_identifier, $.identifier),
+        $.generic_name,
+        $.alias_qualified_name,
+        alias($._pattern_qualified_name, $.qualified_name)
+      ),
+    _pattern_identifier: ($) =>
+      choice(
+        $._identifier_token,
+        prec(-1, '_'),
+        ...contextualIdentifierNames.filter((name) => name !== 'var'),
+        $._nameof_prefixed_identifier
+      ),
+    _pattern_qualified_name: ($) =>
+      prec.dynamic(
+        1,
         seq(
-          field('left', alias($._positional_pattern, $.pattern)),
-          field('operator', 'and'),
-          field('right', alias($._positional_pattern, $.pattern))
+          field('qualifier', choice($._pattern_name, $.alias_qualified_name)),
+          '.',
+          prec(PREC.DOT, field('name', $._simple_name))
         )
       ),
+    _nameof_constant_invocation: ($) =>
+      seq(field('function', alias($._nameof_token, $.identifier)), field('arguments', $.argument_list)),
 
     _switch_pattern: ($) =>
       choice(
@@ -2162,7 +2112,6 @@ module.exports = grammar({
         alias($._full_negated_pattern, $.negated_pattern),
         prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
         prec.dynamic(1, $.parenthesized_pattern),
-        prec.dynamic(1, alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern)),
         $.relational_pattern,
         alias($._full_or_pattern, $.or_pattern),
         alias($._full_and_pattern, $.and_pattern),
@@ -2180,7 +2129,6 @@ module.exports = grammar({
         alias($._full_negated_pattern, $.negated_pattern),
         alias($._parenthesized_pattern_with_designation, $.recursive_pattern),
         $.parenthesized_pattern,
-        alias($._preferred_var_parenthesized_pattern, $.parenthesized_pattern),
         $.relational_pattern,
         alias($._full_or_pattern, $.or_pattern),
         alias($._full_and_pattern, $.and_pattern),
@@ -2191,6 +2139,7 @@ module.exports = grammar({
     _full_constant_pattern: ($) =>
       choice(
         $.binary_expression,
+        alias($._nameof_constant_invocation, $.invocation_expression),
         $.default_expression,
         $.interpolated_string_expression,
         alias($._constant_parenthesized_expression, $.parenthesized_expression),
@@ -2282,21 +2231,7 @@ module.exports = grammar({
         'base'
       ),
 
-    _constant_parenthesized_non_lvalue_expression: ($) =>
-      alias($._constant_parenthesized_expression, $.parenthesized_expression),
-
-    _constant_parenthesized_expression: ($) =>
-      prec.dynamic(
-        1,
-        seq(
-          '(',
-          choice(
-            $.non_lvalue_expression,
-            alias($._constant_parenthesized_non_lvalue_expression, $.non_lvalue_expression)
-          ),
-          ')'
-        )
-      ),
+    _constant_parenthesized_expression: ($) => seq('(', $.non_lvalue_expression, ')'),
 
     _is_constant_expression: ($) =>
       choice(
@@ -2308,8 +2243,6 @@ module.exports = grammar({
       prec.dynamic(
         1,
         choice(
-          $._name_invocation_pattern,
-          seq(field('function', $._name), field('arguments', alias($._is_empty_argument_list, $.argument_list))),
           prec(
             PREC.INVOCATION + 1,
             seq(
@@ -2327,8 +2260,6 @@ module.exports = grammar({
           )
         )
       ),
-
-    _is_empty_argument_list: () => prec(1, seq('(', ')')),
 
     _is_receiver_invocation: ($) =>
       prec.dynamic(
