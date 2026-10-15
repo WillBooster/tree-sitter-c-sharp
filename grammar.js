@@ -53,6 +53,9 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._is_completed_property_pattern],
+    [$._is_completed_declaration_type, $._is_completed_type],
+    [$._is_completed_array_pattern, $._is_completed_type],
     [$._is_constant_pattern, $._is_other_member_lvalue, $.lvalue_expression],
     [$._is_other_member_lvalue, $.lvalue_expression],
     [
@@ -76,7 +79,6 @@ module.exports = grammar({
     [$._is_name_postfix, $.postfix_unary_expression],
     [$._is_constant_pattern, $._is_arithmetic_non_lvalue],
     [$._is_arithmetic_binary_expression, $.binary_expression],
-    [$._name, $._is_alias_qualified_receiver],
     [$._is_qualified_member, $.member_access_expression],
     [$._is_constant_pattern, $._is_qualified_member_lvalue],
     [$._name, $._is_constant_pattern, $._is_qualified_member_lvalue, $.lvalue_expression],
@@ -231,6 +233,7 @@ module.exports = grammar({
   ],
 
   supertypes: ($) => [
+    $._is_completed_declaration_type,
     $._is_other_member_lvalue,
     $._is_bare_conditional_lvalue,
     $._is_bare_conditional_expression,
@@ -1051,8 +1054,11 @@ module.exports = grammar({
       choice(
         alias($._is_constant_pattern, $.constant_pattern),
         $.declaration_pattern,
+        alias($._is_completed_declaration_pattern, $.declaration_pattern),
         $.discard,
         $.recursive_pattern,
+        alias($._is_completed_array_pattern, $.recursive_pattern),
+        alias($._is_completed_property_pattern, $.recursive_pattern),
         $.var_pattern,
         alias($._is_negated_pattern, $.negated_pattern),
         alias($._parenthesized_pattern_with_designation, $.recursive_pattern),
@@ -1726,6 +1732,31 @@ module.exports = grammar({
 
     as_expression: ($) =>
       prec(PREC.REL, seq(field('left', $.expression), field('operator', 'as'), field('right', $.type))),
+
+    _is_completed_declaration_type: ($) =>
+      choice(
+        alias($._is_completed_qualified_type_name, $.qualified_name),
+        alias($._is_completed_array_type, $.array_type),
+        alias($._is_completed_nullable_type, $.nullable_type)
+      ),
+    _is_completed_declaration_pattern: ($) =>
+      seq(field('type', alias($._is_completed_declaration_type, $.type)), $._simple_designation),
+    _is_completed_array_pattern: ($) =>
+      prec.left(
+        seq(
+          field('type', alias($._is_completed_array_type, $.array_type)),
+          $.positional_pattern_clause,
+          optional($.property_pattern_clause),
+          optional($._simple_designation)
+        )
+      ),
+
+    _is_completed_property_pattern: ($) =>
+      seq(
+        field('type', alias($._is_completed_declaration_type, $.type)),
+        $.property_pattern_clause,
+        optional($._simple_designation)
+      ),
 
     _is_completed_array_type: ($) =>
       seq(

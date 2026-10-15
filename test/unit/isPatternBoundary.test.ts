@@ -1,6 +1,6 @@
 import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
-import compatibilityFixtures from '../fixtures/isPatternCompatibility.json';
+import compatibilityBaseline from '../fixtures/isPatternCompatibility.json';
 
 let language: Language;
 
@@ -1171,7 +1171,7 @@ test('preserves published trees and all nine query categories across nested patt
   ];
   const query = new Query(language, categories.map((name) => `(${name}) @${name}`).join('\n'));
   try {
-    for (const fixture of compatibilityFixtures) {
+    for (const fixture of compatibilityBaseline.fixtures) {
       const tree = parser.parse(fixture.source)!;
       try {
         expect(tree.rootNode.hasError, fixture.source).toBe(fixture.hasError);
