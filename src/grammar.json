@@ -5998,6 +5998,15 @@
         {
           "type": "SYMBOL",
           "name": "type_pattern"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_is_completed_type_pattern"
+          },
+          "named": true,
+          "value": "type_pattern"
         }
       ]
     },
@@ -10325,6 +10334,23 @@
             }
           }
         ]
+      }
+    },
+    "_is_completed_type_pattern": {
+      "type": "PREC_DYNAMIC",
+      "value": -1,
+      "content": {
+        "type": "FIELD",
+        "name": "type",
+        "content": {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_is_completed_type"
+          },
+          "named": true,
+          "value": "type"
+        }
       }
     },
     "_is_completed_declaration_type": {

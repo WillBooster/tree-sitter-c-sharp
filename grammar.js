@@ -1067,7 +1067,8 @@ module.exports = grammar({
         alias($._is_or_pattern, $.or_pattern),
         alias($._is_and_pattern, $.and_pattern),
         $.list_pattern,
-        $.type_pattern
+        $.type_pattern,
+        alias($._is_completed_type_pattern, $.type_pattern)
       ),
 
     _is_constant_pattern: ($) =>
@@ -1732,6 +1733,8 @@ module.exports = grammar({
 
     as_expression: ($) =>
       prec(PREC.REL, seq(field('left', $.expression), field('operator', 'as'), field('right', $.type))),
+
+    _is_completed_type_pattern: ($) => prec.dynamic(-1, field('type', alias($._is_completed_type, $.type))),
 
     _is_completed_declaration_type: ($) =>
       choice(
