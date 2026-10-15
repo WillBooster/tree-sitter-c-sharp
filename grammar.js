@@ -53,6 +53,15 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.member_access_expression, $._is_qualified_member],
+    [$.constant_pattern, $._is_qualified_member_lvalue],
+    [$._name, $.constant_pattern, $.lvalue_expression, $._is_qualified_member_lvalue],
+    [$._full_constant_pattern, $.non_lvalue_expression],
+    [$._full_constant_pattern, $._expression_statement_expression],
+    [$._full_constant_pattern, $.lvalue_expression],
+    [$._full_constant_pattern, $._name],
+    [$._full_constant_pattern, $.lvalue_expression, $._name],
+    [$.binary_expression, $._is_constant_binary_expression],
     [$._assignment_pointer_cast, $._lvalue_cast_expression],
     [$._assignment_pointer_expression, $._pointer_indirection_expression],
     [$.modifier, $._constructor_declaration_initializer, $._reserved_identifier],
@@ -208,6 +217,8 @@ module.exports = grammar({
     $.type,
     $.type_declaration,
     $.pattern,
+    $._full_pattern,
+    $._is_qualified_member_lvalue,
   ],
 
   word: ($) => $._identifier_token,
@@ -917,7 +928,13 @@ module.exports = grammar({
     switch_section: ($) =>
       prec.left(
         seq(
-          choice(seq('case', choice($.expression, seq($.pattern, optional($.when_clause)))), 'default'),
+          choice(
+            seq(
+              'case',
+              choice($.expression, prec.dynamic(1, seq(alias($._full_pattern, $.pattern), optional($.when_clause))))
+            ),
+            'default'
+          ),
           ':',
           repeat($.statement)
         )
@@ -1017,11 +1034,12 @@ module.exports = grammar({
       ),
 
     // Uses '(' pattern ')' to create direct conflict with parenthesized_pattern
-    _parenthesized_pattern_with_designation: ($) => seq('(', $.pattern, ')', $._simple_designation),
+    _parenthesized_pattern_with_designation: ($) =>
+      seq('(', alias($._full_pattern, $.pattern), ')', $._simple_designation),
 
     constant_pattern: ($) =>
       choice(
-        $.binary_expression,
+        alias($._is_constant_binary_expression, $.binary_expression),
         $.default_expression,
         $.interpolated_string_expression,
         $.parenthesized_expression,
@@ -1031,6 +1049,7 @@ module.exports = grammar({
         $.tuple_expression,
         $.typeof_expression,
         $.member_access_expression,
+        alias($._is_qualified_member, $.member_access_expression),
         alias($._name_invocation_pattern, $.invocation_expression),
         alias($._complex_invocation_expression, $.invocation_expression),
         $.cast_expression,
@@ -1063,7 +1082,7 @@ module.exports = grammar({
 
     discard: () => '_',
 
-    parenthesized_pattern: ($) => seq('(', $.pattern, ')'),
+    parenthesized_pattern: ($) => seq('(', alias($._full_pattern, $.pattern), ')'),
 
     // `var x` parses as a declaration_pattern with an implicit_type. `var (x, y)` also reads as a positional pattern
     // of type `var` or, after `is`, as an invocation of `o is var`; each of those carries the implicit_type's dynamic
@@ -1083,13 +1102,13 @@ module.exports = grammar({
       prec.left(
         seq(
           '[',
-          optional(seq(commaSep1(choice($.pattern, $.slice_pattern)), optional(','))),
+          optional(seq(commaSep1(choice(alias($._full_pattern, $.pattern), $.slice_pattern)), optional(','))),
           ']',
           optional($._simple_designation)
         )
       ),
 
-    slice_pattern: ($) => prec.right(seq('..', optional($.pattern))),
+    slice_pattern: ($) => prec.right(seq('..', optional(alias($._full_pattern, $.pattern)))),
 
     recursive_pattern: ($) =>
       prec.left(
@@ -1131,7 +1150,10 @@ module.exports = grammar({
 
     property_pattern_clause: ($) => prec(1, seq('{', commaSep($.subpattern), optional(','), '}')),
 
-    subpattern: ($) => prec.right(seq(optional(choice(seq($.expression, ':'), seq($.identifier, ':'))), $.pattern)),
+    subpattern: ($) =>
+      prec.right(
+        seq(optional(choice(seq($.expression, ':'), seq($.identifier, ':'))), alias($._full_pattern, $.pattern))
+      ),
 
     relational_pattern: ($) =>
       choice(seq('<', $.expression), seq('<=', $.expression), seq('>', $.expression), seq('>=', $.expression)),
@@ -1483,7 +1505,7 @@ module.exports = grammar({
     switch_expression: ($) => prec(PREC.SWITCH, seq($.expression, 'switch', $._switch_expression_body)),
     _switch_expression_body: ($) => seq('{', commaSep($.switch_expression_arm), optional(','), '}'),
 
-    switch_expression_arm: ($) => seq($.pattern, optional($.when_clause), '=>', $.expression),
+    switch_expression_arm: ($) => seq(alias($._full_pattern, $.pattern), optional($.when_clause), '=>', $.expression),
 
     when_clause: ($) => seq('when', $.expression),
 
@@ -2039,6 +2061,101 @@ module.exports = grammar({
     shebang_directive: () => token(seq('#!', /[^\r\n\u0085\u2028\u2029]*/)),
 
     comment: () => token(choice(seq('//', /[^\r\n\u0085\u2028\u2029]*/), seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'))),
+    _full_pattern: ($) =>
+      choice(
+        alias($._full_constant_pattern, $.constant_pattern),
+        $.declaration_pattern,
+        $.discard,
+        $.recursive_pattern,
+        $.var_pattern,
+        alias($._full_negated_pattern, $.negated_pattern),
+        prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
+        $.parenthesized_pattern,
+        $.relational_pattern,
+        alias($._full_or_pattern, $.or_pattern),
+        alias($._full_and_pattern, $.and_pattern),
+        $.list_pattern,
+        $.type_pattern
+      ),
+
+    _full_constant_pattern: ($) =>
+      choice(
+        $.binary_expression,
+        $.default_expression,
+        $.interpolated_string_expression,
+        $.parenthesized_expression,
+        $.postfix_unary_expression,
+        $.prefix_unary_expression,
+        $.sizeof_expression,
+        prec.dynamic(1, $.tuple_expression),
+        $.typeof_expression,
+        $.member_access_expression,
+        alias($._name_invocation_pattern, $.invocation_expression),
+        alias($._complex_invocation_expression, $.invocation_expression),
+        $.cast_expression,
+        $._simple_name,
+        $.literal
+      ),
+
+    _full_negated_pattern: ($) => seq('not', alias($._full_pattern, $.pattern)),
+    _full_and_pattern: ($) =>
+      prec.left(
+        PREC.AND,
+        seq(
+          field('left', alias($._full_pattern, $.pattern)),
+          field('operator', 'and'),
+          field('right', alias($._full_pattern, $.pattern))
+        )
+      ),
+    _full_or_pattern: ($) =>
+      prec.left(
+        PREC.OR,
+        seq(
+          field('left', alias($._full_pattern, $.pattern)),
+          field('operator', 'or'),
+          field('right', alias($._full_pattern, $.pattern))
+        )
+      ),
+    _is_qualified_member_lvalue: ($) =>
+      choice($._simple_name, alias($._is_qualified_member, $.member_access_expression)),
+    _is_qualified_member: ($) =>
+      prec.dynamic(
+        1,
+        prec(
+          PREC.DOT,
+          seq(
+            field(
+              'expression',
+              choice(
+                alias($._is_qualified_member_lvalue, $.lvalue_expression),
+                $.predefined_type,
+                $.alias_qualified_name
+              )
+            ),
+            '.',
+            field('name', $._simple_name)
+          )
+        )
+      ),
+
+    _is_constant_binary_expression: ($) =>
+      choice(
+        .../** @type {[string, number][]} */ ([
+          ['>>', PREC.SHIFT],
+          ['>>>', PREC.SHIFT],
+          ['<<', PREC.SHIFT],
+          ['+', PREC.ADD],
+          ['-', PREC.ADD],
+          ['*', PREC.MULT],
+          ['/', PREC.MULT],
+          ['%', PREC.MULT],
+        ]).map(([operator, precedence]) =>
+          prec.left(
+            precedence,
+            seq(field('left', $.expression), field('operator', operator), field('right', $.expression))
+          )
+        )
+      ),
   },
 });
 
