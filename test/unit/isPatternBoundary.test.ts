@@ -982,3 +982,35 @@ test('accepts contextual identifiers before a qualified positional pattern name'
     parser.delete();
   }
 });
+
+test('distinguishes contextual attribute targets from reserved keywords in collections', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const name of ['field', 'method', 'param', 'property', 'type', 'typevar']) {
+      for (const source of [`var values = [${name}];`, `[${name}: Marker] class C { }`]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          if (source.startsWith('var')) {
+            expect(tree.rootNode.descendantsOfType('collection_expression')[0]?.namedChild(0)?.text, source).toBe(name);
+          } else {
+            expect(tree.rootNode.descendantsOfType('attribute_target_specifier')[0]?.text, source).toBe(`${name}:`);
+          }
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    for (const name of ['event', 'return']) {
+      const source = `var values = [${name}];`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(true);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
