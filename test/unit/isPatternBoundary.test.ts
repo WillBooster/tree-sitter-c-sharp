@@ -542,3 +542,138 @@ test('retains qualified parenthesized switch patterns and their query category',
     parser.delete();
   }
 });
+
+test('keeps primary receivers and mixed call/member/postfix chains inside is constants', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(expression) @expression\n(lvalue_expression) @lvalue');
+  try {
+    for (const constant of [
+      '"hello".Length',
+      'nameof(C).Length',
+      '$"hello{value}".Length',
+      'new C().Member().Next!',
+      'A.B!(1, 2)',
+      'M()',
+      'A.B()',
+      'M()!',
+      '(Colors).Red',
+      '((A.B)).C',
+      '(1).ToString',
+      '(1, 2).Item1',
+      'A.B().Next().Last!',
+      '"hello".Member().Next!',
+      'global::A<T>(1, 2)',
+    ]) {
+      for (const suffix of ['', ' && ready', ' | mask']) {
+        const source = `var result = value is ${constant}${suffix};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
+            source
+          ).toEqual([`value is ${constant}`]);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual([constant]);
+          if (constant === 'M()!') {
+            const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
+            expect(captures).toContainEqual(['lvalue', 'M']);
+            expect(captures).not.toContainEqual(['expression', 'M']);
+            expect(captures).not.toContainEqual(['expression', 'M()']);
+          }
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('retains invocation constants with parenthesized arguments and genuine positional patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const constant of ['M((1))', 'M((1), (2))', 'M(((1)), ((2)), (((3))))', 'A.B((1), (2))']) {
+      const tree = parser.parse(`var result = value is ${constant};`)!;
+      try {
+        expect(tree.rootNode.hasError, constant).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+          constant
+        ).toEqual([constant]);
+        expect(tree.rootNode.descendantsOfType('invocation_expression')[0]?.text, constant).toBe(constant);
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const pattern of ['M(int x)', 'M((>1))', 'M((1 or 2))', 'M((1)) item', 'M() item', 'M() { P: 1 } item']) {
+      const tree = parser.parse(`var result = value is ${pattern};`)!;
+      try {
+        expect(tree.rootNode.hasError, pattern).toBe(false);
+        expect(tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.childForFieldName('pattern')?.type).toBe(
+          'recursive_pattern'
+        );
+        expect(tree.rootNode.descendantsOfType('recursive_pattern')[0]?.text, pattern).toBe(pattern);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('keeps casts complete in delimited constants without changing unary-minus ambiguity', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const constant of ['(T)A', '(T)null', '(T)A.B', '(T)A.B(1)']) {
+      for (const source of [
+        `var result = value switch { ${constant} => 1, _ => 2 };`,
+        `var result = value is { P: ${constant} };`,
+        `var result = value is [${constant}];`,
+        `var result = value is [.. ${constant}];`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const parsed = tree.rootNode.descendantsOfType('constant_pattern')[0]!;
+          expect(parsed.text, source).toBe(constant);
+          expect(parsed.namedChild(0)?.type, source).toBe('cast_expression');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    for (const source of [
+      'var result = value switch { (T)-1 => 1, _ => 2 };',
+      'var result = value is { P: (T)-1 };',
+      'var result = value is [(T)-1];',
+    ]) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const parsed = tree.rootNode.descendantsOfType('constant_pattern')[0]!;
+        expect(parsed.text, source).toBe('(T)-1');
+        expect(parsed.namedChild(0)?.type, source).toBe('binary_expression');
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const pattern of ['(>1) item', '(1 or 2) item', '(var x) item']) {
+      const tree = parser.parse(`var result = value is { P: ${pattern} };`)!;
+      try {
+        expect(tree.rootNode.hasError, pattern).toBe(false);
+        const designated = tree.rootNode.descendantsOfType('recursive_pattern').find((node) => node.text === pattern)!;
+        expect(designated.childForFieldName('name')?.text, pattern).toBe('item');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
