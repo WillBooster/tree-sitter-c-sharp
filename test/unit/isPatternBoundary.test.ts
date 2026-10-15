@@ -46,27 +46,50 @@ test('keeps logical operators and collection ternaries outside an is constant pa
   }
 });
 
-test('retains arithmetic and shifts inside is constants while ending before bitwise operators', () => {
+test('retains arithmetic and shifts with qualified constants before surrounding operators', () => {
   const parser = new Parser();
   parser.setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue\n(expression) @expression');
   try {
-    for (const source of ['var result = value is 1 + 2 * 3 << 4;', 'var result = value is 1 + 2 * 3 << 4 | mask;']) {
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(false);
-        expect(
-          tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
-          source
-        ).toEqual(['value is 1 + 2 * 3 << 4']);
-        expect(
-          tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
-          source
-        ).toEqual(['1 + 2 * 3 << 4']);
-      } finally {
-        tree.delete();
+    for (const constant of [
+      '1 + 2 * 3 << 4',
+      'A.B + 1',
+      'int.MaxValue - 1',
+      'A.B * 2',
+      'A.B / 2',
+      'A.B % 2',
+      'A.B << 2',
+      'A.B >> 2',
+      'A.B >>> 2',
+      'A.B.C + D.E.F * 2 << 3',
+    ]) {
+      for (const suffix of ['', ' | mask', ' && ready']) {
+        const source = `var result = value is ${constant}${suffix};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
+            source
+          ).toEqual([`value is ${constant}`]);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual([constant]);
+          if (constant === 'A.B + 1') {
+            const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
+            expect(captures).toContainEqual(['expression', 'A.B']);
+            expect(captures).toContainEqual(['lvalue', 'A.B']);
+            expect(captures).toContainEqual(['lvalue', 'A']);
+            expect(captures).not.toContainEqual(['expression', 'A']);
+          }
+        } finally {
+          tree.delete();
+        }
       }
     }
   } finally {
+    query.delete();
     parser.delete();
   }
 });
@@ -142,6 +165,38 @@ test('retains existing supertype captures inside ordinary name-call arguments', 
     expect(captures).not.toContainEqual(['lvalue', 'nameof']);
   } finally {
     tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('keeps qualified positional arguments inside the is pattern with direct member captures', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const query = new Query(language, '(expression) @expression\n(lvalue_expression) @lvalue');
+  try {
+    for (const suffix of ['', ' && ready', ' ? [1] : [2]']) {
+      const source = `var result = shape is Shapes.Point(1, 2)${suffix};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
+          source
+        ).toEqual(['shape is Shapes.Point(1, 2)']);
+        const invocation = tree.rootNode.descendantsOfType('invocation_expression')[0]!;
+        expect(invocation.childForFieldName('function')?.text).toBe('Shapes.Point');
+        expect(invocation.childForFieldName('arguments')?.text).toBe('(1, 2)');
+        const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
+        expect(captures).toContainEqual(['lvalue', 'Shapes']);
+        expect(captures).not.toContainEqual(['expression', 'Shapes']);
+        expect(captures).not.toContainEqual(['expression', 'Shapes.Point']);
+        expect(captures).not.toContainEqual(['lvalue', 'Shapes.Point']);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
     query.delete();
     parser.delete();
   }

@@ -53,6 +53,7 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.constant_pattern, $._is_constant_non_lvalue_expression],
     [$.member_access_expression, $._is_qualified_member],
     [$.constant_pattern, $._is_qualified_member_lvalue],
     [$._name, $.constant_pattern, $.lvalue_expression, $._is_qualified_member_lvalue],
@@ -219,6 +220,8 @@ module.exports = grammar({
     $.pattern,
     $._full_pattern,
     $._is_qualified_member_lvalue,
+    $._is_constant_expression,
+    $._is_constant_non_lvalue_expression,
   ],
 
   word: ($) => $._identifier_token,
@@ -1050,6 +1053,7 @@ module.exports = grammar({
         $.typeof_expression,
         $.member_access_expression,
         alias($._is_qualified_member, $.member_access_expression),
+        alias($._is_qualified_invocation, $.invocation_expression),
         alias($._name_invocation_pattern, $.invocation_expression),
         alias($._complex_invocation_expression, $.invocation_expression),
         $.cast_expression,
@@ -2138,6 +2142,26 @@ module.exports = grammar({
         )
       ),
 
+    _is_constant_expression: ($) =>
+      choice(
+        alias($._is_qualified_member_lvalue, $.lvalue_expression),
+        alias($._is_constant_non_lvalue_expression, $.non_lvalue_expression)
+      ),
+
+    _is_qualified_invocation: ($) =>
+      prec.dynamic(
+        1,
+        prec(
+          PREC.INVOCATION + 1,
+          seq(
+            field('function', alias($._is_qualified_member, $.member_access_expression)),
+            field('arguments', $.argument_list)
+          )
+        )
+      ),
+
+    _is_constant_non_lvalue_expression: ($) => alias($._is_constant_binary_expression, $.binary_expression),
+
     _is_constant_binary_expression: ($) =>
       choice(
         .../** @type {[string, number][]} */ ([
@@ -2152,7 +2176,11 @@ module.exports = grammar({
         ]).map(([operator, precedence]) =>
           prec.left(
             precedence,
-            seq(field('left', $.expression), field('operator', operator), field('right', $.expression))
+            seq(
+              field('left', choice($.expression, alias($._is_constant_expression, $.expression))),
+              field('operator', operator),
+              field('right', $.expression)
+            )
           )
         )
       ),
