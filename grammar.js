@@ -109,6 +109,16 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.argument_list, $._anchored_primary_argument_list],
+    [$.range_expression, $._anchored_spread_element],
+    [$.spread_element, $.range_expression, $._anchored_spread_element],
+    [$.collection_expression, $._anchored_collection_expression],
+    [$._positional_full_non_lvalue_expression, $._is_qualified_member_lvalue, $._is_constant_non_lvalue_expression],
+    [$._full_constant_pattern, $._is_qualified_member_lvalue],
+    [$.argument, $.expression_element, $._anchored_expression_element],
+    [$.list_pattern, $.collection_expression, $._anchored_collection_expression],
+    [$._positional_full_non_lvalue_expression, $._is_qualified_member_lvalue],
+    [$._is_qualified_member_lvalue, $._is_constant_non_lvalue_expression],
     [$._positional_member_constant, $._full_constant_pattern, $._is_qualified_member_lvalue],
     [$.constant_pattern, $._is_qualified_member_lvalue],
     [$.constant_pattern, $._positional_member_constant, $._full_constant_pattern],
@@ -341,8 +351,9 @@ module.exports = grammar({
   ],
 
   supertypes: ($) => [
-    $._switch_receiver_expression,
-    $._switch_indexed_lvalue,
+    $._pattern_receiver_expression,
+    $._pattern_receiver_lvalue,
+    $._pattern_receiver_non_lvalue,
     $._is_completed_type,
     $._constant_lvalue_expression,
     $._positional_full_pattern,
@@ -1072,8 +1083,17 @@ module.exports = grammar({
 
     switch_body: ($) => seq('{', repeat($.switch_section), '}'),
 
-    _switch_receiver_expression: ($) => alias($._switch_indexed_lvalue, $.lvalue_expression),
-    _switch_indexed_lvalue: ($) => alias($._is_receiver_element, $.element_access_expression),
+    _pattern_receiver_expression: ($) =>
+      choice(
+        alias($._pattern_receiver_lvalue, $.lvalue_expression),
+        alias($._pattern_receiver_non_lvalue, $.non_lvalue_expression)
+      ),
+    _pattern_receiver_non_lvalue: ($) => alias($._anchored_collection_expression, $.collection_expression),
+    _pattern_receiver_lvalue: ($) =>
+      choice(
+        alias($._is_receiver_element, $.element_access_expression),
+        alias($._is_receiver_conditional, $.conditional_access_expression)
+      ),
 
     switch_section: ($) =>
       prec.left(
@@ -1083,7 +1103,7 @@ module.exports = grammar({
               'case',
               choice(
                 $.expression,
-                alias($._switch_receiver_expression, $.expression),
+                alias($._pattern_receiver_expression, $.expression),
                 seq(alias($._switch_pattern, $.pattern), optional($.when_clause))
               )
             ),
@@ -1212,7 +1232,28 @@ module.exports = grammar({
         $.literal
       ),
 
-    _name_invocation_pattern: ($) => seq(field('function', $._name), field('arguments', $.argument_list)),
+    _name_invocation_pattern: ($) =>
+      seq(
+        field('function', $._name),
+        field('arguments', choice($.argument_list, alias($._anchored_primary_argument_list, $.argument_list)))
+      ),
+    _anchored_primary_argument_list: ($) =>
+      seq(
+        '(',
+        repeat(seq($.argument, ',')),
+        alias($._anchored_primary_argument, $.argument),
+        repeat(seq(',', $.argument)),
+        ')'
+      ),
+    _anchored_primary_argument: ($) =>
+      prec(
+        1,
+        seq(
+          optional(seq(field('name', $.identifier), ':')),
+          optional(choice('ref', 'out', 'in')),
+          alias($._is_primary_expression, $.expression)
+        )
+      ),
 
     // One above `invocation_expression`, which reads the same tokens where both fit.
     _complex_invocation_expression: ($) =>
@@ -1230,7 +1271,7 @@ module.exports = grammar({
               $.cast_expression
             )
           ),
-          field('arguments', $.argument_list)
+          field('arguments', choice($.argument_list, alias($._anchored_primary_argument_list, $.argument_list)))
         )
       ),
 
@@ -1888,7 +1929,7 @@ module.exports = grammar({
 
     implicit_stackalloc_expression: ($) => seq('stackalloc', '[', ']', $.initializer_expression),
 
-    collection_expression: ($) => seq('[', optional(seq(commaSep1($.collection_element), optional(','))), ']'),
+    collection_expression: ($) => collectionExpression($.collection_element),
 
     collection_element: ($) => choice($.expression_element, $.spread_element),
 
@@ -2300,6 +2341,8 @@ module.exports = grammar({
       ),
     _positional_full_non_lvalue_expression: ($) =>
       choice(
+        alias($._anchored_collection_expression, $.collection_expression),
+        alias($._is_receiver_conditional, $.conditional_access_expression),
         alias($._positional_full_binary_expression, $.binary_expression),
         alias($._is_qualified_postfix, $.postfix_unary_expression),
         alias($._is_receiver_invocation, $.invocation_expression),
@@ -2340,7 +2383,10 @@ module.exports = grammar({
         )
       ),
     _nameof_constant_invocation: ($) =>
-      seq(field('function', alias($._nameof_token, $.identifier)), field('arguments', $.argument_list)),
+      seq(
+        field('function', alias($._nameof_token, $.identifier)),
+        field('arguments', choice($.argument_list, alias($._anchored_primary_argument_list, $.argument_list)))
+      ),
 
     _switch_pattern: ($) =>
       choice(
@@ -2422,6 +2468,7 @@ module.exports = grammar({
       ),
     _is_qualified_member_lvalue: ($) =>
       choice(
+        alias($._is_receiver_conditional, $.conditional_access_expression),
         'this',
         $._simple_name,
         prec(PREC.POSTFIX + 1, alias($._is_receiver_element, $.element_access_expression)),
@@ -2475,6 +2522,30 @@ module.exports = grammar({
 
     _is_alias_qualified_receiver: ($) => $.alias_qualified_name,
 
+    _is_receiver_conditional: ($) =>
+      prec.right(
+        PREC.CONDITIONAL,
+        seq(
+          field('condition', alias($._pattern_receiver_expression, $.expression)),
+          '?',
+          choice($.member_binding_expression, alias($.bracketed_argument_list, sym('element_binding_expression')))
+        )
+      ),
+    _anchored_collection_expression: ($) =>
+      collectionExpression(alias($._anchored_collection_element, $.collection_element)),
+    _anchored_collection_element: ($) =>
+      choice(
+        alias($._anchored_expression_element, $.expression_element),
+        alias($._anchored_spread_element, $.spread_element)
+      ),
+    _anchored_expression_element: ($) =>
+      prec(1, choice($.expression, alias($._positional_full_expression, $.expression))),
+    _anchored_spread_element: ($) =>
+      prec.dynamic(
+        1,
+        prec(PREC.RANGE, seq('..', choice($.expression, alias($._positional_full_expression, $.expression))))
+      ),
+
     _is_receiver_element: ($) =>
       prec(
         PREC.POSTFIX,
@@ -2496,6 +2567,7 @@ module.exports = grammar({
     _is_primary_expression: ($) => alias($._is_primary_non_lvalue_expression, $.non_lvalue_expression),
     _is_primary_non_lvalue_expression: ($) =>
       choice(
+        alias($._anchored_collection_expression, $.collection_expression),
         $.literal,
         $.interpolated_string_expression,
         $.default_expression,
@@ -2540,36 +2612,34 @@ module.exports = grammar({
               field(
                 'function',
                 choice(
+                  alias($._is_receiver_conditional, $.conditional_access_expression),
                   alias($._is_qualified_member, $.member_access_expression),
                   alias($._is_qualified_postfix, $.postfix_unary_expression),
                   alias($._is_primary_expression, $.expression),
                   alias($._is_receiver_invocation, $.invocation_expression)
                 )
               ),
-              field('arguments', $.argument_list)
+              field('arguments', choice($.argument_list, alias($._anchored_primary_argument_list, $.argument_list)))
             )
           )
         )
       ),
 
     _is_receiver_invocation: ($) =>
-      prec.dynamic(
-        1,
-        prec(
-          PREC.INVOCATION + 1,
-          seq(
-            field(
-              'function',
-              choice(
-                alias($._is_qualified_member_lvalue, $.lvalue_expression),
-                alias($._is_qualified_postfix, $.postfix_unary_expression),
-                alias($._constant_parenthesized_expression, $.parenthesized_expression),
-                alias($._is_primary_expression, $.expression),
-                alias($._is_receiver_invocation, $.invocation_expression)
-              )
-            ),
-            field('arguments', $.argument_list)
-          )
+      prec(
+        PREC.INVOCATION + 1,
+        seq(
+          field(
+            'function',
+            choice(
+              alias($._is_qualified_member_lvalue, $.lvalue_expression),
+              alias($._is_qualified_postfix, $.postfix_unary_expression),
+              alias($._constant_parenthesized_expression, $.parenthesized_expression),
+              alias($._is_primary_expression, $.expression),
+              alias($._is_receiver_invocation, $.invocation_expression)
+            )
+          ),
+          field('arguments', choice($.argument_list, alias($._anchored_primary_argument_list, $.argument_list)))
         )
       ),
 
@@ -2593,6 +2663,8 @@ module.exports = grammar({
 
     _is_constant_non_lvalue_expression: ($) =>
       choice(
+        alias($._anchored_collection_expression, $.collection_expression),
+        alias($._is_receiver_conditional, $.conditional_access_expression),
         alias($._is_constant_binary_expression, $.binary_expression),
         alias($._is_qualified_postfix, $.postfix_unary_expression),
         alias($._is_receiver_invocation, $.invocation_expression),
@@ -2638,6 +2710,14 @@ function positionalPatternOperand($) {
     alias($._positional_member_pattern, $.pattern),
     alias($._positional_full_pattern, $.pattern)
   );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} element
+ * @returns {import('@willbooster/web-tree-sitter/dsl').SeqRule}
+ */
+function collectionExpression(element) {
+  return seq('[', optional(seq(commaSep1(element), optional(','))), ']');
 }
 
 /**

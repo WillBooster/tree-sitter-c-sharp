@@ -1485,3 +1485,41 @@ test('preserves expression and lvalue queries on positional labels', () => {
     parser.delete();
   }
 });
+
+test('preserves indexed receiver queries in collection and conditional owners', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue');
+  try {
+    for (const [source, receivers, hasError] of [
+      ['var r = x is ([A.B[0]]);', ['x', 'A.B[0]', 'A.B', 'A'], false],
+      ['switch (x) { case [A.B[0]]: break; }', ['x', 'A.B[0]', 'A.B', 'A'], false],
+      ['switch (x) { case A.B[0]?.C: break; }', ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], false],
+      ['var r = x is { P: A.B[0]?.Call() };', ['x', 'P', 'A.B[0]', 'A.B', 'A'], false],
+      ['var r = x switch { A.B[0]?.Call() => 1, _ => 2 };', ['x', 'A.B[0]', 'A.B', 'A'], false],
+      ['var r = x is { P: A.B[0]?.C };', ['x', 'P', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], true],
+      ['var r = x switch { A.B[0]?.C => 1, _ => 2 };', ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], true],
+      ['var r = x is Foo([1, A.B[0]?.C]);', ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], false],
+      ['var r = x is A.Foo([1, A.B[0]?.C]);', ['x', 'A', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], false],
+      [
+        'var r = x is Foo([A.B[0]?.C], [D.E[0]?.F]);',
+        ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A', 'D.E[0]?.F', 'D.E[0]', 'D.E', 'D'],
+        false,
+      ],
+      ['var r = x is [A.B[0]];', ['x'], false],
+    ] as const) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(hasError);
+        expect(
+          query.captures(tree.rootNode).map(({ node }) => node.text),
+          source
+        ).toEqual(receivers);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
