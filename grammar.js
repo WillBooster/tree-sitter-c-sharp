@@ -53,6 +53,8 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.lvalue_expression, $._is_parenthesized_lvalue],
+    [$.constant_pattern, $._expression_statement_expression, $._is_constant_non_lvalue_expression],
     [$.constant_pattern, $._is_constant_non_lvalue_expression],
     [$.member_access_expression, $._is_qualified_member],
     [$.constant_pattern, $._is_qualified_member_lvalue],
@@ -222,6 +224,7 @@ module.exports = grammar({
     $._is_qualified_member_lvalue,
     $._is_constant_expression,
     $._is_constant_non_lvalue_expression,
+    $._is_parenthesized_lvalue,
   ],
 
   word: ($) => $._identifier_token,
@@ -1054,6 +1057,7 @@ module.exports = grammar({
         $.member_access_expression,
         alias($._is_qualified_member, $.member_access_expression),
         alias($._is_qualified_invocation, $.invocation_expression),
+        alias($._is_qualified_postfix, $.postfix_unary_expression),
         alias($._name_invocation_pattern, $.invocation_expression),
         alias($._complex_invocation_expression, $.invocation_expression),
         $.cast_expression,
@@ -2132,6 +2136,7 @@ module.exports = grammar({
               'expression',
               choice(
                 alias($._is_qualified_member_lvalue, $.lvalue_expression),
+                alias($._is_qualified_postfix, $.postfix_unary_expression),
                 $.predefined_type,
                 $.alias_qualified_name
               )
@@ -2145,8 +2150,12 @@ module.exports = grammar({
     _is_constant_expression: ($) =>
       choice(
         alias($._is_qualified_member_lvalue, $.lvalue_expression),
+        alias($._is_parenthesized_lvalue, $.lvalue_expression),
         alias($._is_constant_non_lvalue_expression, $.non_lvalue_expression)
       ),
+
+    _is_parenthesized_lvalue: ($) =>
+      prec.dynamic(1, alias($._parenthesized_lvalue_expression, $.parenthesized_expression)),
 
     _is_qualified_invocation: ($) =>
       prec.dynamic(
@@ -2160,7 +2169,28 @@ module.exports = grammar({
         )
       ),
 
-    _is_constant_non_lvalue_expression: ($) => alias($._is_constant_binary_expression, $.binary_expression),
+    _is_qualified_postfix: ($) =>
+      prec.dynamic(
+        1,
+        prec(
+          PREC.POSTFIX,
+          seq(
+            choice(
+              alias($._is_qualified_member_lvalue, $.lvalue_expression),
+              alias($._is_parenthesized_lvalue, $.lvalue_expression),
+              alias($._is_qualified_postfix, $.postfix_unary_expression)
+            ),
+            choice('!', '++', '--')
+          )
+        )
+      ),
+
+    _is_constant_non_lvalue_expression: ($) =>
+      choice(
+        alias($._is_constant_binary_expression, $.binary_expression),
+        alias($._is_qualified_postfix, $.postfix_unary_expression),
+        prec.dynamic(1, $.parenthesized_expression)
+      ),
 
     _is_constant_binary_expression: ($) =>
       choice(

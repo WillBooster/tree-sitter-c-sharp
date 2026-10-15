@@ -201,3 +201,116 @@ test('keeps qualified positional arguments inside the is pattern with direct mem
     parser.delete();
   }
 });
+
+test('keeps qualified null-forgiving constants and their continuations inside is', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const query = new Query(language, '(expression) @expression\n(lvalue_expression) @lvalue');
+  try {
+    for (const constant of ['A.B!', 'A.B!!', 'A.B!.C', 'A.B! + 1', 'A.B!!.C + 1 << 2']) {
+      for (const suffix of ['', ' && ready', ' | mask']) {
+        const source = `var result = value is ${constant}${suffix};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
+            source
+          ).toEqual([`value is ${constant}`]);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual([constant]);
+          const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
+          expect(captures).toContainEqual(['lvalue', 'A.B']);
+          expect(captures).toContainEqual(['lvalue', 'A']);
+          expect(captures).not.toContainEqual(['expression', 'A.B']);
+          expect(captures).not.toContainEqual(['expression', 'A']);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('keeps parenthesized operands and their canonical categories inside arithmetic constants', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const query = new Query(
+    language,
+    '(expression) @expression\n(lvalue_expression) @lvalue\n(non_lvalue_expression) @non_lvalue'
+  );
+  try {
+    for (const constant of [
+      '(1 + 1) * 2',
+      '(A.B + 1) << 2',
+      '(A.B) + 1',
+      '(1 | 2) + 3',
+      '((1 | 2)) << 3',
+      '((A.B)) + 1',
+    ]) {
+      for (const suffix of ['', ' && ready', ' | mask']) {
+        const source = `var result = value is ${constant}${suffix};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
+            source
+          ).toEqual([`value is ${constant}`]);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual([constant]);
+          const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
+          if (constant === '(A.B) + 1') {
+            expect(captures).toContainEqual(['expression', '(A.B)']);
+            expect(captures).toContainEqual(['lvalue', '(A.B)']);
+            expect(captures).not.toContainEqual(['non_lvalue', '(A.B)']);
+          }
+          if (constant === '(1 + 1) * 2') {
+            expect(captures).toContainEqual(['expression', '(1 + 1)']);
+            expect(captures).toContainEqual(['non_lvalue', '(1 + 1)']);
+            expect(captures).not.toContainEqual(['lvalue', '(1 + 1)']);
+          }
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('retains parenthesized postfix arithmetic inside is before logical operators', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue\n(expression) @expression');
+  try {
+    for (const suffix of ['', ' && ready']) {
+      const source = `var result = value is (A.B)! + 1${suffix};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text)).toEqual([
+          'value is (A.B)! + 1',
+        ]);
+        const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
+        expect(captures).toContainEqual(['lvalue', '(A.B)']);
+        expect(captures).toContainEqual(['lvalue', 'A.B']);
+        expect(captures).not.toContainEqual(['expression', '(A.B)']);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});

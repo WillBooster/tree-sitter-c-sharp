@@ -6063,6 +6063,15 @@
           "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
+            "name": "_is_qualified_postfix"
+          },
+          "named": true,
+          "value": "postfix_unary_expression"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
             "name": "_name_invocation_pattern"
           },
           "named": true,
@@ -14727,6 +14736,15 @@
                     "value": "lvalue_expression"
                   },
                   {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_is_qualified_postfix"
+                    },
+                    "named": true,
+                    "value": "postfix_unary_expression"
+                  },
+                  {
                     "type": "SYMBOL",
                     "name": "predefined_type"
                   },
@@ -14769,12 +14787,34 @@
           "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
+            "name": "_is_parenthesized_lvalue"
+          },
+          "named": true,
+          "value": "lvalue_expression"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
             "name": "_is_constant_non_lvalue_expression"
           },
           "named": true,
           "value": "non_lvalue_expression"
         }
       ]
+    },
+    "_is_parenthesized_lvalue": {
+      "type": "PREC_DYNAMIC",
+      "value": 1,
+      "content": {
+        "type": "ALIAS",
+        "content": {
+          "type": "SYMBOL",
+          "name": "_parenthesized_lvalue_expression"
+        },
+        "named": true,
+        "value": "parenthesized_expression"
+      }
     },
     "_is_qualified_invocation": {
       "type": "PREC_DYNAMIC",
@@ -14810,14 +14850,98 @@
         }
       }
     },
-    "_is_constant_non_lvalue_expression": {
-      "type": "ALIAS",
+    "_is_qualified_postfix": {
+      "type": "PREC_DYNAMIC",
+      "value": 1,
       "content": {
-        "type": "SYMBOL",
-        "name": "_is_constant_binary_expression"
-      },
-      "named": true,
-      "value": "binary_expression"
+        "type": "PREC",
+        "value": 18,
+        "content": {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_is_qualified_member_lvalue"
+                  },
+                  "named": true,
+                  "value": "lvalue_expression"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_is_parenthesized_lvalue"
+                  },
+                  "named": true,
+                  "value": "lvalue_expression"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_is_qualified_postfix"
+                  },
+                  "named": true,
+                  "value": "postfix_unary_expression"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "!"
+                },
+                {
+                  "type": "STRING",
+                  "value": "++"
+                },
+                {
+                  "type": "STRING",
+                  "value": "--"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "_is_constant_non_lvalue_expression": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_is_constant_binary_expression"
+          },
+          "named": true,
+          "value": "binary_expression"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_is_qualified_postfix"
+          },
+          "named": true,
+          "value": "postfix_unary_expression"
+        },
+        {
+          "type": "PREC_DYNAMIC",
+          "value": 1,
+          "content": {
+            "type": "SYMBOL",
+            "name": "parenthesized_expression"
+          }
+        }
+      ]
     },
     "_is_constant_binary_expression": {
       "type": "CHOICE",
@@ -15252,6 +15376,15 @@
     }
   ],
   "conflicts": [
+    [
+      "lvalue_expression",
+      "_is_parenthesized_lvalue"
+    ],
+    [
+      "constant_pattern",
+      "_expression_statement_expression",
+      "_is_constant_non_lvalue_expression"
+    ],
     [
       "constant_pattern",
       "_is_constant_non_lvalue_expression"
@@ -15701,7 +15834,8 @@
     "_full_pattern",
     "_is_qualified_member_lvalue",
     "_is_constant_expression",
-    "_is_constant_non_lvalue_expression"
+    "_is_constant_non_lvalue_expression",
+    "_is_parenthesized_lvalue"
   ],
   "reserved": {}
 }
