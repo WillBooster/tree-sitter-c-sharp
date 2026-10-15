@@ -2080,7 +2080,7 @@ module.exports = grammar({
         $.relational_pattern,
         alias($._full_or_pattern, $.or_pattern),
         alias($._full_and_pattern, $.and_pattern),
-        $.list_pattern,
+        prec.dynamic(1, $.list_pattern),
         $.type_pattern
       ),
 

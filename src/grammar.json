@@ -14509,8 +14509,12 @@
           "value": "and_pattern"
         },
         {
-          "type": "SYMBOL",
-          "name": "list_pattern"
+          "type": "PREC_DYNAMIC",
+          "value": 1,
+          "content": {
+            "type": "SYMBOL",
+            "name": "list_pattern"
+          }
         },
         {
           "type": "SYMBOL",

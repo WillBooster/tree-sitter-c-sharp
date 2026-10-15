@@ -415,3 +415,31 @@ test('keeps conditional case labels intact alongside constant and declaration pa
     parser.delete();
   }
 });
+
+test('keeps unguarded switch list patterns distinct from collection expressions', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const query = new Query(language, '(pattern) @pattern\n(expression) @expression');
+  try {
+    for (const pattern of ['[]', '[1]', '[1, 2]', '[A.B]', '[nameof(value)]', '[1, ..]']) {
+      for (const guard of ['', ' when ready']) {
+        const source = `switch (value) { case ${pattern}${guard}: break; }`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const section = tree.rootNode.descendantsOfType('switch_section')[0]!;
+          expect(section.namedChild(0)?.type, source).toBe('list_pattern');
+          expect(section.namedChild(0)?.text).toBe(pattern);
+          const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
+          expect(captures).toContainEqual(['pattern', pattern]);
+          expect(captures).not.toContainEqual(['expression', pattern]);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
