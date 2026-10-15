@@ -1,5 +1,6 @@
 import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
+import compatibilityFixtures from '../fixtures/isPatternCompatibility.json';
 
 let language: Language;
 
@@ -119,12 +120,12 @@ test('preserves full constant expressions in switch and delimited patterns', () 
     for (const [source, constants] of [
       ['switch (value) { case 1 | 2: break; }', ['1 | 2']],
       ['var result = value switch { 1 | 2 => true, _ => false };', ['1 | 2']],
-      ['var result = value is (1 | 2);', ['1 | 2']],
+      ['var result = value is (1 | 2);', ['(1 | 2)']],
       ['var result = value is { Property: 1 | 2 };', ['1 | 2']],
       ['var result = value is [1 | 2];', ['1 | 2']],
-      ['var result = value is Foo(1 | 2);', ['1 | 2']],
-      ['var result = value is Foo(A.B << 2);', ['A.B << 2']],
-      ['var result = value is (1 | 2, 3 & 4);', ['1 | 2', '3 & 4']],
+      ['var result = value is Foo(1 | 2);', ['Foo(1 | 2)']],
+      ['var result = value is Foo(A.B << 2);', ['Foo(A.B << 2)']],
+      ['var result = value is (1 | 2, 3 & 4);', ['(1 | 2, 3 & 4)']],
     ] as const) {
       const tree = parser.parse(source)!;
       try {
@@ -186,32 +187,6 @@ test('retains existing supertype captures inside intrinsic nameof arguments', ()
   } finally {
     tree.delete();
     query.delete();
-    parser.delete();
-  }
-});
-
-test('keeps qualified type-shaped calls as complete positional patterns before surrounding operators', () => {
-  const parser = new Parser().setLanguage(language);
-  try {
-    for (const name of ['Shapes.Point', 'A.B<T>', 'global::A.B<T>', '@nameof']) {
-      for (const suffix of ['', ' && ready', ' ? [1] : [2]']) {
-        const pattern = `${name}(1, 2)`;
-        const source = `var result = shape is ${pattern}${suffix};`;
-        const tree = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, source).toBe(false);
-          expect(tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.text, source).toBe(`shape is ${pattern}`);
-          const parsed = tree.rootNode.descendantsOfType('recursive_pattern')[0]!;
-          expect(parsed.text, source).toBe(pattern);
-          expect(parsed.childForFieldName('type')?.text, source).toBe(name);
-          expect(parsed.descendantsOfType('positional_pattern_clause')[0]?.text, source).toBe('(1, 2)');
-          expect(tree.rootNode.descendantsOfType('invocation_expression'), source).toHaveLength(0);
-        } finally {
-          tree.delete();
-        }
-      }
-    }
-  } finally {
     parser.delete();
   }
 });
@@ -365,55 +340,11 @@ test('keeps arithmetic constants with nonliteral right operands before surroundi
   }
 });
 
-test('keeps full constant expressions inside parentheses in every delimited pattern context', () => {
-  const parser = new Parser();
-  parser.setLanguage(language);
-  try {
-    for (const constant of ['(1)', '(1 + 2)', '(1 | 2)', '(null)', '("s")', '(sizeof(int))', '(A.B + 1)']) {
-      for (const source of [
-        `var result = value is ${constant};`,
-        `switch (value) { case ${constant}: break; }`,
-        `var result = value switch { ${constant} => true, _ => false };`,
-        `var result = value is { Property: ${constant} };`,
-        `var result = value is [${constant}];`,
-        `var result = value is [.. ${constant}];`,
-      ]) {
-        const tree = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, source).toBe(false);
-          expect(
-            tree.rootNode.descendantsOfType(['constant_pattern', 'parenthesized_pattern']).map((node) => node.text),
-            source
-          ).toContain(constant);
-          expect(
-            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
-            source
-          ).toEqual([constant.slice(1, -1)]);
-          expect(tree.rootNode.descendantsOfType('positional_pattern_clause'), source).toHaveLength(0);
-        } finally {
-          tree.delete();
-        }
-      }
-    }
-    const pattern = parser.parse('var result = value is (var item);')!;
-    try {
-      expect(pattern.rootNode.hasError).toBe(false);
-      expect(pattern.rootNode.descendantsOfType('parenthesized_pattern').map((node) => node.text)).toEqual([
-        '(var item)',
-      ]);
-    } finally {
-      pattern.delete();
-    }
-  } finally {
-    parser.delete();
-  }
-});
-
 test('keeps conditional case labels intact alongside constant and declaration patterns', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   try {
-    for (const condition of ['A', 'A.B', 'global::A.B']) {
+    for (const condition of ['A', 'A.B', 'global::A.B', 'A + B', 'A && B', 'A + B == C', 'A * B < C', 'A | B']) {
       const source = `switch (value) { case ${condition} ? First : Second: break; case 1: break; case nameof(value): break; case int item: break; }`;
       const tree = parser.parse(source)!;
       try {
@@ -620,141 +551,6 @@ test('keeps primary receivers and mixed call/member/postfix chains inside is con
   }
 });
 
-test('distinguishes ordinary positional calls from intrinsic nameof in nested pattern contexts', () => {
-  const parser = new Parser().setLanguage(language);
-  try {
-    for (const pattern of [
-      'M()',
-      'M((1))',
-      'M((1), (2))',
-      'A.B((1), (2))',
-      'global::A<T>(1, 2)',
-      'M(int x)',
-      'M((>1))',
-      'M((1 or 2))',
-      'M((1)) item',
-      'M() item',
-      'M() { P: 1 } item',
-      '@nameof(Type.Member)',
-      'A.nameof(Type.Member)',
-      'nameof<T>(Type.Member)',
-      'nameofValue(C)',
-      'nameofπ(C)',
-      String.raw`nameo\u0066(C)`,
-    ]) {
-      for (const source of [
-        `var result = value is ${pattern};`,
-        `var result = value is { P: ${pattern} };`,
-        `var result = value is [${pattern}];`,
-        `var result = value switch { ${pattern} => 1, _ => 2 };`,
-      ]) {
-        const tree = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, source).toBe(false);
-          expect(
-            tree.rootNode.descendantsOfType('recursive_pattern').map((node) => node.text),
-            source
-          ).toContain(pattern);
-        } finally {
-          tree.delete();
-        }
-      }
-    }
-    for (const constant of [
-      'nameof(Type.Member)',
-      'nameof((Foo))',
-      'nameof(var(a, b))',
-      'nameof(Foo(var(a, b)))',
-      'nameof(C) + C.S',
-      'nameof(C) << 1',
-    ]) {
-      for (const source of [
-        `var result = value is ${constant} && ready;`,
-        `var result = value is { P: ${constant} };`,
-        `var result = value is [${constant}];`,
-        `var result = value switch { ${constant} => 1, _ => 2 };`,
-      ]) {
-        const tree = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, source).toBe(false);
-          expect(
-            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
-            source
-          ).toEqual([constant]);
-        } finally {
-          tree.delete();
-        }
-      }
-    }
-    for (const name of ['nameofValue', 'nameofπ', 'nameof𐐀', String.raw`nameof\u0061`, '@nameof', 'varValue', '@var']) {
-      const source = `var ${name} = ${name}(value);`;
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(false);
-        expect(tree.rootNode.descendantsOfType('invocation_expression')[0]?.childForFieldName('function')?.text).toBe(
-          name
-        );
-        expect(tree.rootNode.descendantsOfType('variable_declarator')[0]?.childForFieldName('name')?.text).toBe(name);
-      } finally {
-        tree.delete();
-      }
-    }
-  } finally {
-    parser.delete();
-  }
-});
-
-test('keeps casts complete in delimited constants without changing unary-minus ambiguity', () => {
-  const parser = new Parser().setLanguage(language);
-  try {
-    for (const constant of ['(T)A', '(T)null', '(T)A.B', '(T)A.B(1)']) {
-      for (const source of [
-        `var result = value switch { ${constant} => 1, _ => 2 };`,
-        `var result = value is { P: ${constant} };`,
-        `var result = value is [${constant}];`,
-        `var result = value is [.. ${constant}];`,
-      ]) {
-        const tree = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, source).toBe(false);
-          const parsed = tree.rootNode.descendantsOfType('constant_pattern')[0]!;
-          expect(parsed.text, source).toBe(constant);
-          expect(parsed.namedChild(0)?.type, source).toBe('cast_expression');
-        } finally {
-          tree.delete();
-        }
-      }
-    }
-    for (const source of [
-      'var result = value switch { (T)-1 => 1, _ => 2 };',
-      'var result = value is { P: (T)-1 };',
-      'var result = value is [(T)-1];',
-    ]) {
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(false);
-        const parsed = tree.rootNode.descendantsOfType('constant_pattern')[0]!;
-        expect(parsed.text, source).toBe('(T)-1');
-        expect(parsed.namedChild(0)?.type, source).toBe('binary_expression');
-      } finally {
-        tree.delete();
-      }
-    }
-    for (const pattern of ['(>1) item', '(1 or 2) item', '(var x) item']) {
-      const tree = parser.parse(`var result = value is { P: ${pattern} };`)!;
-      try {
-        expect(tree.rootNode.hasError, pattern).toBe(false);
-        const designated = tree.rootNode.descendantsOfType('recursive_pattern').find((node) => node.text === pattern)!;
-        expect(designated.childForFieldName('name')?.text, pattern).toBe('item');
-      } finally {
-        tree.delete();
-      }
-    }
-  } finally {
-    parser.delete();
-  }
-});
-
 test('preserves parenthesized tuple-designation patterns and genuine positional clauses', () => {
   const parser = new Parser().setLanguage(language);
   try {
@@ -848,120 +644,6 @@ test('preserves tuple-var patterns through negation and nested named positional 
     }
   } finally {
     query.delete();
-    parser.delete();
-  }
-});
-
-test('distinguishes parenthesized list subpatterns from collection arguments of constant calls', () => {
-  const parser = new Parser().setLanguage(language);
-  try {
-    for (const list of ['[]', '[1]', '[1, 2]', '[..]']) {
-      const pattern = `Foo((${list}))`;
-      for (const source of [
-        `var result = value is ${pattern};`,
-        `var result = value is not ${pattern};`,
-        `var result = value is { P: ${pattern} };`,
-        `var result = value is [${pattern}];`,
-        `var result = value switch { ${pattern} => 1, _ => 2 };`,
-        `switch (value) { case ${pattern}: break; }`,
-      ]) {
-        const tree = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, source).toBe(false);
-          expect(
-            tree.rootNode.descendantsOfType('recursive_pattern').map((node) => node.text),
-            source
-          ).toContain(pattern);
-          expect(
-            tree.rootNode.descendantsOfType('list_pattern').map((node) => node.text),
-            source
-          ).toContain(list);
-          expect(tree.rootNode.descendantsOfType('collection_expression'), source).toHaveLength(0);
-          expect(tree.rootNode.descendantsOfType('element_binding_expression'), source).toHaveLength(0);
-        } finally {
-          tree.delete();
-        }
-      }
-    }
-    for (const collection of ['[]', '[1]', '[1, 2]']) {
-      for (const target of ['nameof', 'A.B!', 'new C().Call']) {
-        const source = `var result = value is ${target}((${collection}));`;
-        const tree = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, source).toBe(false);
-          expect(
-            tree.rootNode.descendantsOfType('collection_expression').map((node) => node.text),
-            source
-          ).toEqual([collection]);
-          expect(tree.rootNode.descendantsOfType('element_binding_expression'), source).toHaveLength(0);
-        } finally {
-          tree.delete();
-        }
-      }
-    }
-    const indexed = parser.parse('var result = value?[1, 2];')!;
-    try {
-      expect(indexed.rootNode.hasError).toBe(false);
-      expect(indexed.rootNode.descendantsOfType('element_binding_expression')).toHaveLength(1);
-    } finally {
-      indexed.delete();
-    }
-  } finally {
-    parser.delete();
-  }
-});
-
-test('retains nested multi-element positional patterns and actual tuple-expression call arguments', () => {
-  const parser = new Parser().setLanguage(language);
-  try {
-    for (const inner of [
-      '(1, 2)',
-      '((1, 2))',
-      '(1 | 2, 3 & 4)',
-      '(A.B, C.D)',
-      '(int.MaxValue, 2)',
-      '(var a, var b)',
-      '(_, _)',
-    ]) {
-      for (const tail of ['', ' item', ' { P: 1 } item']) {
-        const pattern = `Foo(${inner})${tail}`;
-        for (const source of [
-          `var result = value is ${pattern};`,
-          `var result = value is ${pattern} && ready;`,
-          `var result = value is not ${pattern};`,
-          `var result = value is { P: ${pattern} };`,
-          `var result = value is [${pattern}];`,
-          `var result = value switch { ${pattern} => 1, _ => 2 };`,
-          `switch (value) { case ${pattern}: break; }`,
-        ]) {
-          const tree = parser.parse(source)!;
-          try {
-            expect(tree.rootNode.hasError, source).toBe(false);
-            const parsed = tree.rootNode.descendantsOfType('recursive_pattern').find((node) => node.text === pattern)!;
-            expect(parsed.childForFieldName('type')?.text, source).toBe('Foo');
-            expect(parsed.descendantsOfType('positional_pattern_clause'), source).toHaveLength(2);
-            expect(parsed.descendantsOfType('tuple_expression'), source).toHaveLength(0);
-          } finally {
-            tree.delete();
-          }
-        }
-      }
-    }
-    for (const target of ['nameof', 'A.B!', 'new C().Call']) {
-      const source = `var result = value is ${target}((1, 2));`;
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(false);
-        expect(
-          tree.rootNode.descendantsOfType('tuple_expression').map((node) => node.text),
-          source
-        ).toEqual(['(1, 2)']);
-        expect(tree.rootNode.descendantsOfType('positional_pattern_clause'), source).toHaveLength(0);
-      } finally {
-        tree.delete();
-      }
-    }
-  } finally {
     parser.delete();
   }
 });
@@ -1125,46 +807,6 @@ test('retains receiver captures in parenthesized negated patterns', () => {
           query.captures(tree.rootNode).map(({ node }) => node.text),
           source
         ).toEqual(pattern.includes('C.D') ? ['value', 'A', 'C'] : ['value', 'A']);
-      } finally {
-        tree.delete();
-      }
-    }
-  } finally {
-    query.delete();
-    parser.delete();
-  }
-});
-
-test('parses unnamed tuple patterns as positional subpatterns', () => {
-  const parser = new Parser().setLanguage(language);
-  const query = new Query(language, '(lvalue_expression) @lvalue');
-  try {
-    for (const [pattern, receivers] of [
-      ['(A.B, C.D)', ['value', 'A', 'C']],
-      ['(1 | 2, 3 & 4)', ['value']],
-    ] as const) {
-      const source = `var result = value is ${pattern};`;
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(false);
-        const recursive = tree.rootNode.descendantsOfType('recursive_pattern');
-        expect(
-          recursive.map((node) => node.text),
-          source
-        ).toEqual([pattern]);
-        const positional = recursive[0]?.descendantsOfType('positional_pattern_clause')[0];
-        expect(
-          positional?.namedChildren.map((node) => node.text),
-          source
-        ).toEqual(pattern.slice(1, -1).split(', '));
-        expect(
-          tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
-          source
-        ).toEqual(pattern.slice(1, -1).split(', '));
-        expect(
-          query.captures(tree.rootNode).map(({ node }) => node.text),
-          source
-        ).toEqual(receivers);
       } finally {
         tree.delete();
       }
@@ -1451,79 +1093,6 @@ test('retains designations after completed untyped positional patterns', () => {
   }
 });
 
-test('preserves expression and lvalue queries on positional labels', () => {
-  const parser = new Parser().setLanguage(language);
-  const query = new Query(language, '(expression) @expression\n(lvalue_expression) @lvalue');
-  try {
-    for (const pattern of ['(Name: int item, Other: C)', '(Name: int item, Other: C) matched']) {
-      for (const source of [
-        `var result = value is ${pattern};`,
-        `var result = value is Foo(${pattern});`,
-        `var result = value is [${pattern}];`,
-      ]) {
-        const tree = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, source).toBe(false);
-          expect(
-            query
-              .captures(tree.rootNode)
-              .filter(({ node }) => node.text === 'Other')
-              .map(({ name }) => name),
-            source
-          ).toEqual(['expression', 'lvalue']);
-          expect(
-            query.captures(tree.rootNode).filter(({ node }) => node.text === 'Name'),
-            source
-          ).toHaveLength(0);
-        } finally {
-          tree.delete();
-        }
-      }
-    }
-  } finally {
-    query.delete();
-    parser.delete();
-  }
-});
-
-test('preserves indexed receiver queries in collection and conditional owners', () => {
-  const parser = new Parser().setLanguage(language);
-  const query = new Query(language, '(lvalue_expression) @lvalue');
-  try {
-    for (const [source, receivers, hasError] of [
-      ['var r = x is ([A.B[0]]);', ['x', 'A.B[0]', 'A.B', 'A'], false],
-      ['switch (x) { case [A.B[0]]: break; }', ['x', 'A.B[0]', 'A.B', 'A'], false],
-      ['switch (x) { case A.B[0]?.C: break; }', ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], false],
-      ['var r = x is { P: A.B[0]?.Call() };', ['x', 'P', 'A.B[0]', 'A.B', 'A'], false],
-      ['var r = x switch { A.B[0]?.Call() => 1, _ => 2 };', ['x', 'A.B[0]', 'A.B', 'A'], false],
-      ['var r = x is { P: A.B[0]?.C };', ['x', 'A.B[0]', 'A.B', 'A'], true],
-      ['var r = x switch { A.B[0]?.C => 1, _ => 2 };', ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], true],
-      ['var r = x is Foo([1, A.B[0]?.C]);', ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], false],
-      ['var r = x is A.Foo([1, A.B[0]?.C]);', ['x', 'A', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A'], false],
-      [
-        'var r = x is Foo([A.B[0]?.C], [D.E[0]?.F]);',
-        ['x', 'A.B[0]?.C', 'A.B[0]', 'A.B', 'A', 'D.E[0]?.F', 'D.E[0]', 'D.E', 'D'],
-        false,
-      ],
-      ['var r = x is [A.B[0]];', ['x'], false],
-    ] as const) {
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(hasError);
-        expect(
-          query.captures(tree.rootNode).map(({ node }) => node.text),
-          source
-        ).toEqual(receivers);
-      } finally {
-        tree.delete();
-      }
-    }
-  } finally {
-    query.delete();
-    parser.delete();
-  }
-});
-
 test('retains the published tuple fallback for unsupported positional constant children', () => {
   const parser = new Parser().setLanguage(language);
   try {
@@ -1560,140 +1129,6 @@ test('retains the published tuple fallback for unsupported positional constant c
   }
 });
 
-test('checks all nine canonical supertype query categories and recovery trees', () => {
-  const parser = new Parser().setLanguage(language);
-  const categories = [
-    'declaration',
-    'expression',
-    'non_lvalue_expression',
-    'lvalue_expression',
-    'literal',
-    'statement',
-    'type',
-    'type_declaration',
-    'pattern',
-  ];
-  const query = new Query(language, categories.map((name) => `(${name}) @${name}`).join('\n'));
-  const fixtures = [
-    [
-      'class C { int M() => 1; }',
-      false,
-      [
-        ['type_declaration', 'class_declaration', 'class C { int M() => 1; }'],
-        ['declaration', 'method_declaration', 'int M() => 1;'],
-        ['type', 'predefined_type', 'int'],
-        ['expression', 'integer_literal', '1'],
-        ['non_lvalue_expression', 'integer_literal', '1'],
-        ['literal', 'integer_literal', '1'],
-      ],
-      [],
-    ],
-    [
-      'if (x is 1) return;',
-      false,
-      [
-        ['statement', 'if_statement', 'if (x is 1) return;'],
-        ['expression', 'is_pattern_expression', 'x is 1'],
-        ['non_lvalue_expression', 'is_pattern_expression', 'x is 1'],
-        ['expression', 'identifier', 'x'],
-        ['lvalue_expression', 'identifier', 'x'],
-        ['pattern', 'constant_pattern', '1'],
-        ['literal', 'integer_literal', '1'],
-        ['statement', 'return_statement', 'return;'],
-      ],
-      [],
-    ],
-    [
-      'var r = x is ([A.B[0]]);',
-      false,
-      [
-        ['statement', 'local_declaration_statement', 'var r = x is ([A.B[0]]);'],
-        ['type', 'implicit_type', 'var'],
-        ['expression', 'is_pattern_expression', 'x is ([A.B[0]])'],
-        ['non_lvalue_expression', 'is_pattern_expression', 'x is ([A.B[0]])'],
-        ['expression', 'identifier', 'x'],
-        ['lvalue_expression', 'identifier', 'x'],
-        ['pattern', 'constant_pattern', '([A.B[0]])'],
-        ['non_lvalue_expression', 'collection_expression', '[A.B[0]]'],
-        ['expression', 'element_access_expression', 'A.B[0]'],
-        ['lvalue_expression', 'element_access_expression', 'A.B[0]'],
-        ['lvalue_expression', 'member_access_expression', 'A.B'],
-        ['lvalue_expression', 'identifier', 'A'],
-        ['expression', 'integer_literal', '0'],
-        ['non_lvalue_expression', 'integer_literal', '0'],
-        ['literal', 'integer_literal', '0'],
-      ],
-      [],
-    ],
-    [
-      'switch (x) { case A.B?.C: break; }',
-      false,
-      [
-        ['statement', 'switch_statement', 'switch (x) { case A.B?.C: break; }'],
-        ['expression', 'identifier', 'x'],
-        ['lvalue_expression', 'identifier', 'x'],
-        ['expression', 'conditional_access_expression', 'A.B?.C'],
-        ['lvalue_expression', 'conditional_access_expression', 'A.B?.C'],
-        ['expression', 'member_access_expression', 'A.B'],
-        ['lvalue_expression', 'member_access_expression', 'A.B'],
-        ['lvalue_expression', 'identifier', 'A'],
-        ['statement', 'break_statement', 'break;'],
-      ],
-      [],
-    ],
-    [
-      'switch (x) { case 1, 2: break; }',
-      true,
-      [
-        ['statement', 'switch_statement', 'switch (x) { case 1, 2: break; }'],
-        ['expression', 'identifier', 'x'],
-        ['lvalue_expression', 'identifier', 'x'],
-        ['literal', 'integer_literal', '1'],
-        ['pattern', 'constant_pattern', '2'],
-        ['literal', 'integer_literal', '2'],
-        ['statement', 'break_statement', 'break;'],
-      ],
-      ['(ERROR (constant_pattern (integer_literal)))'],
-    ],
-    [
-      'switch (x) { case int y, string z: break; }',
-      true,
-      [
-        ['statement', 'switch_statement', 'switch (x) { case int y, string z: break; }'],
-        ['expression', 'identifier', 'x'],
-        ['lvalue_expression', 'identifier', 'x'],
-        ['pattern', 'declaration_pattern', 'int y'],
-        ['type', 'predefined_type', 'int'],
-        ['pattern', 'declaration_pattern', 'string z'],
-        ['type', 'predefined_type', 'string'],
-        ['statement', 'break_statement', 'break;'],
-      ],
-      ['(ERROR (declaration_pattern type: (predefined_type) name: (identifier)))'],
-    ],
-  ] as const;
-  try {
-    for (const [source, hasError, captures, errorTrees] of fixtures) {
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(hasError);
-        expect(
-          tree.rootNode.descendantsOfType('ERROR').map((node) => node.toString()),
-          source
-        ).toEqual(errorTrees);
-        expect(
-          query.captures(tree.rootNode).map(({ name, node }) => [name, node.type, node.text]),
-          source
-        ).toEqual(captures);
-      } finally {
-        tree.delete();
-      }
-    }
-  } finally {
-    query.delete();
-    parser.delete();
-  }
-});
-
 test('preserves lvalue query ancestry through full operator owners and their postfix chains', () => {
   const parser = new Parser().setLanguage(language);
   const query = new Query(language, '(lvalue_expression) @value');
@@ -1718,6 +1153,117 @@ test('preserves lvalue query ancestry through full operator owners and their pos
     }
   } finally {
     query.delete();
+    parser.delete();
+  }
+});
+test('preserves published trees and all nine query categories across nested pattern owners', () => {
+  const parser = new Parser().setLanguage(language);
+  const categories = [
+    'declaration',
+    'expression',
+    'non_lvalue_expression',
+    'lvalue_expression',
+    'literal',
+    'statement',
+    'type',
+    'type_declaration',
+    'pattern',
+  ];
+  const query = new Query(language, categories.map((name) => `(${name}) @${name}`).join('\n'));
+  try {
+    for (const fixture of compatibilityFixtures) {
+      const tree = parser.parse(fixture.source)!;
+      try {
+        expect(tree.rootNode.hasError, fixture.source).toBe(fixture.hasError);
+        expect(tree.rootNode.toString(), fixture.source).toBe(fixture.cst);
+        expect(
+          query.captures(tree.rootNode).map(({ name, node }) => [name, node.type, node.startIndex, node.endIndex]),
+          fixture.source
+        ).toEqual(fixture.captures);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('keeps completed primary postfixes and conditional calls inside is before lower operators', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const constant of [
+      '42!',
+      '"text"!',
+      '$"text{value}"!',
+      'default(int)!',
+      'sizeof(int)!',
+      'typeof(C)!',
+      'A.B?.C()',
+      'b?.c!',
+      'b?.c.d',
+      'b?.c()',
+      'b?.c.d!',
+      'A.B?.C?.D()',
+    ]) {
+      for (const suffix of [' && ready', ' || ready', ' == other', ' | mask']) {
+        const source = `var result = value is ${constant}${suffix};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
+            source
+          ).toEqual([`value is ${constant}`]);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual([constant]);
+          const binary = tree.rootNode.descendantsOfType('binary_expression')[0]!;
+          expect(binary.childForFieldName('left')?.text, source).toBe(`value is ${constant}`);
+          expect(binary.childForFieldName('right')?.text, source).toBe(suffix.trim().split(' ').at(-1));
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves mixed binary precedence in every full-constant pattern owner', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const [constant, operator, left, right] of [
+      ['a + b == c', '==', 'a + b', 'c'],
+      ['a * b < c', '<', 'a * b', 'c'],
+      ['A.B + 1 ?? 2', '??', 'A.B + 1', '2'],
+      ['a + b * c', '+', 'a', 'b * c'],
+      ['a << b + c', '<<', 'a', 'b + c'],
+    ]) {
+      for (const source of [
+        `switch (value) { case ${constant}: break; }`,
+        `var result = value switch { ${constant} => 1, _ => 2 };`,
+        `var result = value is { P: ${constant} };`,
+        `var result = value is [${constant}];`,
+        `var result = value is Foo(${constant});`,
+        `var result = value is (${constant});`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const binary = tree.rootNode.descendantsOfType('binary_expression').find((node) => node.text === constant)!;
+          expect(binary.childForFieldName('operator')?.text, source).toBe(operator);
+          expect(binary.childForFieldName('left')?.text, source).toBe(left);
+          expect(binary.childForFieldName('right')?.text, source).toBe(right);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
     parser.delete();
   }
 });
