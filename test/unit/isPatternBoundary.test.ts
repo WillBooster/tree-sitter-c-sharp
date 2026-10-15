@@ -940,3 +940,45 @@ test('retains nested multi-element positional patterns and actual tuple-expressi
     parser.delete();
   }
 });
+
+test('accepts contextual identifiers before a qualified positional pattern name', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const name of [
+      'nameof.C',
+      'var.C',
+      'nameof.A.B',
+      'var.A.B',
+      'nameof.C<T>',
+      'var.C<T>',
+      'global::nameof.C',
+      'global::var.C',
+    ]) {
+      const pattern = `${name}(var item)`;
+      for (const source of [
+        `var result = value is ${pattern};`,
+        `var result = value is ${pattern} && ready;`,
+        `var result = value is not ${pattern};`,
+        `var result = value is { P: ${pattern} };`,
+        `var result = value is [${pattern}];`,
+        `var result = value switch { ${pattern} => 1, _ => 2 };`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const parsed = tree.rootNode.descendantsOfType('recursive_pattern').find((node) => node.text === pattern)!;
+          expect(parsed.childForFieldName('type')?.text, source).toBe(name);
+          expect(
+            parsed.descendantsOfType('positional_pattern_clause').map((node) => node.text),
+            source
+          ).toEqual(['(var item)']);
+          expect(parsed.descendantsOfType('invocation_expression'), source).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

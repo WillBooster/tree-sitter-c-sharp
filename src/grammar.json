@@ -14753,6 +14753,10 @@
                 },
                 {
                   "type": "SYMBOL",
+                  "name": "identifier"
+                },
+                {
+                  "type": "SYMBOL",
                   "name": "alias_qualified_name"
                 }
               ]
@@ -16197,6 +16201,10 @@
     [
       "_simple_name",
       "_pattern_name"
+    ],
+    [
+      "_simple_name",
+      "_pattern_qualified_name"
     ],
     [
       "_pattern_qualified_name",

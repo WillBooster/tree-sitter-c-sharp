@@ -93,6 +93,7 @@ module.exports = grammar({
     [$.attribute, $.type, $._name_invocation_pattern],
     [$.identifier, $._nameof_constant_invocation],
     [$._simple_name, $._pattern_name],
+    [$._simple_name, $._pattern_qualified_name],
     [$._pattern_qualified_name, $._is_qualified_member],
     [$._simple_name, $._positional_subpattern],
     [$._name, $._pattern_name],
@@ -2095,7 +2096,7 @@ module.exports = grammar({
       prec.dynamic(
         1,
         seq(
-          field('qualifier', choice($._pattern_name, $.alias_qualified_name)),
+          field('qualifier', choice($._pattern_name, $.identifier, $.alias_qualified_name)),
           '.',
           prec(PREC.DOT, field('name', $._simple_name))
         )
