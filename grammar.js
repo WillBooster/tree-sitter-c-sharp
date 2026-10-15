@@ -86,6 +86,13 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._bare_singleton_positional_clause, $.positional_pattern_clause],
+    [$._bare_other_positional_clause, $.positional_pattern_clause],
+    [$._is_qualified_member_lvalue, $._is_qualified_invocation],
+    [$.non_lvalue_expression, $._is_constant_non_lvalue_expression],
+    [$.constant_pattern, $._full_constant_pattern],
+    [$.pattern, $._full_pattern],
+    [$._name, $.constant_pattern, $._full_constant_pattern],
     [$.parameter, $._reserved_identifier, $._pattern_identifier],
     [$.from_clause, $._reserved_identifier, $._pattern_identifier],
     [$._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier, $._pattern_identifier],
@@ -93,6 +100,8 @@ module.exports = grammar({
     [$.attribute, $.type, $._name_invocation_pattern],
     [$.identifier, $._nameof_constant_invocation],
     [$._simple_name, $._pattern_name],
+    [$.parameter, $.lvalue_expression, $._is_qualified_member_lvalue],
+    [$._name, $.lvalue_expression, $._is_qualified_member_lvalue],
     [$._simple_name, $._pattern_qualified_name],
     [$._pattern_qualified_name, $._is_qualified_member],
     [$._simple_name, $._positional_subpattern],
@@ -263,6 +272,7 @@ module.exports = grammar({
   ],
 
   supertypes: ($) => [
+    $._parenthesized_logical_pattern,
     $.declaration,
     $.expression,
     $.non_lvalue_expression,
@@ -273,6 +283,7 @@ module.exports = grammar({
     $.type_declaration,
     $.pattern,
     $._full_pattern,
+    $._positional_member_pattern,
     $._is_qualified_member_lvalue,
     $._is_constant_expression,
     $._is_constant_non_lvalue_expression,
@@ -1139,7 +1150,17 @@ module.exports = grammar({
 
     discard: () => '_',
 
-    parenthesized_pattern: ($) => seq('(', alias($._full_pattern, $.pattern), ')'),
+    parenthesized_pattern: ($) =>
+      seq(
+        '(',
+        choice(
+          alias($._full_pattern, $.pattern),
+          alias($._parenthesized_logical_pattern, $.pattern),
+          alias($._positional_member_pattern, $.pattern)
+        ),
+        ')'
+      ),
+    _parenthesized_logical_pattern: ($) => choice($.or_pattern, $.and_pattern),
 
     var_pattern: ($) => prec.dynamic(2, seq('var', $.parenthesized_variable_designation)),
 
@@ -1181,7 +1202,8 @@ module.exports = grammar({
             seq(field('type', $._pattern_name), $.positional_pattern_clause, optional($.property_pattern_clause))
           ),
           prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
-          $.positional_pattern_clause,
+          prec.dynamic(-1, alias($._bare_singleton_positional_clause, $.positional_pattern_clause)),
+          alias($._bare_other_positional_clause, $.positional_pattern_clause),
           seq(field('type', $.type), $.property_pattern_clause, optional($._simple_designation)),
           // A positional clause follows only a name (above), a predefined type, or an array type. Letting any type take
           // one reads `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed
@@ -1192,11 +1214,37 @@ module.exports = grammar({
             optional($.property_pattern_clause),
             optional($._simple_designation)
           ),
-          // no type, just pattern clauses (no variable designation to avoid conflict with above)
           seq(
-            choice(seq($.positional_pattern_clause, $.property_pattern_clause), $.property_pattern_clause),
+            choice(
+              seq(
+                choice(
+                  $.positional_pattern_clause,
+                  alias($._bare_singleton_positional_clause, $.positional_pattern_clause),
+                  alias($._bare_other_positional_clause, $.positional_pattern_clause)
+                ),
+                $.property_pattern_clause
+              ),
+              $.property_pattern_clause
+            ),
             optional($._simple_designation)
           )
+        )
+      ),
+
+    _bare_singleton_positional_clause: ($) => prec(1, seq('(', alias($._positional_subpattern, $.subpattern), ')')),
+    _bare_other_positional_clause: ($) =>
+      prec(
+        1,
+        seq(
+          '(',
+          optional(
+            seq(
+              alias($._positional_subpattern, $.subpattern),
+              ',',
+              commaSep1(alias($._positional_subpattern, $.subpattern))
+            )
+          ),
+          ')'
         )
       ),
 
@@ -2074,9 +2122,12 @@ module.exports = grammar({
       prec.right(
         seq(
           optional(choice(prec.dynamic(1, seq($.identifier, ':')), seq($.expression, ':'))),
-          alias($._full_pattern, $.pattern)
+          choice(alias($._full_pattern, $.pattern), alias($._positional_member_pattern, $.pattern))
         )
       ),
+
+    _positional_member_pattern: ($) => prec.dynamic(-1, alias($._positional_member_constant, $.constant_pattern)),
+    _positional_member_constant: ($) => alias($._is_qualified_member, $.member_access_expression),
 
     _pattern_name: ($) =>
       choice(
@@ -2113,7 +2164,7 @@ module.exports = grammar({
         $.var_pattern,
         alias($._full_negated_pattern, $.negated_pattern),
         prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
-        prec.dynamic(1, $.parenthesized_pattern),
+        prec.dynamic(2, $.parenthesized_pattern),
         $.relational_pattern,
         alias($._full_or_pattern, $.or_pattern),
         alias($._full_and_pattern, $.and_pattern),
@@ -2181,6 +2232,7 @@ module.exports = grammar({
       choice(
         'this',
         $._simple_name,
+        prec(PREC.POSTFIX + 1, alias($._is_receiver_element, $.element_access_expression)),
         prec(PREC.INVOCATION + 1, alias($._is_qualified_member, $.member_access_expression)),
         prec.dynamic(1, alias($._parenthesized_lvalue_expression, $.parenthesized_expression)),
         prec.dynamic(1, $.tuple_expression)
@@ -2206,6 +2258,24 @@ module.exports = grammar({
             choice('.', '->'),
             field('name', $._simple_name)
           )
+        )
+      ),
+
+    _is_receiver_element: ($) =>
+      prec(
+        PREC.POSTFIX,
+        seq(
+          field(
+            'expression',
+            choice(
+              alias($._is_qualified_member_lvalue, $.lvalue_expression),
+              alias($._is_qualified_postfix, $.postfix_unary_expression),
+              alias($._constant_parenthesized_expression, $.parenthesized_expression),
+              alias($._is_primary_expression, $.expression),
+              alias($._is_receiver_invocation, $.invocation_expression)
+            )
+          ),
+          field('subscript', $.bracketed_argument_list)
         )
       ),
 

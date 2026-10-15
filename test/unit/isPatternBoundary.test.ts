@@ -122,6 +122,8 @@ test('preserves full constant expressions in switch and delimited patterns', () 
       ['var result = value is (1 | 2);', ['1 | 2']],
       ['var result = value is { Property: 1 | 2 };', ['1 | 2']],
       ['var result = value is [1 | 2];', ['1 | 2']],
+      ['var result = value is Foo(1 | 2);', ['1 | 2']],
+      ['var result = value is Foo(A.B << 2);', ['A.B << 2']],
       ['var result = value is (1 | 2, 3 & 4);', ['(1 | 2, 3 & 4)']],
     ] as const) {
       const tree = parser.parse(source)!;
@@ -466,7 +468,7 @@ test('preserves complete expressions through repeated pattern parentheses withou
   const parser = new Parser();
   parser.setLanguage(language);
   try {
-    for (const inner of ['1', '1 + 2', '1 | 2', 'null']) {
+    for (const inner of ['1', '1 + 2', '1 | 2', 'null', 'A.B', 'int.MaxValue']) {
       for (const depth of [1, 2, 3, 5]) {
         const constant = `${'('.repeat(depth)}${inner}${')'.repeat(depth)}`;
         for (const source of [
@@ -1049,6 +1051,80 @@ test('keeps name-shaped is types in later logical operands', () => {
           ).toEqual([`x is ${name}`]);
           const conditional = tree.rootNode.descendantsOfType('conditional_expression')[0]!;
           expect(conditional.childForFieldName('condition')?.text, source).toBe(`x is null ${operator} x is ${name}`);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('preserves lvalue receiver captures inside nested generic positional patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(lvalue_expression) @lvalue');
+  try {
+    for (const parameter of ['int item', 'var item']) {
+      const source = `var result = value is Foo(A.Bar<T>(${parameter}, A.B)) matched;`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('recursive_pattern').map((node) => node.text),
+          source
+        ).toEqual([`Foo(A.Bar<T>(${parameter}, A.B)) matched`, `A.Bar<T>(${parameter}, A.B)`]);
+        expect(
+          tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+          source
+        ).toEqual(['A.B']);
+        expect(
+          query.captures(tree.rootNode).map(({ node }) => node.text),
+          source
+        ).toEqual(['value', 'A']);
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const pattern of ['not (A.B or C.D)', 'not ((A.B or C.D))']) {
+      const source = `var result = value is ${pattern};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          query.captures(tree.rootNode).map(({ node }) => node.text),
+          source
+        ).toEqual(['value', 'A', 'C']);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('keeps indexed receivers inside supported member constants', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(element_access_expression expression: (is_pattern_expression)) @outside');
+  try {
+    for (const constant of ['a.b[0].c', 'a.b[0][1].c', 'global::A.B[0].C', 'a.b[0].Call()', 'a.b[0]!.c']) {
+      for (const suffix of ['', ' && ready', ' | mask']) {
+        const source = `var result = value is ${constant}${suffix};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('is_pattern_expression').map((node) => node.text),
+            source
+          ).toEqual([`value is ${constant}`]);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual([constant]);
+          expect(query.captures(tree.rootNode), source).toHaveLength(0);
         } finally {
           tree.delete();
         }
