@@ -681,6 +681,25 @@ test('preserves nullable array conditions before complete expression alternative
           'a == b ? [1] : [2]',
           'a is List<T> ? [1] : [2]',
           'a is T?[] ? [1] : [2]',
+          'a is null',
+          'a is not null',
+          'a is true',
+          'a is false',
+          'a is var y',
+          'a is this.B',
+          'a is base.B',
+          'a is not true',
+          'a is > 0 ? [1] : [2]',
+          'a is >= 0 and <= 2 ? [1] : [2]',
+          'a is null or U ? [1] : [2]',
+          'a is > 0 and U ? [1] : [2]',
+          'a is U and null ? [1] : [2]',
+          'a is 1 + v.and ? [1] : [2]',
+          'a is null?.and ? [1] : [2]',
+          'a is 0 || and ? [1] : [2]',
+          'a is 0 ?? and ? [1] : [2]',
+          'a is 1 << 2 and T ? [1] : [2]',
+          'a is G<T> and null ? [1] : [2]',
         ]) {
           const condition = `x is ${type}`;
           const source = `var result = ${condition} ? ${consequence} : ${alternative};`;
@@ -784,6 +803,23 @@ test('preserves nullable array conditions around interpolated expression leaves'
     '$"{x,10:000}"',
     '$"{{literal?[0]:x}}"',
     '$"{F("x?[0]:y")}"',
+    '$"""{x}"""',
+    '$$"""{{x}}"""',
+    '$$$"""{{{x}}}"""',
+    '$""""{x}""""',
+    '$$""""literal {x} {{x}}""""',
+    '"""a?[0]:b"""',
+    '"""\nabc?[0]:b\n"""',
+    '$"""\n{x}\n"""',
+    '$"""{F($"{x}")}"""',
+    '$"""{F($"""{x}""")}"""',
+    '""""raw "x" and """ triple""""',
+    '$"""{x?[0]}"""',
+    '$"""{(x?[0]:y)}"""',
+    '$$"""{{x,10:000}}"""',
+    '$$"""literal {x} {{(x?[0]:y)}}"""',
+    '$$"""{{{x}}}"""',
+    '$$$"""{{literal}} {{{x}}}"""',
   ];
   const placements = [
     (value: string) => value,
@@ -818,6 +854,41 @@ test('preserves nullable array conditions around interpolated expression leaves'
           tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
           source
         ).toEqual([nullable]);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves constant-pattern access when an enclosing conditional reparses its true branch', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const pattern of ['null', 'not null', 'true']) {
+      const source = `var r=flag ? x is T?[]?[0] : a is ${pattern}?[1] : [2];`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const nodes = tree.rootNode.descendantsOfType('conditional_expression');
+        expect(nodes[0]?.childForFieldName('condition')?.text, source).toBe('flag');
+        expect(nodes[0]?.childForFieldName('consequence')?.text, source).toBe(`x is T?[]?[0] : a is ${pattern}?[1]`);
+        expect(nodes[0]?.childForFieldName('alternative')?.text, source).toBe('[2]');
+        expect(nodes[1]?.childForFieldName('condition')?.text, source).toBe('x is T');
+        expect(nodes[1]?.childForFieldName('consequence')?.text, source).toBe('[]?[0]');
+        expect(nodes[1]?.childForFieldName('alternative')?.text, source).toBe(`a is ${pattern}?[1]`);
+        expect(tree.rootNode.descendantsOfType('nullable_type'), source).toHaveLength(0);
+        expect(
+          tree.rootNode
+            .descendantsOfType('conditional_access_expression')
+            .map((node) => [node.childForFieldName('condition')?.text, node.childForFieldName('consequence')?.text]),
+          source
+        ).toEqual([
+          ['[]', '[0]'],
+          [pattern === 'not null' ? 'null' : pattern, '[1]'],
+        ]);
       } finally {
         tree.delete();
       }
