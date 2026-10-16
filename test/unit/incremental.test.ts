@@ -44,6 +44,7 @@ test('reports invalid UTF-8 after conditional access without stalling', () => {
       cwd: root,
       encoding: 'utf8',
       timeout: 5000,
+      killSignal: 'SIGKILL',
     });
     expect(parsed.error, parsed.stderr).toBeUndefined();
     expect(parsed.status, parsed.stdout + parsed.stderr).toBe(1);
