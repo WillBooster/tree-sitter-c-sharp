@@ -1567,3 +1567,31 @@ test('retains collection ternaries when a later question belongs to a nullable t
     parser.delete();
   }
 });
+
+test('preserves access proof after a completed ordinary ternary with nested questions', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const arm of ['f(a ? 1 : 2)', '(a ? 1 : 2)', 'a[b ? 1 : 2]']) {
+      const expression = `c ? ${arm} : a?[0] is T ? b : c`;
+      for (const wrapped of [expression, `F(${expression})`, `flag ? ${expression} : z`]) {
+        const tree = parser.parse(`var r = ${wrapped};`)!;
+        try {
+          expect(tree.rootNode.hasError, wrapped).toBe(false);
+          const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
+          const final = conditionals.at(-1)!;
+          expect(final.childForFieldName('condition')?.text, wrapped).toBe('a?[0] is T');
+          expect(final.childForFieldName('consequence')?.text, wrapped).toBe('b');
+          expect(final.childForFieldName('alternative')?.text, wrapped).toBe('c');
+          expect(
+            tree.rootNode.descendantsOfType('conditional_access_expression').map((node) => node.text),
+            wrapped
+          ).toEqual(['a?[0]']);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

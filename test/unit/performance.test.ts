@@ -128,6 +128,15 @@ const expressionSources = [
 ];
 
 const questionSources = [
+  ...[
+    { name: 'call', arm: 'f(a ? 1 : 2)', node: 'invocation_expression' },
+    { name: 'parenthesized', arm: '(a ? 1 : 2)', node: 'parenthesized_expression' },
+    { name: 'index', arm: 'a[b ? 1 : 2]', node: 'element_access_expression' },
+  ].map(({ name, arm, node }) => ({
+    name: `${name} nested ternary arms`,
+    source: (count: number): string => `class C { void M() { var x = ${`c ? ${arm} : `.repeat(count)}0; } }`,
+    node,
+  })),
   ...['T?', 'int?[]', 'int?[,]', 'System.Int32?[]', 'G<int>?[]'].map((type) => ({
     name: `nullable ${type} properties`,
     source: (count: number): string =>

@@ -238,6 +238,7 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_colon(QuestionWalk *walk);
+static void question_walk_complete_colon(QuestionWalk *walk);
 static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next);
 static bool question_uncertain_keyword(const QuestionIdentifier *identifier);
 static bool question_expression_keyword(const QuestionIdentifier *identifier);
@@ -616,8 +617,15 @@ static void question_walk_colon(QuestionWalk *walk) {
         if (walk->optional == 1 && walk->following.token == '[') walk->proved_ternary = true;
         walk->optional--;
     } else walk->role_known = false;
-    if (walk->recording && !walk->mandatory && !walk->optional) {
+    question_walk_complete_colon(walk);
+}
+
+static void question_walk_complete_colon(QuestionWalk *walk) {
+    bool known_ordinary = walk->ordinary && walk->role_known && !walk->nullable_only;
+    bool ordinary_complete = known_ordinary && !walk->optional && walk->mandatory == walk->reserved;
+    if (ordinary_complete || ((walk->recording || walk->ordinary) && !walk->mandatory && !walk->optional)) {
         if (walk->case_colon_possible && !walk->known_ternary) walk->role_known = false;
+        if (known_ordinary && walk->role_known) walk->known_ternary = true;
         walk->role_active = false;
     }
     if (walk->role_known && walk->proved_ternary && !walk->binding) walk->known_ternary = true;
