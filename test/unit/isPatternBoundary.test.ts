@@ -1310,6 +1310,9 @@ test('retains positional subpatterns before a property clause', () => {
   const parser = new Parser().setLanguage(language);
   try {
     for (const [elements, kind] of [
+      ['a', 'constant_pattern'],
+      ['int', 'type_pattern'],
+      ['A a', 'declaration_pattern'],
       ['a, b', 'constant_pattern'],
       ['int, int', 'type_pattern'],
       ['A a, B b', 'declaration_pattern'],
@@ -1320,9 +1323,11 @@ test('retains positional subpatterns before a property clause', () => {
           `var r = x is ${pattern};`,
           `var r = x is ${pattern} value;`,
           `var r = x is not ${pattern};`,
+          `var r = x is (${pattern});`,
           `var r = x is ${pattern} or (d, e);`,
           `if (x is ${pattern}) {}`,
           `var r = x switch { ${pattern} => 1, _ => 2 };`,
+          `switch (x) { case ${pattern}: break; }`,
         ]) {
           const tree = parser.parse(source)!;
           try {
@@ -1334,7 +1339,7 @@ test('retains positional subpatterns before a property clause', () => {
             expect(
               positional.namedChildren.map((node) => node.namedChildren[0]?.type),
               source
-            ).toEqual([kind, kind]);
+            ).toEqual(elements.split(', ').map(() => kind));
             expect(
               positional.namedChildren.map((node) => node.text),
               source

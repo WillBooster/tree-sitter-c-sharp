@@ -66,6 +66,7 @@ module.exports = grammar({
     [$._simple_name, $._ambiguous_cast_qualified_name],
     [$._simple_name, $._definite_cast_qualified_name],
     [$.positional_pattern_clause, $._untyped_positional_pattern_clause],
+    [$._parenthesized_pattern_with_designation, $.subpattern],
     [$._pattern_type, $._definite_cast_type],
     [$.type, $._definite_cast_type],
     [$.parameter, $._simple_name, $._ambiguous_cast_name],
@@ -2829,7 +2830,7 @@ function nonconstantPatterns($) {
  */
 function subpattern($, named = false) {
   const name = choice(seq($.expression, ':'), seq($.identifier, ':'));
-  return prec.right(seq(named ? name : optional(name), $.pattern));
+  return seq(named ? name : optional(name), $.pattern);
 }
 
 /**
