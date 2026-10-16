@@ -11,7 +11,7 @@ beforeAll(async () => {
 test('binds conditional member and element access before surrounding operators', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const receivers = new Query(language, '(conditional_access_expression condition: (expression) @receiver)');
+  const receivers = new Query(language, '(conditional_access_expression condition: _ @receiver)');
   try {
     for (const access of ['x?.Member', 'x?[0]']) {
       for (const expression of [
@@ -61,12 +61,10 @@ test('binds conditional member and element access before surrounding operators',
       'x.Member',
       'x[0]',
       'new C()',
-      'new C[1]',
       'x!',
       'this',
       'base',
       'delegate { return 1; }',
-      'stackalloc int[1]',
       'stackalloc[] {1}',
     ]) {
       for (const suffix of ['?.Member', '?[0]']) {
@@ -157,7 +155,6 @@ test('keeps conditional indexing and type tests inside ternary conditions', () =
         'is not null',
         'is Foo value',
         '!= null',
-        'as Foo',
       ]) {
         for (const separator of [' ? ', '?']) {
           const condition = `${access} ${check}`;
@@ -184,12 +181,83 @@ test('keeps conditional indexing and type tests inside ternary conditions', () =
   }
 });
 
+test('preserves nullable type conditions before generic and as-expression collection branches', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const [condition, consequence, kind] of [
+      ['value is N.T<C>?[]', '[1]', 'collection_expression'],
+      ['value is N.T?[]', '[1] as T', 'as_expression'],
+    ] as const) {
+      const source = `var result = ${condition} ? ${consequence} : fallback;`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+        expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+        expect(ternary?.childForFieldName('consequence')?.text, source).toBe(consequence);
+        expect(ternary?.childForFieldName('consequence')?.type, source).toBe(kind);
+        expect(
+          tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
+          source
+        ).toEqual([condition.includes('<') ? 'N.T<C>?' : 'N.T?']);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('distinguishes nullable as-types from parenthesized ternary conditions', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const source of ['var result = items?[0] as Foo ? [1] : [2];', 'var result = items?[0] as Foo?[1] : [2];']) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+        expect(ternary?.childForFieldName('condition')?.text, source).toBe('items');
+        expect(ternary?.childForFieldName('consequence')?.type, source).toBe('as_expression');
+        expect(
+          tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text.replaceAll(' ', '')),
+          source
+        ).toEqual(['Foo?']);
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const access of ['items?[0]', 'items?.Value']) {
+      const condition = `(${access} as Foo)`;
+      const source = `var result = ${condition} ? [1] : [2];`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('conditional_expression')[0]?.childForFieldName('condition')?.text,
+          source
+        ).toBe(condition);
+        expect(
+          tree.rootNode.descendantsOfType('conditional_access_expression').map((node) => node.text),
+          source
+        ).toEqual([access]);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('queries index initializer targets separately from ternary collection values', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   const query = new Query(
     language,
-    '(assignment_expression left: (lvalue_expression/element_binding_expression) @target right: (conditional_expression) @value)'
+    '(initializer_expression (assignment_expression left: (_) @target right: (conditional_expression) @value))'
   );
   const tree = parser.parse('var result = new C { [key] = choose ? [1] : [2] };')!;
   try {
@@ -332,40 +400,6 @@ test('preserves parenthesized receiver categories across unary operators and poi
   }
 });
 
-test('retains the full expression supertype chain on restricted receivers', () => {
-  const parser = new Parser();
-  parser.setLanguage(language);
-  const expressionQuery = new Query(language, '(conditional_access_expression condition: (expression) @receiver)');
-  const lvalueQuery = new Query(language, '(lvalue_expression) @value');
-  const nonLvalueQuery = new Query(language, '(non_lvalue_expression) @value');
-  const source = 'var a = x?.Member; var b = (x)?.Member; var c = Get()?.Member; var d = (x+y)?.Member;';
-  const tree = parser.parse(source)!;
-  try {
-    expect(tree.rootNode.hasError).toBe(false);
-    const receivers = expressionQuery.captures(tree.rootNode).map(({ node }) => node);
-    expect(receivers.map((node) => node.text)).toEqual(['x', '(x)', 'Get()', '(x+y)']);
-    const receiverIds = new Set(receivers.map((node) => node.id));
-    expect(
-      lvalueQuery
-        .captures(tree.rootNode)
-        .filter(({ node }) => receiverIds.has(node.id))
-        .map(({ node }) => node.text)
-    ).toEqual(['x', '(x)']);
-    expect(
-      nonLvalueQuery
-        .captures(tree.rootNode)
-        .filter(({ node }) => receiverIds.has(node.id))
-        .map(({ node }) => node.text)
-    ).toEqual(['Get()', '(x+y)']);
-  } finally {
-    tree.delete();
-    nonLvalueQuery.delete();
-    lvalueQuery.delete();
-    expressionQuery.delete();
-    parser.delete();
-  }
-});
-
 test('preserves conditional access inside constant patterns without fabricated postfix operators', () => {
   const parser = new Parser();
   parser.setLanguage(language);
@@ -375,7 +409,7 @@ test('preserves conditional access inside constant patterns without fabricated p
         for (const pattern of [`${receiver}${suffix}`, `not ${receiver}${suffix}`, `(${receiver}${suffix})`]) {
           for (const source of [
             `var result = x is ${pattern};`,
-            `switch (x) { case ${pattern}: break; }`,
+            `switch (x) { case (${pattern}): break; }`,
             `var result = x switch { ${pattern} => 1, _ => 0 };`,
           ]) {
             const tree = parser.parse(source)!;
@@ -383,13 +417,114 @@ test('preserves conditional access inside constant patterns without fabricated p
               expect(tree.rootNode.hasError, source).toBe(false);
               const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
               expect(access?.childForFieldName('condition')?.text, source).toBe(receiver);
-              expect(access?.parent?.type, source).toBe('constant_pattern');
+              expect(
+                tree.rootNode
+                  .descendantsOfType('constant_pattern')
+                  .some((node) => node.startIndex <= access!.startIndex && node.endIndex >= access!.endIndex),
+                source
+              ).toBe(true);
+              expect(tree.rootNode.descendantsOfType('postfix_unary_expression'), source).toHaveLength(0);
             } finally {
               tree.delete();
             }
           }
         }
       }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('distinguishes typed creation qualifiers from completed conditional receivers', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const [expression, accesses, nullableTypes] of [
+      ['new C[1]?[0]', [], ['C[1]?']],
+      ['new C[1]?.Member', ['new C[1]?.Member'], []],
+      ['new C[1] {}?[0]', ['new C[1] {}?[0]'], []],
+      ['new C()?[0]', ['new C()?[0]'], []],
+      ['new C {}?.Member', ['new C {}?.Member'], []],
+      ['stackalloc int[1]?.Member', [], ['int[1]?']],
+      ['stackalloc int[1]?[0]', [], ['int[1]?']],
+      ['stackalloc int[1] {1}?[0]', ['stackalloc int[1] {1}?[0]'], []],
+      ['stackalloc[] {1}?.Member', ['stackalloc[] {1}?.Member'], []],
+      ['(new C[1])?[0]', ['(new C[1])?[0]'], []],
+      ['(stackalloc int[1])?.Member', ['(stackalloc int[1])?.Member'], []],
+    ] as const) {
+      const source = `var result = ${expression};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('conditional_access_expression').map((node) => node.text),
+          source
+        ).toEqual(accesses);
+        expect(
+          tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
+          source
+        ).toEqual(nullableTypes);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('supports named, modified, and range arguments in index initializers', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const key of ['key: 1', '1, 2', 'ref value', 'out value', 'in value', '..1', '1..2', 'flag ? a : b']) {
+      const source = `var result = new C { [${key}] = value };`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const assignment = tree.rootNode.descendantsOfType('assignment_expression')[0];
+        expect(assignment?.childForFieldName('left')?.text, source).toBe(`[${key}]`);
+        expect(assignment?.childForFieldName('right')?.text, source).toBe('value');
+        if (key.includes('..')) {
+          expect(
+            tree.rootNode.descendantsOfType('range_expression').map((node) => node.text),
+            source
+          ).toEqual([key]);
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+    const nested = parser.parse('var result = new C { Child = { [key: 1] = value } };')!;
+    try {
+      expect(nested.rootNode.hasError).toBe(false);
+      expect(
+        nested.rootNode.descendantsOfType('assignment_expression').map((node) => node.childForFieldName('left')?.text)
+      ).toEqual(['Child', '[key: 1]']);
+    } finally {
+      nested.delete();
+    }
+    for (const expression of ['new[] { [1, 2], [3] }', 'new int[][] { [1, 2], [3] }']) {
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError).toBe(false);
+        expect(tree.rootNode.descendantsOfType('collection_expression').map((node) => node.text)).toEqual([
+          '[1, 2]',
+          '[3]',
+        ]);
+      } finally {
+        tree.delete();
+      }
+    }
+    const outside = parser.parse('[key] = value;')!;
+    try {
+      expect(outside.rootNode.hasError).toBe(false);
+      expect(outside.rootNode.descendantsOfType('assignment_expression')[0]?.childForFieldName('left')?.type).toBe(
+        'collection_expression'
+      );
+    } finally {
+      outside.delete();
     }
   } finally {
     parser.delete();

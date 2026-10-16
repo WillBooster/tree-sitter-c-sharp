@@ -20,7 +20,6 @@
 (parameter type: (identifier) @type)
 (type_argument_list (identifier) @type)
 (as_expression right: (identifier) @type)
-(is_expression right: (identifier) @type)
 
 (constructor_declaration name: (identifier) @constructor)
 (destructor_declaration name: (identifier) @constructor)

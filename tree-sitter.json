@@ -9,7 +9,8 @@
       "file-types": ["cs"],
       "highlights": ["queries/highlights.scm"],
       "tags": ["queries/tags.scm"],
-      "injection-regex": "cs"
+      "injection-regex": "cs",
+      "external-files": ["src/nullableRank.h", "src/questionContext.h"]
     }
   ],
   "metadata": {

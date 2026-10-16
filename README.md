@@ -29,12 +29,20 @@ Known gaps:
 
 - `var` and `await` cannot be used as identifiers everywhere they are valid
 
+## Upgrading to version 6
+
+Type tests use `is_pattern_expression`; `is_expression` is no longer emitted. The `lvalue_expression` and
+`non_lvalue_expression` supertypes have been replaced by the shared expression grammar. Update queries to use
+`expression` and the concrete expression nodes. Constant patterns can contain a direct `conditional_access_expression`
+child. Conditional access includes its complete dependent chain and, for conditional assignment, the assignment in its
+`consequence` field.
+
 ## Usage
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
 browsers, and Cloudflare Workers. The parser carries the ABI number of WillBooster/tree-sitter, so it loads only with
-that runtime, version 2.0.0 or later; upstream's runtime rejects it. Install the runtime alongside the grammar when using
+that runtime. Use version 2.0.22 or later; upstream's runtime rejects it. Install the runtime alongside the grammar when using
 the Wasm parser; it remains an optional peer for consumers that only use the grammar source or queries.
 
 In Node.js and Bun, load it from the package:
@@ -77,17 +85,17 @@ parser.setLanguage(await Language.load(cSharp));
 ```
 
 The package also ships the queries in `queries/` and the node types in `src/node-types.json`.
-When extending the source grammar, use `grammar.js` and `src/scanner.c` from the same repository release tag.
-Their external directive tokens and serialized scanner state must match.
+When extending the source grammar, use `grammar.js` and the files under `src/` from the same repository release tag.
+Their external tokens and serialized scanner state must match.
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
-fuzzed with. The parser requires runtime 2.0.0 or later:
+fuzzed with. Use runtime 2.0.22 or later:
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "2.0.0" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "5" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "2.0.22" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "6" }
 ```
 
 ```rust
