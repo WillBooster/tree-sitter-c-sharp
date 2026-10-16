@@ -414,7 +414,8 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
     if (identifier.keyword && (strcmp(identifier.word, "new") == 0 || strcmp(identifier.word, "delegate") == 0 ||
         strcmp(identifier.word, "stackalloc") == 0 || strcmp(identifier.word, "from") == 0)) walk->is_eligible = false;
     bool is_or_as = identifier.keyword && (strcmp(identifier.word, "is") == 0 || strcmp(identifier.word, "as") == 0);
-    if (walk->ordinary_name_candidate && walk->recording && !walk->depth && is_or_as) walk->definite_ternary = true;
+    bool value_operator = is_or_as || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
+    if (walk->ordinary_name_candidate && walk->recording && !walk->depth && value_operator) walk->definite_ternary = true;
     walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary;
     if (question_uncertain_keyword(&identifier)) question_walk_keyword_context(scanner, walk, &identifier, is_or_as);
     if (question_expression_keyword(&identifier) && walk->recording && walk->first_word && walk->ordinary)
@@ -475,7 +476,11 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
     advance(lexer);
     if (!walk->depth && walk->binding && !walk->cache_colon && lexer->lookahead == '=') walk->root_binary = true;
     if (lexer->lookahead == '>') {
-        if (!walk->depth) return QUESTION_WALK_UNKNOWN;
+        if (!walk->depth) {
+            walk->role_active = false;
+            walk->role_known = false;
+            walk->is_eligible = false;
+        }
         advance(lexer);
         return QUESTION_WALK_CONTINUE;
     }

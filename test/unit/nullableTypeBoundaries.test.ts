@@ -165,3 +165,66 @@ function assertAlternatives(alternatives: string[]): void {
     parser.delete();
   }
 }
+
+test('isolates nullable switch-arm question state from later statements and methods', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of ['T?[]', 'T?[] item', 'U?[]', 'T[]', 'T[,]', 'T', '_']) {
+      for (const value of ['1', 'a?.b', 'c ? 1 : 2']) {
+        const source = `class C {
+          object M1(object v) { return v switch { ${pattern} => ${value}, _ => 2 }; }
+          void M2(object a, object b, object x) {
+            var mid = 1;
+            var result = x is T ? [1] : a is U?[] ? [a] : b;
+          }
+        }`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const result = tree.rootNode
+            .descendantsOfType('variable_declarator')
+            .find((node) => node.childForFieldName('name')?.text === 'result');
+          expect(
+            result
+              ?.descendantsOfType('conditional_expression')
+              .map((node) => [node.childForFieldName('condition')?.text, node.childForFieldName('consequence')?.text]),
+            source
+          ).toEqual([
+            ['x is T', '[1]'],
+            ['a is U?[]', '[a]'],
+          ]);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves enclosing ternaries while switch and with operands replay their delimiters', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const value of ['a', 'a?.b', 'c ? 1 : 2']) {
+      for (const operand of [`v switch { T?[] => ${value}, _ => 2 }`, `v with { P = ${value} }`]) {
+        const source = `var result = flag ? ${operand} : x is U?[] ? [a] : b;`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
+          expect(conditionals[0]?.childForFieldName('condition')?.text, source).toBe('flag');
+          expect(conditionals[0]?.childForFieldName('consequence')?.text, source).toBe(operand);
+          const alternative = conditionals[0]?.childForFieldName('alternative');
+          expect(alternative?.type, source).toBe('conditional_expression');
+          expect(alternative?.childForFieldName('condition')?.text, source).toBe('x is U?[]');
+          expect(alternative?.childForFieldName('consequence')?.text, source).toBe('[a]');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
