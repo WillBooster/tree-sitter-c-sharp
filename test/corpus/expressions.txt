@@ -3823,15 +3823,17 @@ var z = expr is (E.A or E.B) v2;
           (is_pattern_expression
             expression: (identifier)
             pattern: (recursive_pattern
-              (or_pattern
-                left: (constant_pattern
-                  (member_access_expression
-                    expression: (identifier)
-                    name: (identifier)))
-                right: (constant_pattern
-                  (member_access_expression
-                    expression: (identifier)
-                    name: (identifier))))
+              (positional_pattern_clause
+                (subpattern
+                  (or_pattern
+                    left: (constant_pattern
+                      (member_access_expression
+                        expression: (identifier)
+                        name: (identifier)))
+                    right: (constant_pattern
+                      (member_access_expression
+                        expression: (identifier)
+                        name: (identifier))))))
               name: (identifier))))))))
 
 ================================================================================
