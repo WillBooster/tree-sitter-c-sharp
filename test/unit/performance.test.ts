@@ -209,19 +209,34 @@ test.each([
 ])('returns a tree for deeply nested $name interpolation after a question', ({ open, close }) => {
   const nested = open.repeat(5000) + '1' + close.repeat(5000);
   for (const prefix of ['a ? 1 : ', 'x is T?[] ? [a] : ']) {
-    const source = `class C { void M() { var result = ${prefix}${nested}; } }`;
-    const tree = parser.parse(source)!;
-    try {
-      expect(tree.rootNode.endIndex).toBe(source.length);
-    } finally {
-      tree.delete();
-    }
-    const subsequent = parser.parse('var result = a?[0];')!;
-    try {
-      expect(subsequent.rootNode.hasError).toBe(false);
-      expect(subsequent.rootNode.descendantsOfType('conditional_access_expression')[0]?.text).toBe('a?[0]');
-    } finally {
-      subsequent.delete();
-    }
+    assertDeepParsingKeepsRuntimeUsable(`${prefix}${nested}`);
   }
 });
+
+test.each([
+  { name: 'generic', open: 'L<', close: '>' },
+  { name: 'tuple', open: '(', close: ', int)' },
+  { name: 'function pointer', open: 'delegate*<', close: ', void>' },
+])('returns a tree for deeply nested $name types in question-role lookahead', ({ open, close }) => {
+  const type = open.repeat(5000) + 'int' + close.repeat(5000);
+  for (const expression of [`a is ${type}? ? 1 : 2`, `x is T?[] ? [1] : a as ${type}? ? [1] : b`]) {
+    assertDeepParsingKeepsRuntimeUsable(expression);
+  }
+});
+
+function assertDeepParsingKeepsRuntimeUsable(expression: string): void {
+  const source = `class C { void M() { var result = ${expression}; } }`;
+  const tree = parser.parse(source)!;
+  try {
+    expect(tree.rootNode.endIndex).toBe(source.length);
+  } finally {
+    tree.delete();
+  }
+  const subsequent = parser.parse('var result = a?[0];')!;
+  try {
+    expect(subsequent.rootNode.hasError).toBe(false);
+    expect(subsequent.rootNode.descendantsOfType('conditional_access_expression')[0]?.text).toBe('a?[0]');
+  } finally {
+    subsequent.delete();
+  }
+}

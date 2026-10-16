@@ -145,6 +145,17 @@ test('retains unary operands and identifier-led alternatives after a ternary que
   }
 });
 
+test('preserves nullable ownership before deeply nested generic, tuple, and function-pointer alternatives', () => {
+  const shapes = [
+    { open: 'L<', close: '>' },
+    { open: '(', close: ', int)' },
+    { open: 'delegate*<', close: ', void>' },
+    { open: 'delegate* unmanaged[Cdecl]<', close: ', void>' },
+    { open: 'L<(', close: '? value, int other)>' },
+  ];
+  assertAlternatives(shapes.map(({ open, close }) => `a as ${open.repeat(100)}int${close.repeat(100)} == b`));
+});
+
 function assertAlternatives(alternatives: string[]): void {
   const parser = new Parser().setLanguage(language);
   try {
