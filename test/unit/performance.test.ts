@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { gzipSync } from 'node:zlib';
 
 import { generationInputMtime } from '../helpers/generationInputs.js';
 
@@ -36,6 +37,12 @@ test('uses a Wasm build built from the current parser', () => {
     ) > fs.statSync(WasmPath).mtimeMs,
     'src/ changed after the Wasm build was built; run `bun run build/ci`'
   ).toBe(false);
+});
+
+test('ships Wasm within raw and compressed size budgets', () => {
+  const wasm = fs.readFileSync(WasmPath);
+  expect(wasm.byteLength).toBeLessThanOrEqual(12 * 1024 * 1024);
+  expect(gzipSync(wasm).byteLength).toBeLessThanOrEqual(1.25 * 1024 * 1024);
 });
 
 // Thread CPU time excludes competing test files and background compilation. The growth limit permits roughly n^1.25
