@@ -842,7 +842,17 @@ module.exports = grammar({
         nullableQuestion()
       ),
 
-    _pattern_declaration_type: ($) => typeAlternatives($, true, false, false),
+    _pattern_declaration_type: ($) =>
+      choice(
+        $.implicit_type,
+        alias($._pattern_array_type, $.array_type),
+        $._name,
+        alias($._pattern_nullable_type, $.nullable_type),
+        $.function_pointer_type,
+        $.predefined_type,
+        $.ref_type,
+        $.scoped_type
+      ),
 
     implicit_type: () => prec.dynamic(1, 'var'),
 

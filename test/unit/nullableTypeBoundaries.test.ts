@@ -326,3 +326,65 @@ test('preserves enclosing ternaries while switch and with operands replay their 
     parser.delete();
   }
 });
+
+test('keeps nullable tuple elements inside positional patterns before ternary branches', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of ['(T, U?)', '(int x, int? y)', '(T?, U?)', '(A.B, U?[])']) {
+      const tree = parser.parse(`var result = a is ${pattern} ? b?[0] : c;`)!;
+      try {
+        expect(tree.rootNode.hasError).toBe(false);
+        const conditional = tree.rootNode.descendantsOfType('conditional_expression')[0]!;
+        expect(conditional.childForFieldName('condition')!.text).toBe(`a is ${pattern}`);
+        expect(conditional.childForFieldName('consequence')!.text).toBe('b?[0]');
+        expect(tree.rootNode.descendantsOfType('recursive_pattern')[0]!.text).toBe(pattern);
+        expect(tree.rootNode.descendantsOfType('conditional_access_expression')[0]!.text).toBe('b?[0]');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves nested expression conditions after generic type tests', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const condition of ['x is U', 'x as U', 'x is null', 'x < y', 'x is U value']) {
+      const tree = parser.parse(`var result = a is List<T> ? ${condition} ? b : c?[0] : e;`)!;
+      try {
+        expect(tree.rootNode.hasError).toBe(false);
+        const [outer, inner] = tree.rootNode.descendantsOfType('conditional_expression');
+        expect(outer!.childForFieldName('condition')!.text).toBe('a is List<T>');
+        expect(inner!.childForFieldName('condition')!.text).toBe(condition);
+        expect(inner!.childForFieldName('alternative')!.text).toBe('c?[0]');
+        expect(outer!.childForFieldName('alternative')!.text).toBe('e');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('finishes nullable type tests before conditional logical operators', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const operator of ['&&', '||']) {
+      const tree = parser.parse(`var result = a is T? ${operator} b ? c ? [1] : 1 : [1];`)!;
+      try {
+        expect(tree.rootNode.hasError).toBe(false);
+        const [outer, inner] = tree.rootNode.descendantsOfType('conditional_expression');
+        expect(outer!.childForFieldName('condition')!.text).toBe(`a is T? ${operator} b`);
+        expect(inner!.childForFieldName('condition')!.text).toBe('c');
+        expect(tree.rootNode.descendantsOfType('nullable_type')[0]!.text).toBe('T?');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

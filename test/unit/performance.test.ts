@@ -250,3 +250,30 @@ function assertDeepParsingKeepsRuntimeUsable(expression: string, node: string, d
     subsequent.delete();
   }
 }
+
+test('preserves deeply nested conditional operands without exhausting the scanner stack', () => {
+  const depth = 5000;
+  for (const [prefix, alternatives, count] of [
+    ['a ? ', ': d', depth + 1],
+    ['a as T? b ? ', ': d : d', depth * 2 + 1],
+  ] as const) {
+    const expression = `x is T?[] ? [1] : ${prefix.repeat(depth)}c${alternatives.repeat(depth)}`;
+    assertDeepParsingKeepsRuntimeUsable(expression, 'conditional_expression', count, true);
+  }
+});
+
+test('recovers from deeply incomplete conditional operands without poisoning the runtime', () => {
+  const tree = parser.parse(`var result = flag ? x is T?[]?[0] : ${'a ? b ? '.repeat(20_000)}c : d;`)!;
+  try {
+    expect(tree.rootNode.hasError).toBe(true);
+  } finally {
+    tree.delete();
+  }
+  const subsequent = parser.parse('var result = a?[0];')!;
+  try {
+    expect(subsequent.rootNode.hasError).toBe(false);
+    expect(subsequent.rootNode.descendantsOfType('conditional_access_expression')[0]!.text).toBe('a?[0]');
+  } finally {
+    subsequent.delete();
+  }
+});

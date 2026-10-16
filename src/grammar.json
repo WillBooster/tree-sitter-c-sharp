@@ -4204,16 +4204,26 @@
           "name": "implicit_type"
         },
         {
-          "type": "SYMBOL",
-          "name": "array_type"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_pattern_array_type"
+          },
+          "named": true,
+          "value": "array_type"
         },
         {
           "type": "SYMBOL",
           "name": "_name"
         },
         {
-          "type": "SYMBOL",
-          "name": "nullable_type"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_pattern_nullable_type"
+          },
+          "named": true,
+          "value": "nullable_type"
         },
         {
           "type": "SYMBOL",
