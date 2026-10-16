@@ -168,6 +168,7 @@ static bool question_skip_regular_quoted(TSLexer *lexer, int32_t quote, bool ver
 typedef enum {
     QUESTION_EXPRESSION_RECEIVER = 1,
     QUESTION_CASE_COLON = 2,
+    QUESTION_NULLABLE_ONLY = 4,
 } QuestionContextFlags;
 
 typedef struct {
@@ -189,6 +190,7 @@ typedef struct {
     bool cached_access;
     bool binding;
     bool entering_binding;
+    bool nullable_only;
     bool role_known;
     bool proved_ternary;
     bool no_colons;
@@ -281,6 +283,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, int32_t following, bo
         .is_eligible = known && following == '[' && !cached,
         .cached_access = cached,
         .entering_binding = following == '[',
+        .nullable_only = context_flags & QUESTION_NULLABLE_ONLY,
         .role_known = known,
         .no_colons = true,
         .cache_shaped = following == '[' && !cached,
@@ -443,6 +446,11 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
     if (walk->role_active && !walk->depth) {
         question_skip_separators(lexer);
         QuestionFollowing following = question_following(lexer);
+        if (walk->recording && walk->root_colons && walk->binding && following.token != '[' && following.token != '.') {
+            walk->role_active = false;
+            walk->role_known = false;
+            walk->is_eligible = false;
+        }
         if (following.token == '.' && !following.member && walk->binding && !walk->cache_colon)
             walk->root_binary = true;
         question_walk_future_question(walk, following.token);
@@ -503,6 +511,11 @@ static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, Questi
             walk->known_ternary = !walk->known_nullable;
             if (walk->known_ternary) scanner->question_type_uncertain = false;
         }
+        if (walk->nullable_only && !walk->known_ternary && (first == ']' || first == ',')) {
+            walk->known_nullable = true;
+            walk->role_active = false;
+        }
+        if (!walk->binding && !walk->role_known) walk->role_active = false;
         walk->rank_phase = RANK_NONE;
         walk->entering_binding = false;
 }
@@ -529,8 +542,10 @@ static void question_walk_colon(QuestionWalk *walk) {
         if (walk->optional == 1 && walk->following == '[') walk->proved_ternary = true;
         walk->optional--;
     } else walk->role_known = false;
-    if (walk->recording && walk->role_known && !walk->case_colon_possible && !walk->mandatory && !walk->optional)
+    if (walk->recording && !walk->mandatory && !walk->optional) {
+        if (walk->case_colon_possible && !walk->known_ternary) walk->role_known = false;
         walk->role_active = false;
+    }
 }
 
 static void question_walk_future_question(QuestionWalk *walk, int32_t next) {

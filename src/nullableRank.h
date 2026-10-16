@@ -13,6 +13,7 @@ typedef enum { RANK_ATOM, RANK_IS_TYPE, RANK_QUESTION, RANK_COLON, RANK_CONTINUA
 typedef struct { RankTokenKind kind; bool collection; } RankToken;
 typedef Array(RankToken) RankTokens;
 typedef Array(char) RankGroups;
+typedef enum { RANK_BODY_BRACKET, RANK_BODY_EXPRESSION } RankBodyMode;
 typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid; } RankParse;
 
 static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending);
@@ -24,16 +25,24 @@ static bool rank_read_type_name(TSLexer *lexer);
 static bool rank_read_identifier(TSLexer *lexer, QuestionIdentifier *identifier);
 static bool rank_identifier_allowed(const QuestionIdentifier *word, bool type);
 static bool rank_read_bracket(TSLexer *lexer, bool empty);
-static bool rank_read_delimited(TSLexer *lexer, char opening);
+static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode);
 static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_t c);
 static bool rank_read_stream(TSLexer *lexer, RankTokens *tokens, unsigned *colons);
 static bool rank_read_atom(TSLexer *lexer, RankTokens *tokens);
 static bool rank_read_operator(TSLexer *lexer, RankTokens *tokens, unsigned *colons, bool *atom, bool division);
 static bool rank_read_postfix(TSLexer *lexer, int32_t c);
 static bool rank_read_as(TSLexer *lexer, bool *colon);
-static bool rank_read_switch(TSLexer *lexer, bool *colon);
+static bool rank_read_as_type(TSLexer *lexer, bool *colon);
+static bool rank_read_as_name(TSLexer *lexer, bool *colon);
+static bool rank_read_as_name_part(TSLexer *lexer);
+static bool rank_read_as_arguments(TSLexer *lexer, int32_t close);
+static bool rank_read_as_rank(TSLexer *lexer);
+static bool rank_read_switch(TSLexer *lexer);
 static bool rank_read_binary(TSLexer *lexer, int32_t c, bool *postfix, bool *colon);
+static bool rank_skip_binary_operator(TSLexer *lexer, int32_t c, bool *postfix, bool updates);
 static bool rank_read_binary_rhs(TSLexer *lexer, bool *colon);
+static bool rank_skip_rhs_token(TSLexer *lexer, int32_t c);
+static bool rank_skip_rhs_question(TSLexer *lexer);
 static bool rank_read_terminal(TSLexer *lexer, bool *colon);
 static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static RankParse rank_evaluate(const RankTokens *tokens, unsigned target);
@@ -159,13 +168,13 @@ static bool rank_read_bracket(TSLexer *lexer, bool empty) {
     if (question_skip_separators(lexer) != '[') return false;
     advance(lexer);
     if (question_skip_separators(lexer) < 0) return false;
-    if (!empty) return rank_read_delimited(lexer, '[');
+    if (!empty) return rank_read_delimited(lexer, '[', RANK_BODY_BRACKET);
     if (lexer->lookahead != ']') return false;
     advance(lexer);
     return true;
 }
 
-static bool rank_read_delimited(TSLexer *lexer, char opening) {
+static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode) {
     RankGroups groups = array_new();
     array_push(&groups, opening);
     bool content = false;
@@ -179,11 +188,10 @@ static bool rank_read_delimited(TSLexer *lexer, char opening) {
             if (*array_back(&groups) != expected) break;
             array_pop(&groups);
             advance(lexer);
-            if (!groups.size) { valid = content; break; }
+            if (!groups.size) { valid = content || mode == RANK_BODY_EXPRESSION; break; }
             continue;
         }
         content = true;
-        if (opening == '{' && groups.size == 1 && c == ',') break;
         if (!rank_skip_delimited_token(lexer, &groups, c)) break;
     }
     array_delete(&groups);
@@ -241,7 +249,7 @@ static bool rank_read_operator(TSLexer *lexer, RankTokens *tokens, unsigned *col
         array_push(tokens, ((RankToken){postfix ? RANK_CONTINUATION : RANK_BINARY, false}));
     } else if (c == 'a' || c == 's') {
         bool colon = false;
-        bool parsed = c == 'a' ? rank_read_as(lexer, &colon) : rank_read_switch(lexer, &colon);
+        bool parsed = c == 'a' ? rank_read_as(lexer, &colon) : rank_read_switch(lexer);
         if (!parsed) return false;
         array_push(tokens, ((RankToken){c == 'a' ? RANK_AS : RANK_SWITCH, false}));
         *atom = colon;
@@ -285,27 +293,102 @@ static bool rank_read_postfix(TSLexer *lexer, int32_t c) {
 
 static bool rank_read_as(TSLexer *lexer, bool *colon) {
     QuestionIdentifier word;
-    if (!rank_read_identifier(lexer, &word) || !word.keyword || strcmp(word.word, "as")) return false;
-    if (!rank_read_type_name(lexer)) return false;
-    return rank_read_terminal(lexer, colon);
+    return rank_read_identifier(lexer, &word) && word.keyword && !strcmp(word.word, "as") && rank_read_as_type(lexer, colon);
 }
 
-static bool rank_read_switch(TSLexer *lexer, bool *colon) {
+static bool rank_read_as_type(TSLexer *lexer, bool *colon) {
+    if (question_skip_separators(lexer) < 0) return false;
+    if (lexer->lookahead == '(') {
+        advance(lexer);
+        if (!rank_read_as_arguments(lexer, ')')) return false;
+    } else if (!rank_read_as_name(lexer, colon)) return false;
+    if (*colon) return true;
+    bool nullable = false;
+    for (;;) {
+        int32_t c = question_skip_separators(lexer);
+        switch (c) {
+            case '?':
+                if (nullable) return false;
+                nullable = true;
+                advance(lexer);
+                c = question_skip_separators(lexer);
+                if (c != '[' && !lexer->eof(lexer) && (c <= 0 || c >= 128 || !strchr(",>)]}:;", c))) return false;
+                break;
+            case '*':
+                nullable = true;
+                advance(lexer);
+                break;
+            case '[':
+                if (!rank_read_as_rank(lexer)) return false;
+                nullable = false;
+                break;
+            default:
+                return c >= 0;
+        }
+    }
+}
+
+static bool rank_read_as_name(TSLexer *lexer, bool *colon) {
+    for (;;) {
+        if (!rank_read_as_name_part(lexer)) return false;
+        int32_t c = question_skip_separators(lexer);
+        if (c != '.' && c != ':') return c >= 0;
+        advance(lexer);
+        if (c == ':') {
+            if (lexer->lookahead != ':') { *colon = true; return true; }
+            advance(lexer);
+        }
+        if (question_skip_separators(lexer) < 0) return false;
+    }
+}
+
+static bool rank_read_as_name_part(TSLexer *lexer) {
+    QuestionIdentifier name;
+    if (!rank_read_identifier(lexer, &name)) return false;
+    bool function_pointer = name.keyword && !strcmp(name.word, "delegate");
+    if (function_pointer) {
+        if (question_skip_separators(lexer) != '*') return false;
+        advance(lexer);
+    } else if (!rank_identifier_allowed(&name, true)) return false;
+    int32_t next = question_skip_separators(lexer);
+    if (next != '<') return next >= 0 && !function_pointer;
+    advance(lexer);
+    return rank_read_as_arguments(lexer, '>');
+}
+
+static bool rank_read_as_arguments(TSLexer *lexer, int32_t close) {
+    for (;;) {
+        bool colon = false;
+        if (!rank_read_as_type(lexer, &colon) || colon) return false;
+        int32_t c = question_skip_separators(lexer);
+        if (c != ',' && c != close) return false;
+        advance(lexer);
+        if (c == close) return true;
+    }
+}
+
+static bool rank_read_as_rank(TSLexer *lexer) {
+    advance(lexer);
+    while (question_skip_separators(lexer) == ',') advance(lexer);
+    if (lexer->lookahead != ']') return false;
+    advance(lexer);
+    return true;
+}
+
+static bool rank_read_switch(TSLexer *lexer) {
     QuestionIdentifier word;
     if (!rank_read_identifier(lexer, &word) || !word.keyword || strcmp(word.word, "switch")) return false;
     if (question_skip_separators(lexer) != '{') return false;
     advance(lexer);
-    if (question_skip_separators(lexer) != '_') return false;
-    advance(lexer);
-    if (question_skip_separators(lexer) != '=') return false;
-    advance(lexer);
-    if (lexer->lookahead != '>') return false;
-    advance(lexer);
-    if (!rank_read_delimited(lexer, '{')) return false;
-    return rank_read_terminal(lexer, colon);
+    return rank_read_delimited(lexer, '{', RANK_BODY_EXPRESSION);
 }
 
 static bool rank_read_binary(TSLexer *lexer, int32_t c, bool *postfix, bool *colon) {
+    if (!rank_skip_binary_operator(lexer, c, postfix, false)) return false;
+    return *postfix || rank_read_binary_rhs(lexer, colon);
+}
+
+static bool rank_skip_binary_operator(TSLexer *lexer, int32_t c, bool *postfix, bool updates) {
     advance(lexer);
     if (c == '!' && lexer->lookahead != '=') {
         *postfix = true;
@@ -324,20 +407,69 @@ static bool rank_read_binary(TSLexer *lexer, int32_t c, bool *postfix, bool *col
         if (count == 1 && lexer->lookahead == '=') advance(lexer);
     } else if ((c == '&' || c == '|') && lexer->lookahead == c) {
         advance(lexer);
-    } else if ((c == '+' || c == '-') && lexer->lookahead == c) return false;
+    } else if ((c == '+' || c == '-') && lexer->lookahead == c) {
+        if (!updates) return false;
+        advance(lexer);
+    }
     if (lexer->lookahead == '=') return false;
-    return rank_read_binary_rhs(lexer, colon);
+    return true;
 }
 
 static bool rank_read_binary_rhs(TSLexer *lexer, bool *colon) {
-    if (question_skip_separators(lexer) < 0) return false;
-    if (lexer->lookahead >= '0' && lexer->lookahead <= '9') {
-        do { advance(lexer); } while (lexer->lookahead >= '0' && lexer->lookahead <= '9');
-    } else {
-        QuestionIdentifier word;
-        if (!rank_read_identifier(lexer, &word) || !rank_identifier_allowed(&word, false)) return false;
+    bool content = false;
+    bool possible_type_arguments = false;
+    while (!lexer->eof(lexer)) {
+        int32_t c = question_skip_separators(lexer);
+        if (c == -2 || c == '$' || c == '#') return false;
+        if (c == ',') return content && !possible_type_arguments && rank_read_terminal(lexer, colon);
+        if (c == '<') possible_type_arguments = true;
+        if (c == -1) {
+            if (lexer->lookahead == '=') return false;
+            content = true;
+            continue;
+        }
+        if (c == ':') {
+            advance(lexer);
+            if (lexer->lookahead == ':') { advance(lexer); content = true; continue; }
+            *colon = content;
+            return content;
+        }
+        if (c == ';' || c == ')' || c == ']' || c == '}' || lexer->eof(lexer))
+            return content && rank_read_terminal(lexer, colon);
+        content = true;
+        if (!rank_skip_rhs_token(lexer, c)) return false;
     }
-    return rank_read_terminal(lexer, colon);
+    return content;
+}
+
+static bool rank_skip_rhs_token(TSLexer *lexer, int32_t c) {
+    if (c == '"' || c == '\'') return question_skip_quoted(lexer, false);
+    if (c == '@') {
+        advance(lexer);
+        return lexer->lookahead != '"' || question_skip_quoted(lexer, true);
+    }
+    if (c == '(' || c == '[' || c == '{') {
+        advance(lexer);
+        return rank_read_delimited(lexer, (char)c, RANK_BODY_EXPRESSION);
+    }
+    if (c == '?') return rank_skip_rhs_question(lexer);
+    if (c > 0 && c < 128 && strchr("+-*/%<>=!&^|", c)) {
+        bool postfix = false;
+        return rank_skip_binary_operator(lexer, c, &postfix, true);
+    }
+    advance(lexer);
+    return true;
+}
+
+static bool rank_skip_rhs_question(TSLexer *lexer) {
+    advance(lexer);
+    if (lexer->lookahead == '?') {
+        advance(lexer);
+        return lexer->lookahead != '=';
+    }
+    if (question_skip_separators(lexer) != '.') return false;
+    advance(lexer);
+    return lexer->lookahead != '.' && !(lexer->lookahead >= '0' && lexer->lookahead <= '9');
 }
 
 static bool rank_read_terminal(TSLexer *lexer, bool *colon) {

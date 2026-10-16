@@ -997,7 +997,8 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     if (!scanner->question_type_uncertain || scanner->question_unknown || frame->unknown || next.token != '[')
         rank_phase = RANK_NONE;
     unsigned context_flags = (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
-        (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0);
+        (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
+        (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
     unsigned role = prepare_question_context(scanner, lexer, next.token, &known_nullable,
         context_flags, rank_phase, &known_ternary);
     if (known_ternary && valid_symbols[CASE_LABEL_COLON]) role = 0;

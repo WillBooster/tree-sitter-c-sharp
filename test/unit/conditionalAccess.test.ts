@@ -151,6 +151,8 @@ test('keeps conditional indexing and type tests inside ternary conditions', () =
         'is Foo<int>',
         'is Foo[]',
         'is Foo?[]',
+        'is A.B(P: 1)',
+        'is { P: 1 }',
         'is string',
         'is not null',
         'is Foo value',
@@ -209,6 +211,51 @@ test('preserves nullable type conditions before collection expression continuati
       ...['1', 'index', '1 + index', 'Call()'].map(
         (value) => ['x is T?[]', `[0] switch { _ => ${value} }`, 'switch_expression', 'T?'] as const
       ),
+      ...['T?[]', 'T?[,]', 'T?[][]', 'N.T?[]', 'N.T<C>?[]'].flatMap((type) =>
+        [
+          ['[0] + x', 'binary_expression'],
+          ['[0] + x + y', 'binary_expression'],
+          ['[0] + x.P', 'binary_expression'],
+          ['[0] + x?.P', 'binary_expression'],
+          ['[0] + Call()', 'binary_expression'],
+          ['[0] + (x)', 'binary_expression'],
+          ['[0] + x ?? y', 'binary_expression'],
+          ['[0] + x * y', 'binary_expression'],
+          ['[0] + x[0]', 'binary_expression'],
+          ['[0] + x!', 'binary_expression'],
+          ['[0] + x is T', 'is_pattern_expression'],
+          ['[0] switch { _ => x } + y', 'binary_expression'],
+          ['[index] + x', 'binary_expression'],
+          ['[1, 2] + x', 'binary_expression'],
+          ['[] + x', 'binary_expression'],
+        ].map(([value, kind]) => [`value is ${type}`, value!, kind!, type.split('?')[0] + '?'] as const)
+      ),
+      ...['{ _ => 1, }', '{ 0 => Call(), _ => x, }', '{ _ => flag ? 1 : 2, }'].map(
+        (body) => ['x is T?[]', `[0] switch ${body}`, 'switch_expression', 'T?'] as const
+      ),
+      ...(
+        [
+          ['List<int>', []],
+          ['int[]', []],
+          ['int?', ['int?']],
+          ['G<int>[]', []],
+          ['G<int?>', ['int?']],
+          ['A.B<C.D>', []],
+          ['global::N.T', []],
+          ['T[,]', []],
+          ['(int,int)', []],
+          ['delegate*<int,void>', []],
+          ['int*', []],
+          ['G<int,string>', []],
+          ['G<G<int>>', []],
+          ['N.G<T?>[]', ['T?']],
+          ['T?[]', ['T?']],
+          ['T[][]', []],
+          ['int?[,]', ['int?']],
+        ] as const
+      ).map(
+        ([type, nestedNullable]) => ['x is T?[]', `[0] as ${type}`, 'as_expression', ['T?', ...nestedNullable]] as const
+      ),
       ...[
         '+',
         '-',
@@ -243,7 +290,7 @@ test('preserves nullable type conditions before collection expression continuati
         expect(
           tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
           source
-        ).toEqual(nullable ? [nullable] : []);
+        ).toEqual(typeof nullable === 'string' ? [nullable] : (nullable ?? []));
       } finally {
         tree.delete();
       }

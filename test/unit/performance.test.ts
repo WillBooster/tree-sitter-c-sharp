@@ -92,11 +92,45 @@ test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
   }
 );
 
-const questionSources = [
+const expressionContexts = [
+  { name: 'top level', wrap: (expression: string): string => `var x = ${expression};` },
   {
-    name: 'nullable properties',
+    name: 'method initializer',
+    wrap: (expression: string): string => `class C { void M() { var x = ${expression}; } }`,
+  },
+  {
+    name: 'return statement',
+    wrap: (expression: string): string => `class C { object M() { return ${expression}; } }`,
+  },
+  { name: 'field initializer', wrap: (expression: string): string => `class C { object x = ${expression}; }` },
+];
+
+const expressionSources = [
+  { name: 'identifier ternaries', expression: (count: number): string => 'a ? a : '.repeat(count) + 'a' },
+  { name: 'type-test ternaries', expression: (count: number): string => 'a is T ? a : '.repeat(count) + 'a' },
+  { name: 'array-type-test ternaries', expression: (count: number): string => 'a is T[] ? a : '.repeat(count) + 'a' },
+  { name: 'element-access ternary arms', expression: (count: number): string => 'a ? b?[0] : '.repeat(count) + 'a' },
+  { name: 'as-expression ternaries', expression: (count: number): string => '(a as T) ? a : '.repeat(count) + 'a' },
+  { name: 'nullable-type-test ternaries', expression: (count: number): string => 'a is T? ? a : '.repeat(count) + 'a' },
+  {
+    name: 'nullable-array-type-test ternaries',
+    expression: (count: number): string => 'a is T?[] ? 1 : '.repeat(count) + '0',
+  },
+];
+
+const questionSources = [
+  ...['T?', 'int?[]', 'int?[,]', 'System.Int32?[]', 'G<int>?[]'].map((type) => ({
+    name: `nullable ${type} properties`,
     source: (count: number): string =>
-      'class C {' + Array.from({ length: count }, (_, index) => `public T? P${index} { get; set; }`).join(' ') + '}',
+      'class C {' +
+      Array.from({ length: count }, (_, index) => `public ${type} P${index} { get; set; }`).join(' ') +
+      '}',
+    node: 'nullable_type',
+  })),
+  {
+    name: 'nullable array methods',
+    source: (count: number): string =>
+      'class C {' + Array.from({ length: count }, (_, index) => `int?[] M${index}() { return null; }`).join(' ') + '}',
     node: 'nullable_type',
   },
   {
@@ -107,11 +141,13 @@ const questionSources = [
       '0; } }',
     node: 'conditional_expression',
   },
-  {
-    name: 'identifier ternaries',
-    source: (count: number): string => 'class C { void M() { var x = ' + 'a ? a : '.repeat(count) + 'a; } }',
-    node: 'conditional_expression',
-  },
+  ...expressionSources.flatMap(({ name, expression }) =>
+    expressionContexts.map((context) => ({
+      name: `${name} at ${context.name}`,
+      source: (count: number): string => context.wrap(expression(count)),
+      node: 'conditional_expression',
+    }))
+  ),
   {
     name: 'collection ternaries',
     source: (count: number): string => 'class C { void M() { var x = ' + 'c ? [1] : '.repeat(count) + '[0]; } }',
