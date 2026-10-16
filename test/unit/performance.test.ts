@@ -206,29 +206,38 @@ test.each([
   { name: 'regular', open: '$"{', close: '}"' },
   { name: 'verbatim', open: '$@"{', close: '}"' },
   { name: 'raw', open: '$$"""{{', close: '}}"""' },
-])('returns a tree for deeply nested $name interpolation after a question', ({ open, close }) => {
-  const nested = open.repeat(5000) + '1' + close.repeat(5000);
-  for (const prefix of ['a ? 1 : ', 'x is T?[] ? [a] : ']) {
-    assertDeepParsingKeepsRuntimeUsable(`${prefix}${nested}`);
+])('preserves supported $name nesting and recovers after scanner-depth stress', ({ open, close }) => {
+  for (const depth of [100, 5000]) {
+    const nested = open.repeat(depth) + '1' + close.repeat(depth);
+    for (const prefix of ['a ? 1 : ', 'x is T?[] ? [a] : ']) {
+      assertDeepParsingKeepsRuntimeUsable(`${prefix}${nested}`, 'interpolated_string_expression', depth, depth === 100);
+    }
   }
 });
 
 test.each([
-  { name: 'generic', open: 'L<', close: '>' },
-  { name: 'tuple', open: '(', close: ', int)' },
-  { name: 'function pointer', open: 'delegate*<', close: ', void>' },
-])('returns a tree for deeply nested $name types in question-role lookahead', ({ open, close }) => {
+  { name: 'generic', open: 'L<', close: '>', node: 'generic_name', clean: true },
+  { name: 'tuple', open: '(', close: ', int)', node: 'tuple_type', clean: true },
+  { name: 'function pointer', open: 'delegate*<', close: ', void>', node: 'function_pointer_type', clean: false },
+])('preserves deeply nested $name types in question-role lookahead', ({ open, close, node, clean }) => {
   const type = open.repeat(5000) + 'int' + close.repeat(5000);
   for (const expression of [`a is ${type}? ? 1 : 2`, `x is T?[] ? [1] : a as ${type}? ? [1] : b`]) {
-    assertDeepParsingKeepsRuntimeUsable(expression);
+    assertDeepParsingKeepsRuntimeUsable(expression, node, 5000, clean);
   }
 });
 
-function assertDeepParsingKeepsRuntimeUsable(expression: string): void {
+function assertDeepParsingKeepsRuntimeUsable(expression: string, node: string, depth: number, clean: boolean): void {
   const source = `class C { void M() { var result = ${expression}; } }`;
   const tree = parser.parse(source)!;
   try {
-    expect(tree.rootNode.endIndex).toBe(source.length);
+    const nestedNodes = tree.rootNode.descendantsOfType(node);
+    if (node === 'interpolated_string_expression' && !clean) {
+      // Serialized interpolation state cannot represent 5000 levels; recovery must retain substantial nested syntax.
+      expect(nestedNodes.length).toBeGreaterThanOrEqual(100);
+    } else {
+      expect(nestedNodes).toHaveLength(depth);
+    }
+    if (clean) expect(tree.rootNode.hasError).toBe(false);
   } finally {
     tree.delete();
   }
