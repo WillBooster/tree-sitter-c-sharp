@@ -243,7 +243,7 @@ module.exports = grammar({
     sym('_nonprimary_expression_end'),
     sym('_pattern_paren_end'),
     sym('_pattern_bracket_end'),
-    sym('_suppression_operator'),
+    sym('_bang_operator'),
   ],
 
   extras: ($) => [
@@ -516,7 +516,7 @@ module.exports = grammar({
         field(
           'operator',
           choice(
-            '!',
+            bangOperator(),
             '~',
             '++',
             '--',
@@ -1434,7 +1434,7 @@ module.exports = grammar({
           $.conditional_access_expression,
           alias($._conditional_suppression_expression, $.postfix_unary_expression)
         ),
-        suppressionOperator()
+        bangOperator()
       ),
 
     _conditional_update_expression: ($) =>
@@ -1494,7 +1494,7 @@ module.exports = grammar({
       ),
 
     postfix_unary_expression: ($) =>
-      postfixExpression($._primary_no_conditional_access_expression, choice('++', '--', suppressionOperator())),
+      postfixExpression($._primary_no_conditional_access_expression, choice('++', '--', bangOperator())),
 
     prefix_unary_expression: ($) => prefixUnaryExpression($._unary_operand),
 
@@ -1583,7 +1583,7 @@ module.exports = grammar({
       ),
 
     _member_binding_suppression_expression: ($) =>
-      postfixExpression($._member_conditional_binding_receiver, suppressionOperator()),
+      postfixExpression($._member_conditional_binding_receiver, bangOperator()),
 
     _member_binding_member_access_expression: ($) => memberAccessExpression($, $._member_conditional_binding_receiver),
 
@@ -1625,7 +1625,7 @@ module.exports = grammar({
         alias($._binding_suppression_expression, $.postfix_unary_expression)
       ),
 
-    _binding_suppression_expression: ($) => postfixExpression($._conditional_binding_receiver, suppressionOperator()),
+    _binding_suppression_expression: ($) => postfixExpression($._conditional_binding_receiver, bangOperator()),
 
     _binding_member_access_expression: ($) => memberAccessExpression($, $._conditional_binding_receiver),
 
@@ -2074,7 +2074,7 @@ module.exports = grammar({
     preproc_parenthesized_expression: ($) => seq('(', $._preproc_expression, ')'),
 
     preproc_unary_expression: ($) =>
-      prec.left(PREC.UNARY, seq(field('operator', '!'), field('argument', $._preproc_expression))),
+      prec.left(PREC.UNARY, seq(field('operator', bangOperator()), field('argument', $._preproc_expression))),
 
     preproc_binary_expression: ($) => {
       /** @type {[string, number][]} */
@@ -2415,7 +2415,10 @@ function invocationExpression($, receiver) {
 function prefixUnaryExpression(operand) {
   return prec.right(
     PREC.UNARY,
-    choice(seq(choice('++', '--', '!', '~'), operand), prec.dynamic(-2, seq(choice('+', '-', '^', '*', '&'), operand)))
+    choice(
+      seq(choice('++', '--', bangOperator(), '~'), operand),
+      prec.dynamic(-2, seq(choice('+', '-', '^', '*', '&'), operand))
+    )
   );
 }
 
@@ -2507,8 +2510,8 @@ function bracketedArgumentList($, opener) {
   return seq(opener, commaSep1($.argument), optional(','), ']');
 }
 
-function suppressionOperator() {
-  return alias(sym('_suppression_operator'), '!');
+function bangOperator() {
+  return alias(sym('_bang_operator'), '!');
 }
 
 function definiteAccessQuestion() {

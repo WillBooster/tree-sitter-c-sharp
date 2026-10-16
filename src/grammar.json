@@ -1822,7 +1822,12 @@
             "type": "CHOICE",
             "members": [
               {
-                "type": "STRING",
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_bang_operator"
+                },
+                "named": false,
                 "value": "!"
               },
               {
@@ -9441,7 +9446,12 @@
                     "value": "--"
                   },
                   {
-                    "type": "STRING",
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_bang_operator"
+                    },
+                    "named": false,
                     "value": "!"
                   },
                   {
@@ -9691,7 +9701,7 @@
             "type": "ALIAS",
             "content": {
               "type": "SYMBOL",
-              "name": "_suppression_operator"
+              "name": "_bang_operator"
             },
             "named": false,
             "value": "!"
@@ -10823,7 +10833,7 @@
                 "type": "ALIAS",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_suppression_operator"
+                  "name": "_bang_operator"
                 },
                 "named": false,
                 "value": "!"
@@ -10854,7 +10864,12 @@
                     "value": "--"
                   },
                   {
-                    "type": "STRING",
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_bang_operator"
+                    },
+                    "named": false,
                     "value": "!"
                   },
                   {
@@ -11602,7 +11617,7 @@
             "type": "ALIAS",
             "content": {
               "type": "SYMBOL",
-              "name": "_suppression_operator"
+              "name": "_bang_operator"
             },
             "named": false,
             "value": "!"
@@ -11950,7 +11965,7 @@
             "type": "ALIAS",
             "content": {
               "type": "SYMBOL",
-              "name": "_suppression_operator"
+              "name": "_bang_operator"
             },
             "named": false,
             "value": "!"
@@ -16903,7 +16918,12 @@
             "type": "FIELD",
             "name": "operator",
             "content": {
-              "type": "STRING",
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_bang_operator"
+              },
+              "named": false,
               "value": "!"
             }
           },
@@ -19150,7 +19170,7 @@
     },
     {
       "type": "SYMBOL",
-      "name": "_suppression_operator"
+      "name": "_bang_operator"
     }
   ],
   "inline": [

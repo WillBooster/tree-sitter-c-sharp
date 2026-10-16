@@ -56,6 +56,25 @@ test('retains conditional receiver continuations after suppression', () => {
   }
 });
 
+test('keeps logical negation as the right range operand in conditional assignments', () => {
+  for (const receiver of ['b?.b', 'b?[0]']) {
+    for (const value of ['a .. !c', '..!c', '(T)..!c', 'a ?? ..!c']) {
+      const source = `class C { void M() { ${receiver} = ${value}; } }`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const assignment = tree.rootNode.descendantsOfType('assignment_expression')[0];
+        expect(assignment?.childForFieldName('right')?.text, source).toBe(value);
+        const range = assignment?.descendantsOfType('range_expression')[0];
+        expect(range?.namedChildren.at(-1)?.type, source).toBe('prefix_unary_expression');
+        expect(range?.namedChildren.at(-1)?.text, source).toBe('!c');
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
 function assertBinary(expression: string, left: string, operator: string): void {
   const tree = parser.parse(`var r = ${expression};`)!;
   try {
