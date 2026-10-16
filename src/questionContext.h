@@ -193,6 +193,8 @@ typedef struct {
     bool binding;
     bool entering_binding;
     bool nullable_only;
+    bool omitted_rank_candidate;
+    bool nullable_name_candidate;
     bool role_known;
     bool proved_ternary;
     bool no_colons;
@@ -218,6 +220,7 @@ typedef struct {
 typedef enum { QUESTION_WALK_CONTINUE, QUESTION_WALK_STOP, QUESTION_WALK_UNKNOWN } QuestionWalkStep;
 
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase);
+static void question_walk_nullable_tail(QuestionWalk *walk, int32_t c);
 static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
@@ -288,6 +291,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .cached_access = cached,
         .entering_binding = following.token == '[',
         .nullable_only = context_flags & QUESTION_NULLABLE_ONLY,
+        .omitted_rank_candidate = following.token == '[',
         .role_known = known,
         .no_colons = true,
         .cache_shaped = following.token == '[' && !cached && !ternary_only,
@@ -308,6 +312,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
 }
 
 static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c) {
+    question_walk_nullable_tail(walk, c);
     bool first_identifier = walk->ordinary_first_token;
     if (c == '?' && walk->ordinary_name_candidate && walk->recording && !walk->depth) {
         walk->known_ternary = true;
@@ -338,6 +343,17 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
     }
     advance(lexer);
     return QUESTION_WALK_CONTINUE;
+}
+
+static void question_walk_nullable_tail(QuestionWalk *walk, int32_t c) {
+    if (!walk->depth && (c == ')' || c == ',') &&
+        (walk->omitted_rank_candidate || walk->nullable_name_candidate || walk->ordinary_name_candidate))
+        walk->known_nullable = true;
+    walk->nullable_name_candidate = walk->omitted_rank_candidate && !walk->depth &&
+        (is_id_start(c) || c == '@' || c == '\\');
+    if (walk->omitted_rank_candidate)
+        walk->omitted_rank_candidate = (c == '[' && !walk->depth) ||
+            ((c == ']' || c == ',') && walk->depth == 1);
 }
 
 static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, int32_t c) {

@@ -20,6 +20,40 @@ test('keeps nullable named tuple alternatives outside the preceding type test', 
   ]);
 });
 
+test('preserves qualified nullable subpatterns after identifier constants', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const type of ['A.B?', 'A.B<int>?', 'N.A.B?', 'A.B?[]', 'A.B?[,][]']) {
+      for (const designation of ['', ' value', ' @value']) {
+        const pattern = `(Foo, ${type}${designation})`;
+        for (const source of [
+          `var result = o is ${pattern};`,
+          `var result = o switch { ${pattern} => 1, _ => 2 };`,
+          `switch (o) { case ${pattern}: break; }`,
+        ]) {
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            const recursive = tree.rootNode.descendantsOfType('recursive_pattern')[0]!;
+            expect(recursive.text).toBe(pattern);
+            const subpatterns = recursive.descendantsOfType('subpattern');
+            expect(subpatterns).toHaveLength(2);
+            expect(subpatterns[0]!.firstNamedChild!.type).toBe('constant_pattern');
+            expect(subpatterns[0]!.text).toBe('Foo');
+            const second = subpatterns[1]!.firstNamedChild!;
+            expect(second.type).toBe(designation ? 'declaration_pattern' : 'type_pattern');
+            expect(second.childForFieldName('type')!.text).toBe(type);
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('completes nullable as-types before binary operators and type tests', () => {
   assertAlternatives([
     ...['==', '!=', '<', '<=', '>', '>=', '&&', '||', '|', '%', '<<', '>>'].map((operator) => `a as T? ${operator} b`),
