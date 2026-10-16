@@ -53,6 +53,7 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._pattern_array_type, $._array_base_type],
     [$._definite_cast_type, $._range_cast_type],
     [$.type, $._definite_cast_type, $._range_cast_type],
     [$._pattern_type, $._definite_cast_type, $._range_cast_type],
@@ -92,6 +93,9 @@ module.exports = grammar({
     [$.type, $._pattern_declaration_type],
     [$._pattern_type, $._pattern_declaration_type],
     [$._pattern_type, $.nullable_type],
+    [$._pattern_type, $._pattern_nullable_type, $.nullable_type],
+    [$._pattern_type, $._pattern_nullable_type],
+    [$._pattern_nullable_type, $.nullable_type],
     [$._pattern_type, $._pointer_base_type],
     [$._pattern_member_access_expression, $._pattern_generic_member_expression],
     [$._simple_name, $._pattern_simple_generic_name],
@@ -804,7 +808,39 @@ module.exports = grammar({
 
     type: ($) => typeAlternatives($),
 
-    _pattern_type: ($) => typeAlternatives($, false, false, false),
+    _pattern_type: ($) =>
+      choice(
+        prec.dynamic(2, alias($._pattern_array_type, $.array_type)),
+        $._name,
+        alias($._pattern_nullable_type, $.nullable_type),
+        $.function_pointer_type,
+        $.predefined_type,
+        $.ref_type,
+        $.scoped_type
+      ),
+
+    _pattern_array_type: ($) =>
+      seq(
+        field(
+          'type',
+          choice(
+            alias($._pattern_array_type, $.array_type),
+            $._name,
+            alias($._pattern_nullable_type, $.nullable_type),
+            $.pointer_type,
+            $.function_pointer_type,
+            $.predefined_type,
+            $.tuple_type
+          )
+        ),
+        field('rank', $.array_rank_specifier)
+      ),
+
+    _pattern_nullable_type: ($) =>
+      seq(
+        field('type', choice(alias($._pattern_array_type, $.array_type), $._name, $.predefined_type)),
+        nullableQuestion()
+      ),
 
     _pattern_declaration_type: ($) => typeAlternatives($, true, false, false),
 
@@ -1316,7 +1352,7 @@ module.exports = grammar({
           // one reads `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed
           // the runtime's limit, and which reading survives depends on the versions alive, not on dynamic precedence.
           seq(
-            field('type', choice($.predefined_type, $.array_type)),
+            field('type', choice($.predefined_type, prec.dynamic(1, alias($._pattern_array_type, $.array_type)))),
             $.positional_pattern_clause,
             optional($.property_pattern_clause),
             optional($._simple_designation)

@@ -4039,16 +4039,30 @@
       "type": "CHOICE",
       "members": [
         {
-          "type": "SYMBOL",
-          "name": "array_type"
+          "type": "PREC_DYNAMIC",
+          "value": 2,
+          "content": {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_pattern_array_type"
+            },
+            "named": true,
+            "value": "array_type"
+          }
         },
         {
           "type": "SYMBOL",
           "name": "_name"
         },
         {
-          "type": "SYMBOL",
-          "name": "nullable_type"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_pattern_nullable_type"
+          },
+          "named": true,
+          "value": "nullable_type"
         },
         {
           "type": "SYMBOL",
@@ -4065,6 +4079,120 @@
         {
           "type": "SYMBOL",
           "name": "scoped_type"
+        }
+      ]
+    },
+    "_pattern_array_type": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "type",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_pattern_array_type"
+                },
+                "named": true,
+                "value": "array_type"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_name"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_pattern_nullable_type"
+                },
+                "named": true,
+                "value": "nullable_type"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "pointer_type"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "function_pointer_type"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "predefined_type"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "tuple_type"
+              }
+            ]
+          }
+        },
+        {
+          "type": "FIELD",
+          "name": "rank",
+          "content": {
+            "type": "SYMBOL",
+            "name": "array_rank_specifier"
+          }
+        }
+      ]
+    },
+    "_pattern_nullable_type": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "type",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_pattern_array_type"
+                },
+                "named": true,
+                "value": "array_type"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_name"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "predefined_type"
+              }
+            ]
+          }
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_question_nullable"
+              },
+              "named": false,
+              "value": "?"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_question_unknown"
+              },
+              "named": false,
+              "value": "?"
+            }
+          ]
         }
       ]
     },
@@ -8634,8 +8762,17 @@
                       "name": "predefined_type"
                     },
                     {
-                      "type": "SYMBOL",
-                      "name": "array_type"
+                      "type": "PREC_DYNAMIC",
+                      "value": 1,
+                      "content": {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_pattern_array_type"
+                        },
+                        "named": true,
+                        "value": "array_type"
+                      }
                     }
                   ]
                 }
@@ -18391,6 +18528,10 @@
   ],
   "conflicts": [
     [
+      "_pattern_array_type",
+      "_array_base_type"
+    ],
+    [
       "_definite_cast_type",
       "_range_cast_type"
     ],
@@ -18538,6 +18679,19 @@
     ],
     [
       "_pattern_type",
+      "nullable_type"
+    ],
+    [
+      "_pattern_type",
+      "_pattern_nullable_type",
+      "nullable_type"
+    ],
+    [
+      "_pattern_type",
+      "_pattern_nullable_type"
+    ],
+    [
+      "_pattern_nullable_type",
       "nullable_type"
     ],
     [

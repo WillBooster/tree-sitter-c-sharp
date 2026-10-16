@@ -221,7 +221,8 @@ test.each([
   { name: 'function pointer', open: 'delegate*<', close: ', void>', node: 'function_pointer_type', clean: false },
 ])('preserves deeply nested $name types in question-role lookahead', ({ open, close, node, clean }) => {
   const type = open.repeat(5000) + 'int' + close.repeat(5000);
-  for (const expression of [`a is ${type}? ? 1 : 2`, `x is T?[] ? [1] : a as ${type}? ? [1] : b`]) {
+  const isType = node === 'tuple_type' ? `${type}[]` : type;
+  for (const expression of [`a is ${isType}? ? 1 : 2`, `x is T?[] ? [1] : a as ${type}? ? [1] : b`]) {
     assertDeepParsingKeepsRuntimeUsable(expression, node, 5000, clean);
   }
 });

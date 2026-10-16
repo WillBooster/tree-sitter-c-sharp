@@ -1038,6 +1038,8 @@ static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *val
     if (known_nullable) {
         if (!valid_symbols[QUESTION_NULLABLE]) return QUESTION_MISMATCHED;
         lexer->result_symbol = QUESTION_NULLABLE;
+    } else if (access && next->token == '[' && valid_symbols[QUESTION_NULLABLE] && valid_symbols[QUESTION_UNKNOWN]) {
+        lexer->result_symbol = QUESTION_UNKNOWN;
     } else if (role == 2 && valid_symbols[QUESTION_TERNARY] && !valid_symbols[CASE_LABEL_COLON]) {
         lexer->result_symbol = QUESTION_TERNARY;
     } else if (access && (next->member || next->token == '[') && valid_symbols[QUESTION_DEFINITE_ACCESS]) {

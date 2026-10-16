@@ -54,6 +54,59 @@ test('preserves qualified nullable subpatterns after identifier constants', () =
   }
 });
 
+test('retains nullable array types with sized ranks in switch patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const type of ['T?[0]', 'T?[a]', 'List<int>?[0]', 'T?[]']) {
+      for (const designation of ['', ' item']) {
+        const pattern = `${type}${designation}`;
+        const tree = parser.parse(`var result = x switch { ${pattern} => 1, _ => 2 };`)!;
+        try {
+          expect(tree.rootNode.hasError).toBe(false);
+          const arm = tree.rootNode.descendantsOfType('switch_expression_arm')[0]!;
+          const actual = arm.firstNamedChild!;
+          expect(actual.type).toBe(designation ? 'declaration_pattern' : 'type_pattern');
+          expect(actual.text).toBe(pattern);
+          expect(actual.childForFieldName('type')!.type).toBe('array_type');
+          expect(actual.childForFieldName('type')!.text).toBe(type);
+          expect(actual.descendantsOfType('nullable_type')[0]!.text).toBe(type.slice(0, type.indexOf('[')));
+          expect(actual.descendantsOfType('conditional_access_expression')).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('distinguishes nullable array positional patterns from member-call constants', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const type of ['T?[0]', 'A.B?[a]', 'List<int>?[0, 1]']) {
+      const tree = parser.parse(`var result = x switch { ${type}() => 1, ${type}.M() => 2, _ => 3 };`)!;
+      try {
+        expect(tree.rootNode.hasError).toBe(false);
+        const arms = tree.rootNode.descendantsOfType('switch_expression_arm');
+        const recursive = arms[0]!.firstNamedChild!;
+        expect(recursive.type).toBe('recursive_pattern');
+        expect(recursive.childForFieldName('type')!.type).toBe('array_type');
+        expect(recursive.childForFieldName('type')!.text).toBe(type);
+        expect(recursive.descendantsOfType('positional_pattern_clause')[0]!.text).toBe('()');
+        const constant = arms[1]!.firstNamedChild!;
+        expect(constant.type).toBe('constant_pattern');
+        expect(constant.firstNamedChild!.type).toBe('conditional_access_expression');
+        expect(constant.text).toBe(`${type}.M()`);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('completes nullable as-types before binary operators and type tests', () => {
   assertAlternatives([
     ...['==', '!=', '<', '<=', '>', '>=', '&&', '||', '|', '%', '<<', '>>'].map((operator) => `a as T? ${operator} b`),
