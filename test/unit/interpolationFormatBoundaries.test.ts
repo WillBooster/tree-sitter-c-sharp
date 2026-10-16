@@ -19,7 +19,7 @@ afterAll(() => parser.delete());
 
 test.each(wrappers)('retains nullable declarations before $name interpolation formats', ({ open, close }) => {
   for (const type of ['T', 'int', 'List<int>']) {
-    for (const format of [':X', ': b']) {
+    for (const format of [':X', ': b', ':?foo', ':??=']) {
       const source = `var r = ${open}x is ${type} ? a ${format}${close};`;
       const tree = parser.parse(source)!;
       try {

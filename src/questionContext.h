@@ -215,6 +215,7 @@ typedef struct {
     bool first_word;
     bool ordinary_first_token;
     bool ordinary_name_candidate;
+    bool ordinary_colon_context;
     bool found_next_question;
     Array(char) events;
 } QuestionWalk;
@@ -304,6 +305,8 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .case_colon_possible = context_flags & QUESTION_CASE_COLON,
         .recording = true,
         .ordinary = ordinary,
+        .ordinary_colon_context = !scanner->question_unknown && !frame->unknown && !frame->pending &&
+            !scanner->interpolation_stack.size && !(context_flags & (QUESTION_NULLABLE_ONLY | QUESTION_CASE_COLON)),
         .known_nullable = known_nullable,
         .known_ternary = definite_ternary,
         .rank_phase = rank_phase,
@@ -327,7 +330,7 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
     walk->ordinary_first_token = false;
     if (question_walk_operator_context(lexer, walk, c, first_identifier)) return QUESTION_WALK_CONTINUE;
     if (c == '=') return question_walk_assignment(lexer, walk);
-    if (!is_id_start(c) && c != '\\') walk->ordinary_name_candidate = false;
+    if (!is_id_start(c) && c != '\\' && c != ':') walk->ordinary_name_candidate = false;
     if (c == -1) {
         if (walk->recording && !walk->depth && walk->ordinary) walk->definite_ternary = true;
         if (!walk->depth && walk->binding && !walk->cache_colon) walk->root_binary = true;
@@ -570,10 +573,14 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c) {
     advance(lexer);
     if (c == ':' && lexer->lookahead == ':') {
+        walk->ordinary_name_candidate = false;
         advance(lexer);
         return QUESTION_WALK_CONTINUE;
     }
-    if (walk->role_active && c == ':') question_walk_colon(walk);
+    if (c == ':') {
+        if (walk->role_active) question_walk_colon(walk);
+        walk->ordinary_name_candidate = false;
+    }
     if (walk->entering_binding && c == '[') question_walk_enter_binding(scanner, lexer, walk);
     if (walk->is_pending_bracket && !walk->depth && c == '[') {
         int32_t first = question_skip_separators(lexer);
@@ -621,6 +628,10 @@ static void question_walk_colon(QuestionWalk *walk) {
     if (walk->depth) {
         walk->cache_shaped = false;
         return;
+    }
+    if (walk->ordinary_colon_context && walk->ordinary_name_candidate && walk->recording && !walk->known_nullable) {
+        walk->known_ternary = true;
+        walk->definite_ternary = true;
     }
     walk->is_as_phase = false;
     if (walk->root_colons < 2) walk->root_colons++;

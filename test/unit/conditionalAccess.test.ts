@@ -1708,3 +1708,39 @@ test('preserves receiver proof through collection arms and argument boundaries',
     parser.delete();
   }
 });
+
+test('preserves alternative access after a type test with an identifier true arm', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const condition of ['o is Foo', 'o is int', '(d is T)']) {
+      for (const consequence of ['x', '@x', 'α /* comment */']) {
+        for (const receiver of ['args?[0]', 'args?[0]?[i]', 'args?[0]?.M']) {
+          const alternative = `${receiver} is T ? y : z`;
+          const expression = `${condition} ? ${consequence} : ${alternative}`;
+          const tree = parser.parse(`var r = ${expression};`)!;
+          try {
+            expect(tree.rootNode.hasError, expression).toBe(false);
+            const outer = tree.rootNode.descendantsOfType('conditional_expression')[0]!;
+            expect(outer.childForFieldName('condition')?.text, expression).toBe(condition);
+            expect(outer.childForFieldName('consequence')?.text, expression).toBe(
+              consequence.replace(' /* comment */', '')
+            );
+            const inner = outer.childForFieldName('alternative')!;
+            expect(inner.type, expression).toBe('conditional_expression');
+            expect(inner.childForFieldName('condition')?.text, expression).toBe(`${receiver} is T`);
+            expect(
+              inner.childForFieldName('condition')?.descendantsOfType('conditional_access_expression')[0]?.text,
+              expression
+            ).toBe(receiver);
+            expect(inner.childForFieldName('consequence')?.text, expression).toBe('y');
+            expect(inner.childForFieldName('alternative')?.text, expression).toBe('z');
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
