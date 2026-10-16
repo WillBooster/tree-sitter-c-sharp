@@ -911,19 +911,38 @@ test('keeps logical patterns inside nested generic positional patterns', () => {
   }
 });
 
-test('parses member and index constants across pattern contexts', () => {
+test('distinguishes array type patterns from member and index constants', () => {
   const parser = new Parser().setLanguage(language);
   try {
-    for (const source of [
-      'var result = value is not A.B[0];',
-      'var result = value is other or A.B[0];',
-      'var result = value is other and A.B[0];',
-      'var result = value is [A.B[0].Call()];',
-      'switch (value) { case A.B[0]: break; }',
+    for (const [pattern, kind, types, constants] of [
+      ['not A.B[0]', 'negated_pattern', ['A.B[0]'], []],
+      ['other or A.B[0]', 'or_pattern', ['A.B[0]'], ['other']],
+      ['other and A.B[0]', 'and_pattern', ['A.B[0]'], ['other']],
+      ['[A.B[0].Call()]', 'list_pattern', [], ['A.B[0].Call()']],
     ] as const) {
+      const source = `var result = value is ${pattern};`;
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
+        const parsed = tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.childForFieldName('pattern');
+        expect([parsed?.type, parsed?.text], source).toEqual([kind, pattern]);
+        expect(
+          parsed?.descendantsOfType('type_pattern').map((node) => [node.childForFieldName('type')?.type, node.text]),
+          source
+        ).toEqual(types.map((type) => ['array_type', type]));
+        expect(
+          parsed?.descendantsOfType('constant_pattern').map((node) => node.text),
+          source
+        ).toEqual(constants);
+        if (kind === 'list_pattern') {
+          const call = parsed?.descendantsOfType('invocation_expression')[0];
+          expect(call?.text, source).toBe('A.B[0].Call()');
+          const member = call?.childForFieldName('function');
+          expect([member?.type, member?.childForFieldName('expression')?.text], source).toEqual([
+            'member_access_expression',
+            'A.B[0]',
+          ]);
+        }
       } finally {
         tree.delete();
       }
@@ -1024,19 +1043,48 @@ test('parses unnamed positional patterns with complex constant children', () => 
   }
 });
 
-test('parses full operator owners and their postfix chains', () => {
+test('preserves operator expressions and positional patterns in their pattern owners', () => {
   const parser = new Parser().setLanguage(language);
   try {
-    for (const source of [
-      'var r=x is (A.B is object);',
-      'switch(x){case A.B is object:break;}',
-      'switch(x){case (A.B switch {_=>1}):break;}',
-      'switch(x){case new C().M():break;}',
-      'switch(x){case A.B[0]():break;}',
+    for (const [source, kind, pattern, childKind, childText] of [
+      [
+        'var r=x is (A.B is object);',
+        'constant_pattern',
+        '(A.B is object)',
+        'parenthesized_expression',
+        '(A.B is object)',
+      ],
+      [
+        'switch(x){case A.B is object:break;}',
+        'constant_pattern',
+        'A.B is object',
+        'is_pattern_expression',
+        'A.B is object',
+      ],
+      [
+        'switch(x){case (A.B switch {_=>1}):break;}',
+        'constant_pattern',
+        '(A.B switch {_=>1})',
+        'parenthesized_expression',
+        '(A.B switch {_=>1})',
+      ],
+      ['switch(x){case new C().M():break;}', 'constant_pattern', 'new C().M()', 'invocation_expression', 'new C().M()'],
+      ['switch(x){case A.B[0]():break;}', 'recursive_pattern', 'A.B[0]()', 'array_type', 'A.B[0]'],
     ] as const) {
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
+        const owner =
+          tree.rootNode.descendantsOfType('switch_section')[0]?.namedChildren[0] ??
+          tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.childForFieldName('pattern');
+        expect([owner?.type, owner?.text], source).toEqual([kind, pattern]);
+        expect([owner?.namedChildren[0]?.type, owner?.namedChildren[0]?.text], source).toEqual([childKind, childText]);
+        if (kind === 'recursive_pattern') {
+          expect(owner?.childForFieldName('type')?.text, source).toBe('A.B[0]');
+          expect(owner?.namedChildren.find((node) => node.type === 'positional_pattern_clause')?.text, source).toBe(
+            '()'
+          );
+        }
       } finally {
         tree.delete();
       }

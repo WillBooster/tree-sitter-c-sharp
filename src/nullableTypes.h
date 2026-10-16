@@ -126,7 +126,7 @@ static bool rank_read_nullable_suffix(TSLexer *lexer, RankTypeRead *read, bool t
 
 static bool rank_read_nullable_boundary(TSLexer *lexer, RankTypeRead *read, bool tuple_element) {
     int32_t c = lexer->lookahead;
-    if (read->division || lexer->eof(lexer) || (c > 0 && c < 128 && strchr(",>)]}:;[?=<|^%", c))) return true;
+    if (read->division || lexer->eof(lexer) || (c > 0 && c < 128 && strchr(",>)]}:;[?=<|%", c))) return true;
     if (is_id_start(c) || c == '@' || c == '\\') {
         if (tuple_element) return true;
         if (!rank_read_identifier(lexer, &read->word)) return false;

@@ -53,6 +53,12 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._definite_cast_type, $._range_cast_type],
+    [$.type, $._definite_cast_type, $._range_cast_type],
+    [$._pattern_type, $._definite_cast_type, $._range_cast_type],
+    [$._definite_cast_name, $._range_cast_type],
+    [$._name, $._definite_cast_name, $._range_cast_type],
+    [$.array_rank_specifier, $._omitted_array_rank_specifier],
     [$._pattern_parenthesized_expression, $.constant_pattern, $.expression],
     [$._pattern_parenthesized_expression, $.constant_pattern],
     [$._simple_name, $._pattern_simple_identifier_name, $._ambiguous_cast_qualified_name],
@@ -278,6 +284,7 @@ module.exports = grammar({
     $.pattern,
     $._ambiguous_cast_type,
     $._definite_cast_type,
+    $._range_cast_type,
     $._is_pattern,
     $._nonconstant_pattern,
   ],
@@ -1403,7 +1410,20 @@ module.exports = grammar({
 
     _assignment_target_prefix_unary_expression: ($) => prefixUnaryExpression($._nonconditional_unary_expression),
 
-    _assignment_target_cast_expression: ($) => castExpression($, $._nonconditional_unary_expression),
+    _assignment_target_cast_expression: ($) =>
+      castExpression(
+        $,
+        $._nonconditional_unary_expression,
+        alias($._assignment_target_prefix_range_expression, $.range_expression)
+      ),
+
+    _assignment_target_prefix_range_expression: ($) =>
+      prefixRangeExpression(
+        choice(
+          $._nonconditional_unary_expression,
+          alias($._assignment_target_prefix_range_expression, $.range_expression)
+        )
+      ),
 
     _assignment_target_await_expression: ($) =>
       prec.right(PREC.UNARY, seq('await', $._nonconditional_unary_expression)),
@@ -1638,7 +1658,26 @@ module.exports = grammar({
       ),
 
     // C# treats a non-generic terminal name followed by a nonempty collection as parenthesized indexing.
-    cast_expression: ($) => castExpression($, $._unary_expression),
+    cast_expression: ($) => castExpression($, $._cast_operand, alias($._prefix_range_expression, $.range_expression)),
+
+    _cast_operand: ($) => choice($._unary_expression, $.query_expression),
+
+    _prefix_range_expression: ($) =>
+      prefixRangeExpression(choice($._cast_operand, alias($._prefix_range_expression, $.range_expression))),
+
+    _range_cast_type: ($) =>
+      choice(
+        typeAlternatives($, false, true, false, false, $.alias_qualified_name),
+        alias($._range_cast_array_type, $.array_type)
+      ),
+
+    _range_cast_array_type: ($) =>
+      seq(
+        field('type', $._array_base_type),
+        field('rank', alias($._omitted_array_rank_specifier, $.array_rank_specifier))
+      ),
+
+    _omitted_array_rank_specifier: () => seq('[', repeat(','), ']'),
 
     _ambiguous_cast_type: ($) => $._ambiguous_cast_name,
 
@@ -1727,7 +1766,10 @@ module.exports = grammar({
     interpolation_alignment_clause: ($) => seq(',', $.expression),
 
     interpolation_format_clause: () =>
-      seq(':', optional(sym('_file_directive_literal_context')), token.immediate(/[^}"\n\r\u0085\u2028\u2029]+/)),
+      prec.dynamic(
+        1,
+        seq(':', optional(sym('_file_directive_literal_context')), token.immediate(/[^}"\n\r\u0085\u2028\u2029]+/))
+      ),
 
     _multiline_interpolation: ($) =>
       seq(
@@ -1738,7 +1780,8 @@ module.exports = grammar({
         alias(sym('interpolation_close_brace'), sym('interpolation_brace'))
       ),
 
-    _multiline_interpolation_format_clause: () => seq(':', optional(sym('_file_directive_literal_context')), /[^}"]+/),
+    _multiline_interpolation_format_clause: () =>
+      prec.dynamic(1, seq(':', optional(sym('_file_directive_literal_context')), /[^}"]+/)),
 
     member_access_expression: ($) =>
       memberAccessExpression($, choice($._primary_no_conditional_access_expression, $.predefined_type, $._name)),
@@ -2375,11 +2418,12 @@ function prefixUnaryExpression(operand) {
 }
 
 /**
- * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_ambiguous_cast_type' | '_definite_cast_type' | 'type'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_ambiguous_cast_type' | '_definite_cast_type' | '_range_cast_type' | 'type'>} $
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} [rangeOperand]
  * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
  */
-function castExpression($, operand) {
+function castExpression($, operand, rangeOperand) {
   return prec(
     PREC.CAST,
     prec.dynamic(
@@ -2392,7 +2436,10 @@ function castExpression($, operand) {
           sym('_ambiguous_cast_operand_start'),
           field('value', operand)
         ),
-        seq('(', field('type', alias($._definite_cast_type, $.type)), ')', field('value', operand))
+        seq('(', field('type', alias($._definite_cast_type, $.type)), ')', field('value', operand)),
+        ...(rangeOperand
+          ? [seq('(', field('type', alias($._range_cast_type, $.type)), ')', field('value', rangeOperand))]
+          : [])
       )
     )
   );
@@ -2781,4 +2828,9 @@ function withExpression($, receiver) {
  */
 function rangeExpression(left, right, prefix = true) {
   return prec.right(PREC.RANGE, seq(prefix ? optional(left) : left, '..', optional(right)));
+}
+
+/** @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand */
+function prefixRangeExpression(operand) {
+  return prec.right(PREC.RANGE, seq('..', optional(operand)));
 }

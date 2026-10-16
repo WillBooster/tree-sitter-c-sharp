@@ -11,7 +11,7 @@ static RankReadStep rank_close_delimited(TSLexer *lexer, RankGroups *groups, int
 static bool rank_read_closing_braces(TSLexer *lexer, unsigned count);
 static bool rank_read_format(TSLexer *lexer, unsigned closing_braces);
 static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_t c, RankBodyMode mode, bool *access, bool *force_unsafe);
-static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, bool *force_unsafe);
+static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, RankBodyMode mode, bool *force_unsafe);
 static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, RankBodyMode mode, bool *force_unsafe);
 static bool rank_skip_interpolated_body(TSLexer *lexer, bool verbatim, RankBodyMode mode, bool *force_unsafe);
 static bool rank_skip_raw_interpolated(TSLexer *lexer, unsigned quotes, unsigned dollars, RankBodyMode mode, bool *force_unsafe);
@@ -42,7 +42,7 @@ static bool rank_read_delimited_body(TSLexer *lexer, char opening, RankBodyMode 
             continue;
         }
         content = true;
-        if (c == ':' && groups.size == 1 && mode == RANK_BODY_INTERPOLATION_QUESTION_FREE) {
+        if (c == ':' && groups.size == 1 && format_braces) {
             advance(lexer);
             if (lexer->lookahead == ':') { advance(lexer); continue; }
             valid = rank_read_format(lexer, format_braces);
@@ -85,14 +85,8 @@ static bool rank_read_format(TSLexer *lexer, unsigned closing_braces) {
 
 static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_t c, RankBodyMode mode, bool *access, bool *force_unsafe) {
     bool question_free = mode == RANK_BODY_QUESTION_FREE || mode == RANK_BODY_INTERPOLATION_QUESTION_FREE;
-    if (question_free && (c == '?' || c == '$')) return false;
-    if (question_free && c == '@') {
-        advance(lexer);
-        if (lexer->lookahead == '"') return question_skip_quoted(lexer, true);
-        QuestionIdentifier identifier;
-        return question_identifier(lexer, true, &identifier);
-    }
-    RankReadStep literal = rank_skip_literal(lexer, c, force_unsafe);
+    if (question_free && c == '?') return false;
+    RankReadStep literal = rank_skip_literal(lexer, c, question_free ? mode : RANK_BODY_EXPRESSION, force_unsafe);
     if (literal != RANK_READ_TOKEN) return literal == RANK_READ_MORE;
     if (c == '@') return true;
     if (c == '?') {
@@ -106,14 +100,14 @@ static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_
     return true;
 }
 
-static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, bool *force_unsafe) {
+static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, RankBodyMode mode, bool *force_unsafe) {
     if (c == '"' || c == '\'')
         return question_skip_quoted(lexer, false) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
-    if (c == '$') return rank_skip_interpolated(lexer, false, RANK_BODY_EXPRESSION, force_unsafe) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+    if (c == '$') return rank_skip_interpolated(lexer, false, mode, force_unsafe) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
     if (c != '@') return RANK_READ_TOKEN;
     advance(lexer);
     if (lexer->lookahead == '$')
-        return rank_skip_interpolated(lexer, true, RANK_BODY_EXPRESSION, force_unsafe) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+        return rank_skip_interpolated(lexer, true, mode, force_unsafe) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
     if (lexer->lookahead == '"')
         return question_skip_quoted(lexer, true) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
     return RANK_READ_TOKEN;
@@ -177,10 +171,7 @@ static bool rank_skip_raw_interpolated(TSLexer *lexer, unsigned quotes, unsigned
 static bool rank_skip_raw_hole(TSLexer *lexer, unsigned braces, unsigned dollars, RankBodyMode mode, bool *force_unsafe) {
     if (braces < dollars) return true;
     if (braces - dollars >= dollars) return false;
-    if (mode == RANK_BODY_INTERPOLATION_QUESTION_FREE)
-        return rank_read_delimited_body(lexer, '{', mode, force_unsafe, dollars);
-    if (!rank_read_delimited(lexer, '{', mode, force_unsafe)) return false;
-    return rank_read_closing_braces(lexer, dollars - 1);
+    return rank_read_delimited_body(lexer, '{', mode, force_unsafe, dollars);
 }
 
 static unsigned rank_read_character_run(TSLexer *lexer, int32_t character) {

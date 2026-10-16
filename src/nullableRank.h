@@ -81,7 +81,8 @@ static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending) {
         array_delete(&tail);
         return RANK_NONE;
     }
-    if (!pending && simple_type && !definite && rank_numeric_type_chain(&tail)) {
+    if (!pending && simple_type && !definite &&
+        (lexer->lookahead == ';' || lexer->eof(lexer)) && rank_numeric_type_chain(&tail)) {
         array_delete(&tail);
         return RANK_NONE;
     }
@@ -638,7 +639,7 @@ static RankReadStep rank_read_expression_rank(TSLexer *lexer, RankTokens *tokens
 }
 
 static bool rank_skip_rhs_token(TSLexer *lexer, int32_t c, RankExpression *expression, bool *force_unsafe, bool prefix) {
-    RankReadStep literal = rank_skip_literal(lexer, c, force_unsafe);
+    RankReadStep literal = rank_skip_literal(lexer, c, RANK_BODY_EXPRESSION, force_unsafe);
     if (literal != RANK_READ_TOKEN) {
         if (literal == RANK_READ_MORE) expression->primary = true;
         return literal == RANK_READ_MORE;

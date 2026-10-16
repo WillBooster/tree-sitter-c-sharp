@@ -1256,6 +1256,13 @@ test('retains nullable tests around ordinary true arms and conditional-access al
         '$@"{a:0?}"',
         '$$"""{{a:0?}}"""',
         '$"{global::A.Value:0?}"',
+        '$"{a:0?// text}"',
+        '$@"{a:0?/* text}"',
+        '$$"""{{a:0?// text}}"""',
+        '$"{$"{a}"}"',
+        '$@"{$"{a}"}"',
+        '$$"""{{$"{a}"}}"""',
+        '$"{@$"{a:0?}"}"',
       ]) {
         const source = `var result = x is ${type} ? ${arm} : a is T?[] ? [a] : b;`;
         const tree = parser.parse(source)!;
@@ -1460,6 +1467,35 @@ test('rechecks numeric nullable chains when suffix edits introduce question owne
           incremental.delete();
           fresh.delete();
         }
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves question ownership in siblings after numeric nullable chains', () => {
+  const parser = new Parser().setLanguage(language);
+  const first = 'a is T?[] ? 1 : 0';
+  const second = 'a is U?[] ? [1]?[0] : d';
+  try {
+    for (const source of [
+      `var result = F(${first}, ${second});`,
+      `var result = F((${first}), ${second});`,
+      `var result = [${first}, ${second}];`,
+      `var first = ${first}; var second = ${second};`,
+    ]) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode
+            .descendantsOfType('conditional_expression')
+            .map((node) => node.childForFieldName('condition')?.text),
+          source
+        ).toEqual(['a is T?[]', 'a is U?[]']);
       } finally {
         tree.delete();
       }

@@ -1781,6 +1781,14 @@
             "named": true
           },
           {
+            "type": "query_expression",
+            "named": true
+          },
+          {
+            "type": "range_expression",
+            "named": true
+          },
+          {
             "type": "reftype_expression",
             "named": true
           },

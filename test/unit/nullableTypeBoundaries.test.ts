@@ -22,9 +22,7 @@ test('keeps nullable named tuple alternatives outside the preceding type test', 
 
 test('completes nullable as-types before binary operators and type tests', () => {
   assertAlternatives([
-    ...['==', '!=', '<', '<=', '>', '>=', '&&', '||', '|', '^', '%', '<<', '>>'].map(
-      (operator) => `a as T? ${operator} b`
-    ),
+    ...['==', '!=', '<', '<=', '>', '>=', '&&', '||', '|', '%', '<<', '>>'].map((operator) => `a as T? ${operator} b`),
     'a as T? is U',
     'a as T? as U',
     'a as T? is not null',
@@ -53,13 +51,13 @@ test('completes generic as-types before relational and shift operators', () => {
 });
 
 test('retains expression-starting unary operators after a ternary question', () => {
-  assertAlternatives(['+', '-', '*', '&', '!', '~', '++', '--'].map((operator) => `a as T ? ${operator}b : c`));
+  assertAlternatives(['+', '-', '*', '&', '!', '~', '^', '++', '--'].map((operator) => `a as T ? ${operator}b : c`));
 });
 
 test('retains unary operands and identifier-led alternatives after a ternary question', () => {
   const parser = new Parser().setLanguage(language);
   try {
-    for (const operand of ['!b?[0]', 'item', 'item?[0]', 'new C()', 'await F()', 'x => x']) {
+    for (const operand of ['!b?[0]', '^b', 'item', 'item?[0]', 'new C()', 'await F()', 'x => x']) {
       const source = `var result = x is T?[] ? [1] : a as T ? ${operand} : c;`;
       const tree = parser.parse(source)!;
       try {
