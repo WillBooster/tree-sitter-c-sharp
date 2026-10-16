@@ -1142,7 +1142,13 @@ test('retains ternary collection access after nonprimary conditions', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   try {
-    for (const condition of ['x switch { _ => 1 }', 'x with { A = 1 }', '1 + x switch { _ => 1 }']) {
+    for (const condition of [
+      'x switch { _ => 1 }',
+      'x with { A = 1 }',
+      '1 + x switch { _ => 1 }',
+      'x switch { _ => c ? 1 : 2 }',
+      'x with { A = a?[0] }',
+    ]) {
       for (const collection of ['[1]', '[a, b]', '[..a]', '[]']) {
         const consequence = `${collection}?[0]`;
         const source = `var result = ${condition} ? ${consequence} : d;`;
@@ -1227,8 +1233,25 @@ test('counts empty collection alternatives when preserving dependent access chai
 test('retains nullable tests around ordinary true arms and conditional-access alternatives', () => {
   const parser = new Parser().setLanguage(language);
   try {
-    for (const arm of ['a', 'F()', '1', 'a + b', 'await F()', 'new C()']) {
-      const source = `var result = x is T?[] ? ${arm} : a is T?[] ? [a] : b;`;
+    for (const type of ['T?[]', 'T?[,]', 'T?[][]']) {
+      for (const arm of ['a', 'F()', '1', 'a + b', 'await F()', 'new C()', 'a?[0]', 'a?.b', 'a?[0]?[i]']) {
+        const source = `var result = x is ${type} ? ${arm} : a is T?[] ? [a] : b;`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const ternaries = tree.rootNode.descendantsOfType('conditional_expression');
+          expect(
+            ternaries.map((node) => node.childForFieldName('condition')?.text),
+            source
+          ).toEqual([`x is ${type}`, 'a is T?[]']);
+          expect(ternaries[0]?.childForFieldName('consequence')?.text, source).toBe(arm);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    for (const type of ['T?[]', 'T?[,]', 'T?[][]']) {
+      const source = `var result = x is ${type} ? a is T?[] ? [a] : b : a is T?[] ? [a] : b;`;
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
@@ -1236,8 +1259,8 @@ test('retains nullable tests around ordinary true arms and conditional-access al
         expect(
           ternaries.map((node) => node.childForFieldName('condition')?.text),
           source
-        ).toEqual(['x is T?[]', 'a is T?[]']);
-        expect(ternaries[0]?.childForFieldName('consequence')?.text, source).toBe(arm);
+        ).toEqual([`x is ${type}`, 'a is T', 'a is T?[]']);
+        expect(ternaries[1]?.childForFieldName('consequence')?.text, source).toBe('[] ? [a]');
       } finally {
         tree.delete();
       }
@@ -1314,6 +1337,47 @@ test('ends delimited is patterns before ternary collection access, including inc
           incremental.delete();
           fresh.delete();
         }
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('keeps access questions inside type-test conditional arguments', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const condition of ['x is not null', 'x is null', 'x is T', '(x is not null)']) {
+      for (const consequence of ['c', 'c()', 'new C()']) {
+        const inner = `b?[0] ? ${consequence} : a?.b`;
+        const expression = `f?[${condition} ? ${inner} : x]`;
+        const tree = parser.parse(`var result = ${expression};`)!;
+        try {
+          expect(tree.rootNode.hasError, expression).toBe(false);
+          const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
+          expect(
+            conditionals.map((node) => node.childForFieldName('condition')?.text),
+            expression
+          ).toEqual([condition, 'b?[0]']);
+          expect(conditionals[0]?.childForFieldName('consequence')?.text, expression).toBe(inner);
+          expect(
+            tree.rootNode.descendantsOfType('conditional_access_expression').map((node) => node.text),
+            expression
+          ).toEqual([expression, 'b?[0]', 'a?.b']);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    for (const receiver of ['(x switch { _ => 1 })', '(x with { A = 1 })']) {
+      const expression = `${receiver}?[0]`;
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        expect(tree.rootNode.descendantsOfType('conditional_expression'), expression).toHaveLength(0);
+        expect(tree.rootNode.descendantsOfType('conditional_access_expression')[0]?.text).toBe(expression);
       } finally {
         tree.delete();
       }

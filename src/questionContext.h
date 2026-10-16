@@ -170,7 +170,6 @@ typedef enum {
     QUESTION_EXPRESSION_RECEIVER = 1,
     QUESTION_CASE_COLON = 2,
     QUESTION_NULLABLE_ONLY = 4,
-    QUESTION_TERNARY_ONLY = 8,
 } QuestionContextFlags;
 
 typedef struct {
@@ -272,7 +271,7 @@ unknown:
 static QuestionWalk question_walk_create(Scanner *scanner, int32_t following, bool known_nullable, unsigned context_flags, uint8_t rank_phase) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     bool known = !scanner->question_unknown && (!scanner->question_type_uncertain || (context_flags & QUESTION_EXPRESSION_RECEIVER)) && !frame->unknown;
-    bool ternary_only = (context_flags & QUESTION_TERNARY_ONLY) || rank_phase == RANK_PATTERN_COMPLETE;
+    bool ternary_only = rank_phase == RANK_PATTERN_COMPLETE;
     bool cached = scanner->question_access_cache && following == '[' && known && !ternary_only;
     bool ordinary = following != '[' && following != '.';
     bool definite_ternary = ternary_only || (ordinary && !known_nullable && following >= '0' && following <= '9');

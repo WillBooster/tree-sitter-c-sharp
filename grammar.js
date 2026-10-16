@@ -234,6 +234,9 @@ module.exports = grammar({
     sym('_object_index_start'),
     sym('_slice_pattern_start'),
     sym('_ambiguous_cast_operand_start'),
+    sym('_nonprimary_expression_end'),
+    sym('_pattern_paren_end'),
+    sym('_pattern_bracket_end'),
   ],
 
   extras: ($) => [
@@ -1096,7 +1099,8 @@ module.exports = grammar({
     _pattern_unary_expression: ($) =>
       choice($._pattern_primary_expression, $.prefix_unary_expression, $.cast_expression, $.await_expression),
 
-    _pattern_parenthesized_expression: ($) => seq('(', choice(...nestedConstantExpressionRoots($)), ')'),
+    _pattern_parenthesized_expression: ($) =>
+      seq('(', choice(...nestedConstantExpressionRoots($)), choice(')', alias(sym('_pattern_paren_end'), ')'))),
 
     _pattern_primary_expression: ($) =>
       choice(
@@ -1226,7 +1230,8 @@ module.exports = grammar({
     _nonconstant_pattern: ($) => nonconstantPatterns($),
 
     // Uses '(' pattern ')' to create direct conflict with parenthesized_pattern
-    _parenthesized_pattern_with_designation: ($) => seq('(', $.pattern, ')', $._simple_designation),
+    _parenthesized_pattern_with_designation: ($) =>
+      seq('(', $.pattern, choice(')', alias(sym('_pattern_paren_end'), ')')), $._simple_designation),
 
     constant_pattern: ($) => choice(...nestedConstantExpressionRoots($)),
 
@@ -1253,7 +1258,8 @@ module.exports = grammar({
 
     discard: () => '_',
 
-    parenthesized_pattern: ($) => seq('(', alias($._nonconstant_pattern, $.pattern), ')'),
+    parenthesized_pattern: ($) =>
+      seq('(', alias($._nonconstant_pattern, $.pattern), choice(')', alias(sym('_pattern_paren_end'), ')'))),
 
     // The implicit_type reading of `var` contributes dynamic precedence 1; its parenthesized designation needs more.
     var_pattern: ($) => prec.dynamic(2, seq('var', $.parenthesized_variable_designation)),
@@ -1268,7 +1274,14 @@ module.exports = grammar({
     // Left-associative so that a contextual keyword after `]` (`when` in a switch arm or section, `select` in a query)
     // ends the pattern instead of becoming its designation.
     list_pattern: ($) =>
-      prec.left(seq('[', optional(seq(commaSep1($.pattern), optional(','))), ']', optional($._simple_designation))),
+      prec.left(
+        seq(
+          '[',
+          optional(seq(commaSep1($.pattern), optional(','))),
+          choice(']', alias(sym('_pattern_bracket_end'), ']')),
+          optional($._simple_designation)
+        )
+      ),
 
     slice_pattern: ($) => prec.right(PREC.RANGE, seq(alias(sym('_slice_pattern_start'), '..'), optional($.pattern))),
 
@@ -1307,14 +1320,26 @@ module.exports = grammar({
         )
       ),
 
-    positional_pattern_clause: ($) => prec(1, seq('(', optional(commaSep($.subpattern)), ')')),
+    positional_pattern_clause: ($) =>
+      prec(1, seq('(', optional(commaSep($.subpattern)), choice(')', alias(sym('_pattern_paren_end'), ')')))),
 
     _untyped_positional_pattern_clause: ($) =>
-      prec(1, seq('(', optional(choice(commaSep2($.subpattern), alias($._named_subpattern, $.subpattern))), ')')),
+      prec(
+        1,
+        seq(
+          '(',
+          optional(choice(commaSep2($.subpattern), alias($._named_subpattern, $.subpattern))),
+          choice(')', alias(sym('_pattern_paren_end'), ')'))
+        )
+      ),
 
     _named_subpattern: ($) => subpattern($, true),
 
-    property_pattern_clause: ($) => prec(1, seq('{', commaSep($.subpattern), optional(','), '}')),
+    property_pattern_clause: ($) =>
+      prec(
+        1,
+        seq('{', commaSep($.subpattern), optional(','), choice('}', alias(sym('_nonprimary_expression_end'), '}')))
+      ),
 
     subpattern: ($) => subpattern($),
 
@@ -1631,7 +1656,13 @@ module.exports = grammar({
     invocation_expression: ($) => invocationExpression($, $._primary_no_conditional_access_expression),
 
     switch_expression: ($) => switchExpression($, $.expression),
-    _switch_expression_body: ($) => seq('{', commaSep($.switch_expression_arm), optional(','), '}'),
+    _switch_expression_body: ($) =>
+      seq(
+        '{',
+        commaSep($.switch_expression_arm),
+        optional(','),
+        choice('}', alias(sym('_nonprimary_expression_end'), '}'))
+      ),
 
     switch_expression_arm: ($) => seq($.pattern, optional($.when_clause), '=>', $.expression),
 
@@ -1851,7 +1882,8 @@ module.exports = grammar({
     default_expression: ($) => prec.right(seq('default', optional(seq('(', field('type', $.type), ')')))),
 
     with_expression: ($) => withExpression($, $.expression),
-    _with_body: ($) => seq('{', commaSep($.with_initializer), optional(','), '}'),
+    _with_body: ($) =>
+      seq('{', commaSep($.with_initializer), optional(','), choice('}', alias(sym('_nonprimary_expression_end'), '}'))),
 
     with_initializer: ($) => seq($.identifier, '=', $.expression),
 
