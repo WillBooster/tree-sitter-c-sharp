@@ -201,3 +201,27 @@ function parseCpuTime(source: string, expectedErrors = true): number {
   expect(allMatchErrors).toBe(true);
   return elapsed / samples;
 }
+
+test.each([
+  { name: 'regular', open: '$"{', close: '}"' },
+  { name: 'verbatim', open: '$@"{', close: '}"' },
+  { name: 'raw', open: '$$"""{{', close: '}}"""' },
+])('returns a tree for deeply nested $name interpolation after a question', ({ open, close }) => {
+  const nested = open.repeat(5000) + '1' + close.repeat(5000);
+  for (const prefix of ['a ? 1 : ', 'x is T?[] ? [a] : ']) {
+    const source = `class C { void M() { var result = ${prefix}${nested}; } }`;
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.endIndex).toBe(source.length);
+    } finally {
+      tree.delete();
+    }
+    const subsequent = parser.parse('var result = a?[0];')!;
+    try {
+      expect(subsequent.rootNode.hasError).toBe(false);
+      expect(subsequent.rootNode.descendantsOfType('conditional_access_expression')[0]?.text).toBe('a?[0]');
+    } finally {
+      subsequent.delete();
+    }
+  }
+});

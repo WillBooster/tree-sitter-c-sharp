@@ -98,3 +98,17 @@ test.each(wrappers)('preserves nested empty-collection ternaries in $name interp
     }
   }
 });
+
+test.each(wrappers)('preserves nullable ownership around deeply nested $name interpolations', ({ open, close }) => {
+  const nested = open.repeat(100) + '1' + close.repeat(100);
+  const source = `var r = x is T?[] ? ${nested} : a is U?[] ? [a] : b;`;
+  const tree = parser.parse(source)!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(
+      tree.rootNode.descendantsOfType('conditional_expression').map((node) => node.childForFieldName('condition')?.text)
+    ).toEqual(['x is T?[]', 'a is U?[]']);
+  } finally {
+    tree.delete();
+  }
+});

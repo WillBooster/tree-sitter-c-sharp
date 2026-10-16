@@ -4,56 +4,179 @@
 typedef Array(char) RankGroups;
 typedef enum { RANK_READ_UNKNOWN, RANK_READ_MORE, RANK_READ_DONE, RANK_READ_TOKEN } RankReadStep;
 typedef enum { RANK_BODY_BRACKET, RANK_BODY_EXPRESSION, RANK_BODY_QUESTION_FREE, RANK_BODY_INTERPOLATION_QUESTION_FREE } RankBodyMode;
+typedef struct {
+    RankGroups groups;
+    RankBodyMode mode;
+    unsigned quotes, dollars, format_braces;
+    bool string, verbatim, content, access, colon;
+} RankLiteralFrame;
+typedef Array(RankLiteralFrame) RankLiteralFrames;
 
-static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode, bool *force_unsafe);
-static bool rank_read_delimited_body(TSLexer *lexer, char opening, RankBodyMode mode, bool *force_unsafe, unsigned format_braces);
-static RankReadStep rank_close_delimited(TSLexer *lexer, RankGroups *groups, int32_t c, unsigned format_braces);
-static bool rank_read_closing_braces(TSLexer *lexer, unsigned count);
-static bool rank_read_format(TSLexer *lexer, unsigned closing_braces);
-static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_t c, RankBodyMode mode, bool *access, bool *force_unsafe);
-static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, RankBodyMode mode, bool *force_unsafe);
-static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, RankBodyMode mode, bool *force_unsafe);
-static bool rank_skip_interpolated_body(TSLexer *lexer, bool verbatim, RankBodyMode mode, bool *force_unsafe);
-static bool rank_skip_raw_interpolated(TSLexer *lexer, unsigned quotes, unsigned dollars, RankBodyMode mode, bool *force_unsafe);
-static bool rank_skip_raw_hole(TSLexer *lexer, unsigned braces, unsigned dollars, RankBodyMode mode, bool *force_unsafe);
-static unsigned rank_read_character_run(TSLexer *lexer, int32_t character);
+static bool rank_read_delimited(TSLexer *, char, RankBodyMode, bool *);
+static RankReadStep rank_skip_literal(TSLexer *, int32_t, RankBodyMode, bool *);
+static bool rank_skip_interpolated(TSLexer *, bool, RankBodyMode, bool *);
+static bool rank_read_frames(TSLexer *, RankLiteralFrames *, bool *);
+static void rank_push_code(RankLiteralFrames *, char, RankBodyMode, unsigned);
+static RankReadStep rank_read_code_step(TSLexer *, RankLiteralFrames *);
+static RankReadStep rank_read_string_step(TSLexer *, RankLiteralFrames *);
+static RankReadStep rank_read_raw_string_step(TSLexer *, RankLiteralFrames *);
+static RankReadStep rank_push_literal(TSLexer *, RankLiteralFrames *, int32_t, RankBodyMode);
+static RankReadStep rank_push_interpolated(TSLexer *, RankLiteralFrames *, bool, RankBodyMode);
+static RankReadStep rank_close_delimited(TSLexer *, RankGroups *, int32_t, unsigned);
+static bool rank_read_closing_braces(TSLexer *, unsigned);
+static bool rank_read_format(TSLexer *, unsigned);
+static unsigned rank_read_character_run(TSLexer *, int32_t);
 
 static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode, bool *force_unsafe) {
-    return rank_read_delimited_body(lexer, opening, mode, force_unsafe, 0);
+    RankLiteralFrames frames = array_new();
+    rank_push_code(&frames, opening, mode, 0);
+    return rank_read_frames(lexer, &frames, force_unsafe);
 }
 
-static bool rank_read_delimited_body(TSLexer *lexer, char opening, RankBodyMode mode, bool *force_unsafe, unsigned format_braces) {
-    RankGroups groups = array_new();
-    array_push(&groups, opening);
-    bool content = false;
-    bool valid = false;
-    bool access = false;
-    bool colon = false;
-    while (!lexer->eof(lexer)) {
-        int32_t c = question_skip_separators(lexer);
-        if (c == -2 || c == '#' || lexer->eof(lexer)) break;
-        if (c == -1) { content = true; continue; }
-        if (c == ')' || c == ']' || c == '}') {
-            RankReadStep closing = rank_close_delimited(lexer, &groups, c, format_braces);
-            if (closing != RANK_READ_MORE) {
-                valid = closing == RANK_READ_DONE && (content || mode != RANK_BODY_BRACKET);
-                break;
-            }
-            continue;
-        }
-        content = true;
-        if (c == ':' && groups.size == 1 && format_braces) {
-            advance(lexer);
-            if (lexer->lookahead == ':') { advance(lexer); continue; }
-            valid = rank_read_format(lexer, format_braces);
-            break;
-        }
-        if (c == ':') colon = true;
-        if (!rank_skip_delimited_token(lexer, &groups, c, mode, &access, force_unsafe)) break;
+static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, RankBodyMode mode, bool *force_unsafe) {
+    RankLiteralFrames frames = array_new();
+    RankReadStep step = rank_push_literal(lexer, &frames, c, mode);
+    bool valid = rank_read_frames(lexer, &frames, force_unsafe);
+    return valid ? step : RANK_READ_UNKNOWN;
+}
+
+static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, RankBodyMode mode, bool *force_unsafe) {
+    RankLiteralFrames frames = array_new();
+    RankReadStep step = rank_push_interpolated(lexer, &frames, verbatim, mode);
+    bool valid = rank_read_frames(lexer, &frames, force_unsafe);
+    return step != RANK_READ_UNKNOWN && valid;
+}
+
+static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *force_unsafe) {
+    bool valid = true;
+    while (frames->size) {
+        RankReadStep step = array_back(frames)->string
+            ? rank_read_string_step(lexer, frames) : rank_read_code_step(lexer, frames);
+        if (step == RANK_READ_UNKNOWN) { valid = false; break; }
+        if (step != RANK_READ_DONE) continue;
+        RankLiteralFrame frame = array_pop(frames);
+        if (force_unsafe) *force_unsafe |= frame.access && frame.colon;
+        array_delete(&frame.groups);
     }
-    array_delete(&groups);
-    if (force_unsafe) *force_unsafe |= access && colon;
+    for (unsigned i = 0; i < frames->size; i++) {
+        RankLiteralFrame *frame = &frames->contents[i];
+        if (force_unsafe) *force_unsafe |= frame->access && frame->colon;
+        array_delete(&frame->groups);
+    }
+    array_delete(frames);
     return valid;
+}
+
+static void rank_push_code(RankLiteralFrames *frames, char opening, RankBodyMode mode, unsigned format_braces) {
+    RankLiteralFrame frame = {.groups = array_new(), .mode = mode, .format_braces = format_braces};
+    array_push(&frame.groups, opening);
+    array_push(frames, frame);
+}
+
+static RankReadStep rank_read_code_step(TSLexer *lexer, RankLiteralFrames *frames) {
+    RankLiteralFrame *frame = array_back(frames);
+    int32_t c = question_skip_separators(lexer);
+    if (c == -2 || c == '#' || lexer->eof(lexer)) return RANK_READ_UNKNOWN;
+    if (c == -1) { frame->content = true; return RANK_READ_MORE; }
+    if (c == ')' || c == ']' || c == '}') {
+        RankReadStep step = rank_close_delimited(lexer, &frame->groups, c, frame->format_braces);
+        if (step == RANK_READ_DONE && !frame->content && frame->mode == RANK_BODY_BRACKET) return RANK_READ_UNKNOWN;
+        return step;
+    }
+    frame->content = true;
+    if (c == ':' && frame->groups.size == 1 && frame->format_braces) {
+        advance(lexer);
+        if (lexer->lookahead == ':') { advance(lexer); return RANK_READ_MORE; }
+        return rank_read_format(lexer, frame->format_braces) ? RANK_READ_DONE : RANK_READ_UNKNOWN;
+    }
+    if (c == ':') frame->colon = true;
+    bool question_free = frame->mode == RANK_BODY_QUESTION_FREE || frame->mode == RANK_BODY_INTERPOLATION_QUESTION_FREE;
+    if (question_free && c == '?') return RANK_READ_UNKNOWN;
+    RankReadStep literal = rank_push_literal(lexer, frames, c, question_free ? frame->mode : RANK_BODY_EXPRESSION);
+    if (literal != RANK_READ_TOKEN) return literal;
+    if (c == '@') return RANK_READ_MORE;
+    if (c == '?') {
+        advance(lexer);
+        bool binding = question_skip_separators(lexer) == '[';
+        frame->access |= binding;
+        return frame->mode == RANK_BODY_BRACKET && binding ? RANK_READ_UNKNOWN : RANK_READ_MORE;
+    }
+    if (c == '(' || c == '[' || c == '{') array_push(&frame->groups, (char)c);
+    advance(lexer);
+    return RANK_READ_MORE;
+}
+
+static RankReadStep rank_read_string_step(TSLexer *lexer, RankLiteralFrames *frames) {
+    RankLiteralFrame *frame = array_back(frames);
+    if (lexer->eof(lexer)) return RANK_READ_UNKNOWN;
+    int32_t c = lexer->lookahead;
+    if (frame->quotes >= 3) return rank_read_raw_string_step(lexer, frames);
+    advance(lexer);
+    if (c == '"') {
+        if (!frame->verbatim || lexer->lookahead != '"') return RANK_READ_DONE;
+        advance(lexer);
+    } else if (c == '\\' && !frame->verbatim) {
+        if (lexer->eof(lexer)) return RANK_READ_UNKNOWN;
+        advance(lexer);
+    } else if (c == '{') {
+        if (lexer->lookahead == '{') advance(lexer);
+        else rank_push_code(frames, '{', frame->mode, 1);
+    } else if (c == '}') {
+        if (lexer->lookahead != '}') return RANK_READ_UNKNOWN;
+        advance(lexer);
+    } else if (!frame->verbatim && is_line_terminator(c)) return RANK_READ_UNKNOWN;
+    return RANK_READ_MORE;
+}
+
+static RankReadStep rank_read_raw_string_step(TSLexer *lexer, RankLiteralFrames *frames) {
+    RankLiteralFrame *frame = array_back(frames);
+    int32_t c = lexer->lookahead;
+    if (c == '"') {
+        unsigned count = rank_read_character_run(lexer, c);
+        if (count >= frame->quotes) return count == frame->quotes ? RANK_READ_DONE : RANK_READ_UNKNOWN;
+    } else if (c == '{') {
+        unsigned count = rank_read_character_run(lexer, c);
+        if (count >= frame->dollars) {
+            if (count - frame->dollars >= frame->dollars) return RANK_READ_UNKNOWN;
+            rank_push_code(frames, '{', frame->mode, frame->dollars);
+        }
+    } else if (c == '}') {
+        if (rank_read_character_run(lexer, c) >= frame->dollars) return RANK_READ_UNKNOWN;
+    } else advance(lexer);
+    return RANK_READ_MORE;
+}
+
+static RankReadStep rank_push_literal(TSLexer *lexer, RankLiteralFrames *frames, int32_t c, RankBodyMode mode) {
+    if (c == '"' || c == '\'')
+        return question_skip_quoted(lexer, false) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+    if (c == '$') return rank_push_interpolated(lexer, frames, false, mode);
+    if (c != '@') return RANK_READ_TOKEN;
+    advance(lexer);
+    if (lexer->lookahead == '$') return rank_push_interpolated(lexer, frames, true, mode);
+    if (lexer->lookahead == '"')
+        return question_skip_quoted(lexer, true) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+    return RANK_READ_TOKEN;
+}
+
+static RankReadStep rank_push_interpolated(TSLexer *lexer, RankLiteralFrames *frames, bool verbatim, RankBodyMode mode) {
+    if (mode == RANK_BODY_QUESTION_FREE) mode = RANK_BODY_INTERPOLATION_QUESTION_FREE;
+    unsigned dollars = rank_read_character_run(lexer, '$');
+    if (!verbatim && lexer->lookahead == '@') { verbatim = true; advance(lexer); }
+    if (lexer->lookahead != '"') return RANK_READ_UNKNOWN;
+    unsigned quotes;
+    if (verbatim) {
+        if (dollars != 1) return RANK_READ_UNKNOWN;
+        advance(lexer);
+        quotes = 1;
+    } else {
+        quotes = rank_read_character_run(lexer, '"');
+        if (quotes < 3 && dollars != 1) return RANK_READ_UNKNOWN;
+        if (quotes == 2) return RANK_READ_MORE;
+    }
+    RankLiteralFrame frame = {.groups = array_new(), .mode = mode, .quotes = quotes,
+        .dollars = dollars, .string = true, .verbatim = verbatim};
+    array_push(frames, frame);
+    return RANK_READ_MORE;
 }
 
 static RankReadStep rank_close_delimited(TSLexer *lexer, RankGroups *groups, int32_t c, unsigned format_braces) {
@@ -81,97 +204,6 @@ static bool rank_read_format(TSLexer *lexer, unsigned closing_braces) {
         if (braces == closing_braces) return true;
     }
     return false;
-}
-
-static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_t c, RankBodyMode mode, bool *access, bool *force_unsafe) {
-    bool question_free = mode == RANK_BODY_QUESTION_FREE || mode == RANK_BODY_INTERPOLATION_QUESTION_FREE;
-    if (question_free && c == '?') return false;
-    RankReadStep literal = rank_skip_literal(lexer, c, question_free ? mode : RANK_BODY_EXPRESSION, force_unsafe);
-    if (literal != RANK_READ_TOKEN) return literal == RANK_READ_MORE;
-    if (c == '@') return true;
-    if (c == '?') {
-        advance(lexer);
-        bool binding = question_skip_separators(lexer) == '[';
-        *access |= binding;
-        return mode != RANK_BODY_BRACKET || !binding;
-    }
-    if (c == '(' || c == '[' || c == '{') array_push(groups, (char)c);
-    advance(lexer);
-    return true;
-}
-
-static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, RankBodyMode mode, bool *force_unsafe) {
-    if (c == '"' || c == '\'')
-        return question_skip_quoted(lexer, false) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
-    if (c == '$') return rank_skip_interpolated(lexer, false, mode, force_unsafe) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
-    if (c != '@') return RANK_READ_TOKEN;
-    advance(lexer);
-    if (lexer->lookahead == '$')
-        return rank_skip_interpolated(lexer, true, mode, force_unsafe) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
-    if (lexer->lookahead == '"')
-        return question_skip_quoted(lexer, true) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
-    return RANK_READ_TOKEN;
-}
-
-static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, RankBodyMode mode, bool *force_unsafe) {
-    if (mode == RANK_BODY_QUESTION_FREE) mode = RANK_BODY_INTERPOLATION_QUESTION_FREE;
-    unsigned dollars = rank_read_character_run(lexer, '$');
-    if (!verbatim && lexer->lookahead == '@') { verbatim = true; advance(lexer); }
-    if (lexer->lookahead != '"') return false;
-    if (verbatim) {
-        if (dollars != 1) return false;
-        advance(lexer);
-        return rank_skip_interpolated_body(lexer, true, mode, force_unsafe);
-    }
-    unsigned quotes = rank_read_character_run(lexer, '"');
-    if (quotes >= 3) return rank_skip_raw_interpolated(lexer, quotes, dollars, mode, force_unsafe);
-    if (dollars != 1) return false;
-    return quotes == 2 || rank_skip_interpolated_body(lexer, false, mode, force_unsafe);
-}
-
-static bool rank_skip_interpolated_body(TSLexer *lexer, bool verbatim, RankBodyMode mode, bool *force_unsafe) {
-    while (!lexer->eof(lexer)) {
-        int32_t c = lexer->lookahead;
-        advance(lexer);
-        if (c == '"') {
-            if (!verbatim || lexer->lookahead != '"') return true;
-            advance(lexer);
-        } else if (c == '\\' && !verbatim) {
-            if (lexer->eof(lexer)) return false;
-            advance(lexer);
-        } else if (c == '{') {
-            if (lexer->lookahead == '{') advance(lexer);
-            else if (!rank_read_delimited_body(lexer, '{', mode, force_unsafe, 1)) return false;
-        } else if (c == '}') {
-            if (lexer->lookahead != '}') return false;
-            advance(lexer);
-        } else if (!verbatim && is_line_terminator(c)) return false;
-    }
-    return false;
-}
-
-static bool rank_skip_raw_interpolated(TSLexer *lexer, unsigned quotes, unsigned dollars, RankBodyMode mode, bool *force_unsafe) {
-    while (!lexer->eof(lexer)) {
-        int32_t c = lexer->lookahead;
-        if (c == '"') {
-            unsigned count = rank_read_character_run(lexer, c);
-            if (count >= quotes) return count == quotes;
-        } else if (c == '{') {
-            unsigned count = rank_read_character_run(lexer, c);
-            if (!rank_skip_raw_hole(lexer, count, dollars, mode, force_unsafe)) return false;
-        } else if (c == '}') {
-            if (rank_read_character_run(lexer, c) >= dollars) return false;
-        } else {
-            advance(lexer);
-        }
-    }
-    return false;
-}
-
-static bool rank_skip_raw_hole(TSLexer *lexer, unsigned braces, unsigned dollars, RankBodyMode mode, bool *force_unsafe) {
-    if (braces < dollars) return true;
-    if (braces - dollars >= dollars) return false;
-    return rank_read_delimited_body(lexer, '{', mode, force_unsafe, dollars);
 }
 
 static unsigned rank_read_character_run(TSLexer *lexer, int32_t character) {
