@@ -1305,6 +1305,12 @@ test('ends delimited is patterns before ternary collection access, including inc
   try {
     for (const pattern of [
       '(1, 2)',
+      'T(1)',
+      'T(a?.b)',
+      'obj.M()',
+      'T<int>(1)',
+      'not T(1)',
+      'T(1) { P: 2 }',
       '(int x, int y)',
       '[]',
       '[1]',
@@ -1323,6 +1329,12 @@ test('ends delimited is patterns before ternary collection access, including inc
         expect(tree.rootNode.hasError, source).toBe(false);
         const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
         expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+        if (pattern.startsWith('T') || pattern.startsWith('obj.') || pattern.startsWith('not T')) {
+          expect(
+            tree.rootNode.descendantsOfType('recursive_pattern').map((node) => node.text),
+            source
+          ).toContain(pattern.replace(/^not /, ''));
+        }
         const consequence = ternary?.childForFieldName('consequence');
         expect(consequence?.text, source).toBe('[1]?[0]');
         expect(consequence?.type, source).toBe('conditional_access_expression');

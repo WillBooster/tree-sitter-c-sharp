@@ -1298,7 +1298,7 @@ module.exports = grammar({
             )
           ),
           prec.dynamic(
-            -1,
+            1,
             seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))
           ),
           prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
