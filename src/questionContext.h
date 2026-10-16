@@ -323,8 +323,8 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
     }
     if (!walk->depth && walk->binding && !walk->cache_colon && question_walk_binding_operator(lexer, walk, c))
         return QUESTION_WALK_CONTINUE;
-    if (c == '@' || c == '"' || c == '\'') return question_walk_literal(lexer, walk, c, first_identifier);
-    if (c == 0 || c == '#' || c == '$') return QUESTION_WALK_UNKNOWN;
+    if (c == '$' || c == '@' || c == '"' || c == '\'') return question_walk_literal(lexer, walk, c, first_identifier);
+    if (c == 0 || c == '#') return QUESTION_WALK_UNKNOWN;
     if (is_id_start(c) || c == '\\') return question_walk_identifier(scanner, lexer, walk, first_identifier);
     if (c == '?') return question_walk_question(lexer, walk);
     if (c == '=') return question_walk_assignment(lexer, walk);
@@ -393,7 +393,7 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
     bool verbatim = c == '@';
     if (verbatim) {
         advance(lexer);
-        if (lexer->lookahead != '"') {
+        if (lexer->lookahead != '"' && lexer->lookahead != '$') {
             QuestionIdentifier identifier;
             if (!question_identifier(lexer, true, &identifier)) return QUESTION_WALK_UNKNOWN;
             walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary;
@@ -402,7 +402,10 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
         }
     }
     if (walk->recording && walk->first_word && walk->ordinary) walk->definite_ternary = true;
-    return question_skip_quoted(lexer, verbatim) ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
+    bool valid = lexer->lookahead == '$'
+        ? rank_skip_interpolated(lexer, verbatim, RANK_BODY_QUESTION_FREE, NULL)
+        : question_skip_quoted(lexer, verbatim);
+    return valid ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
 }
 
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier) {

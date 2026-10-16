@@ -1234,7 +1234,21 @@ test('retains nullable tests around ordinary true arms and conditional-access al
   const parser = new Parser().setLanguage(language);
   try {
     for (const type of ['T?[]', 'T?[,]', 'T?[][]']) {
-      for (const arm of ['a', 'F()', '1', 'a + b', 'await F()', 'new C()', 'a?[0]', 'a?.b', 'a?[0]?[i]']) {
+      for (const arm of [
+        'a',
+        'F()',
+        '1',
+        'a + b',
+        'await F()',
+        'new C()',
+        'a?[0]',
+        'a?.b',
+        'a?[0]?[i]',
+        '$"{a}"',
+        '$@"text? {{ok}} {a}"',
+        '@$"{a}"',
+        '$$"""text? {{a}}"""',
+      ]) {
         const source = `var result = x is ${type} ? ${arm} : a is T?[] ? [a] : b;`;
         const tree = parser.parse(source)!;
         try {
