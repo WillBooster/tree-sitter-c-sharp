@@ -602,7 +602,7 @@ static void question_walk_colon(QuestionWalk *walk) {
     }
     walk->is_as_phase = false;
     if (walk->root_colons < 2) walk->root_colons++;
-    if (walk->is_eligible) {
+    if (walk->is_eligible && walk->mandatory == walk->is_reserved) {
         if (walk->is_reserved) walk->is_reserved--;
         else if (walk->is_optional) {
             if (walk->is_optional == 1) walk->is_current_consumed = true;
@@ -627,7 +627,10 @@ static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing 
     if (next.token == '[') walk->is_pending_bracket = true;
     else if (!next.member) walk->is_ternary_eligible = false;
     if (walk->cache_colon || next.token != '[') walk->cache_shaped = false;
-    if (question_type_boundary(next.token)) walk->role_known = false;
+    if (question_type_boundary(next.token) || next.token == '?') {
+        walk->role_known = false;
+        walk->is_eligible = false;
+    }
     if (next.token == '[') walk->optional++;
     else if (!next.member) walk->mandatory++;
 }

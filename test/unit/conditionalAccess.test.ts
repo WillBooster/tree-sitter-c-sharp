@@ -1504,3 +1504,66 @@ test('preserves question ownership in siblings after numeric nullable chains', (
     parser.delete();
   }
 });
+
+test('assigns later ternary colons before consuming conditional element access', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const receiver of ['a?[0]', 'a?.b?[0]', 'a?[0]?.b']) {
+      for (const type of ['T', 'int']) {
+        for (const [consequence, alternative] of [
+          ['b', 'c'],
+          ['b ? d : e', 'c'],
+          ['b', 'c ? d : e'],
+        ]) {
+          const condition = `${receiver} is ${type}`;
+          const expression = `${condition} ? ${consequence} : ${alternative}`;
+          for (const wrapped of [expression, `F(${expression})`, `flag ? ${expression} : z`]) {
+            const tree = parser.parse(`var r = ${wrapped};`)!;
+            try {
+              expect(tree.rootNode.hasError, wrapped).toBe(false);
+              const conditional = tree.rootNode
+                .descendantsOfType('conditional_expression')
+                .find((node) => node.childForFieldName('condition')?.text === condition);
+              expect(conditional?.childForFieldName('consequence')?.text, wrapped).toBe(consequence);
+              expect(conditional?.childForFieldName('alternative')?.text, wrapped).toBe(alternative);
+              expect(
+                conditional?.childForFieldName('condition')?.descendantsOfType('conditional_access_expression')[0]
+                  ?.text,
+                wrapped
+              ).toBe(receiver);
+            } finally {
+              tree.delete();
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('retains collection ternaries when a later question belongs to a nullable type', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const consequence of ['[0] is T?', '[0] is T? ? b : c']) {
+      const expression = `a ? ${consequence} : d`;
+      for (const wrapped of [expression, `F(${expression})`, `flag ? ${expression} : z`]) {
+        const tree = parser.parse(`var r = ${wrapped};`)!;
+        try {
+          expect(tree.rootNode.hasError, wrapped).toBe(false);
+          const conditional = tree.rootNode
+            .descendantsOfType('conditional_expression')
+            .find((node) => node.childForFieldName('condition')?.text === 'a');
+          expect(conditional?.childForFieldName('consequence')?.text, wrapped).toBe(consequence);
+          expect(conditional?.childForFieldName('alternative')?.text, wrapped).toBe('d');
+          expect(tree.rootNode.descendantsOfType('conditional_access_expression'), wrapped).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
