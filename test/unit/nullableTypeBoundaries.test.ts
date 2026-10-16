@@ -388,3 +388,28 @@ test('finishes nullable type tests before conditional logical operators', () => 
     parser.delete();
   }
 });
+
+test('retains nullable operands before relational and unary is-patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const receiver of ['o as int?', 'x is int?', 'o as List<int>?', 'o as int?[]']) {
+      for (const pattern of ['> 0', '< 0 or > 5', '-1', '>= 1', '^1', '-x']) {
+        const expression = `${receiver} is ${pattern}`;
+        const tree = parser.parse(`var result = ${expression};`)!;
+        try {
+          expect(tree.rootNode.hasError, expression).toBe(false);
+          const outer = tree.rootNode.descendantsOfType('is_pattern_expression')[0]!;
+          expect(outer.text).toBe(expression);
+          expect(outer.childForFieldName('expression')!.text).toBe(receiver);
+          expect(outer.childForFieldName('pattern')!.text).toBe(pattern);
+          expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(0);
+          expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

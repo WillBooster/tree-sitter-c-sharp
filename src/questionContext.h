@@ -455,7 +455,7 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
         walk->known_ternary = true;
         walk->known_nullable = false;
     }
-    walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary;
+    walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary && !is_or_as;
     if (question_uncertain_keyword(&identifier)) question_walk_keyword_context(scanner, walk, &identifier, is_or_as);
     if (question_expression_keyword(&identifier) && walk->recording && walk->first_word && walk->ordinary)
         walk->definite_ternary = true;
