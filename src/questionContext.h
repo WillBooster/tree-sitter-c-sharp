@@ -183,6 +183,7 @@ typedef struct {
     bool is_eligible;
     bool is_ternary_eligible;
     bool is_seen;
+    bool is_later_alternative;
     bool is_as_phase;
     bool is_current_consumed;
     bool is_pending_bracket;
@@ -468,8 +469,13 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
     }
     walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary && !is_or_as;
     if (question_uncertain_keyword(&identifier)) question_walk_keyword_context(scanner, walk, &identifier, is_or_as);
-    if (question_expression_keyword(&identifier) && walk->recording && walk->first_word && walk->ordinary)
+    if (question_expression_keyword(&identifier) && walk->recording && walk->first_word && walk->ordinary) {
         walk->definite_ternary = true;
+        if (first_identifier && !walk->depth && !walk->nullable_only) {
+            walk->known_ternary = true;
+            walk->known_nullable = false;
+        }
+    }
     if (walk->recording) walk->first_word = false;
     return QUESTION_WALK_CONTINUE;
 }
@@ -477,9 +483,11 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as) {
         bool is_keyword = !strcmp(identifier->word, "is");
         if (is_keyword) {
-            if (walk->is_seen) walk->is_eligible = false;
-            if (!walk->depth) walk->is_seen = true;
-            else walk->is_eligible = false;
+            if (!walk->is_later_alternative) {
+                if (walk->is_seen) walk->is_eligible = false;
+                if (!walk->depth) walk->is_seen = true;
+                else walk->is_eligible = false;
+            }
         } else if (is_or_as && !walk->depth && !walk->recording && walk->is_seen) {
             walk->is_as_phase = true;
         } else {
@@ -496,14 +504,15 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
 
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk) {
     if (walk->known_nullable || walk->known_ternary) walk->role_active = false;
-    if (walk->is_as_phase) walk->is_eligible = false;
     advance(lexer);
     if (lexer->lookahead == '?') {
+        if (walk->is_as_phase) walk->is_eligible = false;
         if (!walk->depth && walk->binding && !walk->cache_colon) walk->root_binary = true;
         advance(lexer);
         if (lexer->lookahead == '=') advance(lexer);
         return QUESTION_WALK_CONTINUE;
     }
+    bool later_nullable = false;
     if (walk->role_active && walk->depth) walk->cache_shaped = false;
     if (walk->role_active && !walk->depth) {
         question_skip_separators(lexer);
@@ -515,8 +524,15 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
         }
         if (following.token == '.' && !following.member && walk->binding && !walk->cache_colon)
             walk->root_binary = true;
-        question_walk_future_question(walk, following);
+        later_nullable = walk->is_later_alternative &&
+            (following.token == '?' || following.token == ':' || following.token == ')' || following.token == ',');
+        if (later_nullable) {
+            walk->cache_shaped = false;
+            walk->is_as_phase = false;
+        }
+        else question_walk_future_question(walk, following);
     }
+    if (walk->is_as_phase && !later_nullable) walk->is_eligible = false;
     walk->found_next_question = true;
     walk->recording = false;
     return walk->role_active ? QUESTION_WALK_CONTINUE : QUESTION_WALK_STOP;
@@ -603,6 +619,8 @@ static void question_walk_colon(QuestionWalk *walk) {
     }
     walk->is_as_phase = false;
     if (walk->root_colons < 2) walk->root_colons++;
+    if (walk->is_eligible && walk->is_seen && walk->mandatory > walk->is_reserved)
+        walk->is_later_alternative = true;
     if (walk->is_eligible && walk->mandatory == walk->is_reserved) {
         if (walk->is_reserved) walk->is_reserved--;
         else if (walk->is_optional) {

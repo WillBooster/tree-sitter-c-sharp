@@ -128,6 +128,11 @@ const expressionSources = [
 ];
 
 const questionSources = [
+  ...['a is T?', 'a as T?', 'new T?[1]'].map((arm) => ({
+    name: `nullable true arm ${arm}`,
+    source: (count: number): string => `class C { void M() { var x = ${`c ? ${arm} : `.repeat(count)}0; } }`,
+    node: 'nullable_type',
+  })),
   ...[
     { name: 'call', arm: 'f(a ? 1 : 2)', node: 'invocation_expression' },
     { name: 'parenthesized', arm: '(a ? 1 : 2)', node: 'parenthesized_expression' },
