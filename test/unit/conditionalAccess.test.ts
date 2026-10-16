@@ -972,3 +972,46 @@ test('preserves constant-pattern access when an enclosing conditional reparses i
     parser.delete();
   }
 });
+
+test('preserves type-test ownership after dependent conditional element accesses', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const receiver of ['a?[0]?[i]', 'a?[0]?[i]?[j]']) {
+      for (const pattern of ['T', 'T[]', 'T?[]', 'not null', '{ P: 1 }']) {
+        const condition = `${receiver} is ${pattern}`;
+        const source = `var result = ${condition} ? [1] : b;`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+          expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+          expect(ternary?.childForFieldName('consequence')?.text, source).toBe('[1]');
+          expect(ternary?.childForFieldName('alternative')?.text, source).toBe('b');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    for (const [expression, condition] of [
+      ['a?[0] : b is T', 'a'],
+      ['a?[0] ? b is T : c', 'a?[0]'],
+      ['a?[0]?[i] is T ? [1] : b : c', 'a?[0]'],
+      ['a?[0]?[i] is T ? [1] : b : c : d', 'a'],
+      ['a?[0] : b?[i] is T ? [1] : c', 'a'],
+    ]) {
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('conditional_expression')[0]?.childForFieldName('condition')?.text,
+          expression
+        ).toBe(condition);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

@@ -416,7 +416,7 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
         bool is_keyword = !strcmp(identifier->word, "is");
         if (is_keyword) {
             if (walk->is_seen) walk->is_eligible = false;
-            if (!walk->depth && walk->recording) walk->is_seen = true;
+            if (!walk->depth) walk->is_seen = true;
             else walk->is_eligible = false;
         } else if (is_or_as && !walk->depth && !walk->recording && walk->is_seen) {
             walk->is_as_phase = true;
