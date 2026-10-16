@@ -214,6 +214,15 @@ test('preserves nullable type conditions before collection expression continuati
       ...['T?[]', 'T?[,]', 'T?[][]', 'N.T?[]', 'N.T<C>?[]'].flatMap((type) =>
         [
           ['[0] + x', 'binary_expression'],
+          ['[0] + F<T,U>()', 'binary_expression'],
+          ['[0] + F<N.T<U>,V>()', 'binary_expression'],
+          ['[0] + (x?[1])', 'binary_expression'],
+          ['[0] + x ? [1] : other', 'conditional_expression'],
+          ['[0] + $"{x}"', 'binary_expression'],
+          ['[0] + $"{x?[1]}"', 'binary_expression'],
+          ['[0] + new C { P = x?[1] }', 'binary_expression'],
+          ['[0] + [x?[1], y]', 'binary_expression'],
+
           ['[0] + x + y', 'binary_expression'],
           ['[0] + x.P', 'binary_expression'],
           ['[0] + x?.P', 'binary_expression'],
@@ -614,6 +623,68 @@ test('supports named, modified, and range arguments in index initializers', () =
       );
     } finally {
       outside.delete();
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves nullable array conditions before complete expression alternatives', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const type of ['T?[]', 'T?[,]', 'T?[][]', 'N.T?[]', 'N.T<C>?[]']) {
+      for (const consequence of ['[0]', '[index]']) {
+        for (const alternative of [
+          'fallback',
+          'null',
+          '2',
+          '2.5',
+          '"s"',
+          "'c'",
+          '-1',
+          '!a',
+          '~a',
+          '(a)',
+          '(flag ? [1] : [2])',
+          'default',
+          'default(T)',
+          'new T()',
+          'new T { P = a }',
+          'new[]{a}',
+          'typeof(T)',
+          'sizeof(int)',
+          'checked(a+1)',
+          'await F()',
+          'throw new E()',
+          'F<T,U>()',
+          '$"{a}"',
+          '[a, b]',
+        ]) {
+          const condition = `x is ${type}`;
+          const source = `var result = ${condition} ? ${consequence} : ${alternative};`;
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            const nodes = tree.rootNode.descendantsOfType('conditional_expression');
+            const ternary = nodes[0];
+            expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+            expect(ternary?.childForFieldName('consequence')?.text, source).toBe(consequence);
+            expect(ternary?.childForFieldName('alternative')?.text, source).toBe(alternative);
+            expect(
+              tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
+              source
+            ).toEqual([type.split('?')[0] + '?']);
+            if (alternative === '(flag ? [1] : [2])') {
+              expect(nodes[1]?.childForFieldName('condition')?.text, source).toBe('flag');
+              expect(nodes[1]?.childForFieldName('consequence')?.text, source).toBe('[1]');
+              expect(nodes[1]?.childForFieldName('alternative')?.text, source).toBe('[2]');
+            }
+          } finally {
+            tree.delete();
+          }
+        }
+      }
     }
   } finally {
     parser.delete();
