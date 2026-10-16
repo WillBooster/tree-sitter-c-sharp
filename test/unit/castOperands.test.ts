@@ -75,3 +75,17 @@ test('keeps expression-shaped cast candidates as range starts', () => {
     }
   }
 });
+
+test('allows escaped operator keywords and longer identifiers as cast operands', () => {
+  for (const value of ['island', 'asValue', '@is', '@as', String.raw`\u0069s`, String.raw`\u0061s`]) {
+    const tree = parser.parse(`var result = (T)${value};`)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      const cast = tree.rootNode.descendantsOfType('cast_expression')[0]!;
+      expect(cast.childForFieldName('type')!.text).toBe('T');
+      expect(cast.childForFieldName('value')!.text).toBe(value);
+    } finally {
+      tree.delete();
+    }
+  }
+});

@@ -413,3 +413,66 @@ test('retains nullable operands before relational and unary is-patterns', () => 
     parser.delete();
   }
 });
+
+test('retains qualified nullable logical subpatterns after parenthesized receivers', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const receiver of ['a', '(a)', '(a.b)', '((a))']) {
+      for (const pattern of [
+        '(Foo, A.B?)',
+        '(Foo, C.D? or Foo)',
+        '(Foo, C.D? and X)',
+        '(Foo, C.D?[] or null)',
+        '(Foo, C.D? or @is)',
+      ]) {
+        const tree = parser.parse(`var result = ${receiver} is ${pattern} ? x : y;`)!;
+        try {
+          expect(tree.rootNode.hasError, `${receiver} is ${pattern}`).toBe(false);
+          const condition = tree.rootNode
+            .descendantsOfType('conditional_expression')[0]!
+            .childForFieldName('condition')!;
+          expect(condition.childForFieldName('expression')!.text).toBe(receiver);
+          const recursive = condition.childForFieldName('pattern')!;
+          expect(recursive.type).toBe('recursive_pattern');
+          expect(recursive.text).toBe(pattern);
+          const second = recursive.descendantsOfType('subpattern')[1]!.firstNamedChild!;
+          expect(second.type).toBe(
+            pattern.includes(' or ') ? 'or_pattern' : pattern.includes(' and ') ? 'and_pattern' : 'type_pattern'
+          );
+          expect(second.descendantsOfType('nullable_type')[0]!.text).toBe(pattern.includes('A.B') ? 'A.B?' : 'C.D?');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('keeps contextual pattern-operator names available to ternary operands', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const consequence of [
+      'or -1',
+      'or(a)',
+      'or is U',
+      'or switch { _ => 1 }',
+      'or with { X = 1 }',
+      'and +1',
+      '@or -1',
+    ]) {
+      const tree = parser.parse(`var result = o is T? ${consequence} : b;`)!;
+      try {
+        expect(tree.rootNode.hasError, consequence).toBe(false);
+        const conditional = tree.rootNode.descendantsOfType('conditional_expression')[0]!;
+        expect(conditional.childForFieldName('condition')!.text).toBe('o is T');
+        expect(conditional.childForFieldName('consequence')!.text).toBe(consequence);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

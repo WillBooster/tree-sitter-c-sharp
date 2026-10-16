@@ -195,6 +195,7 @@ typedef struct {
     bool nullable_only;
     bool omitted_rank_candidate;
     bool nullable_name_candidate;
+    bool logical_name_candidate;
     bool role_known;
     bool proved_ternary;
     bool no_colons;
@@ -348,6 +349,7 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
 }
 
 static void question_walk_nullable_tail(QuestionWalk *walk, int32_t c) {
+    if (!is_id_start(c) && c != '\\' && c != '@') walk->logical_name_candidate = false;
     if (!walk->depth && (c == ')' || c == ',') &&
         (walk->omitted_rank_candidate || walk->nullable_name_candidate || walk->ordinary_name_candidate))
         walk->known_nullable = true;
@@ -431,11 +433,14 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
         if (lexer->lookahead != '"' && lexer->lookahead != '$') {
             QuestionIdentifier identifier;
             if (!question_identifier(lexer, true, &identifier)) return QUESTION_WALK_UNKNOWN;
+            if (walk->logical_name_candidate && walk->recording && !walk->depth) walk->known_nullable = true;
+            walk->logical_name_candidate = false;
             walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary;
             if (walk->recording) walk->first_word = false;
             return QUESTION_WALK_CONTINUE;
         }
     }
+    walk->logical_name_candidate = false;
     if (walk->recording && walk->first_word && walk->ordinary) walk->definite_ternary = true;
     bool valid = lexer->lookahead == '$'
         ? rank_skip_interpolated(lexer, verbatim, RANK_BODY_QUESTION_FREE, NULL)
@@ -450,6 +455,11 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
         strcmp(identifier.word, "stackalloc") == 0 || strcmp(identifier.word, "from") == 0)) walk->is_eligible = false;
     bool is_or_as = identifier.keyword && (strcmp(identifier.word, "is") == 0 || strcmp(identifier.word, "as") == 0);
     bool value_operator = is_or_as || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
+    if (walk->logical_name_candidate && walk->recording && !walk->depth && !value_operator)
+        walk->known_nullable = true;
+    walk->logical_name_candidate = (first_identifier || walk->nullable_name_candidate) &&
+        walk->recording && !walk->depth && identifier.keyword &&
+        (!strcmp(identifier.word, "and") || !strcmp(identifier.word, "or"));
     if (walk->ordinary_name_candidate && walk->recording && !walk->depth && !walk->nullable_only && value_operator) {
         walk->definite_ternary = true;
         walk->known_ternary = true;

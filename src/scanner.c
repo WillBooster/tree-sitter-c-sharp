@@ -516,6 +516,7 @@ static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *val
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_bang_operator(TSLexer *lexer);
+static bool scan_ambiguous_cast_operand_start(TSLexer *lexer);
 
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
@@ -539,17 +540,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
     }
 
-    if (valid_symbols[AMBIGUOUS_CAST_OPERAND_START]) {
-        lexer->mark_end(lexer);
-        int32_t next = question_skip_separators(lexer);
-        if (next < 0) return false;
-        if (next == '[') {
-            advance(lexer);
-            if (question_skip_separators(lexer) != ']') return false;
-        }
-        lexer->result_symbol = AMBIGUOUS_CAST_OPERAND_START;
-        return true;
-    }
+    if (valid_symbols[AMBIGUOUS_CAST_OPERAND_START]) return scan_ambiguous_cast_operand_start(lexer);
 
     if (valid_symbols[BANG_OPERATOR]) {
         while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
@@ -989,6 +980,23 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     return false;
+}
+
+static bool scan_ambiguous_cast_operand_start(TSLexer *lexer) {
+    lexer->mark_end(lexer);
+    int32_t next = question_skip_separators(lexer);
+    if (next < 0) return false;
+    if (next == '[') {
+        advance(lexer);
+        if (question_skip_separators(lexer) != ']') return false;
+    }
+    if (next == 'i' || next == 'a') {
+        QuestionIdentifier identifier;
+        if (!question_identifier(lexer, false, &identifier)) return false;
+        if (identifier.keyword && (!strcmp(identifier.word, "is") || !strcmp(identifier.word, "as"))) return false;
+    }
+    lexer->result_symbol = AMBIGUOUS_CAST_OPERAND_START;
+    return true;
 }
 
 static bool scan_bang_operator(TSLexer *lexer) {
