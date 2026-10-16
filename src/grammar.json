@@ -8736,8 +8736,45 @@
                 "type": "FIELD",
                 "name": "type",
                 "content": {
-                  "type": "SYMBOL",
-                  "name": "type"
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "implicit_type"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "array_type"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "_name"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "nullable_type"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "pointer_type"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "function_pointer_type"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "predefined_type"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "ref_type"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "scoped_type"
+                    }
+                  ]
                 }
               },
               {

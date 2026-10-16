@@ -1305,3 +1305,50 @@ test('keeps logical pattern operands inside list slices', () => {
     parser.delete();
   }
 });
+
+test('retains positional subpatterns before a property clause', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const [elements, kind] of [
+      ['a, b', 'constant_pattern'],
+      ['int, int', 'type_pattern'],
+      ['A a, B b', 'declaration_pattern'],
+    ] as const) {
+      for (const property of ['{}', '{ c: 1 }']) {
+        const pattern = `(${elements}) ${property}`;
+        for (const source of [
+          `var r = x is ${pattern};`,
+          `var r = x is ${pattern} value;`,
+          `var r = x is not ${pattern};`,
+          `var r = x is ${pattern} or (d, e);`,
+          `if (x is ${pattern}) {}`,
+          `var r = x switch { ${pattern} => 1, _ => 2 };`,
+        ]) {
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            const recursive = tree.rootNode.descendantsOfType('recursive_pattern')[0]!;
+            expect(recursive.childForFieldName('type'), source).toBeNull();
+            const positional = recursive.namedChildren.find((node) => node.type === 'positional_pattern_clause')!;
+            expect(positional?.text, source).toBe(`(${elements})`);
+            expect(
+              positional.namedChildren.map((node) => node.namedChildren[0]?.type),
+              source
+            ).toEqual([kind, kind]);
+            expect(
+              positional.namedChildren.map((node) => node.text),
+              source
+            ).toEqual(elements.split(', '));
+            expect(recursive.namedChildren.find((node) => node.type === 'property_pattern_clause')?.text, source).toBe(
+              property
+            );
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
