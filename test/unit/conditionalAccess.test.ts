@@ -1248,6 +1248,14 @@ test('retains nullable tests around ordinary true arms and conditional-access al
         '$@"text? {{ok}} {a}"',
         '@$"{a}"',
         '$$"""text? {{a}}"""',
+        '$"{@a}"',
+        '$@"{@a}"',
+        '$$"""{{@a}}"""',
+        '$"{a:0?}"',
+        '$"{a,10:0?}"',
+        '$@"{a:0?}"',
+        '$$"""{{a:0?}}"""',
+        '$"{global::A.Value:0?}"',
       ]) {
         const source = `var result = x is ${type} ? ${arm} : a is T?[] ? [a] : b;`;
         const tree = parser.parse(source)!;
@@ -1404,6 +1412,54 @@ test('keeps access questions inside type-test conditional arguments', () => {
         expect(tree.rootNode.hasError, expression).toBe(false);
         expect(tree.rootNode.descendantsOfType('conditional_expression'), expression).toHaveLength(0);
         expect(tree.rootNode.descendantsOfType('conditional_access_expression')[0]?.text).toBe(expression);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('rechecks numeric nullable chains when suffix edits introduce question ownership', () => {
+  const parser = new Parser().setLanguage(language);
+  const prefix = 'var result = a is T?[] ? 1 : ';
+  const original = `${prefix}a is U?[] ? 2 : 0;`;
+  try {
+    for (const [suffix, conditions] of [
+      ['a is U?[] ? [1]?[0] : d', ['a is T?[]', 'a is U?[]']],
+      ['a is U?[] ? 2 : 0 : d', ['a is T?[]', 'a is U', '[]']],
+      ['a?[0] ? b : c', ['a is T?[]', 'a?[0]']],
+    ] as const) {
+      const tree = parser.parse(original)!;
+      const updated = `${prefix}${suffix};`;
+      try {
+        expect(tree.rootNode.hasError, original).toBe(false);
+        tree.edit(
+          new Edit({
+            startIndex: prefix.length,
+            oldEndIndex: original.length - 1,
+            newEndIndex: updated.length - 1,
+            startPosition: { row: 0, column: prefix.length },
+            oldEndPosition: { row: 0, column: original.length - 1 },
+            newEndPosition: { row: 0, column: updated.length - 1 },
+          })
+        );
+        const incremental = parser.parse(updated, tree)!;
+        const fresh = parser.parse(updated)!;
+        try {
+          expect(incremental.rootNode.hasError, updated).toBe(false);
+          expect(incremental.rootNode.toString(), updated).toBe(fresh.rootNode.toString());
+          expect(
+            incremental.rootNode
+              .descendantsOfType('conditional_expression')
+              .map((node) => node.childForFieldName('condition')?.text),
+            updated
+          ).toEqual(conditions);
+        } finally {
+          incremental.delete();
+          fresh.delete();
+        }
       } finally {
         tree.delete();
       }

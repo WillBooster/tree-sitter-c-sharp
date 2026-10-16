@@ -49,6 +49,7 @@ enum TokenType {
     NONPRIMARY_EXPRESSION_END,
     PATTERN_PAREN_END,
     PATTERN_BRACKET_END,
+    SUPPRESSION_OPERATOR,
 };
 
 typedef enum {
@@ -514,6 +515,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
 static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static bool scan_suppression_operator(TSLexer *lexer);
 
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
@@ -547,6 +549,11 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         }
         lexer->result_symbol = AMBIGUOUS_CAST_OPERAND_START;
         return true;
+    }
+
+    if (valid_symbols[SUPPRESSION_OPERATOR]) {
+        while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+        if (lexer->lookahead == '!') return scan_suppression_operator(lexer);
     }
 
     if (valid_symbols[SLICE_PATTERN_START]) {
@@ -982,6 +989,14 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     return false;
+}
+
+static bool scan_suppression_operator(TSLexer *lexer) {
+    advance(lexer);
+    lexer->mark_end(lexer);
+    if (lexer->lookahead == '=') return false;
+    lexer->result_symbol = SUPPRESSION_OPERATOR;
+    return true;
 }
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {

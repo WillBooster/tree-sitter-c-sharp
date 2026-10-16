@@ -38,6 +38,20 @@ test('completes nullable as-types before binary operators and type tests', () =>
   ]);
 });
 
+test('completes generic as-types before relational and shift operators', () => {
+  assertAlternatives([
+    'a as List<int> < b',
+    'a as A.B<int> <= b',
+    'a as List<int?> << b',
+    'a as delegate*<int, void> < b',
+    'a as List<(int a, string b)> <= b',
+    'a as A<int>.B<string> < b',
+    'a as List<int>[] < b',
+    'a as List<int>? < b',
+    ...['==', '>', '>=', '&&', '??'].map((operator) => `a as List<int> ${operator} b`),
+  ]);
+});
+
 test('retains expression-starting unary operators after a ternary question', () => {
   assertAlternatives(['+', '-', '*', '&', '!', '~', '++', '--'].map((operator) => `a as T ? ${operator}b : c`));
 });

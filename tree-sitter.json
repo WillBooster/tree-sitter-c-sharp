@@ -14,7 +14,8 @@
         "src/identifierCharacters.h",
         "src/nullableRank.h",
         "src/nullableTypes.h",
-        "src/questionContext.h"
+        "src/questionContext.h",
+        "src/questionLiterals.h"
       ]
     }
   ],

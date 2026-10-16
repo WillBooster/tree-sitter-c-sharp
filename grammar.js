@@ -237,6 +237,7 @@ module.exports = grammar({
     sym('_nonprimary_expression_end'),
     sym('_pattern_paren_end'),
     sym('_pattern_bracket_end'),
+    sym('_suppression_operator'),
   ],
 
   extras: ($) => [
@@ -1413,7 +1414,7 @@ module.exports = grammar({
           $.conditional_access_expression,
           alias($._conditional_suppression_expression, $.postfix_unary_expression)
         ),
-        '!'
+        suppressionOperator()
       ),
 
     _conditional_update_expression: ($) =>
@@ -1473,7 +1474,7 @@ module.exports = grammar({
       ),
 
     postfix_unary_expression: ($) =>
-      postfixExpression($._primary_no_conditional_access_expression, choice('++', '--', '!')),
+      postfixExpression($._primary_no_conditional_access_expression, choice('++', '--', suppressionOperator())),
 
     prefix_unary_expression: ($) => prefixUnaryExpression($._unary_expression),
 
@@ -1561,7 +1562,8 @@ module.exports = grammar({
         alias($._member_binding_suppression_expression, $.postfix_unary_expression)
       ),
 
-    _member_binding_suppression_expression: ($) => postfixExpression($._member_conditional_binding_receiver, '!'),
+    _member_binding_suppression_expression: ($) =>
+      postfixExpression($._member_conditional_binding_receiver, suppressionOperator()),
 
     _member_binding_member_access_expression: ($) => memberAccessExpression($, $._member_conditional_binding_receiver),
 
@@ -1603,7 +1605,7 @@ module.exports = grammar({
         alias($._binding_suppression_expression, $.postfix_unary_expression)
       ),
 
-    _binding_suppression_expression: ($) => postfixExpression($._conditional_binding_receiver, '!'),
+    _binding_suppression_expression: ($) => postfixExpression($._conditional_binding_receiver, suppressionOperator()),
 
     _binding_member_access_expression: ($) => memberAccessExpression($, $._conditional_binding_receiver),
 
@@ -2454,6 +2456,10 @@ function stackallocExpression($, initializer) {
  */
 function bracketedArgumentList($, opener) {
   return seq(opener, commaSep1($.argument), optional(','), ']');
+}
+
+function suppressionOperator() {
+  return alias(sym('_suppression_operator'), '!');
 }
 
 function definiteAccessQuestion() {

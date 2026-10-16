@@ -28,6 +28,7 @@ test('uses a Wasm build built from the current parser', () => {
       mtime('src/parser.c'),
       mtime('src/scanner.c'),
       mtime('src/questionContext.h'),
+      mtime('src/questionLiterals.h'),
       mtime('src/nullableRank.h'),
       mtime('src/nullableTypes.h'),
       mtime('src/identifierCharacters.h'),
