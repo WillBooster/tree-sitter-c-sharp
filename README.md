@@ -35,7 +35,8 @@ Type tests use `is_pattern_expression`; `is_expression` is no longer emitted. Th
 `non_lvalue_expression` supertypes have been replaced by the shared expression grammar. Update queries to use
 `expression` and the concrete expression nodes. Constant patterns can contain a direct `conditional_access_expression`
 child. Conditional access includes its complete dependent chain and, for conditional assignment, the assignment in its
-`consequence` field.
+`consequence` field. Tuple-shaped patterns such as `x is (1, 2)` use `recursive_pattern` with a
+`positional_pattern_clause` instead of `constant_pattern` with a `tuple_expression`.
 
 ## Usage
 

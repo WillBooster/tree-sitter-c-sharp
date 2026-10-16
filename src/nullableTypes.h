@@ -14,6 +14,7 @@ static bool rank_read_nullable_boundary(TSLexer *lexer, RankTypeRead *read, bool
 static bool rank_read_as_name(TSLexer *lexer, RankTypeRead *read);
 static bool rank_read_as_name_tail(TSLexer *lexer, RankTypeRead *read, bool arguments_allowed);
 static bool rank_read_as_name_part(TSLexer *lexer, RankTypeRead *read);
+static bool rank_read_calling_convention(TSLexer *lexer);
 static bool rank_read_as_arguments(TSLexer *lexer, int32_t close, RankTypeRead *read);
 static bool rank_read_as_rank(TSLexer *lexer);
 
@@ -179,12 +180,31 @@ static bool rank_read_as_name_part(TSLexer *lexer, RankTypeRead *read) {
     if (function_pointer) {
         if (question_skip_separators(lexer) != '*') return false;
         advance(lexer);
+        if (!rank_read_calling_convention(lexer)) return false;
     } else if (!rank_identifier_allowed(&name, true)) return false;
     int32_t next = rank_type_gap(lexer, read);
     if (next != '<') return next >= -1 && !function_pointer;
     read->complex = true;
     advance(lexer);
     return rank_read_as_arguments(lexer, '>', read);
+}
+
+static bool rank_read_calling_convention(TSLexer *lexer) {
+    if (question_skip_separators(lexer) == '<') return true;
+    QuestionIdentifier convention;
+    if (!rank_read_identifier(lexer, &convention) || !convention.keyword) return false;
+    bool unmanaged = !strcmp(convention.word, "unmanaged");
+    if (!unmanaged && strcmp(convention.word, "managed")) return false;
+    if (question_skip_separators(lexer) != '[') return lexer->lookahead == '<';
+    if (!unmanaged) return false;
+    do {
+        advance(lexer);
+        if (question_skip_separators(lexer) < 0 || !rank_read_identifier(lexer, &convention) ||
+            !rank_identifier_allowed(&convention, true)) return false;
+    } while (question_skip_separators(lexer) == ',');
+    if (lexer->lookahead != ']') return false;
+    advance(lexer);
+    return question_skip_separators(lexer) == '<';
 }
 
 static bool rank_read_as_arguments(TSLexer *lexer, int32_t close, RankTypeRead *read) {

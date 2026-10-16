@@ -1408,7 +1408,13 @@ module.exports = grammar({
         alias($._assignment_target_await_expression, $.await_expression)
       ),
 
-    _assignment_target_prefix_unary_expression: ($) => prefixUnaryExpression($._nonconditional_unary_expression),
+    _assignment_target_unary_operand: ($) =>
+      choice(
+        $._nonconditional_unary_expression,
+        alias($._assignment_target_prefix_range_expression, $.range_expression)
+      ),
+
+    _assignment_target_prefix_unary_expression: ($) => prefixUnaryExpression($._assignment_target_unary_operand),
 
     _assignment_target_cast_expression: ($) =>
       castExpression(
@@ -1417,16 +1423,10 @@ module.exports = grammar({
         alias($._assignment_target_prefix_range_expression, $.range_expression)
       ),
 
-    _assignment_target_prefix_range_expression: ($) =>
-      prefixRangeExpression(
-        choice(
-          $._nonconditional_unary_expression,
-          alias($._assignment_target_prefix_range_expression, $.range_expression)
-        )
-      ),
+    _assignment_target_prefix_range_expression: ($) => prefixRangeExpression($._assignment_target_unary_operand),
 
     _assignment_target_await_expression: ($) =>
-      prec.right(PREC.UNARY, seq('await', $._nonconditional_unary_expression)),
+      prec.right(PREC.UNARY, seq('await', $._assignment_target_unary_operand)),
 
     _conditional_suppression_expression: ($) =>
       postfixExpression(
@@ -1496,7 +1496,7 @@ module.exports = grammar({
     postfix_unary_expression: ($) =>
       postfixExpression($._primary_no_conditional_access_expression, choice('++', '--', suppressionOperator())),
 
-    prefix_unary_expression: ($) => prefixUnaryExpression($._unary_expression),
+    prefix_unary_expression: ($) => prefixUnaryExpression($._unary_operand),
 
     query_expression: ($) => seq($.from_clause, $._query_body),
 
@@ -1658,12 +1658,14 @@ module.exports = grammar({
       ),
 
     // C# treats a non-generic terminal name followed by a nonempty collection as parenthesized indexing.
-    cast_expression: ($) => castExpression($, $._cast_operand, alias($._prefix_range_expression, $.range_expression)),
+    cast_expression: ($) =>
+      castExpression($, $._non_range_unary_operand, alias($._prefix_range_expression, $.range_expression)),
 
-    _cast_operand: ($) => choice($._unary_expression, $.query_expression),
+    _non_range_unary_operand: ($) => choice($._unary_expression, $.query_expression),
 
-    _prefix_range_expression: ($) =>
-      prefixRangeExpression(choice($._cast_operand, alias($._prefix_range_expression, $.range_expression))),
+    _unary_operand: ($) => choice($._non_range_unary_operand, alias($._prefix_range_expression, $.range_expression)),
+
+    _prefix_range_expression: ($) => prefixRangeExpression($._unary_operand),
 
     _range_cast_type: ($) =>
       choice(
@@ -1709,7 +1711,7 @@ module.exports = grammar({
 
     when_clause: ($) => seq('when', $.expression),
 
-    await_expression: ($) => prec.right(PREC.UNARY, seq('await', $._unary_expression)),
+    await_expression: ($) => prec.right(PREC.UNARY, seq('await', $._unary_operand)),
 
     throw_expression: ($) => seq('throw', $.expression),
 

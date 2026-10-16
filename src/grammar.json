@@ -9402,6 +9402,24 @@
         }
       ]
     },
+    "_assignment_target_unary_operand": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_nonconditional_unary_expression"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_assignment_target_prefix_range_expression"
+          },
+          "named": true,
+          "value": "range_expression"
+        }
+      ]
+    },
     "_assignment_target_prefix_unary_expression": {
       "type": "PREC_RIGHT",
       "value": 17,
@@ -9434,7 +9452,7 @@
               },
               {
                 "type": "SYMBOL",
-                "name": "_nonconditional_unary_expression"
+                "name": "_assignment_target_unary_operand"
               }
             ]
           },
@@ -9471,7 +9489,7 @@
                 },
                 {
                   "type": "SYMBOL",
-                  "name": "_nonconditional_unary_expression"
+                  "name": "_assignment_target_unary_operand"
                 }
               ]
             }
@@ -9617,22 +9635,8 @@
             "type": "CHOICE",
             "members": [
               {
-                "type": "CHOICE",
-                "members": [
-                  {
-                    "type": "SYMBOL",
-                    "name": "_nonconditional_unary_expression"
-                  },
-                  {
-                    "type": "ALIAS",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "_assignment_target_prefix_range_expression"
-                    },
-                    "named": true,
-                    "value": "range_expression"
-                  }
-                ]
+                "type": "SYMBOL",
+                "name": "_assignment_target_unary_operand"
               },
               {
                 "type": "BLANK"
@@ -9654,7 +9658,7 @@
           },
           {
             "type": "SYMBOL",
-            "name": "_nonconditional_unary_expression"
+            "name": "_assignment_target_unary_operand"
           }
         ]
       }
@@ -10861,7 +10865,7 @@
               },
               {
                 "type": "SYMBOL",
-                "name": "_unary_expression"
+                "name": "_unary_operand"
               }
             ]
           },
@@ -10898,7 +10902,7 @@
                 },
                 {
                   "type": "SYMBOL",
-                  "name": "_unary_expression"
+                  "name": "_unary_operand"
                 }
               ]
             }
@@ -12300,7 +12304,7 @@
                   "name": "value",
                   "content": {
                     "type": "SYMBOL",
-                    "name": "_cast_operand"
+                    "name": "_non_range_unary_operand"
                   }
                 }
               ]
@@ -12334,7 +12338,7 @@
                   "name": "value",
                   "content": {
                     "type": "SYMBOL",
-                    "name": "_cast_operand"
+                    "name": "_non_range_unary_operand"
                   }
                 }
               ]
@@ -12382,7 +12386,7 @@
         }
       }
     },
-    "_cast_operand": {
+    "_non_range_unary_operand": {
       "type": "CHOICE",
       "members": [
         {
@@ -12392,6 +12396,24 @@
         {
           "type": "SYMBOL",
           "name": "query_expression"
+        }
+      ]
+    },
+    "_unary_operand": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_non_range_unary_operand"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_prefix_range_expression"
+          },
+          "named": true,
+          "value": "range_expression"
         }
       ]
     },
@@ -12409,22 +12431,8 @@
             "type": "CHOICE",
             "members": [
               {
-                "type": "CHOICE",
-                "members": [
-                  {
-                    "type": "SYMBOL",
-                    "name": "_cast_operand"
-                  },
-                  {
-                    "type": "ALIAS",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "_prefix_range_expression"
-                    },
-                    "named": true,
-                    "value": "range_expression"
-                  }
-                ]
+                "type": "SYMBOL",
+                "name": "_unary_operand"
               },
               {
                 "type": "BLANK"
@@ -12864,7 +12872,7 @@
           },
           {
             "type": "SYMBOL",
-            "name": "_unary_expression"
+            "name": "_unary_operand"
           }
         ]
       }

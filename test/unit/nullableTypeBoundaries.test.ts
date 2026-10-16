@@ -50,6 +50,17 @@ test('completes generic as-types before relational and shift operators', () => {
   ]);
 });
 
+test('preserves nullable ownership before function-pointer calling conventions', () => {
+  assertAlternatives([
+    'a as delegate*<int, void>',
+    'a as delegate* managed<int, void>',
+    'a as delegate* unmanaged<int, void>',
+    'a as delegate* unmanaged[Cdecl]<int, void>',
+    'a as delegate* unmanaged[Stdcall, SuppressGCTransition]<int, void>',
+    'a as delegate* /* convention */ unmanaged [Cdecl] <int, void>',
+  ]);
+});
+
 test('retains expression-starting unary operators after a ternary question', () => {
   assertAlternatives(['+', '-', '*', '&', '!', '~', '^', '++', '--'].map((operator) => `a as T ? ${operator}b : c`));
 });
