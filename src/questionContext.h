@@ -519,6 +519,7 @@ static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, Questi
             walk->rank_phase == RANK_TERNARY;
         bool nullable_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
         if ((first_rank && first == ']') || (nullable_rank && first == ',') ||
+            (walk->rank_phase == RANK_TERNARY && walk->binding) ||
             (walk->rank_phase == RANK_AFTER_NULLABLE && (walk->binding || first == ']'))) {
             walk->known_nullable = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
             walk->known_ternary = !walk->known_nullable;
@@ -559,6 +560,7 @@ static void question_walk_colon(QuestionWalk *walk) {
         if (walk->case_colon_possible && !walk->known_ternary) walk->role_known = false;
         walk->role_active = false;
     }
+    if (walk->role_known && walk->proved_ternary) walk->known_ternary = true;
 }
 
 static void question_walk_future_question(QuestionWalk *walk, int32_t next) {

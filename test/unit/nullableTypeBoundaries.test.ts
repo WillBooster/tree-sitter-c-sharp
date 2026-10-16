@@ -61,6 +61,57 @@ test('preserves nullable ownership before function-pointer calling conventions',
   ]);
 });
 
+test('preserves nested nullable tests after collection-valued pattern-test branches', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of [
+      'T',
+      'a?.b',
+      'a?.b + c',
+      'a?.b?[0]',
+      '1 + 2',
+      'default(T)',
+      'T[]',
+      'T[,]',
+      'T[][]',
+      'A.B',
+      'A<B>',
+      'global::A',
+      'not T',
+      'T and U',
+      'T or U',
+      'T?[]',
+      'delegate*<int, void>',
+      'delegate* managed<int, void>',
+      'delegate* unmanaged<int, void>',
+      'delegate* unmanaged[Cdecl]<int, void>',
+      'delegate* unmanaged[Stdcall, SuppressGCTransition]<int, void>',
+      'delegate* /* convention */ unmanaged [Cdecl] <int, void>',
+    ]) {
+      for (const consequence of ['[1]', '[1, 2]', '[]']) {
+        const source = `var result = x is ${pattern} ? ${consequence} : a is U?[] ? [a] : b;`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode
+              .descendantsOfType('conditional_expression')
+              .map((node) => [node.childForFieldName('condition')?.text, node.childForFieldName('consequence')?.text]),
+            source
+          ).toEqual([
+            [`x is ${pattern}`, consequence],
+            ['a is U?[]', '[a]'],
+          ]);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('retains expression-starting unary operators after a ternary question', () => {
   assertAlternatives(['+', '-', '*', '&', '!', '~', '^', '++', '--'].map((operator) => `a as T ? ${operator}b : c`));
 });

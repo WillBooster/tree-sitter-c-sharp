@@ -4,6 +4,7 @@
 typedef struct { bool colon; bool comma; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
 
 static bool rank_read_prefix(TSLexer *lexer, bool *simple);
+static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *name, bool *simple);
 static bool rank_read_identifier(TSLexer *lexer, QuestionIdentifier *identifier);
 static bool rank_identifier_allowed(const QuestionIdentifier *word, bool type);
 static int32_t rank_type_gap(TSLexer *lexer, RankTypeRead *read);
@@ -14,6 +15,7 @@ static bool rank_read_nullable_boundary(TSLexer *lexer, RankTypeRead *read, bool
 static bool rank_read_as_name(TSLexer *lexer, RankTypeRead *read);
 static bool rank_read_as_name_tail(TSLexer *lexer, RankTypeRead *read, bool arguments_allowed);
 static bool rank_read_as_name_part(TSLexer *lexer, RankTypeRead *read);
+static bool rank_read_as_name_suffix(TSLexer *lexer, RankTypeRead *read, const QuestionIdentifier *name);
 static bool rank_read_calling_convention(TSLexer *lexer);
 static bool rank_read_as_arguments(TSLexer *lexer, int32_t close, RankTypeRead *read);
 static bool rank_read_as_rank(TSLexer *lexer);
@@ -36,12 +38,22 @@ static bool rank_read_prefix(TSLexer *lexer, bool *simple) {
         }
         if (logical) return false;
         if (word.keyword && !strcmp(word.word, "not")) continue;
-        RankTypeRead read = {0};
-        if (!rank_identifier_allowed(&word, true) || !rank_read_as_name_tail(lexer, &read, true) ||
-            read.question || read.colon || read.coalesce || read.conditional || read.division) return false;
+        if (!rank_read_prefix_suffix(lexer, &word, simple)) return false;
         operand = false;
     }
     return false;
+}
+
+static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *name, bool *simple) {
+    RankTypeRead read = {0};
+    if (!rank_read_as_name_suffix(lexer, &read, name) || !rank_read_as_name_tail(lexer, &read, false) || read.question || read.colon ||
+        read.coalesce || read.conditional || read.division) return false;
+    int32_t next;
+    while ((next = question_skip_separators(lexer)) == '[') {
+        *simple = false;
+        if (!rank_read_as_rank(lexer)) return false;
+    }
+    return next >= 0;
 }
 
 static bool rank_read_identifier(TSLexer *lexer, QuestionIdentifier *identifier) {
@@ -176,12 +188,16 @@ static bool rank_read_as_name_tail(TSLexer *lexer, RankTypeRead *read, bool argu
 static bool rank_read_as_name_part(TSLexer *lexer, RankTypeRead *read) {
     QuestionIdentifier name;
     if (!rank_read_identifier(lexer, &name)) return false;
-    bool function_pointer = name.keyword && !strcmp(name.word, "delegate");
+    return rank_read_as_name_suffix(lexer, read, &name);
+}
+
+static bool rank_read_as_name_suffix(TSLexer *lexer, RankTypeRead *read, const QuestionIdentifier *name) {
+    bool function_pointer = name->keyword && !strcmp(name->word, "delegate");
     if (function_pointer) {
         if (question_skip_separators(lexer) != '*') return false;
         advance(lexer);
         if (!rank_read_calling_convention(lexer)) return false;
-    } else if (!rank_identifier_allowed(&name, true)) return false;
+    } else if (!rank_identifier_allowed(name, true)) return false;
     int32_t next = rank_type_gap(lexer, read);
     if (next != '<') return next >= -1 && !function_pointer;
     read->complex = true;

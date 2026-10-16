@@ -74,10 +74,15 @@ static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending) {
     bool simple_type = false;
     if (!rank_read_prefix(lexer, &simple_type)) return RANK_NONE;
     advance(lexer);
+    if (question_skip_separators(lexer) != '[') return RANK_NONE;
+    advance(lexer);
+    int32_t bracket_first = question_skip_separators(lexer);
+    if (bracket_first < 0 || lexer->eof(lexer)) return RANK_NONE;
+    if (bracket_first != ']' && bracket_first != ',') return RANK_TERNARY;
     RankTokens tail = array_new();
     bool definite = false;
     unsigned colons = 0;
-    if (!rank_read_omitted_ranks(lexer, &tail, &definite, false) || !rank_read_stream(lexer, &tail, &colons) || pending > colons) {
+    if (!rank_read_omitted_ranks(lexer, &tail, &definite, true) || !rank_read_stream(lexer, &tail, &colons) || pending > colons) {
         array_delete(&tail);
         return RANK_NONE;
     }
