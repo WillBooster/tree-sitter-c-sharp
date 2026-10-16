@@ -214,6 +214,7 @@ typedef struct {
     bool assignment_possible;
     bool first_word;
     bool ordinary_first_token;
+    bool future_first_token;
     bool ordinary_name_candidate;
     bool ordinary_colon_context;
     bool found_next_question;
@@ -225,6 +226,8 @@ typedef enum { QUESTION_WALK_CONTINUE, QUESTION_WALK_STOP, QUESTION_WALK_UNKNOWN
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase);
 static QuestionWalkStep question_walk_argument_end(TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_nullable_tail(QuestionWalk *walk, int32_t c);
+static void question_walk_logical_nullable(QuestionWalk *walk);
+static bool question_pattern_only_start(int32_t c);
 static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first);
 static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, int32_t c);
@@ -234,7 +237,7 @@ static bool question_opening_group(int32_t c);
 static bool question_closing_group(int32_t c);
 static bool question_operator(int32_t c);
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier);
-static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier);
+static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier);
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as);
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *walk);
@@ -322,6 +325,8 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
 static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c) {
     question_walk_nullable_tail(walk, c);
     bool first_identifier = walk->ordinary_first_token;
+    bool future_identifier = walk->future_first_token;
+    walk->future_first_token = false;
     if (c == '?' && walk->ordinary_name_candidate && walk->recording && !walk->depth) {
         walk->known_ternary = true;
         walk->known_nullable = false;
@@ -340,7 +345,7 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
         return QUESTION_WALK_CONTINUE;
     if (c == '$' || c == '@' || c == '"' || c == '\'') return question_walk_literal(lexer, walk, c, first_identifier);
     if (c == 0 || c == '#') return QUESTION_WALK_UNKNOWN;
-    if (is_id_start(c) || c == '\\') return question_walk_identifier(scanner, lexer, walk, first_identifier);
+    if (is_id_start(c) || c == '\\') return question_walk_identifier(scanner, lexer, walk, first_identifier, future_identifier);
     if (c == '?') return question_walk_question(lexer, walk);
     if (walk->recording && !walk->depth && walk->ordinary && question_operator(c)) walk->definite_ternary = true;
     if (c == ':' || c == ';' || question_opening_group(c) || question_closing_group(c))
@@ -359,6 +364,9 @@ static QuestionWalkStep question_walk_argument_end(TSLexer *lexer, QuestionWalk 
 }
 
 static void question_walk_nullable_tail(QuestionWalk *walk, int32_t c) {
+    if (walk->logical_name_candidate && !walk->recording && !walk->depth &&
+        question_pattern_only_start(c))
+        question_walk_logical_nullable(walk);
     if (!is_id_start(c) && c != '\\' && c != '@') walk->logical_name_candidate = false;
     if (!walk->depth && (c == ')' || c == ',') &&
         (walk->omitted_rank_candidate || walk->nullable_name_candidate || walk->ordinary_name_candidate))
@@ -368,6 +376,15 @@ static void question_walk_nullable_tail(QuestionWalk *walk, int32_t c) {
     if (walk->omitted_rank_candidate)
         walk->omitted_rank_candidate = (c == '[' && !walk->depth) ||
             ((c == ']' || c == ',') && walk->depth == 1);
+}
+
+static void question_walk_logical_nullable(QuestionWalk *walk) {
+    if (walk->recording) walk->known_nullable = true;
+    else walk->mandatory--;
+}
+
+static bool question_pattern_only_start(int32_t c) {
+    return c == '{' || c == '$' || c == '"' || c == '\'' || (c >= '0' && c <= '9');
 }
 
 static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first) {
@@ -443,13 +460,14 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
         if (lexer->lookahead != '"' && lexer->lookahead != '$') {
             QuestionIdentifier identifier;
             if (!question_identifier(lexer, true, &identifier)) return QUESTION_WALK_UNKNOWN;
-            if (walk->logical_name_candidate && walk->recording && !walk->depth) walk->known_nullable = true;
+            if (walk->logical_name_candidate && !walk->depth) question_walk_logical_nullable(walk);
             walk->logical_name_candidate = false;
             walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary;
             if (walk->recording) walk->first_word = false;
             return QUESTION_WALK_CONTINUE;
         }
     }
+    if (walk->logical_name_candidate && !walk->recording && !walk->depth) question_walk_logical_nullable(walk);
     walk->logical_name_candidate = false;
     if (walk->recording && walk->first_word && walk->ordinary) walk->definite_ternary = true;
     bool valid = lexer->lookahead == '$'
@@ -458,17 +476,17 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
     return valid ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
 }
 
-static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier) {
+static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier) {
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return QUESTION_WALK_UNKNOWN;
     if (identifier.keyword && !walk->is_later_alternative && (strcmp(identifier.word, "new") == 0 || strcmp(identifier.word, "delegate") == 0 ||
         strcmp(identifier.word, "stackalloc") == 0 || strcmp(identifier.word, "from") == 0)) walk->is_eligible = false;
     bool is_or_as = identifier.keyword && (strcmp(identifier.word, "is") == 0 || strcmp(identifier.word, "as") == 0);
     bool value_operator = is_or_as || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
-    if (walk->logical_name_candidate && walk->recording && !walk->depth && !value_operator)
-        walk->known_nullable = true;
-    walk->logical_name_candidate = (first_identifier || walk->nullable_name_candidate) &&
-        walk->recording && !walk->depth && identifier.keyword &&
+    if (walk->logical_name_candidate && !walk->depth && !value_operator)
+        question_walk_logical_nullable(walk);
+    walk->logical_name_candidate = ((walk->recording && (first_identifier || walk->nullable_name_candidate)) || future_identifier) &&
+        !walk->depth && identifier.keyword &&
         (!strcmp(identifier.word, "and") || !strcmp(identifier.word, "or"));
     if (walk->ordinary_name_candidate && walk->recording && !walk->depth && !walk->nullable_only && value_operator) {
         walk->definite_ternary = true;
@@ -525,6 +543,7 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
     if (walk->role_active && !walk->depth) {
         question_skip_separators(lexer);
         QuestionFollowing following = question_following(lexer);
+        walk->future_first_token = following.token != '[' && !following.member;
         if (walk->recording && walk->root_colons && walk->binding && following.token != '[' && !following.member) {
             walk->role_active = false;
             walk->role_known = false;

@@ -1760,3 +1760,46 @@ test('preserves alternative access after a type test with a question-free true a
     parser.delete();
   }
 });
+
+test('keeps later nullable logical patterns out of ternary colon counts', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of [
+      'T? and U',
+      'T? or U',
+      'int? and not U',
+      'T? and { P: 1 }',
+      'T? and 1',
+      'T? or "s"',
+      'T? /* question */ or /* operand */ @U',
+    ]) {
+      for (const expression of [
+        `y ? a ? b : c ? [a] : d ? [] : x is ${pattern} : w`,
+        `flag ? a?[0] is T ? b : x is ${pattern} : w`,
+      ]) {
+        const tree = parser.parse(`var r = ${expression};`)!;
+        try {
+          expect(tree.rootNode.hasError, expression).toBe(false);
+          const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
+          const access = expression.startsWith('flag');
+          expect(
+            conditionals.map((node) => node.childForFieldName('condition')?.text),
+            expression
+          ).toEqual(access ? ['flag', 'a?[0] is T'] : ['y', 'a', 'c', 'd']);
+          const last = conditionals.at(-1)!;
+          expect(last.childForFieldName('consequence')?.text, expression).toBe(access ? 'b' : '[]');
+          expect(last.childForFieldName('alternative')?.text, expression).toBe(`x is ${pattern}`);
+          expect(
+            tree.rootNode.descendantsOfType('conditional_access_expression').map((node) => node.text),
+            expression
+          ).toEqual(access ? ['a?[0]'] : []);
+          expect(tree.rootNode.descendantsOfType('nullable_type'), expression).toHaveLength(1);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
