@@ -1058,3 +1058,31 @@ test('preserves nullable conditions before await and creation alternatives', () 
     parser.delete();
   }
 });
+
+test('uses grammar identifier characters while proving nullable ownership', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const name of ['a\u0301', 'a\u203F', 'Ā', '變量', '𐐀', String.raw`a\u0301`, String.raw`a\u203f`]) {
+      for (const [condition, alternative] of [
+        ['x is T?[]', name],
+        [`x is ${name}?[]`, 'fallback'],
+        ['x is T?[]', `${name}?[0]`],
+      ]) {
+        const source = `var result = ${condition} ? [1] : ${alternative};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+          expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+          expect(ternary?.childForFieldName('consequence')?.text, source).toBe('[1]');
+          expect(ternary?.childForFieldName('alternative')?.text, source).toBe(alternative);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

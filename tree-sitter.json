@@ -10,7 +10,12 @@
       "highlights": ["queries/highlights.scm"],
       "tags": ["queries/tags.scm"],
       "injection-regex": "cs",
-      "external-files": ["src/nullableRank.h", "src/nullableTypes.h", "src/questionContext.h"]
+      "external-files": [
+        "src/identifierCharacters.h",
+        "src/nullableRank.h",
+        "src/nullableTypes.h",
+        "src/questionContext.h"
+      ]
     }
   ],
   "metadata": {

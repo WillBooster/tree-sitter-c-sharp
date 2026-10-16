@@ -30,6 +30,7 @@ test('uses a Wasm build built from the current parser', () => {
       mtime('src/questionContext.h'),
       mtime('src/nullableRank.h'),
       mtime('src/nullableTypes.h'),
+      mtime('src/identifierCharacters.h'),
       mtime('src/tree_sitter/parser.h')
     ) > fs.statSync(WasmPath).mtimeMs,
     'src/ changed after the Wasm build was built; run `bun run build/ci`'

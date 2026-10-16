@@ -5,6 +5,8 @@
 #include <string.h>
 #include <wctype.h>
 
+#include "identifierCharacters.h"
+
 enum TokenType {
     OPT_SEMI,
     INTERPOLATION_REGULAR_START,
@@ -97,14 +99,6 @@ static inline bool is_line_terminator(int32_t c) {
 // Line terminators that remain here are handled by the grammar when end-of-input lookahead fails.
 static inline bool is_space_but_line_feed(int32_t c) {
     return c == '\t' || c == '\v' || c == '\f' || c == '\r' || c == ' ' || c == 0xA0 || c == 0x3000 || c == 0xFEFF;
-}
-
-static inline bool is_id_start(int32_t c) {
-    return c == '_' || iswalpha(c);
-}
-
-static inline bool is_id_continue(int32_t c) {
-    return c == '_' || iswalnum(c);
 }
 
 static bool skip_block_comment(TSLexer *lexer);
