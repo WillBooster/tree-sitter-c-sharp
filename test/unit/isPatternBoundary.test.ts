@@ -1272,3 +1272,36 @@ test('keeps nested positional patterns distinct from parenthesized tuple constan
     parser.delete();
   }
 });
+
+test('keeps logical pattern operands inside list slices', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const [pattern, kind] of [
+      ['Foo and string', 'and_pattern'],
+      ['string or null', 'or_pattern'],
+      ['> 1 and < 5', 'and_pattern'],
+      ['not null', 'negated_pattern'],
+      ['Foo or Bar and Baz', 'or_pattern'],
+    ] as const) {
+      for (const source of [
+        `var result = value is [.. ${pattern}];`,
+        `var result = value is [1, .. ${pattern}, 2];`,
+        `var result = value switch { [.. ${pattern}] => 1, _ => 0 };`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const slice = tree.rootNode.descendantsOfType('slice_pattern')[0]!;
+          expect(slice.text).toBe(`.. ${pattern}`);
+          expect(slice.parent!.type).toBe('list_pattern');
+          expect(slice.firstNamedChild!.type).toBe(kind);
+          expect(slice.firstNamedChild!.text).toBe(pattern);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

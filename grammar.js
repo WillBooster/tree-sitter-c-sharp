@@ -1337,7 +1337,7 @@ module.exports = grammar({
         )
       ),
 
-    slice_pattern: ($) => prec.right(PREC.RANGE, seq(alias(sym('_slice_pattern_start'), '..'), optional($.pattern))),
+    slice_pattern: ($) => prec.right(seq(alias(sym('_slice_pattern_start'), '..'), optional($.pattern))),
 
     recursive_pattern: ($) =>
       prec.left(

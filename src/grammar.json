@@ -8599,7 +8599,7 @@
     },
     "slice_pattern": {
       "type": "PREC_RIGHT",
-      "value": 16,
+      "value": 0,
       "content": {
         "type": "SEQ",
         "members": [
