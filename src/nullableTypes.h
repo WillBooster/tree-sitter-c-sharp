@@ -1,13 +1,16 @@
 #ifndef TREE_SITTER_C_SHARP_NULLABLE_TYPES_H_
 #define TREE_SITTER_C_SHARP_NULLABLE_TYPES_H_
 
-typedef struct { bool colon; bool comma; bool complex; bool question; bool coalesce; bool conditional; bool division; } RankTypeRead;
+typedef struct { bool colon; bool comma; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
 
 static bool rank_read_prefix(TSLexer *lexer);
 static bool rank_read_identifier(TSLexer *lexer, QuestionIdentifier *identifier);
 static bool rank_identifier_allowed(const QuestionIdentifier *word, bool type);
 static int32_t rank_type_gap(TSLexer *lexer, RankTypeRead *read);
 static bool rank_read_as_type(TSLexer *lexer, RankTypeRead *read);
+static bool rank_read_type(TSLexer *lexer, RankTypeRead *read, bool tuple_element);
+static bool rank_read_nullable_suffix(TSLexer *lexer, RankTypeRead *read, bool tuple_element);
+static bool rank_read_nullable_boundary(TSLexer *lexer, RankTypeRead *read, bool tuple_element);
 static bool rank_read_as_name(TSLexer *lexer, RankTypeRead *read);
 static bool rank_read_as_name_tail(TSLexer *lexer, RankTypeRead *read);
 static bool rank_read_as_name_part(TSLexer *lexer, RankTypeRead *read);
@@ -68,6 +71,10 @@ static int32_t rank_type_gap(TSLexer *lexer, RankTypeRead *read) {
 }
 
 static bool rank_read_as_type(TSLexer *lexer, RankTypeRead *read) {
+    return rank_read_type(lexer, read, false);
+}
+
+static bool rank_read_type(TSLexer *lexer, RankTypeRead *read, bool tuple_element) {
     if (question_skip_separators(lexer) < 0) return false;
     if (lexer->lookahead == '(') {
         read->complex = true;
@@ -82,20 +89,8 @@ static bool rank_read_as_type(TSLexer *lexer, RankTypeRead *read) {
             case '?':
                 read->complex = true;
                 if (nullable) return true;
-                advance(lexer);
-                if (lexer->lookahead == '?') {
-                    advance(lexer);
-                    read->coalesce = true;
-                    return lexer->lookahead != '=';
-                }
-                c = rank_type_gap(lexer, read);
-                if (c < -1) return false;
-                if (c != -1 && c != '[' && c != '?' && !lexer->eof(lexer) && (c <= 0 || c >= 128 || !strchr(",>)]}:;", c))) {
-                    read->conditional = true;
-                    return true;
-                }
-                read->question = true;
-                if (read->division) return true;
+                if (!rank_read_nullable_suffix(lexer, read, tuple_element)) return false;
+                if (read->coalesce || read->conditional || read->binary || read->has_word || read->division) return true;
                 nullable = true;
                 break;
             case '*':
@@ -112,6 +107,40 @@ static bool rank_read_as_type(TSLexer *lexer, RankTypeRead *read) {
                 return c >= -1;
         }
     }
+}
+
+static bool rank_read_nullable_suffix(TSLexer *lexer, RankTypeRead *read, bool tuple_element) {
+    advance(lexer);
+    if (lexer->lookahead == '?') {
+        advance(lexer);
+        read->coalesce = true;
+        return lexer->lookahead != '=';
+    }
+    if (rank_type_gap(lexer, read) < -1 || !rank_read_nullable_boundary(lexer, read, tuple_element)) return false;
+    if (!read->conditional) read->question = true;
+    return true;
+}
+
+static bool rank_read_nullable_boundary(TSLexer *lexer, RankTypeRead *read, bool tuple_element) {
+    int32_t c = lexer->lookahead;
+    if (read->division || lexer->eof(lexer) || (c > 0 && c < 128 && strchr(",>)]}:;[?=<|^%", c))) return true;
+    if (is_id_start(c) || c == '@' || c == '\\') {
+        if (tuple_element) return true;
+        if (!rank_read_identifier(lexer, &read->word)) return false;
+        read->has_word = true;
+        read->conditional = !read->word.keyword || (strcmp(read->word.word, "is") && strcmp(read->word.word, "as"));
+        return true;
+    }
+    if (c == '!' || c == '&') {
+        advance(lexer);
+        if (lexer->lookahead == (c == '!' ? '=' : '&')) {
+            advance(lexer);
+            read->binary = true;
+            return true;
+        }
+    }
+    read->conditional = true;
+    return true;
 }
 
 static bool rank_read_as_name(TSLexer *lexer, RankTypeRead *read) {
@@ -155,7 +184,7 @@ static bool rank_read_as_name_part(TSLexer *lexer, RankTypeRead *read) {
 
 static bool rank_read_as_arguments(TSLexer *lexer, int32_t close, RankTypeRead *read) {
     for (;;) {
-        if (!rank_read_as_type(lexer, read) || read->colon || read->coalesce || read->conditional || read->division) return false;
+        if (!rank_read_type(lexer, read, close == ')') || read->colon || read->coalesce || read->conditional || read->division || read->binary || read->has_word) return false;
         int32_t c = rank_type_gap(lexer, read);
         if (close == ')' && c != ',' && c != close) {
             QuestionIdentifier name;

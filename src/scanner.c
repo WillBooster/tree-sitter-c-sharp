@@ -272,7 +272,7 @@ static bool question_read_modes(Scanner *scanner, unsigned flags, const char *bu
     if (flags & QUESTION_STATE_RANK_ROLE) {
         if (*size >= length || !scanner->question_type_uncertain || (flags & QUESTION_STATE_ACCESS_CACHE)) return false;
         scanner->question_rank_role = (uint8_t)buffer[(*size)++];
-        if (!scanner->question_rank_role || scanner->question_rank_role > RANK_AFTER_NULLABLE) return false;
+        if (!scanner->question_rank_role || scanner->question_rank_role > RANK_PATTERN_COMPLETE) return false;
     }
     if (flags & QUESTION_STATE_ACCESS_CACHE) {
         if (*size + 4 > length) return false;
@@ -990,7 +990,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (!scanner->question_type_uncertain || scanner->question_unknown || frame->unknown || next.token != '[')
         rank_phase = RANK_NONE;
-    bool ternary_only = next.token == '[' && valid_symbols[QUESTION_TERNARY] &&
+    bool ternary_only = !scanner->question_type_uncertain && next.token == '[' && valid_symbols[QUESTION_TERNARY] &&
         !valid_symbols[QUESTION_NULLABLE] && !valid_symbols[CASE_LABEL_COLON] &&
         !valid_symbols[QUESTION_DEFINITE_ACCESS] && !valid_symbols[QUESTION_MEMBER_ACCESS] &&
         !valid_symbols[QUESTION_ELEMENT_ACCESS];

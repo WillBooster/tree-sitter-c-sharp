@@ -1,4 +1,4 @@
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Edit, Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 let language: Language;
@@ -1215,6 +1215,105 @@ test('counts empty collection alternatives when preserving dependent access chai
             .map((node) => node.childForFieldName('condition')?.text),
           expression
         ).toEqual(conditions);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('retains nullable tests around ordinary true arms and conditional-access alternatives', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const arm of ['a', 'F()', '1', 'a + b', 'await F()', 'new C()']) {
+      const source = `var result = x is T?[] ? ${arm} : a is T?[] ? [a] : b;`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const ternaries = tree.rootNode.descendantsOfType('conditional_expression');
+        expect(
+          ternaries.map((node) => node.childForFieldName('condition')?.text),
+          source
+        ).toEqual(['x is T?[]', 'a is T?[]']);
+        expect(ternaries[0]?.childForFieldName('consequence')?.text, source).toBe(arm);
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const receiver of ['b?[0]', 'b?.m', 'b?[0]?[1]']) {
+      for (const operator of ['+', '>', '==', '&']) {
+        const condition = `${receiver} is T?[]`;
+        const consequence = `f() ${operator} c?.d()`;
+        const source = `var result = ${condition} ? ${consequence} : c;`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+          expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+          expect(ternary?.childForFieldName('consequence')?.text, source).toBe(consequence);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('ends delimited is patterns before ternary collection access, including incremental edits', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of [
+      '(1, 2)',
+      '(int x, int y)',
+      '[]',
+      '[1]',
+      '(a)',
+      '(a + b)',
+      '(F())',
+      '(a?.b)',
+      '(a?[0])',
+      '((1, 2))',
+      '{ P: 1 }',
+    ]) {
+      const condition = `a is ${pattern}`;
+      const source = `var result = ${condition} ? [1]?[0] : d;`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+        expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+        const consequence = ternary?.childForFieldName('consequence');
+        expect(consequence?.text, source).toBe('[1]?[0]');
+        expect(consequence?.type, source).toBe('conditional_access_expression');
+        const start = source.length - 2;
+        const updated = `${source.slice(0, start)}fallback;`;
+        tree.edit(
+          new Edit({
+            startIndex: start,
+            oldEndIndex: start + 1,
+            newEndIndex: start + 8,
+            startPosition: { row: 0, column: start },
+            oldEndPosition: { row: 0, column: start + 1 },
+            newEndPosition: { row: 0, column: start + 8 },
+          })
+        );
+        const incremental = parser.parse(updated, tree)!;
+        const fresh = parser.parse(updated)!;
+        try {
+          expect(incremental.rootNode.hasError, updated).toBe(false);
+          expect(incremental.rootNode.toString(), updated).toBe(fresh.rootNode.toString());
+          expect(
+            incremental.rootNode.descendantsOfType('conditional_expression')[0]?.childForFieldName('condition')?.text,
+            updated
+          ).toBe(condition);
+        } finally {
+          incremental.delete();
+          fresh.delete();
+        }
       } finally {
         tree.delete();
       }
