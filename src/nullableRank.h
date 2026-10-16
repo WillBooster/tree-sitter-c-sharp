@@ -9,26 +9,29 @@ typedef enum {
     RANK_AFTER_NULLABLE,
 } NullableRankRole;
 
-typedef enum { RANK_ATOM, RANK_IS_TYPE, RANK_QUESTION, RANK_COLON, RANK_CONTINUATION, RANK_AS, RANK_SWITCH, RANK_BINARY, RANK_BINARY_PRIMARY, RANK_END } RankTokenKind;
+typedef enum { RANK_ATOM, RANK_NONPRIMARY_ATOM, RANK_LAMBDA, RANK_IS_TYPE, RANK_DEFINITE_TYPE, RANK_QUESTION, RANK_COLON, RANK_CONTINUATION, RANK_AS, RANK_SWITCH, RANK_BINARY, RANK_BINARY_PRIMARY, RANK_END } RankTokenKind;
 typedef struct { RankTokenKind kind; bool collection; bool force_unsafe; } RankToken;
 typedef Array(RankToken) RankTokens;
 typedef Array(char) RankGroups;
 typedef struct { bool colon; bool comma; bool complex; } RankTypeRead;
+typedef enum { RANK_HEADER_START, RANK_HEADER_MODIFIER, RANK_HEADER_NAME, RANK_HEADER_PARAMETERS, RANK_HEADER_DELEGATE, RANK_HEADER_DELEGATE_PARAMETERS, RANK_HEADER_INVALID } RankLambdaHeader;
+typedef struct { unsigned token; RankLambdaHeader header; bool content; bool primary; bool type_pending; bool type_complete; } RankExpression;
 typedef enum { RANK_READ_UNKNOWN, RANK_READ_MORE, RANK_READ_DONE, RANK_READ_TOKEN } RankReadStep;
 typedef enum { RANK_BODY_BRACKET, RANK_BODY_EXPRESSION } RankBodyMode;
 typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid; } RankParse;
 
 static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending);
 static bool rank_read_prefix(TSLexer *lexer);
+static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite);
 static bool rank_read_type_suffixes(TSLexer *lexer);
 static bool rank_read_type_member(TSLexer *lexer);
 static bool rank_read_type_arguments(TSLexer *lexer);
 static bool rank_read_type_name(TSLexer *lexer);
 static bool rank_read_identifier(TSLexer *lexer, QuestionIdentifier *identifier);
 static bool rank_identifier_allowed(const QuestionIdentifier *word, bool type);
-static bool rank_read_bracket(TSLexer *lexer, bool empty);
+static bool rank_read_bracket(TSLexer *lexer);
 static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode, bool *force_unsafe);
-static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_t c, bool expression, bool *access);
+static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_t c, bool expression, bool *access, bool *force_unsafe);
 static bool rank_read_stream(TSLexer *lexer, RankTokens *tokens, unsigned *colons);
 static bool rank_read_atom(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static bool rank_read_operator(TSLexer *lexer, RankTokens *tokens, unsigned *colons, bool *atom, bool division);
@@ -44,24 +47,31 @@ static bool rank_read_binary(TSLexer *lexer, int32_t c, RankTokens *tokens, bool
 static bool rank_skip_binary_operator(TSLexer *lexer, int32_t c, bool *postfix, bool updates);
 static bool rank_read_binary_rhs(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static bool rank_read_expression(TSLexer *lexer, RankTokens *tokens, bool *colon, RankTokenKind kind);
+static bool rank_read_expression_word(TSLexer *lexer, RankLambdaHeader *header, bool *primary, bool *type_pending, bool *type_complete);
+static void rank_start_lambda(RankTokens *tokens, unsigned *expression);
+static bool rank_read_lambda_arrow(TSLexer *lexer, RankTokens *tokens, unsigned *expression, RankLambdaHeader *header, bool *content, bool *primary);
+static RankLambdaHeader rank_expression_group(RankTokens *tokens, unsigned *expression, RankLambdaHeader header, int32_t c, bool *primary);
+static RankReadStep rank_read_expression_token(TSLexer *lexer, RankTokens *tokens, bool *colon, int32_t c, RankExpression *expression);
 static RankReadStep rank_read_expression_end(TSLexer *lexer, int32_t c, bool content, bool *colon);
-static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *tokens, unsigned binary, bool primary, bool *colon);
+static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *tokens, unsigned binary, bool primary, bool type_complete, bool *colon);
 static bool rank_skip_rhs_token(TSLexer *lexer, int32_t c, bool *primary, bool *force_unsafe);
+static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, bool *force_unsafe);
 static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, bool *force_unsafe);
 static bool rank_read_rhs_generic(TSLexer *lexer, bool *colon, bool *generic);
 static bool rank_read_terminal(TSLexer *lexer, bool *colon);
 static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static RankParse rank_evaluate(const RankTokens *tokens, unsigned target);
 static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, unsigned start, bool force, unsigned target);
+static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
 static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
 
 static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending) {
     if (!rank_read_prefix(lexer)) return RANK_NONE;
     advance(lexer);
-    if (!rank_read_bracket(lexer, true)) return RANK_NONE;
     RankTokens tail = array_new();
+    bool definite = false;
     unsigned colons = 0;
-    if (!rank_read_stream(lexer, &tail, &colons) || pending > colons) {
+    if (!rank_read_omitted_ranks(lexer, &tail, &definite) || !rank_read_stream(lexer, &tail, &colons) || pending > colons) {
         array_delete(&tail);
         return RANK_NONE;
     }
@@ -70,7 +80,7 @@ static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending) {
         array_push(&tokens, ((RankToken){RANK_ATOM, false}));
         array_push(&tokens, ((RankToken){RANK_QUESTION, false}));
     }
-    array_push(&tokens, ((RankToken){RANK_IS_TYPE, false}));
+    array_push(&tokens, ((RankToken){definite ? RANK_DEFINITE_TYPE : RANK_IS_TYPE, false}));
     unsigned target = tokens.size;
     array_push(&tokens, ((RankToken){RANK_QUESTION, true}));
     array_push(&tokens, ((RankToken){RANK_ATOM, true}));
@@ -85,6 +95,29 @@ static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending) {
     array_delete(&tokens);
     array_delete(&tail);
     return result;
+}
+
+static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite) {
+    unsigned count = 0;
+    while (question_skip_separators(lexer) == '[') {
+        advance(lexer);
+        int32_t first = question_skip_separators(lexer);
+        if (first != ',' && first != ']') {
+            if (count != 1 || *definite || !rank_read_delimited(lexer, '[', RANK_BODY_BRACKET, NULL)) return false;
+            array_push(tail, ((RankToken){RANK_CONTINUATION, false}));
+            return true;
+        }
+        bool comma = first == ',';
+        while (lexer->lookahead == ',') {
+            advance(lexer);
+            if (question_skip_separators(lexer) < 0) return false;
+        }
+        if (lexer->lookahead != ']') return false;
+        advance(lexer);
+        count++;
+        *definite |= comma || count > 1;
+    }
+    return count > 0;
 }
 
 static bool rank_read_prefix(TSLexer *lexer) {
@@ -170,14 +203,11 @@ static bool rank_identifier_allowed(const QuestionIdentifier *word, bool type) {
     return !type || !literal;
 }
 
-static bool rank_read_bracket(TSLexer *lexer, bool empty) {
+static bool rank_read_bracket(TSLexer *lexer) {
     if (question_skip_separators(lexer) != '[') return false;
     advance(lexer);
     if (question_skip_separators(lexer) < 0) return false;
-    if (!empty) return rank_read_delimited(lexer, '[', RANK_BODY_BRACKET, NULL);
-    if (lexer->lookahead != ']') return false;
-    advance(lexer);
-    return true;
+    return rank_read_delimited(lexer, '[', RANK_BODY_BRACKET, NULL);
 }
 
 static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode, bool *force_unsafe) {
@@ -189,7 +219,7 @@ static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode,
     bool colon = false;
     while (!lexer->eof(lexer)) {
         int32_t c = question_skip_separators(lexer);
-        if (c == -2 || c == '$' || c == '#' || lexer->eof(lexer)) break;
+        if (c == -2 || c == '#' || lexer->eof(lexer)) break;
         if (c == -1) { content = true; continue; }
         if (c == ')' || c == ']' || c == '}') {
             char expected = c == ')' ? '(' : c == ']' ? '[' : '{';
@@ -201,19 +231,17 @@ static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode,
         }
         content = true;
         if (c == ':') colon = true;
-        if (!rank_skip_delimited_token(lexer, &groups, c, force_unsafe != NULL, &access)) break;
+        if (!rank_skip_delimited_token(lexer, &groups, c, force_unsafe != NULL, &access, force_unsafe)) break;
     }
     array_delete(&groups);
     if (force_unsafe) *force_unsafe |= access && colon;
     return valid;
 }
 
-static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_t c, bool expression, bool *access) {
-    if (c == '"' || c == '\'') return question_skip_quoted(lexer, false);
-    if (c == '@') {
-        advance(lexer);
-        return lexer->lookahead != '"' || question_skip_quoted(lexer, true);
-    }
+static bool rank_skip_delimited_token(TSLexer *lexer, RankGroups *groups, int32_t c, bool expression, bool *access, bool *force_unsafe) {
+    RankReadStep literal = rank_skip_literal(lexer, c, force_unsafe);
+    if (literal != RANK_READ_TOKEN) return literal == RANK_READ_MORE;
+    if (c == '@') return true;
     if (c == '?') {
         advance(lexer);
         bool binding = question_skip_separators(lexer) == '[';
@@ -288,7 +316,7 @@ static bool rank_read_atom(TSLexer *lexer, RankTokens *tokens, bool *colon) {
 }
 
 static bool rank_read_postfix(TSLexer *lexer, int32_t c) {
-    if (c == '[') return rank_read_bracket(lexer, false);
+    if (c == '[') return rank_read_bracket(lexer);
     if (c == '(') {
         advance(lexer);
         if (question_skip_separators(lexer) != ')') return false;
@@ -443,41 +471,97 @@ static bool rank_read_binary_rhs(TSLexer *lexer, RankTokens *tokens, bool *colon
 }
 
 static bool rank_read_expression(TSLexer *lexer, RankTokens *tokens, bool *colon, RankTokenKind kind) {
-    bool content = false;
-    bool primary = true;
-    unsigned binary = tokens->size;
+    RankExpression expression = {.token = tokens->size, .header = kind == RANK_ATOM ? RANK_HEADER_START : RANK_HEADER_INVALID, .primary = true};
     array_push(tokens, ((RankToken){kind, false}));
     while (!lexer->eof(lexer)) {
         int32_t c = question_skip_separators(lexer);
         if (c == -2 || c == '#') return false;
-        RankReadStep end = rank_read_expression_end(lexer, c, content, colon);
-        if (end == RANK_READ_UNKNOWN) return false;
-        if (end == RANK_READ_DONE) return true;
-        if (end == RANK_READ_MORE) continue;
-        switch (c) {
-            case '<': {
-                bool generic = false;
-                if (!rank_read_rhs_generic(lexer, colon, &generic)) return false;
-                primary &= generic;
-                if (*colon) return content;
-                break;
-            }
-            case -1:
-                if (lexer->lookahead == '=') return false;
-                content = true;
-                break;
-            case '?': {
-                if (!content) return false;
-                RankReadStep question = rank_read_expression_question(lexer, tokens, binary, primary, colon);
-                if (question != RANK_READ_MORE) return question == RANK_READ_DONE;
-                break;
-            }
-            default:
-                content = true;
-                if (!rank_skip_rhs_token(lexer, c, &primary, &tokens->contents[binary].force_unsafe)) return false;
-        }
+        RankReadStep step = rank_read_expression_end(lexer, c, expression.content, colon);
+        if (step == RANK_READ_TOKEN) step = rank_read_expression_token(lexer, tokens, colon, c, &expression);
+        if (step != RANK_READ_MORE) return step == RANK_READ_DONE;
     }
-    return content;
+    return expression.content;
+}
+
+static RankReadStep rank_read_expression_token(TSLexer *lexer, RankTokens *tokens, bool *colon, int32_t c, RankExpression *expression) {
+    if (is_id_start(c) || c == '\\') {
+        expression->content = true;
+        return rank_read_expression_word(lexer, &expression->header, &expression->primary, &expression->type_pending, &expression->type_complete) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+    }
+    if (c != '?') { expression->type_pending = false; expression->type_complete = false; }
+    switch (c) {
+        case '=':
+            return rank_read_lambda_arrow(lexer, tokens, &expression->token, &expression->header, &expression->content, &expression->primary) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+        case '<': {
+            expression->header = RANK_HEADER_INVALID;
+            bool generic = false;
+            if (!rank_read_rhs_generic(lexer, colon, &generic)) return RANK_READ_UNKNOWN;
+            expression->primary &= generic;
+            return *colon ? (expression->content ? RANK_READ_DONE : RANK_READ_UNKNOWN) : RANK_READ_MORE;
+        }
+        case -1:
+            expression->header = RANK_HEADER_INVALID;
+            expression->content = true;
+            return lexer->lookahead != '=' ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+        case '?':
+            return expression->content ? rank_read_expression_question(lexer, tokens, expression->token, expression->primary, expression->type_complete, colon) : RANK_READ_UNKNOWN;
+        default:
+            expression->header = rank_expression_group(tokens, &expression->token, expression->header, c, &expression->primary);
+            expression->content = true;
+            return rank_skip_rhs_token(lexer, c, &expression->primary, &tokens->contents[expression->token].force_unsafe) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+    }
+}
+
+static bool rank_read_expression_word(TSLexer *lexer, RankLambdaHeader *header, bool *primary, bool *type_pending, bool *type_complete) {
+    QuestionIdentifier name;
+    if (!rank_read_identifier(lexer, &name)) return false;
+    if (*type_pending) {
+        if (name.keyword && !strcmp(name.word, "not")) return true;
+        *type_pending = false;
+        *type_complete = rank_identifier_allowed(&name, true) && rank_read_type_suffixes(lexer);
+        return *type_complete;
+    }
+    *type_complete = false;
+    *type_pending = name.keyword && !strcmp(name.word, "is");
+    if (!rank_identifier_allowed(&name, false) || (name.keyword && !strcmp(name.word, "with"))) *primary = false;
+    if (*header != RANK_HEADER_START && *header != RANK_HEADER_MODIFIER) *header = RANK_HEADER_INVALID;
+    else if (name.keyword && (!strcmp(name.word, "static") || !strcmp(name.word, "async"))) *header = RANK_HEADER_MODIFIER;
+    else if (name.keyword && !strcmp(name.word, "delegate")) *header = RANK_HEADER_DELEGATE;
+    else *header = rank_identifier_allowed(&name, true) ? RANK_HEADER_NAME : RANK_HEADER_INVALID;
+    return true;
+}
+
+static void rank_start_lambda(RankTokens *tokens, unsigned *expression) {
+    tokens->contents[*expression] = (RankToken){RANK_LAMBDA, false};
+    *expression = tokens->size;
+    array_push(tokens, ((RankToken){RANK_ATOM, false}));
+}
+
+static bool rank_read_lambda_arrow(TSLexer *lexer, RankTokens *tokens, unsigned *expression, RankLambdaHeader *header, bool *content, bool *primary) {
+    advance(lexer);
+    if (lexer->lookahead == '=') {
+        advance(lexer);
+        *header = RANK_HEADER_INVALID;
+        return true;
+    }
+    if (lexer->lookahead != '>' || (*header != RANK_HEADER_NAME && *header != RANK_HEADER_PARAMETERS)) return false;
+    advance(lexer);
+    rank_start_lambda(tokens, expression);
+    *content = false;
+    *primary = true;
+    *header = RANK_HEADER_START;
+    return true;
+}
+
+static RankLambdaHeader rank_expression_group(RankTokens *tokens, unsigned *expression, RankLambdaHeader header, int32_t c, bool *primary) {
+    if (c == '{' && (header == RANK_HEADER_DELEGATE || header == RANK_HEADER_DELEGATE_PARAMETERS)) {
+        rank_start_lambda(tokens, expression);
+        *primary = true;
+        return RANK_HEADER_INVALID;
+    }
+    if (c != '(') return RANK_HEADER_INVALID;
+    if (header == RANK_HEADER_START || header == RANK_HEADER_MODIFIER) return RANK_HEADER_PARAMETERS;
+    return header == RANK_HEADER_DELEGATE ? RANK_HEADER_DELEGATE_PARAMETERS : RANK_HEADER_INVALID;
 }
 
 static RankReadStep rank_read_expression_end(TSLexer *lexer, int32_t c, bool content, bool *colon) {
@@ -491,7 +575,7 @@ static RankReadStep rank_read_expression_end(TSLexer *lexer, int32_t c, bool con
     return content && rank_read_terminal(lexer, colon) ? RANK_READ_DONE : RANK_READ_UNKNOWN;
 }
 
-static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *tokens, unsigned binary, bool primary, bool *colon) {
+static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *tokens, unsigned binary, bool primary, bool type_complete, bool *colon) {
     advance(lexer);
     if (lexer->lookahead == '?') {
         advance(lexer);
@@ -499,23 +583,29 @@ static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *to
     }
     if (question_skip_separators(lexer) == '.')
         return rank_read_postfix(lexer, '.') ? RANK_READ_MORE : RANK_READ_UNKNOWN;
-    if (!primary) return RANK_READ_UNKNOWN;
-    if (tokens->contents[binary].kind == RANK_BINARY) tokens->contents[binary].kind = RANK_BINARY_PRIMARY;
     bool collection = lexer->lookahead == '[';
-    array_push(tokens, ((RankToken){RANK_QUESTION, collection}));
-    if (!collection) return rank_read_atom(lexer, tokens, colon) ? RANK_READ_DONE : RANK_READ_UNKNOWN;
-    if (!rank_read_bracket(lexer, false)) return RANK_READ_UNKNOWN;
+    if (!primary && collection && !type_complete) return RANK_READ_UNKNOWN;
+    if (!primary && tokens->contents[binary].kind == RANK_ATOM) tokens->contents[binary].kind = RANK_NONPRIMARY_ATOM;
+    if (primary && tokens->contents[binary].kind == RANK_BINARY) tokens->contents[binary].kind = RANK_BINARY_PRIMARY;
+    if (!collection) {
+        array_push(tokens, ((RankToken){RANK_QUESTION, false}));
+        return rank_read_atom(lexer, tokens, colon) ? RANK_READ_DONE : RANK_READ_UNKNOWN;
+    }
+    advance(lexer);
+    if (question_skip_separators(lexer) < 0) return RANK_READ_UNKNOWN;
+    if (type_complete && lexer->lookahead == ']') {
+        advance(lexer);
+        array_push(tokens, ((RankToken){RANK_IS_TYPE, false}));
+    } else if (!rank_read_delimited(lexer, '[', RANK_BODY_BRACKET, NULL)) return RANK_READ_UNKNOWN;
+    array_push(tokens, ((RankToken){RANK_QUESTION, true}));
     array_push(tokens, ((RankToken){RANK_ATOM, true}));
     return RANK_READ_DONE;
 }
 
 static bool rank_skip_rhs_token(TSLexer *lexer, int32_t c, bool *primary, bool *force_unsafe) {
-    if (c == '"' || c == '\'') return question_skip_quoted(lexer, false);
-    if (c == '$') return rank_skip_interpolated(lexer, false, force_unsafe);
+    RankReadStep literal = rank_skip_literal(lexer, c, force_unsafe);
+    if (literal != RANK_READ_TOKEN) return literal == RANK_READ_MORE;
     if (c == '@') {
-        advance(lexer);
-        if (lexer->lookahead == '$') return rank_skip_interpolated(lexer, true, force_unsafe);
-        if (lexer->lookahead == '"') return question_skip_quoted(lexer, true);
         QuestionIdentifier name;
         return question_identifier(lexer, true, &name);
     }
@@ -550,6 +640,19 @@ static bool rank_read_rhs_generic(TSLexer *lexer, bool *colon, bool *generic) {
     int32_t next = question_skip_separators(lexer);
     *generic = next == '(' || next == '.';
     return next >= 0 && (!read.comma || *generic);
+}
+
+static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, bool *force_unsafe) {
+    if (c == '"' || c == '\'')
+        return question_skip_quoted(lexer, false) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+    if (c == '$') return rank_skip_interpolated(lexer, false, force_unsafe) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+    if (c != '@') return RANK_READ_TOKEN;
+    advance(lexer);
+    if (lexer->lookahead == '$')
+        return rank_skip_interpolated(lexer, true, force_unsafe) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+    if (lexer->lookahead == '"')
+        return question_skip_quoted(lexer, true) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+    return RANK_READ_TOKEN;
 }
 
 static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, bool *force_unsafe) {
@@ -603,7 +706,7 @@ static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon) 
         if (!rank_read_postfix(lexer, '.')) return false;
         array_push(tokens, ((RankToken){RANK_CONTINUATION, false}));
     } else {
-        if (!rank_read_bracket(lexer, false)) return false;
+        if (!rank_read_bracket(lexer)) return false;
         array_push(tokens, ((RankToken){RANK_QUESTION, true}));
         array_push(tokens, ((RankToken){RANK_ATOM, true}));
     }
@@ -627,24 +730,29 @@ static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, uns
     RankToken first = tokens->contents[start];
     unsigned pos = start;
     bool primary = first.kind == RANK_ATOM;
-    if (primary) {
+    if (first.kind == RANK_LAMBDA) return memo[(start + 1) * 2];
+    if (primary || first.kind == RANK_NONPRIMARY_ATOM) {
         result.valid = !force || !first.force_unsafe;
         result.collection_ternary = first.force_unsafe;
         pos++;
     }
+    else if (first.kind == RANK_DEFINITE_TYPE) {
+        if (pos + 1 == target) result.role = RANK_NULLABLE_LAST;
+        pos += 3;
+    }
     else if (first.kind == RANK_IS_TYPE) {
-        unsigned question = pos + 1;
-        RankParse after = memo[(question + 1) * 2 + force];
-        if (!after.valid) { result.valid = false; result.end = after.end; return result; }
-        if (tokens->contents[after.end].kind != RANK_COLON) {
-            result.role = RANK_NULLABLE_LAST;
-            pos = question + 2;
-        } else pos = question;
+        pos = rank_parse_type(tokens, memo, pos, force, target, &result);
     } else {
         result.valid = false;
         return result;
     }
-    while (tokens->contents[pos].kind == RANK_QUESTION || tokens->contents[pos].kind == RANK_CONTINUATION || tokens->contents[pos].kind == RANK_AS || tokens->contents[pos].kind == RANK_SWITCH || tokens->contents[pos].kind == RANK_BINARY || tokens->contents[pos].kind == RANK_BINARY_PRIMARY) {
+    while (result.valid && (tokens->contents[pos].kind == RANK_IS_TYPE || tokens->contents[pos].kind == RANK_QUESTION || tokens->contents[pos].kind == RANK_CONTINUATION || tokens->contents[pos].kind == RANK_AS || tokens->contents[pos].kind == RANK_SWITCH || tokens->contents[pos].kind == RANK_BINARY || tokens->contents[pos].kind == RANK_BINARY_PRIMARY)) {
+        if (tokens->contents[pos].kind == RANK_IS_TYPE) {
+            primary = false;
+            pos = rank_parse_type(tokens, memo, pos, force, target, &result);
+            if (!result.valid) break;
+            continue;
+        }
         if (tokens->contents[pos].kind == RANK_AS || tokens->contents[pos].kind == RANK_SWITCH || tokens->contents[pos].kind == RANK_BINARY || tokens->contents[pos].kind == RANK_BINARY_PRIMARY) {
             result.valid &= !force || !tokens->contents[pos].force_unsafe;
             result.collection_ternary |= tokens->contents[pos].force_unsafe;
@@ -667,6 +775,15 @@ static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, uns
     }
     result.end = pos;
     return result;
+}
+
+static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result) {
+    unsigned question = pos + 1;
+    RankParse after = memo[(question + 1) * 2 + force];
+    if (!after.valid) { result->valid = false; return after.end; }
+    if (tokens->contents[after.end].kind == RANK_COLON) return question;
+    if (question == target) result->role = RANK_NULLABLE_LAST;
+    return question + 2;
 }
 
 static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result) {

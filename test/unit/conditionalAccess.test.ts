@@ -188,6 +188,7 @@ test('preserves nullable type conditions before collection expression continuati
   parser.setLanguage(language);
   try {
     for (const [condition, consequence, kind, nullable] of [
+      ['x is T', '[][0]', 'element_access_expression', undefined],
       ['value is N.T<C>?[]', '[1]', 'collection_expression', 'N.T<C>?'],
       ['value is N.T?[]', '[1] as T', 'as_expression', 'N.T?'],
       ['o is string[]', 'items?[0]', 'conditional_access_expression', undefined],
@@ -660,6 +661,26 @@ test('preserves nullable array conditions before complete expression alternative
           'F<T,U>()',
           '$"{a}"',
           '[a, b]',
+          'a => a',
+          '(a) => a',
+          '(int a) => a',
+          'static a => a',
+          'async a => await F(a)',
+          'static async (a) => await F(a)',
+          '() => x?[0]',
+          '() => { return x?[0]; }',
+          '(a, b) => (a, b)',
+          'delegate { return x?[0]; }',
+          'a => (a?[0]:b)',
+          'a => (a?[0])',
+          'a => b => a?[0]',
+          'a is int ? 1 : 2',
+          'a is T ? a?[0] : b',
+          '(a is T) ? [1] : [2]',
+          'a + b ? 1 : 2',
+          'a == b ? [1] : [2]',
+          'a is List<T> ? [1] : [2]',
+          'a is T?[] ? [1] : [2]',
         ]) {
           const condition = `x is ${type}`;
           const source = `var result = ${condition} ? ${consequence} : ${alternative};`;
@@ -674,7 +695,22 @@ test('preserves nullable array conditions before complete expression alternative
             expect(
               tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
               source
-            ).toEqual([type.split('?')[0] + '?']);
+            ).toEqual([type.split('?')[0] + '?', ...(alternative.startsWith('a is T?[]') ? ['T?'] : [])]);
+            if (alternative === 'a is T?[] ? [1] : [2]') {
+              expect(nodes[1]?.childForFieldName('condition')?.text, source).toBe('a is T?[]');
+              expect(nodes[1]?.childForFieldName('consequence')?.text, source).toBe('[1]');
+              expect(nodes[1]?.childForFieldName('alternative')?.text, source).toBe('[2]');
+            }
+            if (alternative === 'a => (a?[0]:b)') {
+              expect(nodes[1]?.childForFieldName('condition')?.text, source).toBe('a');
+              expect(nodes[1]?.childForFieldName('consequence')?.text, source).toBe('[0]');
+              expect(nodes[1]?.childForFieldName('alternative')?.text, source).toBe('b');
+            }
+            if (['() => x?[0]', '() => { return x?[0]; }', 'delegate { return x?[0]; }'].includes(alternative)) {
+              const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
+              expect(access?.childForFieldName('condition')?.text, source).toBe('x');
+              expect(access?.childForFieldName('consequence')?.text, source).toBe('[0]');
+            }
             if (alternative === '(flag ? [1] : [2])') {
               expect(nodes[1]?.childForFieldName('condition')?.text, source).toBe('flag');
               expect(nodes[1]?.childForFieldName('consequence')?.text, source).toBe('[1]');
@@ -684,6 +720,106 @@ test('preserves nullable array conditions before complete expression alternative
             tree.delete();
           }
         }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('keeps nullable array conditions independent of enclosing nullable parameters', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const contexts = [
+    (parameters: string, body: string) => `class C { void M(${parameters}) { ${body} } }`,
+    (parameters: string, body: string) => `class C { C(${parameters}) { ${body} } }`,
+    (parameters: string, body: string) => `class C { void M() { void Local(${parameters}) { ${body} } } }`,
+    (parameters: string, body: string) => `class C { void M() { var f = (${parameters}) => { ${body} }; } }`,
+    (parameters: string, body: string) => `class C { object this[${parameters}] { get { ${body} return null; } } }`,
+  ];
+  const inputs = ['int n', 'int? n', 'List<int?> n', 'T?[] n', 'Func<int?,T> n', 'string? n', '(int?,T) n'].flatMap(
+    (parameter) =>
+      contexts.flatMap((context) =>
+        ['', 'var prior = 1;'].flatMap((prefix) =>
+          ['Gen?[]', 'N.T?[]', 'Gen?[,]'].flatMap((type) =>
+            ['[0]', '[index]'].map((consequence) => ({
+              condition: `o is ${type}`,
+              consequence,
+              source: context(`object o, bool b, ${parameter}`, `${prefix} var r = o is ${type} ? ${consequence} : b;`),
+            }))
+          )
+        )
+      )
+  );
+  try {
+    for (const { source, condition, consequence } of inputs) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+        expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+        expect(ternary?.childForFieldName('consequence')?.text, source).toBe(consequence);
+        expect(ternary?.childForFieldName('alternative')?.text, source).toBe('b');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves nullable array conditions around interpolated expression leaves', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  const payloads = [
+    '$"{x}"',
+    '$"{x?[0]}"',
+    '$"{(x?[0]:y)}"',
+    '$"pre{(flag ? x?[0] : y)}post"',
+    '$@"{x}"',
+    '@$"{x}"',
+    '$"{F($"{x}")}"',
+    '$"{x:00?}"',
+    '$"{x,10:000}"',
+    '$"{{literal?[0]:x}}"',
+    '$"{F("x?[0]:y")}"',
+  ];
+  const placements = [
+    (value: string) => value,
+    (value: string) => `(${value})`,
+    (value: string) => `F(${value})`,
+    (value: string) => `F((${value}))`,
+    (value: string) => `new C { P = ${value} }`,
+    (value: string) => `[${value}]`,
+  ];
+  const inputs = ['T?[]', 'T?[,]', 'T?[][]', 'N.T?[]', 'N.T<C>?[]'].flatMap((type) =>
+    ['+', '??'].flatMap((operator) =>
+      payloads.flatMap((payload) =>
+        placements.map((place) => ({
+          condition: `x is ${type}`,
+          consequence: `[0]${operator}${place(payload)}`,
+          nullable: type.split('?')[0] + '?',
+        }))
+      )
+    )
+  );
+  try {
+    for (const { condition, consequence, nullable } of inputs) {
+      const source = `var r = ${condition} ? ${consequence} : fallback;`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+        expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+        expect(ternary?.childForFieldName('consequence')?.text, source).toBe(consequence);
+        expect(ternary?.childForFieldName('alternative')?.text, source).toBe('fallback');
+        expect(
+          tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
+          source
+        ).toEqual([nullable]);
+      } finally {
+        tree.delete();
       }
     }
   } finally {

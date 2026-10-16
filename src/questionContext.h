@@ -34,7 +34,7 @@ static void apply_question_events(Scanner *scanner, const char *events, unsigned
 static bool question_close_frame(Scanner *scanner, char closing) {
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     bool root = scanner->question_frame_count == 1;
-    if (root && question_context_idle(scanner) && !scanner->question_unknown && !scanner->question_type_uncertain) return true;
+    if (root && question_context_idle(scanner) && !scanner->question_unknown) return true;
     char opening = closing == ')' ? '(' : closing == ']' ? '[' : '{';
     if (root || frame->group != opening) return false;
     scanner->question_frame_count--;
@@ -506,7 +506,9 @@ static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, Questi
         walk->binding = first >= 0 && first != ']' && first != ',' && !lexer->eof(lexer);
         bool first_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT ||
             walk->rank_phase == RANK_TERNARY;
-        if ((first_rank && first == ']') || (walk->rank_phase == RANK_AFTER_NULLABLE && walk->binding)) {
+        bool nullable_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
+        if ((first_rank && first == ']') || (nullable_rank && first == ',') ||
+            (walk->rank_phase == RANK_AFTER_NULLABLE && walk->binding)) {
             walk->known_nullable = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
             walk->known_ternary = !walk->known_nullable;
             if (walk->known_ternary) scanner->question_type_uncertain = false;
