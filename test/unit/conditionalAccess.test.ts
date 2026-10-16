@@ -746,6 +746,74 @@ test('preserves nullable array conditions before complete expression alternative
   }
 });
 
+test('preserves nested nullable type boundaries in conditional alternatives', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const type of ['T?[]', 'T?[,]', 'T?[][]', 'N.T?[]', 'N.T<C>?[]']) {
+      for (const [alternative, nullableTypes, innerCondition, innerConsequence, innerAlternative, asType] of [
+        ['a as int?', ['int?'], undefined, undefined, undefined, 'int?'],
+        ['a as T?[]', ['T?'], undefined, undefined, undefined, 'T?[]'],
+        ['a as int? ? [1] : [2]', ['int?'], 'a as int?', '[1]', '[2]', 'int?'],
+        ['a as List<T?[]>', ['T?'], undefined, undefined, undefined, 'List<T?[]>'],
+        ['a as int? > b ? [1] : [2]', ['int?'], 'a as int? > b', '[1]', '[2]', 'int?'],
+        ['a as int? >= b ? [1] : [2]', ['int?'], 'a as int? >= b', '[1]', '[2]', 'int?'],
+        ['a as T?[] / b ? [1] : [2]', ['T?'], 'a as T?[] / b', '[1]', '[2]', 'T?[]'],
+        ['a as int? / b ? [1] : [2]', ['int?'], 'a as int? / b', '[1]', '[2]', 'int?'],
+        ['a is int?[] ? 1 : 2', ['int?'], 'a is int?[]', '1', '2'],
+        ['a is T?[] y ? y : z', ['T?'], 'a is T?[] y', 'y', 'z'],
+        ['a is global::N.T?[] ? [1] : [2]', ['global::N.T?'], 'a is global::N.T?[]', '[1]', '[2]'],
+      ] as const) {
+        const condition = `x is ${type}`;
+        const source = `var result = ${condition}?[0] : ${alternative};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
+          expect(conditionals[0]?.childForFieldName('condition')?.text, source).toBe(condition);
+          expect(conditionals[0]?.childForFieldName('consequence')?.text, source).toBe('[0]');
+          expect(conditionals[0]?.childForFieldName('alternative')?.text, source).toBe(alternative);
+          expect(tree.rootNode.descendantsOfType('conditional_access_expression'), source).toHaveLength(0);
+          expect(
+            tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
+            source
+          ).toEqual([type.split('?')[0] + '?', ...nullableTypes]);
+          if (innerCondition !== undefined) {
+            expect(conditionals[1]?.childForFieldName('condition')?.text, source).toBe(innerCondition);
+            expect(conditionals[1]?.childForFieldName('consequence')?.text, source).toBe(innerConsequence);
+            expect(conditionals[1]?.childForFieldName('alternative')?.text, source).toBe(innerAlternative);
+          }
+          if (asType !== undefined) {
+            const asExpression = tree.rootNode.descendantsOfType('as_expression')[0];
+            expect(asExpression?.childForFieldName('left')?.text, source).toBe('a');
+            expect(asExpression?.childForFieldName('right')?.text, source).toBe(asType);
+          }
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    const comparisons = 'a as int? > '.repeat(1000) + 'b';
+    const source = `var result = x is T?[] ? [0] : ${comparisons} ? [1] : [2];`;
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
+      expect(conditionals).toHaveLength(2);
+      expect(conditionals[0]?.childForFieldName('condition')?.text).toBe('x is T?[]');
+      expect(conditionals[1]?.childForFieldName('condition')?.text).toBe(comparisons);
+      expect(conditionals[1]?.childForFieldName('consequence')?.text).toBe('[1]');
+      expect(conditionals[1]?.childForFieldName('alternative')?.text).toBe('[2]');
+      expect(tree.rootNode.descendantsOfType('as_expression')).toHaveLength(1000);
+      expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1001);
+    } finally {
+      tree.delete();
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('keeps nullable array conditions independent of enclosing nullable parameters', () => {
   const parser = new Parser();
   parser.setLanguage(language);
@@ -839,6 +907,13 @@ test('preserves nullable array conditions around interpolated expression leaves'
         }))
       )
     )
+  );
+  inputs.push(
+    ...payloads.map((payload) => ({
+      condition: 'x is T?[]',
+      consequence: `[${payload}]`,
+      nullable: 'T?',
+    }))
   );
   try {
     for (const { condition, consequence, nullable } of inputs) {

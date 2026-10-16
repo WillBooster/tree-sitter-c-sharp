@@ -297,7 +297,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, int32_t following, bo
         .nullable_terminator = question_type_boundary(following) || following == '}',
         .definite_ternary = numeric_ternary,
         .first_word = true,
-        .ordinary_first_token = ordinary,
+        .ordinary_first_token = ordinary && following != '/',
     };
     scanner->question_access_cache = 0;
     return walk;

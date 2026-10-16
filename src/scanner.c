@@ -985,12 +985,12 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     advance(lexer);
     lexer->mark_end(lexer);
     if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
-    question_skip_separators(lexer);
-    QuestionFollowing next = question_following(lexer);
+    bool consumed_division = question_skip_separators(lexer) == -1;
+    QuestionFollowing next = consumed_division ? (QuestionFollowing){.token = '/'} : question_following(lexer);
     bool known_ternary = false;
     if (next.member) scanner->question_type_uncertain = false;
     bool known_nullable = valid_symbols[QUESTION_NULLABLE] &&
-        (!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member;
+        (consumed_division || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member));
     uint8_t rank_phase = scanner->question_rank_role;
     scanner->question_rank_role = RANK_NONE;
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
