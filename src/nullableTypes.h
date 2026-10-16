@@ -157,6 +157,11 @@ static bool rank_read_as_arguments(TSLexer *lexer, int32_t close, RankTypeRead *
     for (;;) {
         if (!rank_read_as_type(lexer, read) || read->colon || read->coalesce || read->conditional || read->division) return false;
         int32_t c = rank_type_gap(lexer, read);
+        if (close == ')' && c != ',' && c != close) {
+            QuestionIdentifier name;
+            if (!rank_read_identifier(lexer, &name) || !rank_identifier_allowed(&name, true)) return false;
+            c = rank_type_gap(lexer, read);
+        }
         if (c != ',' && c != close) return false;
         if (c == ',') read->comma = true;
         advance(lexer);

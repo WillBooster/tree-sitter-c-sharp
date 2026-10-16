@@ -1086,3 +1086,54 @@ test('uses grammar identifier characters while proving nullable ownership', () =
     parser.delete();
   }
 });
+
+test('retains nullable ownership through empty collections and expression continuations', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const alternative of [
+      'a?[0] is T?[]',
+      'a?[0] is T?[] t',
+      'a?[0] is not null',
+      'a?[0] is T?[] ? [a] : b',
+      'a?[b](c)',
+      'a?[b].c(c)',
+      'a?[b](c, d)',
+      'a?[b](c)?[d]',
+      'f(x)?[g](h)',
+      'a?[b](x?[0])',
+      'a?[b](c ? [1] : d)',
+      'y as (int a, string b)',
+      'y as List<(int a, string b)>',
+      'y as ((int a, int b) pair, string name)',
+    ]) {
+      const source = `var result = x is T?[] ? [1] : ${alternative};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+        expect(ternary?.childForFieldName('condition')?.text, source).toBe('x is T?[]');
+        expect(ternary?.childForFieldName('consequence')?.text, source).toBe('[1]');
+        expect(ternary?.childForFieldName('alternative')?.text, source).toBe(alternative);
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const consequence of ['[]', '[a]']) {
+      const tree = parser.parse(`var result = x is T?[] ? ${consequence} : a is T?[] ? [a] : b;`)!;
+      try {
+        expect(tree.rootNode.hasError, consequence).toBe(false);
+        const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
+        expect(
+          conditionals.map((node) => node.childForFieldName('condition')?.text),
+          consequence
+        ).toEqual(['x is T?[]', 'a is T?[]']);
+        expect(conditionals[0]?.childForFieldName('consequence')?.text).toBe(consequence);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

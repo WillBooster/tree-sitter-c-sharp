@@ -39,6 +39,8 @@ static bool rank_skip_binary_operator(TSLexer *lexer, int32_t c, bool *postfix, 
 static RankReadStep rank_start_binary_rhs(TSLexer *lexer, int32_t c, RankTokens *tokens, RankExpression *expression);
 static void rank_mark_nonprimary(RankTokens *tokens, unsigned expression);
 static bool rank_read_expression(TSLexer *lexer, RankTokens *tokens, bool *colon, RankTokenKind kind);
+static bool rank_read_is(TSLexer *lexer, RankTokens *tokens, bool *colon);
+static bool rank_read_expression_tail(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression);
 static RankReadStep rank_read_expression_name(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression);
 static bool rank_read_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
 static bool rank_read_creation(TSLexer *lexer, bool *force_unsafe);
@@ -207,6 +209,8 @@ static bool rank_read_operator(TSLexer *lexer, RankTokens *tokens, unsigned *col
         *atom = true;
     } else if (rank_binary_start(c)) {
         if (!rank_read_binary(lexer, c, tokens, atom)) return false;
+    } else if (c == 'i') {
+        if (!rank_read_is(lexer, tokens, atom)) return false;
     } else if (c == 'a' || c == 's') {
         bool colon = false;
         bool force_unsafe = false;
@@ -238,9 +242,7 @@ static bool rank_read_postfix(TSLexer *lexer, int32_t c) {
     if (c == '[') return rank_read_bracket(lexer);
     if (c == '(') {
         advance(lexer);
-        if (question_skip_separators(lexer) != ')') return false;
-        advance(lexer);
-        return true;
+        return rank_read_delimited(lexer, '(', RANK_BODY_EXPRESSION, NULL);
     }
     if (c != '.') return false;
     advance(lexer);
@@ -325,14 +327,26 @@ static void rank_mark_nonprimary(RankTokens *tokens, unsigned expression) {
 static bool rank_read_expression(TSLexer *lexer, RankTokens *tokens, bool *colon, RankTokenKind kind) {
     RankExpression expression = {.token = tokens->size, .header = kind == RANK_ATOM ? RANK_HEADER_START : RANK_HEADER_INVALID, .primary = true, .nullable_event = ((unsigned)-1)};
     array_push(tokens, ((RankToken){kind, false}));
+    return rank_read_expression_tail(lexer, tokens, colon, &expression);
+}
+
+static bool rank_read_is(TSLexer *lexer, RankTokens *tokens, bool *colon) {
+    QuestionIdentifier word;
+    if (!rank_read_identifier(lexer, &word) || !word.keyword || strcmp(word.word, "is")) return false;
+    RankExpression expression = {.token = tokens->size, .header = RANK_HEADER_INVALID, .pattern = true, .type_pending = true, .nullable_event = ((unsigned)-1)};
+    array_push(tokens, ((RankToken){RANK_BINARY, false}));
+    return rank_read_expression_tail(lexer, tokens, colon, &expression);
+}
+
+static bool rank_read_expression_tail(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression) {
     while (!lexer->eof(lexer)) {
         int32_t c = question_skip_separators(lexer);
         if (c == -2 || c == '#') return false;
-        RankReadStep step = rank_read_expression_end(lexer, c, expression.content, colon);
-        if (step == RANK_READ_TOKEN) step = rank_read_expression_token(lexer, tokens, colon, c, &expression);
+        RankReadStep step = rank_read_expression_end(lexer, c, expression->content, colon);
+        if (step == RANK_READ_TOKEN) step = rank_read_expression_token(lexer, tokens, colon, c, expression);
         if (step != RANK_READ_MORE) return step == RANK_READ_DONE;
     }
-    return expression.content;
+    return expression->content;
 }
 
 static RankReadStep rank_read_expression_token(TSLexer *lexer, RankTokens *tokens, bool *colon, int32_t c, RankExpression *expression) {
@@ -745,9 +759,13 @@ static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon) 
         if (!rank_read_postfix(lexer, '.')) return false;
         array_push(tokens, ((RankToken){RANK_CONTINUATION, false}));
     } else {
-        if (!rank_read_bracket(lexer)) return false;
-        array_push(tokens, ((RankToken){RANK_QUESTION, true}));
-        array_push(tokens, ((RankToken){RANK_ATOM, true}));
+        if (lexer->lookahead != '[') return false;
+        advance(lexer);
+        bool empty = question_skip_separators(lexer) == ']';
+        bool force_unsafe = false;
+        if (!rank_read_delimited(lexer, '[', RANK_BODY_EXPRESSION, &force_unsafe)) return false;
+        array_push(tokens, ((RankToken){RANK_QUESTION, !empty}));
+        array_push(tokens, ((RankToken){RANK_ATOM, true, force_unsafe}));
     }
     return true;
 }
