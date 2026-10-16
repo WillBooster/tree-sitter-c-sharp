@@ -11504,6 +11504,10 @@
             "value": ":"
           },
           {
+            "type": "SYMBOL",
+            "name": "_conditional_alternative_start"
+          },
+          {
             "type": "FIELD",
             "name": "alternative",
             "content": {
@@ -19335,6 +19339,10 @@
     {
       "type": "SYMBOL",
       "name": "_bang_operator"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_conditional_alternative_start"
     }
   ],
   "inline": [

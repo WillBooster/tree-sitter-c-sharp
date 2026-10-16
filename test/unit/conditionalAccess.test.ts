@@ -1709,11 +1709,27 @@ test('preserves receiver proof through collection arms and argument boundaries',
   }
 });
 
-test('preserves alternative access after a type test with an identifier true arm', () => {
+test('preserves alternative access after a type test with a question-free true arm', () => {
   const parser = new Parser().setLanguage(language);
   try {
     for (const condition of ['o is Foo', 'o is int', '(d is T)']) {
-      for (const consequence of ['x', '@x', 'α /* comment */']) {
+      for (const consequence of [
+        'x',
+        '@x',
+        'α /* comment */',
+        'x.y',
+        'this.y',
+        'Foo.Bar',
+        'x.y()',
+        'x()',
+        'x[0]',
+        '(x)',
+        '-x',
+        'nameof(x)',
+        '"s"',
+        'x as Y',
+        'x is U',
+      ]) {
         for (const receiver of ['args?[0]', 'args?[0]?[i]', 'args?[0]?.M']) {
           const alternative = `${receiver} is T ? y : z`;
           const expression = `${condition} ? ${consequence} : ${alternative}`;

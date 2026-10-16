@@ -248,6 +248,7 @@ module.exports = grammar({
     sym('_pattern_paren_end'),
     sym('_pattern_bracket_end'),
     sym('_bang_operator'),
+    sym('_conditional_alternative_start'),
   ],
 
   extras: ($) => [
@@ -1583,6 +1584,7 @@ module.exports = grammar({
           ternaryQuestion(),
           field('consequence', $.expression),
           ':',
+          sym('_conditional_alternative_start'),
           field('alternative', $.expression)
         )
       ),

@@ -50,6 +50,7 @@ enum TokenType {
     PATTERN_PAREN_END,
     PATTERN_BRACKET_END,
     BANG_OPERATOR,
+    CONDITIONAL_ALTERNATIVE_START,
 };
 
 typedef enum {
@@ -538,6 +539,13 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         }
         if (!scan_file_directive_prefix(lexer)) return false;
         return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
+    }
+
+    if (valid_symbols[CONDITIONAL_ALTERNATIVE_START]) {
+        scanner->question_type_uncertain = false;
+        lexer->mark_end(lexer);
+        lexer->result_symbol = CONDITIONAL_ALTERNATIVE_START;
+        return true;
     }
 
     if (valid_symbols[AMBIGUOUS_CAST_OPERAND_START]) return scan_ambiguous_cast_operand_start(lexer);
