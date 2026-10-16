@@ -89,7 +89,8 @@ static bool question_identifier(TSLexer *lexer, bool verbatim, QuestionIdentifie
             if (!question_unicode_escape(lexer, first, &codepoint)) return false;
         } else {
             bool identifier_character = first ? is_id_start((int32_t)codepoint) : is_id_continue((int32_t)codepoint);
-            if (!identifier_character) return !first && codepoint <= 127;
+            if (!identifier_character) return !first && (codepoint <= 127 ||
+                is_space_but_line_feed((int32_t)codepoint) || is_line_terminator((int32_t)codepoint));
             advance(lexer);
         }
         if (escaped || codepoint > 127) identifier->keyword = false;

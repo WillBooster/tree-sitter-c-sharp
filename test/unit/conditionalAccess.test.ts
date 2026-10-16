@@ -1165,3 +1165,26 @@ test('retains ternary collection access after nonprimary conditions', () => {
     parser.delete();
   }
 });
+
+test('allows supported Unicode separators after speculative identifiers', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const name of ['a', 'a\u0301', String.raw`a\u0301`]) {
+      for (const gap of ['\u00A0', '\u3000', '\uFEFF', '\u0085', '\u2028', '\u2029']) {
+        const source = `var result = x is T?[] ? [1] : ${name}${gap};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+          expect(ternary?.childForFieldName('condition')?.text, source).toBe('x is T?[]');
+          expect(ternary?.childForFieldName('alternative')?.text, source).toBe(name);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
