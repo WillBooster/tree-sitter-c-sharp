@@ -222,6 +222,7 @@ typedef struct {
 typedef enum { QUESTION_WALK_CONTINUE, QUESTION_WALK_STOP, QUESTION_WALK_UNKNOWN } QuestionWalkStep;
 
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase);
+static QuestionWalkStep question_walk_argument_end(TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_nullable_tail(QuestionWalk *walk, int32_t c);
 static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first);
@@ -341,11 +342,15 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
     if (walk->recording && !walk->depth && walk->ordinary && question_operator(c)) walk->definite_ternary = true;
     if (c == ':' || c == ';' || question_opening_group(c) || question_closing_group(c))
         return question_walk_delimiter(scanner, lexer, walk, c);
-    if (c == ',' && !walk->depth) {
-        walk->is_eligible = false;
-        walk->role_active = false;
-        if (!walk->recording) return QUESTION_WALK_STOP;
-    }
+    if (c == ',' && !walk->depth) return question_walk_argument_end(lexer, walk);
+    advance(lexer);
+    return QUESTION_WALK_CONTINUE;
+}
+
+static QuestionWalkStep question_walk_argument_end(TSLexer *lexer, QuestionWalk *walk) {
+    walk->is_eligible = walk->is_eligible && walk->is_later_alternative;
+    walk->role_active = false;
+    if (!walk->recording) return QUESTION_WALK_STOP;
     advance(lexer);
     return QUESTION_WALK_CONTINUE;
 }
@@ -453,7 +458,7 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier) {
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return QUESTION_WALK_UNKNOWN;
-    if (identifier.keyword && (strcmp(identifier.word, "new") == 0 || strcmp(identifier.word, "delegate") == 0 ||
+    if (identifier.keyword && !walk->is_later_alternative && (strcmp(identifier.word, "new") == 0 || strcmp(identifier.word, "delegate") == 0 ||
         strcmp(identifier.word, "stackalloc") == 0 || strcmp(identifier.word, "from") == 0)) walk->is_eligible = false;
     bool is_or_as = identifier.keyword && (strcmp(identifier.word, "is") == 0 || strcmp(identifier.word, "as") == 0);
     bool value_operator = is_or_as || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
@@ -619,7 +624,9 @@ static void question_walk_colon(QuestionWalk *walk) {
     }
     walk->is_as_phase = false;
     if (walk->root_colons < 2) walk->root_colons++;
-    if (walk->is_eligible && walk->is_seen && walk->mandatory > walk->is_reserved)
+    bool later_obligation = walk->mandatory > walk->is_reserved ||
+        walk->optional > (walk->following.token == '[' ? 1u : 0u);
+    if (walk->is_eligible && walk->is_seen && later_obligation)
         walk->is_later_alternative = true;
     if (walk->is_eligible && walk->mandatory == walk->is_reserved) {
         if (walk->is_reserved) walk->is_reserved--;

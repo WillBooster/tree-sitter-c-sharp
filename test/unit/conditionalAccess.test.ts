@@ -1668,3 +1668,43 @@ test('preserves nullable true arms and their surrounding conditional ownership',
     parser.delete();
   }
 });
+
+test('preserves receiver proof through collection arms and argument boundaries', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const receiver of ['a?[0]', 'a?[0]?[i]', 'a?[0]?.b']) {
+      for (const consequence of ['b', '[1]', '[]']) {
+        for (const alternative of [
+          'c is int',
+          'new X().Y',
+          'delegate { }',
+          'stackalloc int[1]',
+          'from x in xs select x',
+        ]) {
+          const condition = `${receiver} is T`;
+          const expression = `${condition} ? ${consequence} : ${alternative}`;
+          for (const wrapped of [`F(${expression}, d)`, `flag ? ${expression} : z`]) {
+            const tree = parser.parse(`var r = ${wrapped};`)!;
+            try {
+              expect(tree.rootNode.hasError, wrapped).toBe(false);
+              const conditional = tree.rootNode
+                .descendantsOfType('conditional_expression')
+                .find((node) => node.childForFieldName('condition')?.text === condition);
+              expect(conditional?.childForFieldName('consequence')?.text, wrapped).toBe(consequence);
+              expect(conditional?.childForFieldName('alternative')?.text, wrapped).toBe(alternative);
+              expect(
+                conditional?.childForFieldName('condition')?.descendantsOfType('conditional_access_expression')[0]
+                  ?.text,
+                wrapped
+              ).toBe(receiver);
+            } finally {
+              tree.delete();
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
