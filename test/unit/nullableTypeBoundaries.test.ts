@@ -351,7 +351,7 @@ test('keeps nullable tuple elements inside positional patterns before ternary br
 test('preserves nested expression conditions after generic type tests', () => {
   const parser = new Parser().setLanguage(language);
   try {
-    for (const condition of ['x is U', 'x as U', 'x is null', 'x < y', 'x is U value']) {
+    for (const condition of ['x is U', 'x as U', 'x is null', 'x < y', 'x == y', 'x != y', 'x is U value']) {
       const tree = parser.parse(`var result = a is List<T> ? ${condition} ? b : c?[0] : e;`)!;
       try {
         expect(tree.rootNode.hasError).toBe(false);

@@ -322,6 +322,7 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
     }
     walk->ordinary_first_token = false;
     if (question_walk_operator_context(lexer, walk, c, first_identifier)) return QUESTION_WALK_CONTINUE;
+    if (c == '=') return question_walk_assignment(lexer, walk);
     if (!is_id_start(c) && c != '\\') walk->ordinary_name_candidate = false;
     if (c == -1) {
         if (walk->recording && !walk->depth && walk->ordinary) walk->definite_ternary = true;
@@ -334,7 +335,6 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
     if (c == 0 || c == '#') return QUESTION_WALK_UNKNOWN;
     if (is_id_start(c) || c == '\\') return question_walk_identifier(scanner, lexer, walk, first_identifier);
     if (c == '?') return question_walk_question(lexer, walk);
-    if (c == '=') return question_walk_assignment(lexer, walk);
     if (walk->recording && !walk->depth && walk->ordinary && question_operator(c)) walk->definite_ternary = true;
     if (c == ':' || c == ';' || question_opening_group(c) || question_closing_group(c))
         return question_walk_delimiter(scanner, lexer, walk, c);
@@ -513,6 +513,11 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
 
 static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *walk) {
     advance(lexer);
+    if (lexer->lookahead == '=' && walk->ordinary_name_candidate && walk->recording && !walk->depth && !walk->nullable_only) {
+        walk->known_ternary = true;
+        walk->known_nullable = false;
+    }
+    walk->ordinary_name_candidate = false;
     if (!walk->depth && walk->binding && !walk->cache_colon && lexer->lookahead == '=') walk->root_binary = true;
     if (lexer->lookahead == '>') {
         if (!walk->depth) {
