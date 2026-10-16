@@ -1188,3 +1188,38 @@ test('allows supported Unicode separators after speculative identifiers', () => 
     parser.delete();
   }
 });
+
+test('counts empty collection alternatives when preserving dependent access chains', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const [expression, conditions] of [
+      ['a?[0]?[i] is T?[] ? [1] : b : c', ['a?[0]?[i] is T', '[]']],
+      ['a?[0]?[i] is T?[] ? [1] : b', ['a?[0]?[i] is T?[]']],
+      ['a?[0]?[i] is T?[] ? [1] : b : c : d', ['a?[0]', '[i] is T', '[]']],
+      ['a?[0]?[i] is T?[] ? [1] : b : c : d : e', ['a', '[0]', '[i] is T', '[]']],
+      ['a?[0]?[i]?[j] is T?[,] : b : c : d', ['a', '[0]', '[i]']],
+      ['a?[0]?[i]?[j] is T?[] ? [1] : b : c', ['a?[0]?[i]?[j] is T', '[]']],
+      ['a?[0]?[i] is T?[]?[1] : b : c', ['a?[0]?[i] is T', '[]']],
+      ['a?[0]?[i] is T?[]?[1] : b', ['a?[0]?[i] is T?[]']],
+      ['a?[0] is T ? 1 : b', ['a?[0] is T']],
+      ['a?[0] is T ? F() : b', ['a?[0] is T']],
+      ['a?[0] ? b is T : c', ['a?[0]']],
+    ] as const) {
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        expect(
+          tree.rootNode
+            .descendantsOfType('conditional_expression')
+            .map((node) => node.childForFieldName('condition')?.text),
+          expression
+        ).toEqual(conditions);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

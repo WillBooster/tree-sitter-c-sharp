@@ -182,6 +182,7 @@ typedef struct {
     uint64_t is_optional;
     uint64_t is_reserved;
     bool is_eligible;
+    bool is_ternary_eligible;
     bool is_seen;
     bool is_as_phase;
     bool is_current_consumed;
@@ -284,6 +285,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, int32_t following, bo
         .is_optional = following == '[',
         .is_reserved = frame->pending,
         .is_eligible = known && following == '[' && !cached,
+        .is_ternary_eligible = true,
         .cached_access = cached,
         .entering_binding = following == '[',
         .nullable_only = context_flags & QUESTION_NULLABLE_ONLY,
@@ -361,10 +363,14 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
         if (walk->cached_access || walk->role_known) role = 1;
         else {
             bool complete = !walk->role_active || lexer->eof(lexer);
-            bool is_access = walk->is_eligible && walk->is_seen && !walk->is_current_consumed &&
+            bool is_proved = walk->is_eligible && walk->is_seen &&
                 !walk->is_reserved && !walk->is_pending_bracket && complete;
+            bool is_access = is_proved && !walk->is_current_consumed;
             if (lexer->log) lexer->log(lexer, "is_access_proof eligible=%d seen=%d consumed=%d reserved=%llu optional=%llu complete=%d result=%d", walk->is_eligible, walk->is_seen, walk->is_current_consumed, (unsigned long long)walk->is_reserved, (unsigned long long)walk->is_optional, complete, is_access);
-            if (is_access) role = 3;
+            if (is_access || (is_proved && walk->is_ternary_eligible)) {
+                walk->known_ternary = walk->is_current_consumed;
+                role = walk->known_ternary ? 2 : 3;
+            }
         }
     }
     question_walk_pending(walk, frame, role == 1 || role == 3);
@@ -491,7 +497,7 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
         walk->is_pending_bracket = false;
         if (first == -2) return QUESTION_WALK_UNKNOWN;
         if (first < 0 || lexer->eof(lexer)) walk->is_eligible = false;
-        else if (first != ']' && first != ',') {
+        else if (first != ',') {
             if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;
             else walk->is_optional++;
         }
@@ -555,6 +561,7 @@ static void question_walk_colon(QuestionWalk *walk) {
 
 static void question_walk_future_question(QuestionWalk *walk, int32_t next) {
     if (next == '[') walk->is_pending_bracket = true;
+    else if (next != '.') walk->is_ternary_eligible = false;
     if (walk->cache_colon || next != '[') walk->cache_shaped = false;
     if (question_type_boundary(next)) walk->role_known = false;
     if (next == '[') walk->optional++;
