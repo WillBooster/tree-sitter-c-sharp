@@ -2,6 +2,7 @@ import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
 const BrowserTests = ['test/unit/browser.test.ts'];
+const PerformanceTests = ['test/unit/performance.test.ts'];
 
 export default defineConfig({
   test: {
@@ -12,7 +13,7 @@ export default defineConfig({
         test: {
           name: 'node',
           include: ['test/unit/**/*.test.ts'],
-          exclude: BrowserTests,
+          exclude: [...BrowserTests, ...PerformanceTests],
           globalSetup: ['test/unit/globalSetup.ts'],
         },
       },
@@ -21,6 +22,13 @@ export default defineConfig({
           name: 'browser',
           include: BrowserTests,
           browser: { enabled: true, provider: playwright(), headless: true, instances: [{ browser: 'chromium' }] },
+        },
+      },
+      {
+        test: {
+          name: 'performance',
+          include: PerformanceTests,
+          sequence: { groupOrder: 1 },
         },
       },
     ],

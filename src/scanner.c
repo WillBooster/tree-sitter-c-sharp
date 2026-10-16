@@ -512,6 +512,7 @@ typedef enum {
 } QuestionScanResult;
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
@@ -986,32 +987,39 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
     question_skip_separators(lexer);
     QuestionFollowing next = question_following(lexer);
-    bool known_complex = false;
+    bool known_ternary = false;
     if (next.member) scanner->question_type_uncertain = false;
-    bool known_nullable = valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] &&
-        next.token != '[' && !next.member;
+    bool known_nullable = valid_symbols[QUESTION_NULLABLE] &&
+        (!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member;
     uint8_t rank_phase = scanner->question_rank_role;
     scanner->question_rank_role = RANK_NONE;
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (!scanner->question_type_uncertain || scanner->question_unknown || frame->unknown || next.token != '[')
         rank_phase = RANK_NONE;
+    unsigned context_flags = (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
+        (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0);
     unsigned role = prepare_question_context(scanner, lexer, next.token, &known_nullable,
-        valid_symbols[QUESTION_DEFINITE_ACCESS], rank_phase, &known_complex);
+        context_flags, rank_phase, &known_ternary);
+    if (known_ternary && valid_symbols[CASE_LABEL_COLON]) role = 0;
     if (next.member) role = 1;
     if (lexer->log) lexer->log(lexer, "question_role role=%u access=%d ternary=%d nullable=%d unknown=%d", role,
         (valid_symbols[QUESTION_MEMBER_ACCESS] || valid_symbols[QUESTION_ELEMENT_ACCESS]), valid_symbols[QUESTION_TERNARY],
         valid_symbols[QUESTION_NULLABLE], valid_symbols[QUESTION_UNKNOWN]);
+    return select_question_symbol(lexer, valid_symbols, &next, role, known_nullable);
+}
+
+static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable) {
     bool access = role == 1 || role == 3;
     if (known_nullable) {
         if (!valid_symbols[QUESTION_NULLABLE]) return QUESTION_MISMATCHED;
         lexer->result_symbol = QUESTION_NULLABLE;
     } else if (role == 2 && valid_symbols[QUESTION_TERNARY] && !valid_symbols[CASE_LABEL_COLON]) {
         lexer->result_symbol = QUESTION_TERNARY;
-    } else if (access && (next.member || next.token == '[') && valid_symbols[QUESTION_DEFINITE_ACCESS]) {
+    } else if (access && (next->member || next->token == '[') && valid_symbols[QUESTION_DEFINITE_ACCESS]) {
         lexer->result_symbol = QUESTION_DEFINITE_ACCESS;
-    } else if (access && next.member && valid_symbols[QUESTION_MEMBER_ACCESS]) {
+    } else if (access && next->member && valid_symbols[QUESTION_MEMBER_ACCESS]) {
         lexer->result_symbol = QUESTION_MEMBER_ACCESS;
-    } else if (access && next.token == '[' && valid_symbols[QUESTION_ELEMENT_ACCESS]) {
+    } else if (access && next->token == '[' && valid_symbols[QUESTION_ELEMENT_ACCESS]) {
         lexer->result_symbol = QUESTION_ELEMENT_ACCESS;
     } else if (role && valid_symbols[QUESTION_NULLABLE]) {
         lexer->result_symbol = QUESTION_NULLABLE;

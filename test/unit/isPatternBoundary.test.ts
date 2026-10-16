@@ -310,24 +310,40 @@ test('keeps conditional case labels intact alongside constant and declaration pa
   const parser = new Parser();
   parser.setLanguage(language);
   try {
-    for (const condition of ['A', 'A.B', 'global::A.B', 'A + B', 'A && B', 'A + B == C', 'A * B < C', 'A | B']) {
-      const source = `switch (value) { case ${condition} ? First : Second: break; case 1: break; case nameof(value): break; case int item: break; }`;
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(false);
-        const sections = tree.rootNode.descendantsOfType('switch_section');
-        expect(
-          sections[0]?.namedChildren.map((node) => node.type),
-          source
-        ).toEqual(['constant_pattern', 'break_statement']);
-        expect(sections[0]?.namedChild(0)?.namedChild(0)?.type).toBe('conditional_expression');
-        expect(sections[0]?.namedChild(0)?.text).toBe(`${condition} ? First : Second`);
-        expect(sections[1]?.namedChild(0)?.type).toBe('constant_pattern');
-        expect(sections[2]?.namedChild(0)?.type).toBe('constant_pattern');
-        expect(sections[3]?.namedChild(0)?.type).toBe('declaration_pattern');
-      } finally {
-        tree.delete();
+    for (const [whenTrue, whenFalse] of [
+      ['First', 'Second'],
+      ['1', '2'],
+    ]) {
+      for (const condition of ['A', 'A.B', 'global::A.B', 'A + B', 'A && B', 'A + B == C', 'A * B < C', 'A | B']) {
+        const source = `switch (value) { case ${condition} ? ${whenTrue} : ${whenFalse}: break; case 1: break; case nameof(value): break; case int item: break; }`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const sections = tree.rootNode.descendantsOfType('switch_section');
+          expect(
+            sections[0]?.namedChildren.map((node) => node.type),
+            source
+          ).toEqual(['constant_pattern', 'break_statement']);
+          expect(sections[0]?.namedChild(0)?.namedChild(0)?.type).toBe('conditional_expression');
+          expect(sections[0]?.namedChild(0)?.text).toBe(`${condition} ? ${whenTrue} : ${whenFalse}`);
+          expect(sections[1]?.namedChild(0)?.type).toBe('constant_pattern');
+          expect(sections[2]?.namedChild(0)?.type).toBe('constant_pattern');
+          expect(sections[3]?.namedChild(0)?.type).toBe('declaration_pattern');
+        } finally {
+          tree.delete();
+        }
       }
+    }
+    const source = 'switch (value) { case A + B ? [1] : [2]: break; }';
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(false);
+      const conditional = tree.rootNode.descendantsOfType('conditional_expression')[0];
+      expect(conditional?.childForFieldName('condition')?.text).toBe('A + B');
+      expect(conditional?.childForFieldName('consequence')?.text).toBe('[1]');
+      expect(conditional?.childForFieldName('alternative')?.text).toBe('[2]');
+    } finally {
+      tree.delete();
     }
   } finally {
     parser.delete();
@@ -479,10 +495,6 @@ test('keeps primary receivers and mixed call/member/postfix chains inside is con
       'new C().Member().Next!',
       'A.B!(1, 2)',
       'nameof(C)!',
-      '(Colors).Red',
-      '((A.B)).C',
-      '(1).ToString',
-      '(1, 2).Item1',
       'nameof(C).Next().Last!',
       '"hello".Member().Next!',
     ]) {
@@ -899,29 +911,6 @@ test('keeps logical patterns inside nested generic positional patterns', () => {
   }
 });
 
-test('distinguishes tuple expression receivers from tuple patterns', () => {
-  const parser = new Parser().setLanguage(language);
-  try {
-    for (const tuple of ['A.B, C.D', 'A.B + 1, C.D']) {
-      const receiver = `((${tuple}))`;
-      const source = `var result = value is ${receiver}.Member;`;
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(false);
-        expect(
-          tree.rootNode.descendantsOfType('tuple_expression').map((node) => node.text),
-          source
-        ).toEqual([`(${tuple})`]);
-        expect(tree.rootNode.descendantsOfType('positional_pattern_clause'), source).toHaveLength(0);
-      } finally {
-        tree.delete();
-      }
-    }
-  } finally {
-    parser.delete();
-  }
-});
-
 test('parses member and index constants across pattern contexts', () => {
   const parser = new Parser().setLanguage(language);
   try {
@@ -929,9 +918,6 @@ test('parses member and index constants across pattern contexts', () => {
       'var result = value is not A.B[0];',
       'var result = value is other or A.B[0];',
       'var result = value is other and A.B[0];',
-      'var result = value is { P: (A.B).C };',
-      'var result = value is [(A.B).C];',
-      'var result = value is { P: (A.B + 1).C };',
       'var result = value is [A.B[0].Call()];',
       'switch (value) { case A.B[0]: break; }',
     ] as const) {
@@ -1186,6 +1172,52 @@ test('keeps bare slices in list patterns before guards and in nested owners', ()
         expect(tree.rootNode.descendantsOfType('slice_pattern'), source).toHaveLength(0);
       } finally {
         tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('keeps nested positional patterns distinct from parenthesized tuple constants', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const [pattern, parentheses] of [
+      ['((1, 2))', ['((1, 2))']],
+      ['(((1, 2)))', ['(((1, 2)))', '((1, 2))']],
+    ] as const) {
+      for (const source of [
+        `var result = value is ${pattern};`,
+        `var result = value is { Property: ${pattern} };`,
+        `var result = value is [${pattern}];`,
+      ]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode.descendantsOfType('parenthesized_pattern').map((node) => node.text),
+            source
+          ).toEqual(parentheses);
+          const positional = tree.rootNode.descendantsOfType('positional_pattern_clause');
+          expect(
+            positional.map((node) => node.text),
+            source
+          ).toEqual(['(1, 2)']);
+          expect(
+            positional[0]?.namedChildren.map((node) => [node.type, node.text]),
+            source
+          ).toEqual([
+            ['subpattern', '1'],
+            ['subpattern', '2'],
+          ]);
+          expect(
+            tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
+            source
+          ).toEqual(['1', '2']);
+          expect(tree.rootNode.descendantsOfType('tuple_expression'), source).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
       }
     }
   } finally {

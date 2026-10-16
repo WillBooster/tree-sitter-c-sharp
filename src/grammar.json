@@ -6265,6 +6265,60 @@
         }
       ]
     },
+    "_pattern_parenthesized_expression": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "_pattern_unary_expression"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "binary_expression"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "conditional_expression"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "is_pattern_expression"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "as_expression"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "switch_expression"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "throw_expression"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "range_expression"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "with_expression"
+            }
+          ]
+        },
+        {
+          "type": "STRING",
+          "value": ")"
+        }
+      ]
+    },
     "_pattern_primary_expression": {
       "type": "CHOICE",
       "members": [
@@ -6308,8 +6362,13 @@
               "value": "invocation_expression"
             },
             {
-              "type": "SYMBOL",
-              "name": "parenthesized_expression"
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_pattern_parenthesized_expression"
+              },
+              "named": true,
+              "value": "parenthesized_expression"
             },
             {
               "type": "ALIAS",
@@ -6740,8 +6799,13 @@
               "name": "tuple_expression"
             },
             {
-              "type": "SYMBOL",
-              "name": "parenthesized_expression"
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_pattern_parenthesized_expression"
+              },
+              "named": true,
+              "value": "parenthesized_expression"
             },
             {
               "type": "SYMBOL",
@@ -9215,24 +9279,209 @@
           "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
-            "name": "_conditional_suppression_expression"
+            "name": "_assignment_target_prefix_unary_expression"
           },
           "named": true,
-          "value": "postfix_unary_expression"
+          "value": "prefix_unary_expression"
         },
         {
-          "type": "SYMBOL",
-          "name": "prefix_unary_expression"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_assignment_target_cast_expression"
+          },
+          "named": true,
+          "value": "cast_expression"
         },
         {
-          "type": "SYMBOL",
-          "name": "cast_expression"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "await_expression"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_assignment_target_await_expression"
+          },
+          "named": true,
+          "value": "await_expression"
         }
       ]
+    },
+    "_assignment_target_prefix_unary_expression": {
+      "type": "PREC_RIGHT",
+      "value": 17,
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "STRING",
+                    "value": "++"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "--"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "!"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "~"
+                  }
+                ]
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_nonconditional_unary_expression"
+              }
+            ]
+          },
+          {
+            "type": "PREC_DYNAMIC",
+            "value": -2,
+            "content": {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "+"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "-"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "^"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "*"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "&"
+                    }
+                  ]
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_nonconditional_unary_expression"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "_assignment_target_cast_expression": {
+      "type": "PREC",
+      "value": 17,
+      "content": {
+        "type": "PREC_DYNAMIC",
+        "value": 1,
+        "content": {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "("
+                },
+                {
+                  "type": "FIELD",
+                  "name": "type",
+                  "content": {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_ambiguous_cast_type"
+                    },
+                    "named": true,
+                    "value": "type"
+                  }
+                },
+                {
+                  "type": "STRING",
+                  "value": ")"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_ambiguous_cast_operand_start"
+                },
+                {
+                  "type": "FIELD",
+                  "name": "value",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_nonconditional_unary_expression"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "("
+                },
+                {
+                  "type": "FIELD",
+                  "name": "type",
+                  "content": {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_definite_cast_type"
+                    },
+                    "named": true,
+                    "value": "type"
+                  }
+                },
+                {
+                  "type": "STRING",
+                  "value": ")"
+                },
+                {
+                  "type": "FIELD",
+                  "name": "value",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_nonconditional_unary_expression"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "_assignment_target_await_expression": {
+      "type": "PREC_RIGHT",
+      "value": 17,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "await"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "_nonconditional_unary_expression"
+          }
+        ]
+      }
     },
     "_conditional_suppression_expression": {
       "type": "PREC",
@@ -17697,6 +17946,15 @@
     }
   ],
   "conflicts": [
+    [
+      "_pattern_parenthesized_expression",
+      "constant_pattern",
+      "expression"
+    ],
+    [
+      "_pattern_parenthesized_expression",
+      "constant_pattern"
+    ],
     [
       "_simple_name",
       "_pattern_simple_identifier_name",

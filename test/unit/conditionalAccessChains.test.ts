@@ -51,24 +51,39 @@ test('places C# 14 assignment inside the conditional access consequence', () => 
   const parser = new Parser();
   parser.setLanguage(language);
   try {
-    for (const [target, operator, value] of [
-      ['.P', '=', 'value'],
-      ['[i]', '+=', 'value'],
-      ['.P', '??=', 'value'],
-      ['.Event', '+=', 'handler'],
-    ]) {
-      const expression = `obj?${target} ${operator} ${value}`;
-      const tree = parser.parse(`${expression};`)!;
+    for (const prefix of ['', '(T)', '(int)', '(G<T>)', '!(T)', 'await (T)', '(T)await ']) {
+      for (const receiver of ['obj', '(obj)', 'new C()', '(a,b)']) {
+        for (const [target, operator, value] of [
+          ['.P', '=', 'value'],
+          ['[i]', '+=', 'value'],
+          ['.P', '??=', 'value'],
+          ['.Event', '+=', 'handler'],
+        ]) {
+          const expression = `${receiver}?${target} ${operator} ${value}`;
+          const tree = parser.parse(`${prefix}${expression};`)!;
+          try {
+            expect(tree.rootNode.hasError, expression).toBe(false);
+            const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
+            expect(access?.text).toBe(expression);
+            expect(access?.childForFieldName('condition')?.text).toBe(receiver);
+            const assignment = access?.childForFieldName('consequence');
+            expect(assignment?.type).toBe('assignment_expression');
+            expect(assignment?.childForFieldName('left')?.text).toBe(target);
+            expect(assignment?.childForFieldName('operator')?.text).toBe(operator);
+            expect(assignment?.childForFieldName('right')?.text).toBe(value);
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+    for (const left of ['(T)obj', '(T)!obj', 'await (T)obj']) {
+      const tree = parser.parse(`${left} = value;`)!;
       try {
-        expect(tree.rootNode.hasError, expression).toBe(false);
-        const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
-        expect(access?.text).toBe(expression);
-        expect(access?.childForFieldName('condition')?.text).toBe('obj');
-        const assignment = access?.childForFieldName('consequence');
-        expect(assignment?.type).toBe('assignment_expression');
-        expect(assignment?.childForFieldName('left')?.text).toBe(target);
-        expect(assignment?.childForFieldName('operator')?.text).toBe(operator);
-        expect(assignment?.childForFieldName('right')?.text).toBe(value);
+        expect(tree.rootNode.hasError, left).toBe(false);
+        const assignment = tree.rootNode.descendantsOfType('assignment_expression')[0];
+        expect(assignment?.childForFieldName('left')?.text, left).toBe(left);
+        expect(assignment?.childForFieldName('right')?.text, left).toBe('value');
       } finally {
         tree.delete();
       }

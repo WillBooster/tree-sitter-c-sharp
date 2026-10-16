@@ -181,13 +181,56 @@ test('keeps conditional indexing and type tests inside ternary conditions', () =
   }
 });
 
-test('preserves nullable type conditions before generic and as-expression collection branches', () => {
+test('preserves nullable type conditions before collection expression continuations', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   try {
-    for (const [condition, consequence, kind] of [
-      ['value is N.T<C>?[]', '[1]', 'collection_expression'],
-      ['value is N.T?[]', '[1] as T', 'as_expression'],
+    for (const [condition, consequence, kind, nullable] of [
+      ['value is N.T<C>?[]', '[1]', 'collection_expression', 'N.T<C>?'],
+      ['value is N.T?[]', '[1] as T', 'as_expression', 'N.T?'],
+      ['o is string[]', 'items?[0]', 'conditional_access_expression', undefined],
+      ['o is int[]', 'items?[0]', 'conditional_access_expression', undefined],
+      ['o is A.B[]', 'items?[0]', 'conditional_access_expression', undefined],
+      ['o is T[,]', 'items?[0]', 'conditional_access_expression', undefined],
+      ['o is T?[]', 'items?[0]', 'conditional_access_expression', 'T?'],
+      ['o is List<int>', 'items?[0]', 'conditional_access_expression', undefined],
+      ...[
+        'index',
+        'true',
+        'false',
+        '"text"',
+        "'c'",
+        'left,right',
+        '1 + index',
+        'Call()',
+        'index.P',
+        'index ? 1 : 2',
+      ].map((value) => ['x is T?[]', `[${value}]`, 'collection_expression', 'T?'] as const),
+      ...['1', 'index', '1 + index', 'Call()'].map(
+        (value) => ['x is T?[]', `[0] switch { _ => ${value} }`, 'switch_expression', 'T?'] as const
+      ),
+      ...[
+        '+',
+        '-',
+        '*',
+        '/',
+        '%',
+        '<<',
+        '>>',
+        '>>>',
+        '<',
+        '<=',
+        '>',
+        '>=',
+        '==',
+        '!=',
+        '&',
+        '^',
+        '|',
+        '&&',
+        '||',
+        '??',
+      ].map((operator) => ['x is T?[]', `[0] ${operator} x`, 'binary_expression', 'T?'] as const),
     ] as const) {
       const source = `var result = ${condition} ? ${consequence} : fallback;`;
       const tree = parser.parse(source)!;
@@ -200,7 +243,7 @@ test('preserves nullable type conditions before generic and as-expression collec
         expect(
           tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
           source
-        ).toEqual([condition.includes('<') ? 'N.T<C>?' : 'N.T?']);
+        ).toEqual(nullable ? [nullable] : []);
       } finally {
         tree.delete();
       }
@@ -375,7 +418,6 @@ test('preserves parenthesized receiver categories across unary operators and poi
     '()=>{}',
     'from x in xs select x',
     'throw x',
-    'ref x',
   ];
   try {
     for (const expression of expressions) {

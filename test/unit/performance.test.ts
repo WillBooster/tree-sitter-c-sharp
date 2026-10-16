@@ -25,8 +25,13 @@ test('uses a Wasm build built from the current parser', () => {
     'generation inputs changed after src/parser.c was generated; run `bun run build/ci`'
   ).toBe(false);
   expect(
-    Math.max(mtime('src/parser.c'), mtime('src/scanner.c'), mtime('src/tree_sitter/parser.h')) >
-      fs.statSync(WasmPath).mtimeMs,
+    Math.max(
+      mtime('src/parser.c'),
+      mtime('src/scanner.c'),
+      mtime('src/questionContext.h'),
+      mtime('src/nullableRank.h'),
+      mtime('src/tree_sitter/parser.h')
+    ) > fs.statSync(WasmPath).mtimeMs,
     'src/ changed after the Wasm build was built; run `bun run build/ci`'
   ).toBe(false);
 });
@@ -87,21 +92,74 @@ test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
   }
 );
 
-function parseCpuTime(source: string): number {
+const questionSources = [
+  {
+    name: 'nullable properties',
+    source: (count: number): string =>
+      'class C {' + Array.from({ length: count }, (_, index) => `public T? P${index} { get; set; }`).join(' ') + '}',
+    node: 'nullable_type',
+  },
+  {
+    name: 'numeric ternaries',
+    source: (count: number): string =>
+      'class C { void M() { var x = ' +
+      Array.from({ length: count }, (_, index) => `c${index} ? 1 : `).join('') +
+      '0; } }',
+    node: 'conditional_expression',
+  },
+  {
+    name: 'identifier ternaries',
+    source: (count: number): string => 'class C { void M() { var x = ' + 'a ? a : '.repeat(count) + 'a; } }',
+    node: 'conditional_expression',
+  },
+  {
+    name: 'collection ternaries',
+    source: (count: number): string => 'class C { void M() { var x = ' + 'c ? [1] : '.repeat(count) + '[0]; } }',
+    node: 'conditional_expression',
+  },
+  {
+    name: 'nullable type tests and ternaries',
+    source: (count: number): string => 'class C { void M() { var x = ' + 'a is T? ? 1 : '.repeat(count) + '0; } }',
+    node: 'nullable_type',
+  },
+];
+
+test.each(questionSources)('parses repeated $name in linear time', { timeout: 60_000 }, ({ source, node }) => {
+  const small = source(200);
+  const large = source(2000);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(tree.rootNode.descendantsOfType(node)).toHaveLength(2000);
+  } finally {
+    tree.delete();
+  }
+  parseCpuTime(large, false);
+  let smallFastest = Infinity;
+  let largeFastest = Infinity;
+  for (let run = 0; run < 3; run++) {
+    smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
+    largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+  }
+  expect(largeFastest / smallFastest).toBeLessThan(18);
+  expect(largeFastest).toBeLessThan(5_000_000);
+});
+
+function parseCpuTime(source: string, expectedErrors = true): number {
   const start = process.threadCpuUsage();
   let samples = 0;
   let elapsed = 0;
-  let allHaveErrors = true;
+  let allMatchErrors = true;
   // Short parses can take less than one CPU timer tick on Linux ARM. Measure a batch before averaging.
   do {
     const tree = parser.parse(source);
     if (!tree) throw new Error('The parser returned no tree');
-    allHaveErrors &&= tree.rootNode.hasError;
+    allMatchErrors &&= tree.rootNode.hasError === expectedErrors;
     tree.delete();
     samples++;
     const { system, user } = process.threadCpuUsage(start);
     elapsed = system + user;
   } while (elapsed < 50_000);
-  expect(allHaveErrors).toBe(true);
+  expect(allMatchErrors).toBe(true);
   return elapsed / samples;
 }

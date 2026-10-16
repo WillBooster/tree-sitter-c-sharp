@@ -53,6 +53,8 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._pattern_parenthesized_expression, $.constant_pattern, $.expression],
+    [$._pattern_parenthesized_expression, $.constant_pattern],
     [$._simple_name, $._pattern_simple_identifier_name, $._ambiguous_cast_qualified_name],
     [$._simple_name, $._ambiguous_cast_qualified_name],
     [$._simple_name, $._definite_cast_qualified_name],
@@ -1094,6 +1096,8 @@ module.exports = grammar({
     _pattern_unary_expression: ($) =>
       choice($._pattern_primary_expression, $.prefix_unary_expression, $.cast_expression, $.await_expression),
 
+    _pattern_parenthesized_expression: ($) => seq('(', choice(...nestedConstantExpressionRoots($)), ')'),
+
     _pattern_primary_expression: ($) =>
       choice(
         primaryAtoms($, {
@@ -1103,6 +1107,7 @@ module.exports = grammar({
           element: alias($._pattern_element_access_expression, $.element_access_expression),
           invocation: alias($._pattern_invocation_expression, $.invocation_expression),
           tuple: false,
+          parenthesized: alias($._pattern_parenthesized_expression, $.parenthesized_expression),
         }),
         $.conditional_access_expression,
         alias($._conditional_suppression_expression, $.postfix_unary_expression)
@@ -1140,6 +1145,7 @@ module.exports = grammar({
         primaryAtoms($, {
           member: alias($._pattern_non_name_member_access_expression, $.member_access_expression),
           collection: true,
+          parenthesized: alias($._pattern_parenthesized_expression, $.parenthesized_expression),
         })
       ),
 
@@ -1222,18 +1228,7 @@ module.exports = grammar({
     // Uses '(' pattern ')' to create direct conflict with parenthesized_pattern
     _parenthesized_pattern_with_designation: ($) => seq('(', $.pattern, ')', $._simple_designation),
 
-    constant_pattern: ($) =>
-      choice(
-        $._pattern_unary_expression,
-        $.binary_expression,
-        $.conditional_expression,
-        $.is_pattern_expression,
-        $.as_expression,
-        $.switch_expression,
-        $.throw_expression,
-        $.range_expression,
-        $.with_expression
-      ),
+    constant_pattern: ($) => choice(...nestedConstantExpressionRoots($)),
 
     _name_invocation_pattern: ($) => seq(field('function', $._name), field('arguments', $.argument_list)),
 
@@ -1375,11 +1370,17 @@ module.exports = grammar({
     _nonconditional_unary_expression: ($) =>
       choice(
         $._primary_no_conditional_access_expression,
-        alias($._conditional_suppression_expression, $.postfix_unary_expression),
-        $.prefix_unary_expression,
-        $.cast_expression,
-        $.await_expression
+        alias($._assignment_target_prefix_unary_expression, $.prefix_unary_expression),
+        alias($._assignment_target_cast_expression, $.cast_expression),
+        alias($._assignment_target_await_expression, $.await_expression)
       ),
+
+    _assignment_target_prefix_unary_expression: ($) => prefixUnaryExpression($._nonconditional_unary_expression),
+
+    _assignment_target_cast_expression: ($) => castExpression($, $._nonconditional_unary_expression),
+
+    _assignment_target_await_expression: ($) =>
+      prec.right(PREC.UNARY, seq('await', $._nonconditional_unary_expression)),
 
     _conditional_suppression_expression: ($) =>
       postfixExpression(
@@ -1449,14 +1450,7 @@ module.exports = grammar({
     postfix_unary_expression: ($) =>
       postfixExpression($._primary_no_conditional_access_expression, choice('++', '--', '!')),
 
-    prefix_unary_expression: ($) =>
-      prec.right(
-        PREC.UNARY,
-        choice(
-          seq(choice('++', '--', '!', '~'), $._unary_expression),
-          prec.dynamic(-2, seq(choice('+', '-', '^', '*', '&'), $._unary_expression))
-        )
-      ),
+    prefix_unary_expression: ($) => prefixUnaryExpression($._unary_expression),
 
     query_expression: ($) => seq($.from_clause, $._query_body),
 
@@ -1617,23 +1611,7 @@ module.exports = grammar({
       ),
 
     // C# treats a non-generic terminal name followed by a nonempty collection as parenthesized indexing.
-    cast_expression: ($) =>
-      prec(
-        PREC.CAST,
-        prec.dynamic(
-          1,
-          choice(
-            seq(
-              '(',
-              field('type', alias($._ambiguous_cast_type, $.type)),
-              ')',
-              sym('_ambiguous_cast_operand_start'),
-              field('value', $._unary_expression)
-            ),
-            seq('(', field('type', alias($._definite_cast_type, $.type)), ')', field('value', $._unary_expression))
-          )
-        )
-      ),
+    cast_expression: ($) => castExpression($, $._unary_expression),
 
     _ambiguous_cast_type: ($) => $._ambiguous_cast_name,
 
@@ -2352,6 +2330,41 @@ function invocationExpression($, receiver) {
 }
 
 /**
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function prefixUnaryExpression(operand) {
+  return prec.right(
+    PREC.UNARY,
+    choice(seq(choice('++', '--', '!', '~'), operand), prec.dynamic(-2, seq(choice('+', '-', '^', '*', '&'), operand)))
+  );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_ambiguous_cast_type' | '_definite_cast_type' | 'type'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function castExpression($, operand) {
+  return prec(
+    PREC.CAST,
+    prec.dynamic(
+      1,
+      choice(
+        seq(
+          '(',
+          field('type', alias($._ambiguous_cast_type, $.type)),
+          ')',
+          sym('_ambiguous_cast_operand_start'),
+          field('value', operand)
+        ),
+        seq('(', field('type', alias($._definite_cast_type, $.type)), ')', field('value', operand))
+      )
+    )
+  );
+}
+
+/**
  * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_conditional_access_consequence'>} $
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
  * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
@@ -2512,7 +2525,7 @@ function binaryOperators() {
 
 /**
  * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_conditional_update_expression' | '_nameof_expression' | 'anonymous_method_expression' | 'anonymous_object_creation_expression' | 'array_creation_expression' | 'checked_expression' | 'collection_expression' | 'default_expression' | 'element_access_expression' | 'implicit_array_creation_expression' | 'implicit_object_creation_expression' | 'implicit_stackalloc_expression' | 'interpolated_string_expression' | 'invocation_expression' | 'literal' | 'makeref_expression' | 'object_creation_expression' | 'parenthesized_expression' | 'postfix_unary_expression' | 'reftype_expression' | 'refvalue_expression' | 'sizeof_expression' | 'stackalloc_expression' | 'tuple_expression' | 'typeof_expression'>} $
- * @param {{name?: import('@willbooster/web-tree-sitter/dsl').Rule, member: import('@willbooster/web-tree-sitter/dsl').Rule, collection: boolean, element?: import('@willbooster/web-tree-sitter/dsl').Rule, invocation?: import('@willbooster/web-tree-sitter/dsl').Rule, tuple?: boolean, array?: import('@willbooster/web-tree-sitter/dsl').Rule, stackalloc?: import('@willbooster/web-tree-sitter/dsl').Rule, definite?: boolean}} options
+ * @param {{name?: import('@willbooster/web-tree-sitter/dsl').Rule, member: import('@willbooster/web-tree-sitter/dsl').Rule, collection: boolean, element?: import('@willbooster/web-tree-sitter/dsl').Rule, invocation?: import('@willbooster/web-tree-sitter/dsl').Rule, parenthesized?: import('@willbooster/web-tree-sitter/dsl').Rule, tuple?: boolean, array?: import('@willbooster/web-tree-sitter/dsl').Rule, stackalloc?: import('@willbooster/web-tree-sitter/dsl').Rule, definite?: boolean}} options
  */
 function primaryAtoms(
   $,
@@ -2522,6 +2535,7 @@ function primaryAtoms(
     collection,
     element = $.element_access_expression,
     invocation = $.invocation_expression,
+    parenthesized = $.parenthesized_expression,
     tuple = true,
     array = $.array_creation_expression,
     stackalloc = $.stackalloc_expression,
@@ -2534,7 +2548,7 @@ function primaryAtoms(
     element,
     invocation,
     ...(tuple ? [$.tuple_expression] : []),
-    $.parenthesized_expression,
+    parenthesized,
     ...(collection ? [$.collection_expression] : []),
     alias(sym('preproc_if_in_expression'), sym('preproc_if')),
   ];
@@ -2674,6 +2688,23 @@ function nonconstantPatterns($) {
 function subpattern($, named = false) {
   const name = choice(seq($.expression, ':'), seq($.identifier, ':'));
   return prec.right(seq(named ? name : optional(name), $.pattern));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_pattern_unary_expression' | 'binary_expression' | 'conditional_expression' | 'is_pattern_expression' | 'as_expression' | 'switch_expression' | 'throw_expression' | 'range_expression' | 'with_expression'>} $
+ */
+function nestedConstantExpressionRoots($) {
+  return [
+    $._pattern_unary_expression,
+    $.binary_expression,
+    $.conditional_expression,
+    $.is_pattern_expression,
+    $.as_expression,
+    $.switch_expression,
+    $.throw_expression,
+    $.range_expression,
+    $.with_expression,
+  ];
 }
 
 /**
