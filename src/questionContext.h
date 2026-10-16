@@ -173,7 +173,7 @@ typedef enum {
 } QuestionContextFlags;
 
 typedef struct {
-    int32_t following;
+    QuestionFollowing following;
     uint32_t cached_count;
     uint32_t reserved;
     uint64_t mandatory;
@@ -217,7 +217,7 @@ typedef struct {
 
 typedef enum { QUESTION_WALK_CONTINUE, QUESTION_WALK_STOP, QUESTION_WALK_UNKNOWN } QuestionWalkStep;
 
-static QuestionWalk question_walk_create(Scanner *scanner, int32_t following, bool known_nullable, unsigned context_flags, uint8_t rank_phase);
+static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase);
 static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
@@ -233,14 +233,14 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_colon(QuestionWalk *walk);
-static void question_walk_future_question(QuestionWalk *walk, int32_t next);
+static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next);
 static bool question_uncertain_keyword(const QuestionIdentifier *identifier);
 static bool question_expression_keyword(const QuestionIdentifier *identifier);
 static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool proved_access);
 static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
-static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, int32_t following, bool *known_nullable, unsigned context_flags, uint8_t rank_phase, bool *known_ternary) {
+static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t rank_phase, bool *known_ternary) {
     QuestionWalk walk = question_walk_create(scanner, following, *known_nullable, context_flags, rank_phase);
     unsigned result = 0;
     while (!lexer->eof(lexer)) {
@@ -268,40 +268,40 @@ unknown:
     return walk.known_ternary ? 2 : 0;
 }
 
-static QuestionWalk question_walk_create(Scanner *scanner, int32_t following, bool known_nullable, unsigned context_flags, uint8_t rank_phase) {
+static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     bool known = !scanner->question_unknown && (!scanner->question_type_uncertain || (context_flags & QUESTION_EXPRESSION_RECEIVER)) && !frame->unknown;
     bool ternary_only = rank_phase == RANK_PATTERN_COMPLETE;
-    bool cached = scanner->question_access_cache && following == '[' && known && !ternary_only;
-    bool ordinary = following != '[' && following != '.';
-    bool definite_ternary = ternary_only || (ordinary && !known_nullable && following >= '0' && following <= '9');
+    bool cached = scanner->question_access_cache && following.token == '[' && known && !ternary_only;
+    bool ordinary = following.token != '[' && !following.member;
+    bool definite_ternary = ternary_only || (ordinary && !known_nullable && following.token >= '0' && following.token <= '9');
     QuestionWalk walk = {
         .following = following,
         .cached_count = scanner->question_access_cache,
         .reserved = frame->pending,
         .mandatory = (uint64_t)frame->pending + ordinary,
-        .optional = following == '[',
-        .is_optional = following == '[',
+        .optional = following.token == '[',
+        .is_optional = following.token == '[',
         .is_reserved = frame->pending,
-        .is_eligible = known && following == '[' && !cached,
+        .is_eligible = known && following.token == '[' && !cached,
         .is_ternary_eligible = true,
         .cached_access = cached,
-        .entering_binding = following == '[',
+        .entering_binding = following.token == '[',
         .nullable_only = context_flags & QUESTION_NULLABLE_ONLY,
         .role_known = known,
         .no_colons = true,
-        .cache_shaped = following == '[' && !cached && !ternary_only,
-        .role_active = following != '.' && !cached && !known_nullable && !definite_ternary,
+        .cache_shaped = following.token == '[' && !cached && !ternary_only,
+        .role_active = !following.member && !cached && !known_nullable && !definite_ternary,
         .case_colon_possible = context_flags & QUESTION_CASE_COLON,
         .recording = true,
         .ordinary = ordinary,
         .known_nullable = known_nullable,
         .known_ternary = definite_ternary,
         .rank_phase = rank_phase,
-        .nullable_terminator = question_type_boundary(following) || following == '}',
+        .nullable_terminator = question_type_boundary(following.token) || following.token == '}',
         .definite_ternary = definite_ternary,
         .first_word = true,
-        .ordinary_first_token = ordinary && following != '/',
+        .ordinary_first_token = ordinary && following.token != '/',
     };
     scanner->question_access_cache = 0;
     return walk;
@@ -457,14 +457,14 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
     if (walk->role_active && !walk->depth) {
         question_skip_separators(lexer);
         QuestionFollowing following = question_following(lexer);
-        if (walk->recording && walk->root_colons && walk->binding && following.token != '[' && following.token != '.') {
+        if (walk->recording && walk->root_colons && walk->binding && following.token != '[' && !following.member) {
             walk->role_active = false;
             walk->role_known = false;
             walk->is_eligible = false;
         }
         if (following.token == '.' && !following.member && walk->binding && !walk->cache_colon)
             walk->root_binary = true;
-        question_walk_future_question(walk, following.token);
+        question_walk_future_question(walk, following);
     }
     walk->found_next_question = true;
     walk->recording = false;
@@ -509,7 +509,8 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
     else if (question_closing_group(c)) walk->depth--;
     bool statement_end = c == ';' && walk->depth <= 0;
     if (statement_end || walk->depth < 0) walk->role_active = false;
-    return statement_end || (!walk->role_active && !walk->recording) ? QUESTION_WALK_STOP : QUESTION_WALK_CONTINUE;
+    bool root_statement_end = statement_end && walk->depth + scanner->question_frame_count <= 1;
+    return root_statement_end || (!walk->role_active && !walk->recording) ? QUESTION_WALK_STOP : QUESTION_WALK_CONTINUE;
 }
 
 static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
@@ -553,7 +554,7 @@ static void question_walk_colon(QuestionWalk *walk) {
     walk->no_colons = false;
     if (walk->mandatory) walk->mandatory--;
     else if (walk->optional) {
-        if (walk->optional == 1 && walk->following == '[') walk->proved_ternary = true;
+        if (walk->optional == 1 && walk->following.token == '[') walk->proved_ternary = true;
         walk->optional--;
     } else walk->role_known = false;
     if (walk->recording && !walk->mandatory && !walk->optional) {
@@ -563,13 +564,13 @@ static void question_walk_colon(QuestionWalk *walk) {
     if (walk->role_known && walk->proved_ternary) walk->known_ternary = true;
 }
 
-static void question_walk_future_question(QuestionWalk *walk, int32_t next) {
-    if (next == '[') walk->is_pending_bracket = true;
-    else if (next != '.') walk->is_ternary_eligible = false;
-    if (walk->cache_colon || next != '[') walk->cache_shaped = false;
-    if (question_type_boundary(next)) walk->role_known = false;
-    if (next == '[') walk->optional++;
-    else if (next != '.') walk->mandatory++;
+static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next) {
+    if (next.token == '[') walk->is_pending_bracket = true;
+    else if (!next.member) walk->is_ternary_eligible = false;
+    if (walk->cache_colon || next.token != '[') walk->cache_shaped = false;
+    if (question_type_boundary(next.token)) walk->role_known = false;
+    if (next.token == '[') walk->optional++;
+    else if (!next.member) walk->mandatory++;
 }
 
 // These spellings need syntactic type/pattern context that this lexical proof does not establish.
@@ -600,11 +601,11 @@ static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool
         return;
     }
     bool ordinary_pending = walk->ordinary && walk->definite_ternary && !walk->assignment_possible && !walk->nullable_terminator;
-    bool known_access = walk->following == '[' && (walk->role_known || walk->cached_access);
+    bool known_access = walk->following.token == '[' && (walk->role_known || walk->cached_access);
     if (ordinary_pending || (known_access && walk->proved_ternary)) {
         if (frame->pending == UINT32_MAX) frame->unknown = true;
         else frame->pending++;
-    } else if (!known_access && walk->following != '.') frame->unknown = true;
+    } else if (!known_access && !walk->following.member) frame->unknown = true;
 }
 
 static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk) {

@@ -67,3 +67,34 @@ test('preserves unary query and range operands inside surrounding expressions', 
     }
   }
 });
+
+test('keeps element access before ternary prefix-range arms', () => {
+  for (const [expression, conditions, ranges] of [
+    ['a?[0] ? ..b : c', ['a?[0]'], ['..b']],
+    ['a?[0] == 1 ? ..b : c', ['a?[0] == 1'], ['..b']],
+    ['xs[a?[0] ? ..2 : 1..]', ['a?[0]'], ['..2', '1..']],
+    ['a ? b?[0] : c ? ..d : e', ['a', 'c'], ['..d']],
+    ['a?[0]?.b ? ..c : d', ['a?[0]?.b'], ['..c']],
+    ['x?[0] ? ..n : ..m', ['x?[0]'], ['..n', '..m']],
+    ['a?.b ? ..b : c', ['a?.b'], ['..b']],
+    ['a?[0] ? 1..b : c', ['a?[0]'], ['1..b']],
+    ['a?[0] ? (..b) : c', ['a?[0]'], ['..b']],
+  ] as const) {
+    const tree = parser.parse(`var r = ${expression};`)!;
+    try {
+      expect(tree.rootNode.hasError, expression).toBe(false);
+      expect(
+        tree.rootNode
+          .descendantsOfType('conditional_expression')
+          .map((node) => node.childForFieldName('condition')?.text),
+        expression
+      ).toEqual(conditions);
+      expect(
+        tree.rootNode.descendantsOfType('range_expression').map((node) => node.text),
+        expression
+      ).toEqual(ranges);
+    } finally {
+      tree.delete();
+    }
+  }
+});
