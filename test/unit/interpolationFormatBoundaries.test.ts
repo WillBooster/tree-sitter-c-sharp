@@ -52,3 +52,49 @@ test.each(wrappers)('retains nested conditional expressions in $name interpolati
     }
   }
 });
+
+test.each(wrappers)('retains conditional element access before $name interpolation formats', ({ open, close }) => {
+  for (const expression of ['a?[0]', 'a?[0]?[1]', 'a?.b?[0]', '(a?[0])', 'F(a?[0])']) {
+    for (const format of [':C', ':N0', ':=>', ':??=', ':+1', ':!', ':.x', ':&&y', ':[1]', ':is']) {
+      const source = `var r = ${open}${expression}${format}${close};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const hole = tree.rootNode.descendantsOfType('interpolation')[0];
+        expect(
+          hole?.namedChildren.map((node) => node.text),
+          source
+        ).toContain(expression);
+        expect(hole?.descendantsOfType('conditional_access_expression').length, source).toBeGreaterThan(0);
+        expect(hole?.descendantsOfType('conditional_expression'), source).toHaveLength(0);
+        expect(hole?.descendantsOfType('interpolation_format_clause')[0]?.text, source).toBe(format);
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
+test.each(wrappers)('preserves nested empty-collection ternaries in $name interpolation holes', ({ open, close }) => {
+  for (const condition of ['x is T', 'x is a?.b']) {
+    const expression = `(${condition} ? [] : a is U?[] ? [a] : b)`;
+    for (const suffix of ['', ':C', ',10:C']) {
+      const source = `var r = ${open}${expression}${suffix}${close};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode
+            .descendantsOfType('conditional_expression')
+            .map((node) => [node.childForFieldName('condition')?.text, node.childForFieldName('consequence')?.text]),
+          source
+        ).toEqual([
+          [condition, '[]'],
+          ['a is U?[]', '[a]'],
+        ]);
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});

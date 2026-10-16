@@ -566,7 +566,7 @@ static void question_walk_colon(QuestionWalk *walk) {
         if (walk->case_colon_possible && !walk->known_ternary) walk->role_known = false;
         walk->role_active = false;
     }
-    if (walk->role_known && walk->proved_ternary) walk->known_ternary = true;
+    if (walk->role_known && walk->proved_ternary && !walk->binding) walk->known_ternary = true;
 }
 
 static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next) {
