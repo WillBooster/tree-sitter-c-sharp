@@ -41,6 +41,7 @@ static void rank_mark_nonprimary(RankTokens *tokens, unsigned expression);
 static bool rank_read_expression(TSLexer *lexer, RankTokens *tokens, bool *colon, RankTokenKind kind);
 static RankReadStep rank_read_expression_name(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression);
 static bool rank_read_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
+static bool rank_read_creation(TSLexer *lexer, bool *force_unsafe);
 static RankReadStep rank_read_pattern_word(TSLexer *lexer, const QuestionIdentifier *name, RankExpression *expression);
 static void rank_start_lambda(RankTokens *tokens, unsigned *expression);
 static bool rank_read_lambda_arrow(TSLexer *lexer, RankTokens *tokens, unsigned *expression, RankLambdaHeader *header, bool *content, bool *primary);
@@ -390,6 +391,17 @@ static bool rank_read_expression_word(TSLexer *lexer, RankTokens *tokens, RankEx
         expression->header = RANK_HEADER_INVALID;
         return true;
     }
+    if (name.keyword && (!strcmp(name.word, "new") || !strcmp(name.word, "stackalloc"))) {
+        if (!rank_read_creation(lexer, &tokens->contents[expression->token].force_unsafe)) return false;
+        expression->primary = true;
+        expression->header = RANK_HEADER_INVALID;
+        return true;
+    }
+    if (name.keyword && !strcmp(name.word, "await")) {
+        expression->primary = true;
+        expression->header = RANK_HEADER_INVALID;
+        return true;
+    }
     if (name.keyword && !strcmp(name.word, "as")) {
         RankTypeRead read = {0};
         if (!rank_read_as_type(lexer, &read)) return false;
@@ -416,6 +428,22 @@ static bool rank_read_expression_word(TSLexer *lexer, RankTokens *tokens, RankEx
     else if (name.keyword && !strcmp(name.word, "delegate")) expression->header = RANK_HEADER_DELEGATE;
     else expression->header = rank_identifier_allowed(&name, true) ? RANK_HEADER_NAME : RANK_HEADER_INVALID;
     return true;
+}
+
+static bool rank_read_creation(TSLexer *lexer, bool *force_unsafe) {
+    int32_t c = question_skip_separators(lexer);
+    if (c != '(' && c != '[' && c != '{') {
+        RankTypeRead read = {0};
+        if (!rank_read_as_name(lexer, &read) || read.colon || read.division) return false;
+        c = question_skip_separators(lexer);
+        while (c == '?' || c == '*') {
+            advance(lexer);
+            c = question_skip_separators(lexer);
+        }
+    }
+    if (c != '(' && c != '[' && c != '{') return false;
+    advance(lexer);
+    return rank_read_delimited(lexer, (char)c, RANK_BODY_EXPRESSION, force_unsafe);
 }
 
 static RankReadStep rank_read_pattern_word(TSLexer *lexer, const QuestionIdentifier *name, RankExpression *expression) {

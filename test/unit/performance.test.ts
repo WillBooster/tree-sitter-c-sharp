@@ -7,7 +7,6 @@ import { generationInputMtime } from '../helpers/generationInputs.js';
 import { Language, Parser } from '@willbooster/web-tree-sitter';
 
 const Root = path.join(import.meta.dirname, '../..');
-// The Wasm build is the one the package ships.
 const WasmPath = path.join(Root, 'tree-sitter-c_sharp.wasm');
 await Parser.init();
 const parser = new Parser();
@@ -30,6 +29,7 @@ test('uses a Wasm build built from the current parser', () => {
       mtime('src/scanner.c'),
       mtime('src/questionContext.h'),
       mtime('src/nullableRank.h'),
+      mtime('src/nullableTypes.h'),
       mtime('src/tree_sitter/parser.h')
     ) > fs.statSync(WasmPath).mtimeMs,
     'src/ changed after the Wasm build was built; run `bun run build/ci`'

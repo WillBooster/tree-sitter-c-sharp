@@ -1015,3 +1015,46 @@ test('preserves type-test ownership after dependent conditional element accesses
     parser.delete();
   }
 });
+
+test('preserves nullable conditions before await and creation alternatives', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const alternative of [
+      'await F()?[0]',
+      'await F().P?[0]',
+      'await (a + b)?[0]',
+      'await F()?[0] : b',
+      'await F()?[0] ? [1] : b',
+      'new int?[0]',
+      'new T?[0]',
+      'new int?[c ? 1 : 2]',
+      'new List<int?>()?[0]',
+      'new int?()',
+      'new int[0]?[i]',
+      'new (int,int)?[0]',
+      'stackalloc int?[0]',
+    ]) {
+      const source = `var result = x is T?[] ? [1] : ${alternative};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const nodes = tree.rootNode.descendantsOfType('conditional_expression');
+        expect(nodes[0]?.childForFieldName('condition')?.text, source).toBe('x is T?[]');
+        expect(nodes[0]?.childForFieldName('consequence')?.text, source).toBe('[1]');
+        expect(nodes[0]?.childForFieldName('alternative')?.text, source).toBe(alternative);
+        if (alternative === 'await F()?[0] : b') {
+          expect(nodes[1]?.childForFieldName('condition')?.text).toBe('await F()');
+          expect(tree.rootNode.descendantsOfType('conditional_access_expression')).toHaveLength(0);
+        } else if (alternative.startsWith('await')) {
+          const awaited = tree.rootNode.descendantsOfType('await_expression')[0];
+          expect(awaited?.descendantsOfType('conditional_access_expression')).toHaveLength(1);
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
