@@ -1137,3 +1137,31 @@ test('retains nullable ownership through empty collections and expression contin
     parser.delete();
   }
 });
+
+test('retains ternary collection access after nonprimary conditions', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const condition of ['x switch { _ => 1 }', 'x with { A = 1 }', '1 + x switch { _ => 1 }']) {
+      for (const collection of ['[1]', '[a, b]', '[..a]', '[]']) {
+        const consequence = `${collection}?[0]`;
+        const source = `var result = ${condition} ? ${consequence} : d;`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const ternary = tree.rootNode.descendantsOfType('conditional_expression')[0];
+          expect(ternary?.childForFieldName('condition')?.text, source).toBe(condition);
+          const access = ternary?.childForFieldName('consequence');
+          expect(access?.text, source).toBe(consequence);
+          expect(access?.type, source).toBe('conditional_access_expression');
+          expect(access?.childForFieldName('condition')?.text, source).toBe(collection);
+          expect(ternary?.childForFieldName('alternative')?.text, source).toBe('d');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

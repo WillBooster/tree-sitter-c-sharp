@@ -990,7 +990,12 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (!scanner->question_type_uncertain || scanner->question_unknown || frame->unknown || next.token != '[')
         rank_phase = RANK_NONE;
-    unsigned context_flags = (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
+    bool ternary_only = next.token == '[' && valid_symbols[QUESTION_TERNARY] &&
+        !valid_symbols[QUESTION_NULLABLE] && !valid_symbols[CASE_LABEL_COLON] &&
+        !valid_symbols[QUESTION_DEFINITE_ACCESS] && !valid_symbols[QUESTION_MEMBER_ACCESS] &&
+        !valid_symbols[QUESTION_ELEMENT_ACCESS];
+    unsigned context_flags = (ternary_only ? QUESTION_TERNARY_ONLY : 0) |
+        (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
         (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
         (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
     unsigned role = prepare_question_context(scanner, lexer, next.token, &known_nullable,
