@@ -1,0 +1,22 @@
+================================================================================
+Relational patterns end before collection ternaries
+================================================================================
+var result = x is > 0 ? [1] : [2];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (is_pattern_expression
+              expression: (identifier)
+              pattern: (relational_pattern (integer_literal)))
+            consequence: (collection_expression
+              (collection_element (expression_element (integer_literal))))
+            alternative: (collection_expression
+              (collection_element (expression_element (integer_literal))))))))))
