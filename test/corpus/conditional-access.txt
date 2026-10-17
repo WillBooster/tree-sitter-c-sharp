@@ -10,26 +10,28 @@ var element = a && b?[0];
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (binary_expression
-            (identifier)
-            (conditional_access_expression
-              (identifier)
-              (member_binding_expression (identifier))))))))
+            left: (identifier)
+            right: (conditional_access_expression
+              condition: (identifier)
+              consequence: (member_binding_expression
+                name: (identifier))))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (binary_expression
-            (identifier)
-            (conditional_access_expression
-              (identifier)
-              (element_binding_expression
-                (argument (integer_literal))))))))))
+            left: (identifier)
+            right: (conditional_access_expression
+              condition: (identifier)
+              consequence: (element_binding_expression
+                (argument
+                  (integer_literal))))))))))
 
 ================================================================================
 Parenthesized conditional receivers
@@ -47,74 +49,74 @@ var f = (x)?.y.z;
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (parenthesized_expression
+            condition: (parenthesized_expression
               (identifier))
-            (member_binding_expression
-              (identifier)))))))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (parenthesized_expression
+            condition: (parenthesized_expression
               (member_access_expression
-                (identifier)
-                (identifier)))
-            (member_binding_expression
-              (identifier)))))))
+                expression: (identifier)
+                name: (identifier)))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (parenthesized_expression)
-            (member_binding_expression
-              (identifier)))))))
+            condition: (parenthesized_expression)
+            consequence: (member_binding_expression
+              name: (identifier)))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (parenthesized_expression
+            condition: (parenthesized_expression
               (parenthesized_expression
                 (identifier)))
-            (member_binding_expression
-              (identifier)))))))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (parenthesized_expression
+            condition: (parenthesized_expression
               (identifier))
-            (element_binding_expression
+            consequence: (element_binding_expression
               (argument
                 (integer_literal))))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (parenthesized_expression
+            condition: (parenthesized_expression
               (identifier))
-            (member_access_expression
-              (member_binding_expression
-                (identifier))
-              (identifier))))))))
+            consequence: (member_access_expression
+              expression: (member_binding_expression
+                name: (identifier))
+              name: (identifier))))))))
 
 ================================================================================
 Intrinsic conditional receivers
@@ -125,7 +127,45 @@ var c = __reftype(tr)?.Name;
 
 --------------------------------------------------------------------------------
 
-(compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_access_expression (refvalue_expression (identifier) (predefined_type)) (member_binding_expression (identifier))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_access_expression (refvalue_expression (identifier) (array_type (predefined_type) (array_rank_specifier))) (element_binding_expression (argument (integer_literal)))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_access_expression (reftype_expression (identifier)) (member_binding_expression (identifier))))))))
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (refvalue_expression
+              value: (identifier)
+              type: (predefined_type))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (refvalue_expression
+              value: (identifier)
+              type: (array_type
+                type: (predefined_type)
+                rank: (array_rank_specifier)))
+            consequence: (element_binding_expression
+              (argument
+                (integer_literal))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (reftype_expression
+              (identifier))
+            consequence: (member_binding_expression
+              name: (identifier))))))))
 
 ================================================================================
 Ternary collection expressions
@@ -135,7 +175,39 @@ var s = c ? [x, y] : [];
 
 --------------------------------------------------------------------------------
 
-(compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (identifier) (collection_expression (collection_element (expression_element (integer_literal)))) (collection_expression (collection_element (expression_element (integer_literal))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (identifier) (collection_expression (collection_element (expression_element (identifier))) (collection_element (expression_element (identifier)))) (collection_expression)))))))
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (identifier)
+            consequence: (collection_expression
+              (collection_element
+                (expression_element
+                  (integer_literal))))
+            alternative: (collection_expression
+              (collection_element
+                (expression_element
+                  (integer_literal)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (identifier)
+            consequence: (collection_expression
+              (collection_element
+                (expression_element
+                  (identifier)))
+              (collection_element
+                (expression_element
+                  (identifier))))
+            alternative: (collection_expression)))))))
 
 ================================================================================
 Preprocessor-selected conditional receiver
@@ -154,15 +226,17 @@ var result =
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (preproc_if
+            condition: (preproc_if
+              condition: (identifier)
               (identifier)
-              (identifier)
-              (preproc_else (identifier)))
-            (member_binding_expression (identifier))))))))
+              alternative: (preproc_else
+                (identifier)))
+            consequence: (member_binding_expression
+              name: (identifier))))))))
 
 ================================================================================
 Conditional indexing before type tests and ternary collections
@@ -176,49 +250,49 @@ var s = items?[0] is Foo?[] ? [1] : [2];
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_expression
-            (is_pattern_expression
-              (conditional_access_expression
-                (identifier)
-                (element_binding_expression
+            condition: (is_pattern_expression
+              expression: (conditional_access_expression
+                condition: (identifier)
+                consequence: (element_binding_expression
                   (argument
                     (integer_literal))))
-              (constant_pattern
+              pattern: (constant_pattern
                 (identifier)))
-            (collection_expression
+            consequence: (collection_expression
               (collection_element
                 (expression_element
                   (integer_literal))))
-            (collection_expression
+            alternative: (collection_expression
               (collection_element
                 (expression_element
                   (integer_literal)))))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_expression
-            (is_pattern_expression
-              (conditional_access_expression
-                (identifier)
-                (element_binding_expression
+            condition: (is_pattern_expression
+              expression: (conditional_access_expression
+                condition: (identifier)
+                consequence: (element_binding_expression
                   (argument
                     (integer_literal))))
-              (type_pattern
-                (array_type
-                  (nullable_type
-                    (identifier))
-                  (array_rank_specifier))))
-            (collection_expression
+              pattern: (type_pattern
+                type: (array_type
+                  type: (nullable_type
+                    type: (identifier))
+                  rank: (array_rank_specifier))))
+            consequence: (collection_expression
               (collection_element
                 (expression_element
                   (integer_literal))))
-            (collection_expression
+            alternative: (collection_expression
               (collection_element
                 (expression_element
                   (integer_literal))))))))))
@@ -232,53 +306,53 @@ class C { void M() { var a = base?.Foo(); var b = base?[i]; var c = __makeref(x)
 
 (compilation_unit
   (class_declaration
-    (identifier)
-    (declaration_list
+    name: (identifier)
+    body: (declaration_list
       (method_declaration
-        (predefined_type)
-        (identifier)
-        (parameter_list)
-        (block
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list)
+        body: (block
           (local_declaration_statement
             (variable_declaration
-              (implicit_type)
+              type: (implicit_type)
               (variable_declarator
-                (identifier)
+                name: (identifier)
                 (conditional_access_expression
-                  (invocation_expression
-                    (member_binding_expression
-                      (identifier))
-                    (argument_list))))))
+                  consequence: (invocation_expression
+                    function: (member_binding_expression
+                      name: (identifier))
+                    arguments: (argument_list))))))
           (local_declaration_statement
             (variable_declaration
-              (implicit_type)
+              type: (implicit_type)
               (variable_declarator
-                (identifier)
+                name: (identifier)
                 (conditional_access_expression
-                  (element_binding_expression
+                  consequence: (element_binding_expression
                     (argument
                       (identifier)))))))
           (local_declaration_statement
             (variable_declaration
-              (implicit_type)
+              type: (implicit_type)
               (variable_declarator
-                (identifier)
+                name: (identifier)
                 (conditional_access_expression
-                  (makeref_expression
+                  condition: (makeref_expression
                     (identifier))
-                  (invocation_expression
-                    (member_binding_expression
-                      (identifier))
-                    (argument_list))))))
+                  consequence: (invocation_expression
+                    function: (member_binding_expression
+                      name: (identifier))
+                    arguments: (argument_list))))))
           (local_declaration_statement
             (variable_declaration
-              (implicit_type)
+              type: (implicit_type)
               (variable_declarator
-                (identifier)
+                name: (identifier)
                 (conditional_access_expression
-                  (makeref_expression
+                  condition: (makeref_expression
                     (identifier))
-                  (element_binding_expression
+                  consequence: (element_binding_expression
                     (argument
                       (identifier))))))))))))
 
@@ -292,7 +366,59 @@ var d = &Get()?[0];
 
 --------------------------------------------------------------------------------
 
-(compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (postfix_unary_expression (identifier)) (member_binding_expression (identifier)))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (postfix_unary_expression (identifier)) (element_binding_expression (argument (integer_literal))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (invocation_expression (identifier) (argument_list)) (member_binding_expression (identifier)))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (invocation_expression (identifier) (argument_list)) (element_binding_expression (argument (integer_literal))))))))))
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (postfix_unary_expression
+                (identifier))
+              consequence: (member_binding_expression
+                name: (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (postfix_unary_expression
+                (identifier))
+              consequence: (element_binding_expression
+                (argument
+                  (integer_literal)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (invocation_expression
+                function: (identifier)
+                arguments: (argument_list))
+              consequence: (member_binding_expression
+                name: (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (invocation_expression
+                function: (identifier)
+                arguments: (argument_list))
+              consequence: (element_binding_expression
+                (argument
+                  (integer_literal))))))))))
 
 ================================================================================
 Pointer casts and ternary conditions
@@ -304,7 +430,63 @@ var d = &Get() ? y : z;
 
 --------------------------------------------------------------------------------
 
-(compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (postfix_unary_expression (identifier)) (member_binding_expression (identifier))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (invocation_expression (identifier) (argument_list)) (member_binding_expression (identifier))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (prefix_unary_expression (postfix_unary_expression (identifier))) (identifier) (identifier)))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (prefix_unary_expression (invocation_expression (identifier) (argument_list))) (identifier) (identifier)))))))
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (identifier))
+              value: (conditional_access_expression
+                condition: (postfix_unary_expression
+                  (identifier))
+                consequence: (member_binding_expression
+                  name: (identifier)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (identifier))
+              value: (conditional_access_expression
+                condition: (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list))
+                consequence: (member_binding_expression
+                  name: (identifier)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (prefix_unary_expression
+              (postfix_unary_expression
+                (identifier)))
+            consequence: (identifier)
+            alternative: (identifier))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (prefix_unary_expression
+              (invocation_expression
+                function: (identifier)
+                arguments: (argument_list)))
+            consequence: (identifier)
+            alternative: (identifier)))))))
 
 ================================================================================
 Value expressions inside pointer operands
@@ -316,7 +498,71 @@ var d = *(T*)(x+y)?[0];
 
 --------------------------------------------------------------------------------
 
-(compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (parenthesized_expression (invocation_expression (identifier) (argument_list))) (member_binding_expression (identifier)))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (parenthesized_expression (binary_expression (identifier) (identifier))) (element_binding_expression (argument (integer_literal))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (parenthesized_expression (invocation_expression (identifier) (argument_list))) (member_binding_expression (identifier))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (parenthesized_expression (binary_expression (identifier) (identifier))) (element_binding_expression (argument (integer_literal)))))))))))
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (parenthesized_expression
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list)))
+              consequence: (member_binding_expression
+                name: (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (parenthesized_expression
+                (binary_expression
+                  left: (identifier)
+                  right: (identifier)))
+              consequence: (element_binding_expression
+                (argument
+                  (integer_literal)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (identifier))
+              value: (conditional_access_expression
+                condition: (parenthesized_expression
+                  (invocation_expression
+                    function: (identifier)
+                    arguments: (argument_list)))
+                consequence: (member_binding_expression
+                  name: (identifier)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (identifier))
+              value: (conditional_access_expression
+                condition: (parenthesized_expression
+                  (binary_expression
+                    left: (identifier)
+                    right: (identifier)))
+                consequence: (element_binding_expression
+                  (argument
+                    (integer_literal)))))))))))
 
 ================================================================================
 Anonymous method and stack allocation question ownership
@@ -334,81 +580,81 @@ var f = stackalloc[] {1}?[0];
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (anonymous_method_expression
+            condition: (anonymous_method_expression
               (block
                 (return_statement
                   (integer_literal))))
-            (member_binding_expression
-              (identifier)))))))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (anonymous_method_expression
+            condition: (anonymous_method_expression
               (block
                 (return_statement
                   (integer_literal))))
-            (element_binding_expression
+            consequence: (element_binding_expression
               (argument
                 (integer_literal))))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (member_access_expression
-            (stackalloc_expression
-              (nullable_type
-                (array_type
-                  (predefined_type)
-                  (array_rank_specifier
+            expression: (stackalloc_expression
+              type: (nullable_type
+                type: (array_type
+                  type: (predefined_type)
+                  rank: (array_rank_specifier
                     (integer_literal)))))
-            (identifier))))))
+            name: (identifier))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (stackalloc_expression
-            (array_type
-              (nullable_type
-                (array_type
-                  (predefined_type)
-                  (array_rank_specifier
+            type: (array_type
+              type: (nullable_type
+                type: (array_type
+                  type: (predefined_type)
+                  rank: (array_rank_specifier
                     (integer_literal))))
-              (array_rank_specifier
+              rank: (array_rank_specifier
                 (integer_literal))))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (implicit_stackalloc_expression
+            condition: (implicit_stackalloc_expression
               (initializer_expression
                 (integer_literal)))
-            (member_binding_expression
-              (identifier)))))))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
-        (implicit_type)
+        type: (implicit_type)
         (variable_declarator
-          (identifier)
+          name: (identifier)
           (conditional_access_expression
-            (implicit_stackalloc_expression
+            condition: (implicit_stackalloc_expression
               (initializer_expression
                 (integer_literal)))
-            (element_binding_expression
+            consequence: (element_binding_expression
               (argument
                 (integer_literal)))))))))
