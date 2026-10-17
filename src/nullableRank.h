@@ -71,7 +71,8 @@ static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending, uint32_t *ques
     if (first == '(' || first == '[' || first == '{') {
         advance(lexer);
         if (!rank_read_delimited(lexer, first, RANK_BODY_QUESTION_FREE, NULL)) return RANK_NONE;
-        return question_skip_separators(lexer) == '?' ? RANK_PATTERN_COMPLETE : RANK_NONE;
+        return question_skip_separators(lexer) == '?' && question_read_single_question(lexer)
+            ? RANK_PATTERN_COMPLETE : RANK_NONE;
     }
     bool simple_type = false;
     if (!rank_read_prefix(lexer, &simple_type, questions)) return RANK_NONE;

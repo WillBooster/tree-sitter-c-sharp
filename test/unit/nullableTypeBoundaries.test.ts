@@ -1,11 +1,73 @@
 import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
+import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
+
 let language: Language;
 
 beforeAll(async () => {
   await Parser.init();
   language = await Language.load('tree-sitter-c_sharp.wasm');
+});
+
+test('keeps coalescing after completed patterns independent of later element accesses', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of ['{}', '{ X: T }', '[1, 2]', '[..]', '(T)', '((T))', '(int, string)']) {
+      for (const [tail, accesses] of [
+        ['?? b?[0]', ['b?[0]']],
+        ['?? f(b?[0])', ['b?[0]']],
+        ['?? b?[0] ?? c?[0]', ['b?[0]', 'c?[0]']],
+        ['? b?[0] : c?[0]', ['b?[0]', 'c?[0]']],
+        ['? [1] : [2]', []],
+      ] as const) {
+        const source = `var r = a is ${pattern} ${tail};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.text, source).toBe(`a is ${pattern}`);
+          expect(
+            tree.rootNode.descendantsOfType('conditional_access_expression').map((node) => node.text),
+            source
+          ).toEqual(accesses);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('rechecks completed-pattern question proofs when coalescing operators are edited', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of ['(T)', '[1, 2]', '{ X: T }']) {
+      const expressions = [`a is ${pattern} ? b?[0] : c?[0]`, `a is ${pattern} ?? b?[0]`];
+      for (const [before, after] of [expressions, expressions.toReversed()]) {
+        const source = `var 名 = ${before};`;
+        const updated = `var 名 = ${after};`;
+        const tree = parser.parse(source)!;
+        try {
+          editTree(tree, source, updated);
+          const incremental = parser.parse(updated, tree)!;
+          const fresh = parser.parse(updated)!;
+          try {
+            expect(fresh.rootNode.hasError, updated).toBe(false);
+            expect(syntaxSnapshot(incremental.rootNode), updated).toEqual(syntaxSnapshot(fresh.rootNode));
+          } finally {
+            incremental.delete();
+            fresh.delete();
+          }
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
 });
 
 test('keeps nullable named tuple alternatives outside the preceding type test', () => {

@@ -38,6 +38,11 @@ test('retains prefix ranges and queries as cast operands with their syntax bound
     ['(T).5', 'T', '.5'],
     ['(T[]).5', 'T[]', '.5'],
     ['(T)!..b', 'T', '!..b'],
+    ['(T)(a)', 'T', '(a)'],
+    ['(F<T>)(a)', 'F<T>', '(a)'],
+    ['(obj.F<T>)(a)', 'obj.F<T>', '(a)'],
+    ['(T)!&b', 'T', '!&b'],
+    ['(T[])!&b', 'T[]', '!&b'],
   ]) {
     const tree = parser.parse(`var r = ${expression};`)!;
     try {
@@ -184,9 +189,9 @@ test('keeps indexed parenthesized operands before surrounding binary operators',
   }
 });
 
-test('retains negated parenthesized and collection cast operands in constant patterns', () => {
+test('retains parenthesized and negated collection cast operands in constant patterns', () => {
   for (const type of ['T', 'T[]', 'T[,]']) {
-    for (const value of ['!(a)', '![a]']) {
+    for (const value of ['(a)', '!(a)', '![a]']) {
       const expression = `x is R((${type})${value})`;
       const tree = parser.parse(`var result = ${expression};`)!;
       try {
@@ -195,6 +200,67 @@ test('retains negated parenthesized and collection cast operands in constant pat
         expect(cast?.childForFieldName('type')?.text, expression).toBe(type);
         expect(cast.childForFieldName('value')?.text, expression).toBe(value);
         expect(cast.parent?.type, expression).toBe('constant_pattern');
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
+test('retains chained generic invocations in expression contexts', () => {
+  for (const [expression, functionText] of [
+    ['GetHandler<T>(x)(y)', 'GetHandler<T>(x)'],
+    ['Factory<Foo>(options)(request)', 'Factory<Foo>(options)'],
+    ['f<b>(c)(d, e)', 'f<b>(c)'],
+    ['x.f<b>(c)(d)', 'x.f<b>(c)'],
+    ['f<T>(x)(y)(z)', 'f<T>(x)(y)'],
+    ['F<G<T>>(a)(b)', 'F<G<T>>(a)'],
+  ]) {
+    for (const source of [`var r = ${expression};`, `class C { object M() { return ${expression}; } }`]) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('cast_expression'), source).toHaveLength(0);
+        const invocation = tree.rootNode.descendantsOfType('invocation_expression')[0]!;
+        expect(invocation?.text, source).toBe(expression);
+        expect(invocation.childForFieldName('function')?.text, source).toBe(functionText);
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
+test('retains bitwise ampersands after suppressed generic invocations', () => {
+  for (const call of ['f<T>(a)', 'obj.f<T>(a)']) {
+    for (const suppression of ['!', '!!', '! /* gap */']) {
+      const left = `${call}${suppression}`;
+      const source = `var r = ${left}&b;`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('cast_expression'), source).toHaveLength(0);
+        const binary = tree.rootNode.descendantsOfType('binary_expression')[0]!;
+        expect(binary?.childForFieldName('operator')?.text, source).toBe('&');
+        expect(binary.childForFieldName('left')?.text, source).toBe(left.replace(' /* gap */', ''));
+        expect(tree.rootNode.descendantsOfType('invocation_expression')[0]?.text, source).toBe(call);
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
+test('retains mixed unary prefixes before parenthesized cast operands', () => {
+  for (const type of ['T', 'T[]']) {
+    for (const prefix of ['!+', '!-', '!*', '!&', '!^', '~', '!!~']) {
+      const expression = `(${type})${prefix}(a)`;
+      const tree = parser.parse(`var r = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        const cast = tree.rootNode.descendantsOfType('cast_expression')[0]!;
+        expect(cast?.childForFieldName('type')?.text, expression).toBe(type);
+        expect(cast.childForFieldName('value')?.text, expression).toBe(`${prefix}(a)`);
       } finally {
         tree.delete();
       }

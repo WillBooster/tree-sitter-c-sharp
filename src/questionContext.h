@@ -54,6 +54,18 @@ static int32_t question_skip_separators(TSLexer *lexer) {
     }
 }
 
+static bool question_read_single_question(TSLexer *lexer) {
+    if (lexer->lookahead != '?') return false;
+    advance(lexer);
+    return lexer->lookahead != '?';
+}
+
+static bool question_word_in(const char *word, const char *const *words, unsigned count) {
+    for (unsigned i = 0; i < count; i++)
+        if (!strcmp(word, words[i])) return true;
+    return false;
+}
+
 typedef struct {
     int32_t token;
     bool member;

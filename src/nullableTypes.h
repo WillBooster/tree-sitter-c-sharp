@@ -86,8 +86,7 @@ static bool rank_identifier_allowed(const QuestionIdentifier *word, bool type) {
         "static", "struct", "switch", "throw", "try", "typeof", "unchecked", "unsafe", "using", "virtual", "volatile",
         "while", "await", "var"
     };
-    for (unsigned i = 0; i < sizeof(forbidden) / sizeof(forbidden[0]); i++)
-        if (!strcmp(word->word, forbidden[i])) return false;
+    if (question_word_in(word->word, forbidden, sizeof(forbidden) / sizeof(forbidden[0]))) return false;
     bool literal = !strcmp(word->word, "true") || !strcmp(word->word, "false") || !strcmp(word->word, "null") ||
         !strcmp(word->word, "this") || !strcmp(word->word, "base");
     return !type || !literal;

@@ -21,20 +21,16 @@ function mtime(name: string): number {
 // brings the slowdown back. CI runs `bun run build/ci` first.
 test('uses a Wasm build built from the current parser', () => {
   expect(
-    Math.max(generationInputMtime(Root), mtime('grammar.js')) > mtime('src/parser.c'),
+    Math.max(generationInputMtime(Root), mtime('grammar.js'), mtime('script/generateIdentifierCharacters.mjs')) >
+      mtime('src/parser.c'),
     'generation inputs changed after src/parser.c was generated; run `bun run build/ci`'
   ).toBe(false);
+  const sourceInputMtimes = fs
+    .readdirSync(path.join(Root, 'src'), { recursive: true, encoding: 'utf8' })
+    .filter((file) => /\.(?:c|h|cc|cpp|cxx|hh|hpp|hxx)$/.test(file))
+    .map((file) => mtime(path.join('src', file)));
   expect(
-    Math.max(
-      mtime('src/parser.c'),
-      mtime('src/scanner.c'),
-      mtime('src/questionContext.h'),
-      mtime('src/questionLiterals.h'),
-      mtime('src/nullableRank.h'),
-      mtime('src/nullableTypes.h'),
-      mtime('src/identifierCharacters.h'),
-      mtime('src/tree_sitter/parser.h')
-    ) > fs.statSync(WasmPath).mtimeMs,
+    Math.max(...sourceInputMtimes) > fs.statSync(WasmPath).mtimeMs,
     'src/ changed after the Wasm build was built; run `bun run build/ci`'
   ).toBe(false);
 });

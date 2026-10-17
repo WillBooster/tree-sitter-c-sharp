@@ -1127,9 +1127,7 @@ static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLex
     int32_t following = question_skip_separators(lexer);
     if (following < 0) return QUESTION_MISMATCHED;
     if (cast && scan_cast_type_end(lexer, valid_symbols)) return QUESTION_MATCHED;
-    if (!symbol || following != '?') return QUESTION_MISMATCHED;
-    advance(lexer);
-    if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
+    if (!symbol || following != '?' || !question_read_single_question(lexer)) return QUESTION_MISMATCHED;
     scanner->question_rank_role = RANK_PATTERN_COMPLETE;
     scanner->question_rank_prefix_questions = 0;
     scanner->question_access_cache = 0;
@@ -1161,7 +1159,8 @@ static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
         if (!advance_operator_character(lexer)) return false;
         next = question_skip_separators(lexer);
     }
-    if (preferred && (next == '#' || (ambiguous && only_bangs && (next == '(' || next == '[')))) return false;
+    bool parenthesized_continuation = next == '(' && (!prefix || only_bangs);
+    if (preferred && (next == '#' || (ambiguous && (parenthesized_continuation || (only_bangs && next == '['))))) return false;
     if (next < 0 || next == ')' || next == ']' || next == '}' || next == '{' || next == ',' || next == ':' || next == ';' || next == '?' ||
         next == '=' || next == '|' || next == '<' || next == '>' || next == '/' || next == '%' || !next) return false;
     if (next == '.') {
@@ -1182,9 +1181,7 @@ static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
         "switch", "when", "with", "and", "or", "not", "from", "join", "on", "equals", "by", "into",
         "where", "select", "group", "orderby", "let", "ascending", "descending"
     };
-    for (unsigned i = 0; i < sizeof(continuations) / sizeof(continuations[0]); i++)
-        if (!strcmp(identifier.word, continuations[i])) return false;
-    return true;
+    return !question_word_in(identifier.word, continuations, sizeof(continuations) / sizeof(continuations[0]));
 }
 
 static bool advance_operator_character(TSLexer *lexer) {
