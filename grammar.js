@@ -278,6 +278,7 @@ module.exports = grammar({
     sym('_conditional_alternative_start'),
     sym('_statement_end'),
     sym('_block_end'),
+    sym('_ampersand_operator'),
   ],
 
   extras: ($) => [
@@ -565,7 +566,7 @@ module.exports = grammar({
             '%',
             '^',
             '|',
-            '&',
+            ampersandOperator(),
             '<<',
             '>>',
             '>>>',
@@ -2598,7 +2599,7 @@ function prefixUnaryExpression(operand) {
     PREC.UNARY,
     choice(
       seq(choice('++', '--', bangOperator(), '~'), operand),
-      prec.dynamic(-2, seq(choice('+', '-', '^', '*', '&'), operand))
+      prec.dynamic(-2, seq(choice('+', '-', '^', '*', ampersandOperator()), operand))
     )
   );
 }
@@ -2773,14 +2774,14 @@ function sep(rule, separator) {
 }
 
 function binaryOperators() {
-  /** @type {[string, number][]} */
+  /** @type {[import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral, number][]} */
   const operators = [
     ['&&', PREC.LOGICAL_AND],
     ['||', PREC.LOGICAL_OR],
     ['>>', PREC.SHIFT],
     ['>>>', PREC.SHIFT],
     ['<<', PREC.SHIFT],
-    ['&', PREC.AND],
+    [ampersandOperator(), PREC.AND],
     ['^', PREC.XOR],
     ['|', PREC.OR],
     ['+', PREC.ADD],
@@ -3032,4 +3033,8 @@ function statementEnd() {
 
 function blockEnd() {
   return choice('}', alias(sym('_block_end'), '}'));
+}
+
+function ampersandOperator() {
+  return alias(sym('_ampersand_operator'), '&');
 }

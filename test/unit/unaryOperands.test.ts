@@ -10,6 +10,47 @@ beforeAll(async () => {
 
 afterAll(() => parser.delete());
 
+test('keeps compound ampersand tokens distinct from trivia-separated address operators', () => {
+  for (const expression of ['&&a', '&=a']) {
+    const tree = parser.parse(`class C { unsafe void M() { var result = ${expression}; } }`)!;
+    try {
+      expect(tree.rootNode.hasError, expression).toBe(true);
+    } finally {
+      tree.delete();
+    }
+  }
+  for (const expression of ['& &a', '&/* gap */&a', '&\n&a']) {
+    const tree = parser.parse(`class C { unsafe void M() { var result = ${expression}; } }`)!;
+    try {
+      expect(tree.rootNode.hasError, expression).toBe(false);
+      expect(tree.rootNode.descendantsOfType('prefix_unary_expression'), expression).toHaveLength(2);
+    } finally {
+      tree.delete();
+    }
+  }
+});
+
+test('retains logical and assignment ampersands after suppressed receivers', () => {
+  for (const receiver of ['f<T>(a)', '(a[i])']) {
+    for (const operator of ['&&', '&=']) {
+      const expression = `${receiver}!${operator}b`;
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        expect(tree.rootNode.descendantsOfType('cast_expression'), expression).toHaveLength(0);
+        const operation = tree.rootNode.descendantsOfType(
+          operator === '&&' ? 'binary_expression' : 'assignment_expression'
+        )[0]!;
+        expect(operation?.childForFieldName('left')?.text, expression).toBe(`${receiver}!`);
+        expect(operation?.childForFieldName('operator')?.text, expression).toBe(operator);
+        expect(operation?.childForFieldName('right')?.text, expression).toBe('b');
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
 test('retains query and prefix-range operands within unary operators and await', () => {
   for (const operator of ['!', '+', '-', '~', '^', '*', '&', '++', '--', 'await ']) {
     for (const [suffix, operand] of [

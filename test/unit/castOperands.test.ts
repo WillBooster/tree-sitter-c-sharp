@@ -89,9 +89,9 @@ test('keeps expression-shaped cast candidates as range starts', () => {
 test('keeps parenthesized expressions and patterns before contextual continuations', () => {
   for (const statement of [
     'var result = (a) switch { _ => 1 };',
-    'switch (x) { case (A) when c: break; }',
-    'var result = x switch { (A) when c => 1, _ => 2 };',
-    'var result = (a) with { P = 1 };',
+    'switch (x) { case ((A)) when c: break; }',
+    'var result = x switch { ((A)) when c => 1, _ => 2 };',
+    'var result = ((a)) with { P = 1 };',
     'var result = from x in (a) select x;',
     'var result = from x in xs join y in (b) on x equals y select x;',
     'var result = from x in xs group x by (a) into y select y;',

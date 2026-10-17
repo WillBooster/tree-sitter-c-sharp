@@ -56,6 +56,7 @@ enum TokenType {
     CONDITIONAL_ALTERNATIVE_START,
     STATEMENT_END,
     BLOCK_END,
+    AMPERSAND_OPERATOR,
 };
 
 typedef enum {
@@ -147,14 +148,11 @@ static void skip_line_comment(TSLexer *lexer) {
     while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) advance(lexer);
 }
 
-// Consume an identifier into a fixed-size buffer. Returns the actual
-// length consumed (may exceed `max`, in which case `buf` is only filled
-// up to `max` bytes — useful for "too long to be a keyword" detection).
 static size_t consume_identifier_into(TSLexer *lexer, char *buf, size_t max) {
     size_t n = 0;
     while (is_id_continue(lexer->lookahead)) {
         if (n < max) {
-            buf[n] = (char)lexer->lookahead;
+            buf[n] = lexer->lookahead <= 0x7F ? (char)lexer->lookahead : '?';
         }
         n++;
         advance(lexer);
@@ -536,7 +534,8 @@ static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *val
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
-static bool scan_bang_operator(TSLexer *lexer);
+static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *valid_symbols);
+static bool advance_operator_character(TSLexer *lexer);
 static bool scan_ambiguous_cast_operand_start(TSLexer *lexer);
 static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols);
 static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred);
@@ -574,10 +573,8 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
     if (valid_symbols[AMBIGUOUS_CAST_OPERAND_START]) return scan_ambiguous_cast_operand_start(lexer);
 
-    if (valid_symbols[BANG_OPERATOR]) {
-        while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
-        if (lexer->lookahead == '!') return scan_bang_operator(lexer);
-    }
+    QuestionScanResult punctuation = scan_operator_punctuation(lexer, valid_symbols);
+    if (punctuation != QUESTION_NOT_STARTED) return punctuation == QUESTION_MATCHED;
 
     if (valid_symbols[SLICE_PATTERN_START]) {
         while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
@@ -1042,12 +1039,17 @@ static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *val
     return true;
 }
 
-static bool scan_bang_operator(TSLexer *lexer) {
-    advance(lexer);
+static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *valid_symbols) {
+    if (!valid_symbols[BANG_OPERATOR] && !valid_symbols[AMPERSAND_OPERATOR]) return QUESTION_NOT_STARTED;
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    unsigned symbol;
+    if (valid_symbols[BANG_OPERATOR] && lexer->lookahead == '!') symbol = BANG_OPERATOR;
+    else if (valid_symbols[AMPERSAND_OPERATOR] && lexer->lookahead == '&') symbol = AMPERSAND_OPERATOR;
+    else return QUESTION_NOT_STARTED;
+    if (!advance_operator_character(lexer)) return QUESTION_MISMATCHED;
     lexer->mark_end(lexer);
-    if (lexer->lookahead == '=') return false;
-    lexer->result_symbol = BANG_OPERATOR;
-    return true;
+    lexer->result_symbol = symbol;
+    return QUESTION_MATCHED;
 }
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
@@ -1156,7 +1158,7 @@ static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
     while (next == '!' || next == '~' || next == '+' || next == '-' || next == '*' || next == '&' || next == '^') {
         prefix = true;
         only_bangs &= next == '!';
-        advance(lexer);
+        if (!advance_operator_character(lexer)) return false;
         next = question_skip_separators(lexer);
     }
     if (preferred && ambiguous && only_bangs && (next == '(' || next == '[')) return false;
@@ -1183,6 +1185,13 @@ static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
     for (unsigned i = 0; i < sizeof(continuations) / sizeof(continuations[0]); i++)
         if (!strcmp(identifier.word, continuations[i])) return false;
     return true;
+}
+
+static bool advance_operator_character(TSLexer *lexer) {
+    int32_t current = lexer->lookahead;
+    advance(lexer);
+    if (current == '!') return lexer->lookahead != '=';
+    return current != '&' || (lexer->lookahead != '&' && lexer->lookahead != '=');
 }
 
 
