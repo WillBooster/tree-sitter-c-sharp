@@ -4320,6 +4320,10 @@
         "required": true,
         "types": [
           {
+            "type": "alias_qualified_name",
+            "named": true
+          },
+          {
             "type": "anonymous_method_expression",
             "named": true
           },
@@ -8620,11 +8624,19 @@
     "named": false
   },
   {
+    "type": "nint",
+    "named": false
+  },
+  {
     "type": "not",
     "named": false
   },
   {
     "type": "notnull",
+    "named": false
+  },
+  {
+    "type": "nuint",
     "named": false
   },
   {

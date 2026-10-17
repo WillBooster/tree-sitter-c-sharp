@@ -1382,3 +1382,58 @@ test('retains positional subpatterns before a property clause', () => {
     parser.delete();
   }
 });
+
+test('keeps sized-index arithmetic inside is constant patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const operand of ['a[0]', 'a[i]', 'a[b[0]]', 'a[0][1]', 'A.B[0]', 'T[1, 2]']) {
+      for (const operator of ['+', '-', '*', '/', '%', '<<']) {
+        const pattern = `${operand} ${operator} 1`;
+        const source = `class C { void M() { var r = x is ${pattern}; } }`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const owner = tree.rootNode.descendantsOfType('is_pattern_expression')[0]!;
+          expect(owner.childForFieldName('pattern')?.text, source).toBe(pattern);
+          expect(owner.childForFieldName('pattern')?.type, source).toBe('constant_pattern');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+    for (const operator of ['>>', '>>>', '&', '|', '^', '==', '&&', '??']) {
+      const source = `class C { void M() { var r = x is a[0] ${operator} y; } }`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('is_pattern_expression')[0]?.text, source).toBe('x is a[0]');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('retains await as a contextual type name in nonasync positional patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const pattern of ['(await T)', '(await T, 1)', '(await T, 1, 2)', 'not (await T, 1)']) {
+      const source = `class C { void M() { var r = x is ${pattern}; } }`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('declaration_pattern').map((node) => node.text),
+          source
+        ).toContain('await T');
+        expect(tree.rootNode.descendantsOfType('await_expression'), source).toHaveLength(0);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

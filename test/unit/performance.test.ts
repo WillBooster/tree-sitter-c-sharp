@@ -319,3 +319,43 @@ test('recovers from deeply incomplete conditional operands without poisoning the
     subsequent.delete();
   }
 });
+
+test.each(['call', 'array', 'collection'])(
+  'parses long %s lists of relational comparisons in linear time',
+  { timeout: 60_000 },
+  (context) => {
+    const source = (count: number): string => {
+      const comparisons = Array.from({ length: count }, (_, index) => `a${index} < b${index}`).join(', ');
+      const expression =
+        context === 'call' ? `N(${comparisons})` : context === 'array' ? `new[] {${comparisons}}` : `[${comparisons}]`;
+      return `class C { void M() { var result = ${expression}; } }`;
+    };
+    const small = source(200);
+    const large = source(2000);
+    parseCpuTime(large, false);
+    let smallFastest = Infinity;
+    let largeFastest = Infinity;
+    for (let run = 0; run < 3; run++) {
+      smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
+      largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+    }
+    expect(largeFastest / smallFastest).toBeLessThan(18);
+    const tree = parser.parse(large)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      expect(tree.rootNode.descendantsOfType('binary_expression')).toHaveLength(2000);
+      expect(tree.rootNode.descendantsOfType('cast_expression')).toHaveLength(0);
+    } finally {
+      tree.delete();
+    }
+  }
+);
+
+test.each([254, 255])('retains %i nested interpolation states and parser reuse', (depth) => {
+  assertDeepParsingKeepsRuntimeUsable(
+    '$"{'.repeat(depth) + 'a' + '}"'.repeat(depth),
+    'interpolated_string_expression',
+    depth,
+    true
+  );
+});

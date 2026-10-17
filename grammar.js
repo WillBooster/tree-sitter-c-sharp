@@ -54,6 +54,9 @@ module.exports = grammar({
 
   conflicts: ($) => [
     [$.list_pattern],
+    [$._simple_name, $._generic_alias_qualified_name],
+    [$._simple_name, $._generic_invocation_simple_name],
+    [$._pattern_declaration_type, $._assignment_target_await_expression, $.await_expression],
     [$.recursive_pattern],
     [$.type, $._pattern_type, $.recursive_pattern],
     [$.implicit_type, $._pattern_identifier, $.var_pattern, $._reserved_identifier],
@@ -279,10 +282,6 @@ module.exports = grammar({
     sym('_statement_end'),
     sym('_block_end'),
     sym('_ampersand_operator'),
-    sym('_generic_call_identifier'),
-    sym('_type_argument_enter'),
-    sym('_type_argument_leave'),
-    sym('_extension_generic_keyword'),
   ],
 
   extras: ($) => [
@@ -301,7 +300,6 @@ module.exports = grammar({
   ],
 
   inline: ($) => [
-    $._generic_head_identifier,
     $._postfix_receiver,
     $._namespace_member_declaration,
     $._object_creation_type,
@@ -407,7 +405,7 @@ module.exports = grammar({
         repeat($._attribute_list),
         repeat($.modifier),
         'class',
-        field('name', $._generic_head_identifier),
+        field('name', $.identifier),
         repeat(choice($.type_parameter_list, $.parameter_list, $.base_list)),
         repeat($.type_parameter_constraints_clause)
       ),
@@ -420,7 +418,7 @@ module.exports = grammar({
         repeat($.modifier),
         optional(seq('ref', optional(alias('partial', $.modifier)))),
         'struct',
-        field('name', $._generic_head_identifier),
+        field('name', $.identifier),
         repeat(choice($.type_parameter_list, $.parameter_list, $.base_list)),
         repeat($.type_parameter_constraints_clause)
       ),
@@ -454,7 +452,7 @@ module.exports = grammar({
         repeat($._attribute_list),
         repeat($.modifier),
         'interface',
-        field('name', $._generic_head_identifier),
+        field('name', $.identifier),
         field('type_parameters', optional($.type_parameter_list)),
         optional($.base_list),
         repeat($.type_parameter_constraints_clause)
@@ -469,7 +467,7 @@ module.exports = grammar({
         repeat($.modifier),
         'delegate',
         field('type', $.type),
-        field('name', $._generic_head_identifier),
+        field('name', $.identifier),
         field('type_parameters', optional($.type_parameter_list)),
         field('parameters', $.parameter_list)
       ),
@@ -482,7 +480,7 @@ module.exports = grammar({
         repeat($.modifier),
         'record',
         optional(choice('class', 'struct')),
-        field('name', $._generic_head_identifier),
+        field('name', $.identifier),
         repeat(choice($.type_parameter_list, $.parameter_list)),
         optional(alias($.record_base, $.base_list)),
         repeat($.type_parameter_constraints_clause)
@@ -527,8 +525,7 @@ module.exports = grammar({
         )
       ),
 
-    type_parameter_list: ($) =>
-      seq('<', sym('_type_argument_enter'), commaSep1($.type_parameter), '>', sym('_type_argument_leave')),
+    type_parameter_list: ($) => seq('<', commaSep1($.type_parameter), '>'),
 
     type_parameter: ($) => seq(repeat($._attribute_list), optional(choice('in', 'out')), field('name', $.identifier)),
 
@@ -650,7 +647,7 @@ module.exports = grammar({
         1,
         seq(
           repeat($._attribute_list),
-          choice('extension', alias(sym('_extension_generic_keyword'), 'extension')),
+          'extension',
           optional($.type_parameter_list),
           '(',
           $.receiver_parameter,
@@ -709,7 +706,7 @@ module.exports = grammar({
         repeat($.modifier),
         field('returns', $.type),
         optional($.explicit_interface_specifier),
-        field('name', $._generic_head_identifier),
+        field('name', $.identifier),
         field('type_parameters', optional($.type_parameter_list)),
         field('parameters', $.parameter_list),
         repeat($.type_parameter_constraints_clause)
@@ -846,12 +843,9 @@ module.exports = grammar({
 
     qualified_name: ($) => prec(PREC.DOT, seq(field('qualifier', $._name), '.', field('name', $._simple_name))),
 
-    _generic_head_identifier: ($) => choice($.identifier, alias(sym('_generic_call_identifier'), $.identifier)),
+    generic_name: ($) => prec.dynamic(1, seq($.identifier, $.type_argument_list)),
 
-    generic_name: ($) => prec.dynamic(1, seq($._generic_head_identifier, $.type_argument_list)),
-
-    type_argument_list: ($) =>
-      seq('<', sym('_type_argument_enter'), choice(repeat(','), commaSep1($.type)), '>', sym('_type_argument_leave')),
+    type_argument_list: ($) => seq('<', choice(repeat(','), commaSep1($.type)), '>'),
 
     type: ($) => typeAlternatives($),
 
@@ -892,6 +886,7 @@ module.exports = grammar({
     _pattern_declaration_type: ($) =>
       choice(
         $.implicit_type,
+        prec(PREC.UNARY, alias('await', $.identifier)),
         alias($._pattern_array_type, $.array_type),
         $._name,
         alias($._pattern_nullable_type, $.nullable_type),
@@ -967,8 +962,6 @@ module.exports = grammar({
           'uint',
           'ulong',
           'ushort',
-          'nint',
-          'nuint',
           'void'
         )
       ),
@@ -1150,7 +1143,7 @@ module.exports = grammar({
         repeat($._attribute_list),
         repeat($.modifier),
         field('type', $.type),
-        field('name', $._generic_head_identifier),
+        field('name', $.identifier),
         field('type_parameters', optional($.type_parameter_list)),
         field('parameters', $.parameter_list)
       ),
@@ -1327,7 +1320,7 @@ module.exports = grammar({
     _is_operand_with_expression: ($) => withExpression($, $._is_arithmetic_expression),
 
     _is_arithmetic_binary_expression: ($) =>
-      arithmeticBinaryExpression($._is_arithmetic_start_expression, $._is_arithmetic_expression),
+      arithmeticBinaryExpression($._is_arithmetic_start_expression, $._is_arithmetic_expression, true),
 
     _is_arithmetic_operand_binary_expression: ($) =>
       arithmeticBinaryExpression($._is_arithmetic_expression, $._is_arithmetic_expression),
@@ -1391,7 +1384,7 @@ module.exports = grammar({
     recursive_pattern: ($) =>
       choice(
         prec.dynamic(
-          1,
+          2,
           seq(
             field('type', $._name),
             $.positional_pattern_clause,
@@ -1399,7 +1392,7 @@ module.exports = grammar({
             $._simple_designation
           )
         ),
-        prec.dynamic(1, seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))),
+        prec.dynamic(2, seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))),
         prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
         alias($._untyped_positional_pattern_clause, $.positional_pattern_clause),
         seq(
@@ -1602,7 +1595,10 @@ module.exports = grammar({
       ),
 
     postfix_unary_expression: ($) =>
-      postfixExpression($._primary_no_conditional_access_expression, choice('++', '--', bangOperator())),
+      choice(
+        postfixExpression($._primary_no_conditional_access_expression, choice('++', '--', bangOperator())),
+        $._generic_invocation_suppression_expression
+      ),
 
     prefix_unary_expression: ($) => prefixUnaryExpression($._unary_operand),
 
@@ -1888,7 +1884,46 @@ module.exports = grammar({
 
     checked_expression: ($) => seq(choice('checked', 'unchecked'), '(', $.expression, ')'),
 
-    invocation_expression: ($) => invocationExpression($, $._postfix_receiver),
+    invocation_expression: ($) =>
+      choice(invocationExpression($, $._postfix_receiver), $._generic_invocation_expression),
+
+    _generic_invocation_expression: ($) =>
+      choice(
+        prec.dynamic(
+          1,
+          invocationExpression(
+            $,
+            choice(
+              $._generic_invocation_simple_name,
+              alias($._pattern_generic_member_expression, $.member_access_expression),
+              alias($._generic_alias_qualified_name, $.alias_qualified_name)
+            )
+          )
+        ),
+        prec.dynamic(
+          3,
+          invocationExpression(
+            $,
+            choice(
+              alias($._generic_invocation_expression, $.invocation_expression),
+              alias($._generic_invocation_suppression_expression, $.postfix_unary_expression)
+            )
+          )
+        )
+      ),
+
+    _generic_invocation_simple_name: ($) => $.generic_name,
+
+    _generic_alias_qualified_name: ($) => seq(field('alias', $.identifier), '::', field('name', $.generic_name)),
+
+    _generic_invocation_suppression_expression: ($) =>
+      postfixExpression(
+        choice(
+          alias($._generic_invocation_expression, $.invocation_expression),
+          alias($._generic_invocation_suppression_expression, $.postfix_unary_expression)
+        ),
+        bangOperator()
+      ),
 
     switch_expression: ($) => switchExpression($, $.expression),
     _switch_expression_body: ($) =>
@@ -2891,6 +2926,8 @@ function reservedIdentifiers() {
     'let',
     'method',
     'nameof',
+    'nint',
+    'nuint',
     'notnull',
     'on',
     'orderby',
@@ -2912,14 +2949,19 @@ function reservedIdentifiers() {
 /**
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} left
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} right
+ * @param {boolean} [preferArithmetic]
  */
-function arithmeticBinaryExpression(left, right) {
+function arithmeticBinaryExpression(left, right, preferArithmetic = false) {
   return choice(
     ...binaryOperators()
       .filter(([, precedence]) => precedence >= PREC.SHIFT)
-      .map(([operator, precedence]) =>
-        prec.left(precedence, seq(field('left', left), field('operator', operator), field('right', right)))
-      )
+      .map(([operator, precedence]) => {
+        const rule = prec.left(
+          precedence,
+          seq(field('left', left), field('operator', operator), field('right', right))
+        );
+        return preferArithmetic && operator !== '>>' && operator !== '>>>' ? prec.dynamic(2, rule) : rule;
+      })
   );
 }
 

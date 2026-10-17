@@ -39,6 +39,8 @@ test('retains prefix ranges and queries as cast operands with their syntax bound
     ['(T[]).5', 'T[]', '.5'],
     ['(T)!..b', 'T', '!..b'],
     ['(T)(a)', 'T', '(a)'],
+    ['(nint)(a)', 'nint', '(a)'],
+    ['(nuint)!a', 'nuint', '!a'],
     ['(F<T>)(a)', 'F<T>', '(a)'],
     ['(obj.F<T>)(a)', 'obj.F<T>', '(a)'],
     ['(T)!&b', 'T', '!&b'],
@@ -169,8 +171,8 @@ test('preserves division after ambiguous parenthesized cast candidates', () => {
   }
 });
 
-test('keeps indexed parenthesized operands before surrounding binary operators', () => {
-  for (const receiver of ['a[i]', 'a[0]', 'arr[i, j]']) {
+test('keeps ambiguous parenthesized operands before surrounding binary operators', () => {
+  for (const receiver of ['a[i]', 'a[0]', 'arr[i, j]', 'nint', 'nuint']) {
     for (const operator of ['+', '-', '*', '&', '&&', '^', '|']) {
       const expression = `(${receiver}) ${operator} b`;
       const tree = parser.parse(`var result = ${expression};`)!;
@@ -466,7 +468,7 @@ test('rechecks cast closing proofs after operand and type edits', () => {
   }
 });
 
-test('rechecks generic-call proofs after changing distant type arguments and call openings', () => {
+test('retains generic-call ownership through type-argument and call-opening edits', () => {
   for (const [before, after] of [
     ['F<T>(x)(y)', 'F<T> + (x)(y)'],
     ['F<(T,U)>(x)(y)', 'F<((T),U)>(x)(y)'],
