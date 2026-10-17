@@ -251,6 +251,46 @@ test('retains chained generic invocations in expression contexts', () => {
   }
 });
 
+test('retains generic call chains in conditional binding owners', () => {
+  for (const root of ['a?.G<T>', 'a?.b.G<T>', 'a?[0].G<T>', 'a.b?.G<T>', 'new T[0]?.G<U>', 'a?.b!.G<T>']) {
+    for (const tail of ['(x)(y)', '(x)!(y)', '(x)!!(y)(z)', '(x)(y)(z)(w)', '(x)(y)!', '(x)(y)!!']) {
+      const expression = `${root}${tail}`;
+      const source = `var r = ${expression};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('cast_expression'), source).toHaveLength(0);
+        const calls = tree.rootNode.descendantsOfType('invocation_expression');
+        expect(calls, source).toHaveLength(tail.match(/\(/g)!.length);
+        const conditional = tree.rootNode.descendantsOfType('conditional_access_expression')[0]!;
+        expect(conditional.text, source).toBe(expression.replace(/!+$/, ''));
+        if (expression.endsWith('!')) {
+          const suppression = tree.rootNode.descendantsOfType('postfix_unary_expression')[0]!;
+          expect(suppression.text, source).toBe(expression);
+          expect(suppression.namedChildren[0]?.text, source).toBe(expression.slice(0, -1));
+        }
+        expect(calls[0]!.childForFieldName('function')?.text, source).toBe(
+          conditional.childForFieldName('consequence')!.text.slice(0, -3)
+        );
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+  for (const expression of ['a?.G<T>!(x)(y)', 'a?.G<T>!!(x)(y)', 'a?[0].G<T>!(x)(y)']) {
+    const tree = parser.parse(`var r = ${expression};`)!;
+    try {
+      expect(tree.rootNode.hasError, expression).toBe(false);
+      expect(tree.rootNode.descendantsOfType('invocation_expression'), expression).toHaveLength(0);
+      const cast = tree.rootNode.descendantsOfType('cast_expression')[0]!;
+      expect(cast.childForFieldName('type')?.text, expression).toBe('x');
+      expect(cast.childForFieldName('value')?.text, expression).toBe('(y)');
+    } finally {
+      tree.delete();
+    }
+  }
+});
+
 test('keeps parenthesized expression arguments in relational comparisons', () => {
   for (const expression of ['F<(a)>(x)(y)', 'F<((a), b)>(x)(y)', 'F<a+b>(x)(y)']) {
     const tree = parser.parse(`var r = ${expression};`)!;
@@ -473,6 +513,8 @@ test('retains generic-call ownership through type-argument and call-opening edit
     ['F<T>(x)(y)', 'F<T> + (x)(y)'],
     ['F<(T,U)>(x)(y)', 'F<((T),U)>(x)(y)'],
     ['F<T>(x)(y)', 'F /* gap */ <T> /* gap */ (x)(y)'],
+    ['a?.G<T>(x)(y)', 'a?.G<T>!(x)(y)'],
+    ['a?.G<T>(x)!(y)', 'a?[0].G<T>(x)!!(y)'],
   ]) {
     for (const [left, right] of [
       [before, after],

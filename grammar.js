@@ -54,6 +54,10 @@ module.exports = grammar({
 
   conflicts: ($) => [
     [$.list_pattern],
+    [$._conditional_binding_receiver, $._binding_generic_suppression_expression],
+    [$._member_conditional_binding_receiver, $._member_binding_generic_suppression_expression],
+    [$._binding_invocation_expression, $._binding_generic_suppression_expression],
+    [$._member_binding_invocation_expression, $._member_binding_generic_suppression_expression],
     [$._simple_name, $._generic_alias_qualified_name],
     [$._simple_name, $._generic_invocation_simple_name],
     [$._pattern_declaration_type, $._assignment_target_await_expression, $.await_expression],
@@ -1681,7 +1685,8 @@ module.exports = grammar({
     _member_conditional_binding_receiver: ($) =>
       choice(
         $._member_nonconditional_binding_expression,
-        alias($._member_binding_suppression_expression, $.postfix_unary_expression)
+        alias($._member_binding_suppression_expression, $.postfix_unary_expression),
+        alias($._member_binding_generic_suppression_expression, $.postfix_unary_expression)
       ),
 
     _member_binding_suppression_expression: ($) =>
@@ -1692,7 +1697,35 @@ module.exports = grammar({
     _member_binding_element_access_expression: ($) =>
       elementAccessExpression($, $._member_conditional_binding_receiver),
 
-    _member_binding_invocation_expression: ($) => invocationExpression($, $._member_conditional_binding_receiver),
+    _member_binding_invocation_expression: ($) =>
+      choice(
+        invocationExpression($, $._member_conditional_binding_receiver),
+        $._member_binding_generic_invocation_expression
+      ),
+
+    _member_binding_generic_invocation_expression: ($) =>
+      genericInvocationExpression(
+        $,
+        choice(
+          alias($._generic_member_binding_expression, $.member_binding_expression),
+          alias($._member_binding_generic_member_expression, $.member_access_expression)
+        ),
+        $._member_binding_generic_invocation_expression,
+        $._member_binding_generic_suppression_expression
+      ),
+
+    _member_binding_generic_member_expression: ($) =>
+      memberAccessExpression($, $._member_conditional_binding_receiver, $._generic_invocation_simple_name),
+
+    _member_binding_generic_suppression_expression: ($) =>
+      seq(
+        genericInvocationReceiver(
+          $,
+          $._member_binding_generic_invocation_expression,
+          $._member_binding_generic_suppression_expression
+        ),
+        bangOperator()
+      ),
 
     _member_binding_conditional_access_expression: ($) =>
       conditionalAccessExpression($, $._member_conditional_binding_receiver),
@@ -1720,7 +1753,8 @@ module.exports = grammar({
     _conditional_binding_receiver: ($) =>
       choice(
         $._nonconditional_binding_expression,
-        alias($._binding_suppression_expression, $.postfix_unary_expression)
+        alias($._binding_suppression_expression, $.postfix_unary_expression),
+        alias($._binding_generic_suppression_expression, $.postfix_unary_expression)
       ),
 
     _binding_suppression_expression: ($) => postfixExpression($._conditional_binding_receiver, bangOperator()),
@@ -1729,7 +1763,32 @@ module.exports = grammar({
 
     _binding_element_access_expression: ($) => elementAccessExpression($, $._conditional_binding_receiver),
 
-    _binding_invocation_expression: ($) => invocationExpression($, $._conditional_binding_receiver),
+    _binding_invocation_expression: ($) =>
+      choice(invocationExpression($, $._conditional_binding_receiver), $._binding_generic_invocation_expression),
+
+    _binding_generic_invocation_expression: ($) =>
+      genericInvocationExpression(
+        $,
+        choice(
+          alias($._generic_member_binding_expression, $.member_binding_expression),
+          alias($._binding_generic_member_expression, $.member_access_expression)
+        ),
+        $._binding_generic_invocation_expression,
+        $._binding_generic_suppression_expression
+      ),
+
+    _binding_generic_member_expression: ($) =>
+      memberAccessExpression($, $._conditional_binding_receiver, $._generic_invocation_simple_name),
+
+    _binding_generic_suppression_expression: ($) =>
+      seq(
+        genericInvocationReceiver(
+          $,
+          $._binding_generic_invocation_expression,
+          $._binding_generic_suppression_expression
+        ),
+        bangOperator()
+      ),
 
     _binding_conditional_access_expression: ($) => conditionalAccessExpression($, $._conditional_binding_receiver),
 
@@ -1888,29 +1947,18 @@ module.exports = grammar({
       choice(invocationExpression($, $._postfix_receiver), $._generic_invocation_expression),
 
     _generic_invocation_expression: ($) =>
-      choice(
-        prec.dynamic(
-          1,
-          invocationExpression(
-            $,
-            choice(
-              $._generic_invocation_simple_name,
-              alias($._pattern_generic_member_expression, $.member_access_expression),
-              alias($._generic_alias_qualified_name, $.alias_qualified_name)
-            )
-          )
+      genericInvocationExpression(
+        $,
+        choice(
+          $._generic_invocation_simple_name,
+          alias($._pattern_generic_member_expression, $.member_access_expression),
+          alias($._generic_alias_qualified_name, $.alias_qualified_name)
         ),
-        prec.dynamic(
-          3,
-          invocationExpression(
-            $,
-            choice(
-              alias($._generic_invocation_expression, $.invocation_expression),
-              alias($._generic_invocation_suppression_expression, $.postfix_unary_expression)
-            )
-          )
-        )
+        $._generic_invocation_expression,
+        $._generic_invocation_suppression_expression
       ),
+
+    _generic_member_binding_expression: ($) => seq('.', field('name', $._generic_invocation_simple_name)),
 
     _generic_invocation_simple_name: ($) => $.generic_name,
 
@@ -1918,10 +1966,7 @@ module.exports = grammar({
 
     _generic_invocation_suppression_expression: ($) =>
       postfixExpression(
-        choice(
-          alias($._generic_invocation_expression, $.invocation_expression),
-          alias($._generic_invocation_suppression_expression, $.postfix_unary_expression)
-        ),
+        genericInvocationReceiver($, $._generic_invocation_expression, $._generic_invocation_suppression_expression),
         bangOperator()
       ),
 
@@ -2632,6 +2677,30 @@ function elementAccessExpression($, receiver) {
  */
 function invocationExpression($, receiver) {
   return prec(PREC.INVOCATION, seq(field('function', receiver), field('arguments', $.argument_list)));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'argument_list' | 'invocation_expression' | 'postfix_unary_expression'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} first
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} call
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} suppression
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function genericInvocationExpression($, first, call, suppression) {
+  return choice(
+    prec.dynamic(1, invocationExpression($, first)),
+    prec.dynamic(3, invocationExpression($, genericInvocationReceiver($, call, suppression)))
+  );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'invocation_expression' | 'postfix_unary_expression'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} call
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} suppression
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function genericInvocationReceiver($, call, suppression) {
+  return choice(alias(call, $.invocation_expression), alias(suppression, $.postfix_unary_expression));
 }
 
 /**
