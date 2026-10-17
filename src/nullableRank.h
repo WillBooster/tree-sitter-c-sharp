@@ -22,7 +22,7 @@ typedef struct { unsigned token; RankLambdaHeader header; bool content; bool pri
 typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid; } RankParse;
 
 static bool question_type_boundary(int32_t c);
-static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending);
+static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending, uint32_t *questions);
 static bool rank_numeric_type_chain(const RankTokens *tokens);
 static RankCertificate rank_certify_character(RankCertificate certificate, int32_t c);
 static RankCertificate rank_certify_word(RankCertificate certificate, const QuestionIdentifier *name, int32_t following);
@@ -66,7 +66,7 @@ static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, uns
 static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
 static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
 
-static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending) {
+static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending, uint32_t *questions) {
     int32_t first = question_skip_separators(lexer);
     if (first == '(' || first == '[' || first == '{') {
         advance(lexer);
@@ -74,7 +74,7 @@ static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending) {
         return question_skip_separators(lexer) == '?' ? RANK_PATTERN_COMPLETE : RANK_NONE;
     }
     bool simple_type = false;
-    if (!rank_read_prefix(lexer, &simple_type)) return RANK_NONE;
+    if (!rank_read_prefix(lexer, &simple_type, questions)) return RANK_NONE;
     advance(lexer);
     if (question_skip_separators(lexer) != '[') return RANK_NONE;
     advance(lexer);

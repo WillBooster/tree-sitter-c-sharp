@@ -1,7 +1,7 @@
 #ifndef TREE_SITTER_C_SHARP_NULLABLE_TYPES_H_
 #define TREE_SITTER_C_SHARP_NULLABLE_TYPES_H_
 
-typedef struct { bool colon; bool comma; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
+typedef struct { uint32_t questions; bool colon; bool comma; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
 
 typedef enum { RANK_TYPE_START, RANK_TYPE_SUFFIX, RANK_TYPE_NAME, RANK_TYPE_TAIL, RANK_TYPE_ARGUMENT, RANK_TYPE_ARGUMENT_END } RankTypeStage;
 typedef struct { RankTypeStage stage; int32_t close; bool flag; } RankTypeFrame;
@@ -13,8 +13,8 @@ static bool rank_read_type_tail_step(TSLexer *, RankTypeRead *, RankTypeFrames *
 static bool rank_read_type_argument_end(TSLexer *, RankTypeRead *, RankTypeFrames *, int32_t);
 static bool rank_prepare_name_suffix(TSLexer *, RankTypeRead *, const QuestionIdentifier *, bool *);
 
-static bool rank_read_prefix(TSLexer *lexer, bool *simple);
-static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *name, bool *simple);
+static bool rank_read_prefix(TSLexer *lexer, bool *simple, uint32_t *questions);
+static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *name, bool *simple, uint32_t *questions);
 static bool rank_read_identifier(TSLexer *lexer, QuestionIdentifier *identifier);
 static bool rank_identifier_allowed(const QuestionIdentifier *word, bool type);
 static int32_t rank_type_gap(TSLexer *lexer, RankTypeRead *read);
@@ -29,7 +29,7 @@ static bool rank_read_calling_convention(TSLexer *lexer);
 static bool rank_read_as_arguments(TSLexer *lexer, int32_t close, RankTypeRead *read);
 static bool rank_read_as_rank(TSLexer *lexer);
 
-static bool rank_read_prefix(TSLexer *lexer, bool *simple) {
+static bool rank_read_prefix(TSLexer *lexer, bool *simple, uint32_t *questions) {
     bool operand = true;
     unsigned words = 0;
     *simple = true;
@@ -47,16 +47,18 @@ static bool rank_read_prefix(TSLexer *lexer, bool *simple) {
         }
         if (logical) return false;
         if (word.keyword && !strcmp(word.word, "not")) continue;
-        if (!rank_read_prefix_suffix(lexer, &word, simple)) return false;
+        if (!rank_read_prefix_suffix(lexer, &word, simple, questions)) return false;
         operand = false;
     }
     return false;
 }
 
-static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *name, bool *simple) {
+static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *name, bool *simple, uint32_t *questions) {
     RankTypeRead read = {0};
-    if (!rank_read_as_name_suffix(lexer, &read, name) || !rank_read_as_name_tail(lexer, &read, false) || read.question || read.colon ||
+    if (!rank_read_as_name_suffix(lexer, &read, name) || !rank_read_as_name_tail(lexer, &read, false) || read.colon ||
         read.coalesce || read.conditional || read.division) return false;
+    if (UINT32_MAX - *questions < read.questions) return false;
+    *questions += read.questions;
     int32_t next;
     while ((next = question_skip_separators(lexer)) == '[') {
         *simple = false;
@@ -223,7 +225,11 @@ static bool rank_read_nullable_suffix(TSLexer *lexer, RankTypeRead *read, bool t
         return lexer->lookahead != '=';
     }
     if (rank_type_gap(lexer, read) < -1 || !rank_read_nullable_boundary(lexer, read, tuple_element)) return false;
-    if (!read->conditional) read->question = true;
+    if (!read->conditional) {
+        if (read->questions == UINT32_MAX) return false;
+        read->questions++;
+        read->question = true;
+    }
     return true;
 }
 

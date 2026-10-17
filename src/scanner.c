@@ -87,6 +87,7 @@ typedef struct {
     bool question_type_uncertain;
     uint32_t question_access_cache;
     uint8_t question_rank_role;
+    uint32_t question_rank_prefix_questions;
     uint16_t question_frame_count;
     QuestionFrame question_frames[QUESTION_FRAME_LIMIT];
     Array(Interpolation) interpolation_stack;
@@ -167,13 +168,20 @@ static bool buf_equals(const char *buf, size_t n, const char *kw) {
 #define QUESTION_STATE_TYPE_UNCERTAIN 16
 #define QUESTION_STATE_RANK_ROLE 32
 
+static void clear_question_rank(Scanner *scanner);
+
 static void reset_question_context(Scanner *scanner) {
     scanner->question_unknown = false;
     scanner->question_type_uncertain = false;
     scanner->question_access_cache = 0;
-    scanner->question_rank_role = 0;
+    clear_question_rank(scanner);
     scanner->question_frame_count = 1;
     scanner->question_frames[0] = (QuestionFrame){0};
+}
+
+static void clear_question_rank(Scanner *scanner) {
+    scanner->question_rank_role = 0;
+    scanner->question_rank_prefix_questions = 0;
 }
 
 #include "questionContext.h"
@@ -211,9 +219,9 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
     }
     bool rank = !unknown && scanner->question_rank_role &&
         (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE) &&
-        original_size + (extended ? extension_size : 0) + 1 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
+        original_size + (extended ? extension_size : 0) + 5 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
     bool cache = !unknown && !rank && !scanner->question_type_uncertain && scanner->question_access_cache && original_size +
-        (extended ? extension_size : 0) + (rank ? 1 : 0) + 4 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
+        (extended ? extension_size : 0) + (rank ? 5 : 0) + 4 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
     unsigned size = 0;
     buffer[size++] = (char)scanner->quote_count;
     buffer[size++] = (char)((scanner->next_file_directive ? 1 : 0) |
@@ -228,7 +236,11 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
         buffer[size++] = (char)item.quote_count;
         buffer[size++] = (char)item.string_type;
     }
-    if (rank) buffer[size++] = (char)scanner->question_rank_role;
+    if (rank) {
+        buffer[size++] = (char)scanner->question_rank_role;
+        for (unsigned byte = 0; byte < 4; byte++)
+            buffer[size++] = (char)(scanner->question_rank_prefix_questions >> (byte * 8));
+    }
     if (cache) {
         for (unsigned byte = 0; byte < 4; byte++) buffer[size++] = (char)(scanner->question_access_cache >> (byte * 8));
     }
@@ -276,8 +288,10 @@ static bool question_read_modes(Scanner *scanner, unsigned flags, const char *bu
     if ((flags & ~63U) || (flags & QUESTION_STATE_UNKNOWN)) return false;
     scanner->question_type_uncertain = (flags & QUESTION_STATE_TYPE_UNCERTAIN) != 0;
     if (flags & QUESTION_STATE_RANK_ROLE) {
-        if (*size >= length || (flags & QUESTION_STATE_ACCESS_CACHE)) return false;
+        if (*size + 5 > length || (flags & QUESTION_STATE_ACCESS_CACHE)) return false;
         scanner->question_rank_role = (uint8_t)buffer[(*size)++];
+        for (unsigned byte = 0; byte < 4; byte++) scanner->question_rank_prefix_questions |=
+            (uint32_t)(unsigned char)buffer[(*size)++] << (byte * 8);
         if (!scanner->question_rank_role || scanner->question_rank_role > RANK_PATTERN_COMPLETE) return false;
         if (!scanner->question_type_uncertain && scanner->question_rank_role != RANK_PATTERN_COMPLETE) return false;
     }
@@ -531,7 +545,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     scanner->next_file_directive = false;
     if (recovery) {
         scanner->question_unknown = true; scanner->question_access_cache = 0;
-        scanner->question_rank_role = RANK_NONE;
+        clear_question_rank(scanner);
         bool line_start = next_file_directive;
         while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
             if (is_line_terminator(lexer->lookahead)) line_start = true;
@@ -1028,8 +1042,13 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     bool known_nullable = next.token == ')' || next.token == ',' || next.token == ':' ||
         (valid_symbols[QUESTION_NULLABLE] &&
          (consumed_division || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
-    uint8_t rank_phase = scanner->question_rank_role;
-    scanner->question_rank_role = RANK_NONE;
+    uint8_t rank_phase = RANK_NONE;
+    if (scanner->question_rank_role && scanner->question_rank_prefix_questions) {
+        scanner->question_rank_prefix_questions--;
+    } else {
+        rank_phase = scanner->question_rank_role;
+        clear_question_rank(scanner);
+    }
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown || frame->unknown || next.token != '[')
         rank_phase = RANK_NONE;
@@ -1085,6 +1104,7 @@ static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLex
     advance(lexer);
     if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
     scanner->question_rank_role = RANK_PATTERN_COMPLETE;
+    scanner->question_rank_prefix_questions = 0;
     scanner->question_access_cache = 0;
     lexer->result_symbol = symbol;
     return QUESTION_MATCHED;
@@ -1104,11 +1124,12 @@ static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *l
         return QUESTION_MISMATCHED;
     scanner->question_type_uncertain = true;
     scanner->question_access_cache = 0;
-    scanner->question_rank_role = RANK_NONE;
+    clear_question_rank(scanner);
     lexer->mark_end(lexer);
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (symbol == TYPE_CONTEXT_IS && !scanner->question_unknown && !frame->unknown)
-        scanner->question_rank_role = rank_stream_role(lexer, frame->pending);
+        scanner->question_rank_role = rank_stream_role(lexer, frame->pending, &scanner->question_rank_prefix_questions);
+    if (!scanner->question_rank_role) scanner->question_rank_prefix_questions = 0;
     lexer->result_symbol = symbol;
     return QUESTION_MATCHED;
 }

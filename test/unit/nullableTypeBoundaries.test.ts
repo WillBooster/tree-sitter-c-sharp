@@ -476,3 +476,32 @@ test('keeps contextual pattern-operator names available to ternary operands', ()
     parser.delete();
   }
 });
+
+test('keeps nested nullable type questions separate from the following ternary question', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const type of ['List<T?>', 'List<T?[]>', 'List<List<T?>>', 'Dictionary<T?,U?>', 'G<(T?,U?)>']) {
+      for (const collection of ['[0]', '[a]']) {
+        const expression = `x is ${type}?${collection} ? [1] : [2]`;
+        for (const wrapped of [expression, `c ? ${expression} : d`]) {
+          const tree = parser.parse(`var result = ${wrapped};`)!;
+          try {
+            expect(tree.rootNode.hasError, wrapped).toBe(false);
+            const ternary = tree.rootNode.descendantsOfType('conditional_expression').at(-1);
+            expect(ternary?.childForFieldName('condition')?.text, wrapped).toBe(`x is ${type}`);
+            expect(ternary?.childForFieldName('consequence')?.type, wrapped).toBe('conditional_access_expression');
+            expect(ternary?.childForFieldName('consequence')?.text, wrapped).toBe(`${collection} ? [1]`);
+            expect(ternary?.childForFieldName('alternative')?.text, wrapped).toBe('[2]');
+            const access = ternary?.childForFieldName('consequence');
+            expect(access?.childForFieldName('condition')?.text, wrapped).toBe(collection);
+            expect(access?.childForFieldName('consequence')?.text, wrapped).toBe('[1]');
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
