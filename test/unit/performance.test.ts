@@ -276,6 +276,27 @@ function assertDeepParsingKeepsRuntimeUsable(expression: string, node: string, d
   }
 }
 
+test('releases long nullable-array conditional chains without poisoning the runtime', () => {
+  const count = 5000;
+  const statement = `var result = ${'a is T?[] ? 1 : '.repeat(count)}0;`;
+  for (const source of [statement, `class C { void M() { ${statement} } }`]) {
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(count);
+    } finally {
+      tree.delete();
+    }
+  }
+  const subsequent = parser.parse('var result = a?[0];')!;
+  try {
+    expect(subsequent.rootNode.hasError).toBe(false);
+    expect(subsequent.rootNode.descendantsOfType('conditional_access_expression')[0]?.text).toBe('a?[0]');
+  } finally {
+    subsequent.delete();
+  }
+});
+
 test('preserves deeply nested conditional operands without exhausting the scanner stack', () => {
   const depth = 5000;
   for (const [prefix, alternatives, count] of [
