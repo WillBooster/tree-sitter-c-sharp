@@ -25,6 +25,9 @@ test('retains prefix ranges and queries as cast operands with their syntax bound
     ['(int).. ..b', 'int', '.. ..b'],
     ['(global::T)..b', 'global::T', '..b'],
     ['(T[])..b', 'T[]', '..b'],
+    ['(T[])^a', 'T[]', '^a'],
+    ['(T[])++a', 'T[]', '++a'],
+    ['(T[])--a', 'T[]', '--a'],
     ['(T[,])..b', 'T[,]', '..b'],
     ['(T*)..b', 'T*', '..b'],
     ['(int)from x in y select x + z', 'int', 'from x in y select x + z'],
@@ -154,7 +157,7 @@ test('allows escaped operator keywords and longer identifiers as cast operands',
 
 test('keeps definite casts as constants in positional subpatterns', () => {
   for (const type of ['T[]', 'T[,]', 'T[][]', 'T?[]', 'T[]?', 'N.T[]', 'T<U>[]', '(T,U)[]']) {
-    for (const value of ['a', 'a.B', 'a?.B', '+a', '-a', '*a', '&a', '^a', '++a', '--a']) {
+    for (const value of ['a', 'a.B', 'a?.B', '+a', '-a', '*a', '&a']) {
       const castText = `(${type})${value}`;
       for (const source of [
         `var r = x is R(${castText});`,
