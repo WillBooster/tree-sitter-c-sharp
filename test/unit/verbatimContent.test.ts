@@ -29,3 +29,38 @@ test('preserves quote runs beside escaped braces and interpolation', async () =>
     parser.delete();
   }
 });
+
+test('retains generic-shaped literal content after generic declarations', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
+  try {
+    for (const literal of ['"x<Int32>(42)"', '@"x<Int32>(42)"', '"""x<Int32>(42)"""', '$"x<Int32>(42)"']) {
+      const source = `class C { public void G<T>(T arg) { CheckNames(${literal}, "y", 3); } }`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode
+            .descendantsOfType('invocation_expression')
+            .map((node) => node.childForFieldName('function')?.text),
+          source
+        ).toEqual(['CheckNames']);
+        expect(
+          tree.rootNode
+            .descendantsOfType([
+              'string_literal',
+              'verbatim_string_literal',
+              'raw_string_literal',
+              'interpolated_string_expression',
+            ])
+            .some((node) => node.text === literal),
+          source
+        ).toBe(true);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

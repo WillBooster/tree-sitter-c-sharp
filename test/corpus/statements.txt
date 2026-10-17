@@ -309,12 +309,14 @@ int Sample9(int a) {
               (identifier)))
           (switch_body
             (switch_section
-              (constant_pattern
-                (tuple_expression
-                  (argument
-                    (integer_literal))
-                  (argument
-                    (integer_literal))))
+              (recursive_pattern
+                (positional_pattern_clause
+                  (subpattern
+                    (constant_pattern
+                      (integer_literal)))
+                  (subpattern
+                    (constant_pattern
+                      (integer_literal)))))
               (return_statement
                 (integer_literal)))
             (switch_section

@@ -5,6 +5,8 @@
 #include <string.h>
 #include <wctype.h>
 
+#include "identifierCharacters.h"
+
 enum TokenType {
     OPT_SEMI,
     INTERPOLATION_REGULAR_START,
@@ -32,6 +34,29 @@ enum TokenType {
     FILE_DIRECTIVE_KIND,
     FILE_DIRECTIVE_LITERAL_CONTEXT,
     FILE_DIRECTIVE_NEWLINE,
+    QUESTION_UNKNOWN,
+    QUESTION_TERNARY,
+    QUESTION_MEMBER_ACCESS,
+    QUESTION_ELEMENT_ACCESS,
+    QUESTION_NULLABLE,
+    CASE_LABEL_COLON,
+    TYPE_CONTEXT_IS,
+    TYPE_CONTEXT_AS,
+    QUESTION_DEFINITE_ACCESS,
+    OBJECT_INDEX_START,
+    SLICE_PATTERN_START,
+    AMBIGUOUS_CAST_OPERAND_START,
+    AMBIGUOUS_CAST_TYPE_END,
+    DEFINITE_CAST_TYPE_END,
+    RANGE_CAST_TYPE_END,
+    NONPRIMARY_EXPRESSION_END,
+    PATTERN_PAREN_END,
+    PATTERN_BRACKET_END,
+    BANG_OPERATOR,
+    CONDITIONAL_ALTERNATIVE_START,
+    STATEMENT_END,
+    BLOCK_END,
+    AMPERSAND_OPERATOR,
 };
 
 typedef enum {
@@ -53,9 +78,24 @@ static inline bool is_verbatim(Interpolation *interpolation) { return interpolat
 
 static inline bool is_raw(Interpolation *interpolation) { return interpolation->string_type & RAW; }
 
+#define QUESTION_FRAME_LIMIT ((TREE_SITTER_SERIALIZATION_BUFFER_SIZE - 5) / 2)
+
+typedef struct {
+    uint8_t group;
+    uint32_t pending;
+    bool unknown;
+} QuestionFrame;
+
 typedef struct {
     uint8_t quote_count;
     bool next_file_directive;
+    bool question_unknown;
+    bool question_type_uncertain;
+    uint32_t question_access_cache;
+    uint8_t question_rank_role;
+    uint32_t question_rank_prefix_questions;
+    uint16_t question_frame_count;
+    QuestionFrame question_frames[QUESTION_FRAME_LIMIT];
     Array(Interpolation) interpolation_stack;
 } Scanner;
 
@@ -73,55 +113,46 @@ static inline bool is_space_but_line_feed(int32_t c) {
     return c == '\t' || c == '\v' || c == '\f' || c == '\r' || c == ' ' || c == 0xA0 || c == 0x3000 || c == 0xFEFF;
 }
 
-static inline bool is_id_start(int32_t c) {
-    return c == '_' || iswalpha(c);
-}
+static bool skip_block_comment(TSLexer *lexer);
+static void skip_line_comment(TSLexer *lexer);
 
-static inline bool is_id_continue(int32_t c) {
-    return c == '_' || iswalnum(c);
-}
-
-// Skip whitespace, line comments (//...), and block comments (/* ... */).
-// Does NOT skip preprocessor directives — simple-lambda parameter lists
-// cannot legally contain them.
+// The parameter-list caller requires a consumed non-comment slash to remain invalid.
 static void skip_ws_and_comments(TSLexer *lexer) {
     for (;;) {
         int32_t c = lexer->lookahead;
         if (is_space_but_line_feed(c) || is_line_terminator(c)) {
             advance(lexer);
-        } else if (c == '/') {
-            advance(lexer);
-            if (lexer->lookahead == '/') {
-                while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
-                    advance(lexer);
-                }
-            } else if (lexer->lookahead == '*') {
-                advance(lexer);
-                int32_t prev = 0;
-                while (!lexer->eof(lexer) && !(prev == '*' && lexer->lookahead == '/')) {
-                    prev = lexer->lookahead;
-                    advance(lexer);
-                }
-                if (lexer->lookahead == '/') advance(lexer);
-            } else {
-                // a stray '/' isn't valid in a param list; bail out by
-                // making the caller see something unexpected
-                return;
-            }
-        } else {
-            return;
+            continue;
         }
+        if (c != '/') return;
+        advance(lexer);
+        if (lexer->lookahead == '/') skip_line_comment(lexer);
+        else if (lexer->lookahead == '*') skip_block_comment(lexer);
+        else return;
     }
 }
 
-// Consume an identifier into a fixed-size buffer. Returns the actual
-// length consumed (may exceed `max`, in which case `buf` is only filled
-// up to `max` bytes — useful for "too long to be a keyword" detection).
+static bool skip_block_comment(TSLexer *lexer) {
+    advance(lexer);
+    int32_t previous = 0;
+    while (!lexer->eof(lexer) && !(previous == '*' && lexer->lookahead == '/')) {
+        previous = lexer->lookahead;
+        advance(lexer);
+    }
+    if (lexer->eof(lexer)) return false;
+    advance(lexer);
+    return true;
+}
+
+static void skip_line_comment(TSLexer *lexer) {
+    while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) advance(lexer);
+}
+
 static size_t consume_identifier_into(TSLexer *lexer, char *buf, size_t max) {
     size_t n = 0;
     while (is_id_continue(lexer->lookahead)) {
         if (n < max) {
-            buf[n] = (char)lexer->lookahead;
+            buf[n] = lexer->lookahead <= 0x7F ? (char)lexer->lookahead : '?';
         }
         n++;
         advance(lexer);
@@ -134,9 +165,34 @@ static bool buf_equals(const char *buf, size_t n, const char *kw) {
     return n == klen && memcmp(buf, kw, klen) == 0;
 }
 
+#define QUESTION_STATE_UNKNOWN 2
+#define QUESTION_STATE_EXTENDED 4
+#define QUESTION_STATE_ACCESS_CACHE 8
+#define QUESTION_STATE_TYPE_UNCERTAIN 16
+#define QUESTION_STATE_RANK_ROLE 32
+
+static void clear_question_rank(Scanner *scanner);
+
+static void reset_question_context(Scanner *scanner) {
+    scanner->question_unknown = false;
+    scanner->question_type_uncertain = false;
+    scanner->question_access_cache = 0;
+    clear_question_rank(scanner);
+    scanner->question_frame_count = 1;
+    scanner->question_frames[0] = (QuestionFrame){0};
+}
+
+static void clear_question_rank(Scanner *scanner) {
+    scanner->question_rank_role = 0;
+    scanner->question_rank_prefix_questions = 0;
+}
+
+#include "questionContext.h"
+
 void *tree_sitter_c_sharp_external_scanner_create() {
     Scanner *scanner = ts_calloc(1, sizeof(Scanner));
     array_init(&scanner->interpolation_stack);
+    reset_question_context(scanner);
     return scanner;
 }
 
@@ -146,55 +202,163 @@ void tree_sitter_c_sharp_external_scanner_destroy(void *payload) {
     ts_free(scanner);
 }
 
+static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size);
+static unsigned question_serialized_size(const Scanner *scanner);
+static void question_serialize(const Scanner *scanner, char *buffer, unsigned *size);
+static bool question_deserialize(Scanner *scanner, const char *buffer, unsigned length, unsigned *size);
+static bool question_read_varint(const char *buffer, unsigned length, unsigned *size, uint32_t *value);
+
 unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buffer) {
     Scanner *scanner = (Scanner *)payload;
-
-    if (scanner->interpolation_stack.size * 4 + 3 > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
-        return 0;
+    unsigned original_size = scanner->interpolation_stack.size * 4 + 3;
+    if (original_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) return 0;
+    bool extended = !scanner->question_unknown && (scanner->question_frame_count > 1 ||
+        scanner->question_frames[0].pending || scanner->question_frames[0].unknown);
+    bool unknown = scanner->question_unknown;
+    unsigned extension_size = extended ? question_serialized_size(scanner) : 2;
+    if (extended && original_size + extension_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
+        extended = false;
+        unknown = true;
     }
-
+    bool rank = !unknown && scanner->question_rank_role &&
+        (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE) &&
+        original_size + (extended ? extension_size : 0) + 5 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
+    bool cache = !unknown && !rank && !scanner->question_type_uncertain && scanner->question_access_cache && original_size +
+        (extended ? extension_size : 0) + (rank ? 5 : 0) + 4 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
     unsigned size = 0;
-
     buffer[size++] = (char)scanner->quote_count;
-    buffer[size++] = (char)scanner->next_file_directive;
+    buffer[size++] = (char)((scanner->next_file_directive ? 1 : 0) |
+        (unknown ? QUESTION_STATE_UNKNOWN : 0) | (extended ? QUESTION_STATE_EXTENDED : 0) |
+        (cache ? QUESTION_STATE_ACCESS_CACHE : 0) | (rank ? QUESTION_STATE_RANK_ROLE : 0) |
+        (!unknown && scanner->question_type_uncertain ? QUESTION_STATE_TYPE_UNCERTAIN : 0));
     buffer[size++] = (char)scanner->interpolation_stack.size;
-
     for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
-        Interpolation interpolation = scanner->interpolation_stack.contents[i];
-        buffer[size++] = (char)interpolation.dollar_count;
-        buffer[size++] = (char)interpolation.open_brace_count;
-        buffer[size++] = (char)interpolation.quote_count;
-        buffer[size++] = (char)interpolation.string_type;
+        Interpolation item = scanner->interpolation_stack.contents[i];
+        buffer[size++] = (char)item.dollar_count;
+        buffer[size++] = (char)item.open_brace_count;
+        buffer[size++] = (char)item.quote_count;
+        buffer[size++] = (char)item.string_type;
     }
-
+    if (rank) {
+        buffer[size++] = (char)scanner->question_rank_role;
+        for (unsigned byte = 0; byte < 4; byte++)
+            buffer[size++] = (char)(scanner->question_rank_prefix_questions >> (byte * 8));
+    }
+    if (cache) {
+        for (unsigned byte = 0; byte < 4; byte++) buffer[size++] = (char)(scanner->question_access_cache >> (byte * 8));
+    }
+    if (extended) question_serialize(scanner, buffer, &size);
     return size;
 }
 
 void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
     Scanner *scanner = (Scanner *)payload;
-
     scanner->quote_count = 0;
     scanner->next_file_directive = false;
     array_clear(&scanner->interpolation_stack);
+    reset_question_context(scanner);
+    if (!length) return;
+    if (length < 3) goto unknown;
     unsigned size = 0;
-
-    if (length > 0) {
-        scanner->quote_count = (unsigned char)buffer[size++];
-        scanner->next_file_directive = buffer[size++];
-        scanner->interpolation_stack.size = (unsigned char)buffer[size++];
-        array_reserve(&scanner->interpolation_stack, scanner->interpolation_stack.size);
-
-        for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
-            Interpolation interpolation = {0};
-            interpolation.dollar_count = buffer[size++];
-            interpolation.open_brace_count = buffer[size++];
-            interpolation.quote_count = buffer[size++];
-            interpolation.string_type = (unsigned char)buffer[size++];
-            scanner->interpolation_stack.contents[i] = interpolation;
-        }
+    scanner->quote_count = (unsigned char)buffer[size++];
+    unsigned flags = (unsigned char)buffer[size++];
+    scanner->next_file_directive = (flags & 1) != 0;
+    unsigned count = (unsigned char)buffer[size++];
+    if (3 + count * 4 > length) goto unknown;
+    array_reserve(&scanner->interpolation_stack, count);
+    scanner->interpolation_stack.size = count;
+    for (unsigned i = 0; i < count; i++) {
+        Interpolation item = {0};
+        item.dollar_count = (unsigned char)buffer[size++];
+        item.open_brace_count = (unsigned char)buffer[size++];
+        item.quote_count = (unsigned char)buffer[size++];
+        item.string_type = (unsigned char)buffer[size++];
+        scanner->interpolation_stack.contents[i] = item;
     }
+    if (!question_read_modes(scanner, flags, buffer, length, &size)) goto unknown;
+    if (!(flags & QUESTION_STATE_EXTENDED)) {
+        if (size != length) goto unknown;
+        return;
+    }
+    if (!question_deserialize(scanner, buffer, length, &size)) goto unknown;
+    return;
+unknown:
+    reset_question_context(scanner);
+    scanner->question_unknown = true;
+}
 
-    assert(size == length);
+static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size) {
+    if ((flags & ~63U) || (flags & QUESTION_STATE_UNKNOWN)) return false;
+    scanner->question_type_uncertain = (flags & QUESTION_STATE_TYPE_UNCERTAIN) != 0;
+    if (flags & QUESTION_STATE_RANK_ROLE) {
+        if (*size + 5 > length || (flags & QUESTION_STATE_ACCESS_CACHE)) return false;
+        scanner->question_rank_role = (uint8_t)buffer[(*size)++];
+        for (unsigned byte = 0; byte < 4; byte++) scanner->question_rank_prefix_questions |=
+            (uint32_t)(unsigned char)buffer[(*size)++] << (byte * 8);
+        if (!scanner->question_rank_role || scanner->question_rank_role > RANK_PATTERN_COMPLETE) return false;
+        if (!scanner->question_type_uncertain && scanner->question_rank_role != RANK_PATTERN_COMPLETE) return false;
+    }
+    if (flags & QUESTION_STATE_ACCESS_CACHE) {
+        if (*size + 4 > length) return false;
+        for (unsigned byte = 0; byte < 4; byte++) scanner->question_access_cache |=
+            (uint32_t)(unsigned char)buffer[(*size)++] << (byte * 8);
+        if (!scanner->question_access_cache) return false;
+    }
+    return true;
+}
+
+static unsigned question_serialized_size(const Scanner *scanner) {
+    unsigned size = 2;
+    for (unsigned i = 0; i < scanner->question_frame_count; i++) {
+        uint32_t pending = scanner->question_frames[i].pending;
+        size++;
+        do { size++; pending >>= 7; } while (pending);
+    }
+    return size;
+}
+
+static void question_serialize(const Scanner *scanner, char *buffer, unsigned *size) {
+    buffer[(*size)++] = (char)scanner->question_frame_count;
+    buffer[(*size)++] = (char)(scanner->question_frame_count >> 8);
+    for (unsigned i = 0; i < scanner->question_frame_count; i++) {
+        QuestionFrame frame = scanner->question_frames[i];
+        unsigned group = frame.group == '(' ? 1 : frame.group == '[' ? 2 : frame.group == '{' ? 3 : 0;
+        buffer[(*size)++] = (char)(group | (frame.unknown ? 4 : 0));
+        do {
+            unsigned byte = frame.pending & 127;
+            frame.pending >>= 7;
+            buffer[(*size)++] = (char)(byte | (frame.pending ? 128 : 0));
+        } while (frame.pending);
+    }
+}
+
+static bool question_deserialize(Scanner *scanner, const char *buffer, unsigned length, unsigned *size) {
+    if (*size + 2 > length) return false;
+    unsigned count = (unsigned char)buffer[(*size)++];
+    count |= (unsigned)(unsigned char)buffer[(*size)++] << 8;
+    if (!count || count > QUESTION_FRAME_LIMIT) return false;
+    scanner->question_frame_count = count;
+    for (unsigned i = 0; i < count; i++) {
+        if (*size == length) return false;
+        unsigned group = (unsigned char)buffer[(*size)++];
+        if ((group & ~7U) || (!i && (group & 3)) || (i && !(group & 3))) return false;
+        QuestionFrame frame = {.group = (group & 3) == 1 ? '(' : (group & 3) == 2 ? '[' : (group & 3) == 3 ? '{' : 0,
+            .unknown = (group & 4) != 0};
+        if (!question_read_varint(buffer, length, size, &frame.pending)) return false;
+        scanner->question_frames[i] = frame;
+    }
+    return *size == length;
+}
+
+static bool question_read_varint(const char *buffer, unsigned length, unsigned *size, uint32_t *value) {
+    *value = 0;
+    for (unsigned shift = 0;; shift += 7) {
+        if (*size == length || shift > 28) return false;
+        unsigned byte = (unsigned char)buffer[(*size)++];
+        if (shift == 28 && (byte & 240)) return false;
+        *value |= (uint32_t)(byte & 127) << shift;
+        if (!(byte & 128)) return !shift || (byte & 127);
+    }
 }
 
 // Outcome of `scan_lambda_paren_open` — distinguishes "didn't start"
@@ -359,6 +523,23 @@ static bool scan_file_directive_preproc_arg(TSLexer *lexer, bool recovery) {
 static bool is_directive_horizontal(int32_t c);
 static bool scan_file_directive_kind(TSLexer *lexer);
 
+typedef enum {
+    QUESTION_NOT_STARTED,
+    QUESTION_MATCHED,
+    QUESTION_MISMATCHED,
+} QuestionScanResult;
+
+static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable);
+static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *valid_symbols);
+static bool advance_operator_character(TSLexer *lexer);
+static bool scan_ambiguous_cast_operand_start(TSLexer *lexer);
+static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols);
+static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred);
+
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
 
@@ -370,6 +551,8 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     bool next_file_directive = scanner->next_file_directive;
     scanner->next_file_directive = false;
     if (recovery) {
+        scanner->question_unknown = true; scanner->question_access_cache = 0;
+        clear_question_rank(scanner);
         bool line_start = next_file_directive;
         while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
             if (is_line_terminator(lexer->lookahead)) line_start = true;
@@ -377,6 +560,70 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         }
         if (!scan_file_directive_prefix(lexer)) return false;
         return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
+    }
+
+    if (valid_symbols[CONDITIONAL_ALTERNATIVE_START]) {
+        scanner->question_type_uncertain = false;
+        lexer->mark_end(lexer);
+        lexer->result_symbol = CONDITIONAL_ALTERNATIVE_START;
+        return true;
+    }
+
+    if (scan_statement_end(scanner, lexer, valid_symbols)) return true;
+
+    if (valid_symbols[AMBIGUOUS_CAST_OPERAND_START]) return scan_ambiguous_cast_operand_start(lexer);
+
+    QuestionScanResult punctuation = scan_operator_punctuation(lexer, valid_symbols);
+    if (punctuation != QUESTION_NOT_STARTED) return punctuation == QUESTION_MATCHED;
+
+    if (valid_symbols[SLICE_PATTERN_START]) {
+        while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+        if (lexer->lookahead == '.') {
+            advance(lexer);
+            if (lexer->lookahead != '.') return false;
+            advance(lexer);
+            lexer->mark_end(lexer);
+            lexer->result_symbol = SLICE_PATTERN_START;
+            return true;
+        }
+    }
+
+    if (valid_symbols[OBJECT_INDEX_START]) {
+        while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+        if (lexer->lookahead == '[') {
+            advance(lexer);
+            lexer->mark_end(lexer);
+            lexer->result_symbol = OBJECT_INDEX_START;
+            return true;
+        }
+    }
+
+    if (valid_symbols[NONPRIMARY_EXPRESSION_END] || valid_symbols[PATTERN_PAREN_END] || valid_symbols[PATTERN_BRACKET_END] ||
+        valid_symbols[AMBIGUOUS_CAST_TYPE_END] || valid_symbols[DEFINITE_CAST_TYPE_END] || valid_symbols[RANGE_CAST_TYPE_END]) {
+        QuestionScanResult closing = scan_nonprimary_expression_end(scanner, lexer, valid_symbols);
+        if (closing != QUESTION_NOT_STARTED) return closing == QUESTION_MATCHED;
+    }
+
+    if (valid_symbols[TYPE_CONTEXT_IS] || valid_symbols[TYPE_CONTEXT_AS]) {
+        QuestionScanResult keyword = scan_type_context_keyword(scanner, lexer, valid_symbols);
+        if (keyword != QUESTION_NOT_STARTED) return keyword == QUESTION_MATCHED;
+    }
+
+    if (valid_symbols[CASE_LABEL_COLON]) {
+        while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+        if (lexer->lookahead == ':') {
+            advance(lexer);
+            if (lexer->lookahead == ':') return false;
+            lexer->mark_end(lexer);
+            lexer->result_symbol = CASE_LABEL_COLON;
+            return true;
+        }
+    }
+    if (valid_symbols[QUESTION_UNKNOWN] || valid_symbols[QUESTION_TERNARY] ||
+        (valid_symbols[QUESTION_MEMBER_ACCESS] || valid_symbols[QUESTION_ELEMENT_ACCESS]) ||
+        valid_symbols[QUESTION_DEFINITE_ACCESS] || valid_symbols[QUESTION_NULLABLE]) {
+        QuestionScanResult question = scan_conditional_question(scanner, lexer, valid_symbols);
+        if (question != QUESTION_NOT_STARTED) return question == QUESTION_MATCHED;
     }
 
     // Lambda-paren scanning advances forward speculatively past the
@@ -446,6 +693,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         if (lexer->lookahead == ';') {
             advance(lexer);
         }
+        scanner->question_type_uncertain = false;
+        scanner->question_access_cache = 0;
+        clear_question_rank(scanner);
         return true;
     }
 
@@ -763,6 +1013,206 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     return false;
+}
+
+static bool scan_ambiguous_cast_operand_start(TSLexer *lexer) {
+    lexer->mark_end(lexer);
+    if (!cast_operand_start(lexer, true, false)) return false;
+    lexer->result_symbol = AMBIGUOUS_CAST_OPERAND_START;
+    return true;
+}
+
+
+static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+    if (!valid_symbols[STATEMENT_END] && !valid_symbols[BLOCK_END]) return false;
+    if (!scanner->question_type_uncertain && !scanner->question_rank_role && !scanner->question_access_cache) return false;
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    unsigned end = lexer->lookahead == ';' ? STATEMENT_END : BLOCK_END;
+    if ((lexer->lookahead != ';' && lexer->lookahead != '}') || !valid_symbols[end]) return false;
+    if (end == STATEMENT_END && valid_symbols[OPT_SEMI]) return false;
+    advance(lexer);
+    lexer->mark_end(lexer);
+    scanner->question_type_uncertain = false;
+    scanner->question_access_cache = 0;
+    clear_question_rank(scanner);
+    lexer->result_symbol = end;
+    return true;
+}
+
+static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *valid_symbols) {
+    if (!valid_symbols[BANG_OPERATOR] && !valid_symbols[AMPERSAND_OPERATOR]) return QUESTION_NOT_STARTED;
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    unsigned symbol;
+    if (valid_symbols[BANG_OPERATOR] && lexer->lookahead == '!') symbol = BANG_OPERATOR;
+    else if (valid_symbols[AMPERSAND_OPERATOR] && lexer->lookahead == '&') symbol = AMPERSAND_OPERATOR;
+    else return QUESTION_NOT_STARTED;
+    if (!advance_operator_character(lexer)) return QUESTION_MISMATCHED;
+    lexer->mark_end(lexer);
+    lexer->result_symbol = symbol;
+    return QUESTION_MATCHED;
+}
+
+static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    if (lexer->lookahead != '?') return QUESTION_NOT_STARTED;
+    advance(lexer);
+    lexer->mark_end(lexer);
+    if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
+    bool consumed_division = question_skip_separators(lexer) == -1;
+    QuestionFollowing next = consumed_division ? (QuestionFollowing){.token = '/'} : question_following(lexer);
+    bool known_ternary = false;
+    if (next.member) scanner->question_type_uncertain = false;
+    bool known_nullable = next.token == ')' || next.token == ',' || next.token == ':' ||
+        (valid_symbols[QUESTION_NULLABLE] &&
+         (consumed_division || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
+    uint8_t rank_phase = RANK_NONE;
+    if (scanner->question_rank_role && scanner->question_rank_prefix_questions) {
+        scanner->question_rank_prefix_questions--;
+    } else {
+        rank_phase = scanner->question_rank_role;
+        clear_question_rank(scanner);
+    }
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown || frame->unknown || next.token != '[')
+        rank_phase = RANK_NONE;
+    unsigned context_flags = (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
+        (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
+        (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
+    unsigned role = prepare_question_context(scanner, lexer, next, &known_nullable,
+        context_flags, rank_phase, &known_ternary);
+    if (known_ternary && valid_symbols[CASE_LABEL_COLON]) role = 0;
+    if (next.member) role = 1;
+    if (lexer->log) lexer->log(lexer, "question_role role=%u access=%d ternary=%d nullable=%d unknown=%d", role,
+        (valid_symbols[QUESTION_MEMBER_ACCESS] || valid_symbols[QUESTION_ELEMENT_ACCESS]), valid_symbols[QUESTION_TERNARY],
+        valid_symbols[QUESTION_NULLABLE], valid_symbols[QUESTION_UNKNOWN]);
+    QuestionScanResult result = select_question_symbol(lexer, valid_symbols, &next, role, known_nullable);
+    if (result == QUESTION_MATCHED && lexer->result_symbol == QUESTION_TERNARY)
+        scanner->question_type_uncertain = false;
+    return result;
+}
+
+static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable) {
+    bool access = role == 1 || role == 3;
+    if (known_nullable) {
+        if (!valid_symbols[QUESTION_NULLABLE]) return QUESTION_MISMATCHED;
+        lexer->result_symbol = QUESTION_NULLABLE;
+    } else if (access && next->token == '[' && valid_symbols[QUESTION_NULLABLE] && valid_symbols[QUESTION_UNKNOWN]) {
+        lexer->result_symbol = QUESTION_UNKNOWN;
+    } else if (role == 2 && valid_symbols[QUESTION_TERNARY] && !valid_symbols[CASE_LABEL_COLON]) {
+        lexer->result_symbol = QUESTION_TERNARY;
+    } else if (access && (next->member || next->token == '[') && valid_symbols[QUESTION_DEFINITE_ACCESS]) {
+        lexer->result_symbol = QUESTION_DEFINITE_ACCESS;
+    } else if (access && next->member && valid_symbols[QUESTION_MEMBER_ACCESS]) {
+        lexer->result_symbol = QUESTION_MEMBER_ACCESS;
+    } else if (access && next->token == '[' && valid_symbols[QUESTION_ELEMENT_ACCESS]) {
+        lexer->result_symbol = QUESTION_ELEMENT_ACCESS;
+    } else if (role && valid_symbols[QUESTION_NULLABLE]) {
+        lexer->result_symbol = QUESTION_NULLABLE;
+    } else if (!role && valid_symbols[QUESTION_UNKNOWN]) {
+        lexer->result_symbol = QUESTION_UNKNOWN;
+    } else return QUESTION_MISMATCHED;
+    return QUESTION_MATCHED;
+}
+
+static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    unsigned symbol = 0;
+    bool cast = lexer->lookahead == ')' && (valid_symbols[AMBIGUOUS_CAST_TYPE_END] || valid_symbols[DEFINITE_CAST_TYPE_END] || valid_symbols[RANGE_CAST_TYPE_END]);
+    if (lexer->lookahead == '}' && valid_symbols[NONPRIMARY_EXPRESSION_END]) symbol = NONPRIMARY_EXPRESSION_END;
+    else if (lexer->lookahead == ')' && valid_symbols[PATTERN_PAREN_END]) symbol = PATTERN_PAREN_END;
+    else if (lexer->lookahead == ']' && valid_symbols[PATTERN_BRACKET_END]) symbol = PATTERN_BRACKET_END;
+    else if (!cast) return QUESTION_NOT_STARTED;
+    advance(lexer);
+    lexer->mark_end(lexer);
+    int32_t following = question_skip_separators(lexer);
+    if (following < 0) return QUESTION_MISMATCHED;
+    if (cast && scan_cast_type_end(lexer, valid_symbols)) return QUESTION_MATCHED;
+    if (!symbol || following != '?' || !question_read_single_question(lexer)) return QUESTION_MISMATCHED;
+    scanner->question_rank_role = RANK_PATTERN_COMPLETE;
+    scanner->question_rank_prefix_questions = 0;
+    scanner->question_access_cache = 0;
+    lexer->result_symbol = symbol;
+    return QUESTION_MATCHED;
+}
+
+static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols) {
+    bool normal = valid_symbols[AMBIGUOUS_CAST_TYPE_END] || valid_symbols[DEFINITE_CAST_TYPE_END];
+    bool ambiguous = !valid_symbols[DEFINITE_CAST_TYPE_END];
+    unsigned symbol = ambiguous ? AMBIGUOUS_CAST_TYPE_END : DEFINITE_CAST_TYPE_END;
+    if (question_skip_separators(lexer) == '.') {
+        advance(lexer);
+        if (lexer->lookahead == '.' && valid_symbols[RANGE_CAST_TYPE_END]) symbol = RANGE_CAST_TYPE_END;
+        else if (!normal || lexer->lookahead < '0' || lexer->lookahead > '9') return false;
+    } else if (!normal || !cast_operand_start(lexer, ambiguous, true)) return false;
+    lexer->result_symbol = symbol;
+    return true;
+}
+
+static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
+    int32_t next = question_skip_separators(lexer);
+    if (ambiguous && (next == '+' || next == '-' || next == '*' || next == '&' || next == '^')) return false;
+    bool prefix = false;
+    bool only_bangs = next == '!';
+    while (next == '!' || next == '~' || next == '+' || next == '-' || next == '*' || next == '&' || next == '^') {
+        prefix = true;
+        only_bangs &= next == '!';
+        if (!advance_operator_character(lexer)) return false;
+        next = question_skip_separators(lexer);
+    }
+    if (preferred && (next == '#' || (ambiguous && only_bangs && (next == '(' || next == '[')))) return false;
+    if (next < 0 || next == ')' || next == ']' || next == '}' || next == '{' || next == ',' || next == ':' || next == ';' || next == '?' ||
+        next == '=' || next == '|' || next == '<' || next == '>' || next == '/' || next == '%' || !next) return false;
+    if (next == '.') {
+        advance(lexer);
+        return (prefix && lexer->lookahead == '.') || (lexer->lookahead >= '0' && lexer->lookahead <= '9');
+    }
+    if (ambiguous && !prefix && next == '[') {
+        advance(lexer);
+        return question_skip_separators(lexer) == ']';
+    }
+    if (!is_id_start(next) && next != '\\') return true;
+    QuestionIdentifier identifier;
+    if (!question_identifier(lexer, false, &identifier)) return false;
+    if (!identifier.keyword) return true;
+    if (!strcmp(identifier.word, "is") || !strcmp(identifier.word, "as")) return false;
+    if (!preferred) return true;
+    static const char *const continuations[] = {
+        "switch", "when", "with", "and", "or", "not", "from", "join", "on", "equals", "by", "into",
+        "where", "select", "group", "orderby", "let", "ascending", "descending"
+    };
+    return !question_word_in(identifier.word, continuations, sizeof(continuations) / sizeof(continuations[0]));
+}
+
+static bool advance_operator_character(TSLexer *lexer) {
+    int32_t current = lexer->lookahead;
+    advance(lexer);
+    if (current == '!') return lexer->lookahead != '=';
+    return current != '&' || (lexer->lookahead != '&' && lexer->lookahead != '=');
+}
+
+
+static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    unsigned symbol;
+    if (lexer->lookahead == 'i' && valid_symbols[TYPE_CONTEXT_IS]) symbol = TYPE_CONTEXT_IS;
+    else if (lexer->lookahead == 'a' && valid_symbols[TYPE_CONTEXT_AS]) symbol = TYPE_CONTEXT_AS;
+    else return QUESTION_NOT_STARTED;
+    char word[3] = {0};
+    size_t size = consume_identifier_into(lexer, word, sizeof(word));
+    bool matched = symbol == TYPE_CONTEXT_IS ? buf_equals(word, size, "is") : buf_equals(word, size, "as");
+    int32_t next = lexer->lookahead;
+    if (!matched || next == '\\' || (next > 0x7F && !is_directive_horizontal(next) && !is_line_terminator(next)))
+        return QUESTION_MISMATCHED;
+    scanner->question_type_uncertain = true;
+    scanner->question_access_cache = 0;
+    clear_question_rank(scanner);
+    lexer->mark_end(lexer);
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (symbol == TYPE_CONTEXT_IS && !scanner->question_unknown && !frame->unknown)
+        scanner->question_rank_role = rank_stream_role(lexer, frame->pending, &scanner->question_rank_prefix_questions);
+    if (!scanner->question_rank_role) scanner->question_rank_prefix_questions = 0;
+    lexer->result_symbol = symbol;
+    return QUESTION_MATCHED;
 }
 
 static bool is_directive_horizontal(int32_t c) {

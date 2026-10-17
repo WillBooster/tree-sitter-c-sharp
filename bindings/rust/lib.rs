@@ -14,7 +14,7 @@
 //! assert!(!tree.root_node().has_error());
 //! ```
 //!
-//! The parser loads only with `willbooster-tree-sitter` 2.0.0 or later; upstream's `tree-sitter` crate rejects it.
+//! Use `willbooster-tree-sitter` 2.0.24 or later; upstream's `tree-sitter` crate rejects this parser.
 //!
 //! [`Parser`]: https://docs.rs/willbooster-tree-sitter/2/tree_sitter/struct.Parser.html
 //! [tree-sitter]: https://tree-sitter.github.io/
@@ -103,8 +103,7 @@ mod tests {
         new_parser();
     }
 
-    // The input and edits are the corpus case "Precedence between is operator and as operator" and the edits
-    // `tree-sitter fuzz` makes with TREE_SITTER_SEED=1133. They leave a syntax error before the unchanged last line.
+    // The input and edits were captured by `tree-sitter fuzz` with TREE_SITTER_SEED=1133.
     #[test]
     fn test_parsing_var_as_an_implicit_type_after_an_error_on_a_preceding_line() {
         let mut parser = new_parser();

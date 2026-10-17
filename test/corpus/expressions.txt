@@ -480,9 +480,10 @@ var t = x is int
         (variable_declarator
           name: (identifier)
           (conditional_expression
-            condition: (is_expression
-              left: (identifier)
-              right: (predefined_type))
+            condition: (is_pattern_expression
+              expression: (identifier)
+              pattern: (type_pattern
+                type: (predefined_type)))
             consequence: (identifier)
             alternative: (identifier)))))))
 
@@ -504,10 +505,11 @@ var u = x is int?
         (variable_declarator
           name: (identifier)
           (conditional_expression
-            condition: (is_expression
-              left: (identifier)
-              right: (nullable_type
-                type: (predefined_type)))
+            condition: (is_pattern_expression
+              expression: (identifier)
+              pattern: (type_pattern
+                type: (nullable_type
+                  type: (predefined_type))))
             consequence: (identifier)
             alternative: (identifier)))))))
 
@@ -3085,9 +3087,10 @@ var b = s is string;
         type: (implicit_type)
         (variable_declarator
           name: (identifier)
-          (is_expression
-            left: (identifier)
-            right: (predefined_type)))))))
+          (is_pattern_expression
+            expression: (identifier)
+            pattern: (type_pattern
+              type: (predefined_type))))))))
 
 ================================================================================
 is pattern
@@ -3358,14 +3361,29 @@ int a = 1 is Object ? 1 : 2;
 Precedence between is operator and as operator
 ================================================================================
 
-//var a = new object() is null as Object == false; // this parses with wrong precedence
+var c = new object() is null as Object == false;
 var a = new object() is null as Object;
 var b = true == 1 as int? is int;
 
 --------------------------------------------------------------------------------
 
 (compilation_unit
-  (comment)
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (binary_expression
+            left: (as_expression
+              left: (is_pattern_expression
+                expression: (object_creation_expression
+                  type: (predefined_type)
+                  arguments: (argument_list))
+                pattern: (constant_pattern
+                  (null_literal)))
+              right: (identifier))
+            right: (boolean_literal))))))
   (global_statement
     (local_declaration_statement
       (variable_declaration
@@ -3388,12 +3406,13 @@ var b = true == 1 as int? is int;
           name: (identifier)
           (binary_expression
             left: (boolean_literal)
-            right: (is_expression
-              left: (as_expression
+            right: (is_pattern_expression
+              expression: (as_expression
                 left: (integer_literal)
                 right: (nullable_type
                   type: (predefined_type)))
-              right: (predefined_type))))))))
+              pattern: (type_pattern
+                type: (predefined_type)))))))))
 
 ================================================================================
 Discard pattern
@@ -3804,23 +3823,25 @@ var z = expr is (E.A or E.B) v2;
           (is_pattern_expression
             expression: (identifier)
             pattern: (recursive_pattern
-              (or_pattern
-                left: (constant_pattern
-                  (member_access_expression
-                    expression: (identifier)
-                    name: (identifier)))
-                right: (constant_pattern
-                  (member_access_expression
-                    expression: (identifier)
-                    name: (identifier))))
+              (positional_pattern_clause
+                (subpattern
+                  (or_pattern
+                    left: (constant_pattern
+                      (member_access_expression
+                        expression: (identifier)
+                        name: (identifier)))
+                    right: (constant_pattern
+                      (member_access_expression
+                        expression: (identifier)
+                        name: (identifier))))))
               name: (identifier))))))))
 
 ================================================================================
 Type patterns
 ================================================================================
 
-var b = o is int or string; //is_pattern_expression with type_pattern
-var c = o is int; //is_expression with type
+var b = o is int or string; // A pattern combining two types.
+var c = o is int; // A single type pattern.
 
 --------------------------------------------------------------------------------
 
@@ -3845,9 +3866,10 @@ var c = o is int; //is_expression with type
         type: (implicit_type)
         (variable_declarator
           name: (identifier)
-          (is_expression
-            left: (identifier)
-            right: (predefined_type))))))
+          (is_pattern_expression
+            expression: (identifier)
+            pattern: (type_pattern
+              type: (predefined_type)))))))
   (comment))
 
 ================================================================================
@@ -4100,11 +4122,11 @@ var a = b?.Something;
           name: (identifier)
           (conditional_access_expression
             condition: (identifier)
-            (member_binding_expression
+            consequence: (member_binding_expression
               name: (identifier))))))))
 
 ================================================================================
-Conditional access to element (should be implicit_element_access)
+Conditional access to element
 ================================================================================
 
 var x = dict?["a"];
@@ -4120,7 +4142,7 @@ var x = dict?["a"];
           name: (identifier)
           (conditional_access_expression
             condition: (identifier)
-            (element_binding_expression
+            consequence: (element_binding_expression
               (argument
                 (string_literal
                   (string_literal_content))))))))))
@@ -4139,7 +4161,7 @@ if (a?.B != 1) { }
       condition: (binary_expression
         left: (conditional_access_expression
           condition: (identifier)
-          (member_binding_expression
+          consequence: (member_binding_expression
             name: (identifier)))
         right: (integer_literal))
       consequence: (block))))
@@ -4171,31 +4193,31 @@ class C {
             name: (identifier)))
         body: (block
           (expression_statement
-            (assignment_expression
-              left: (conditional_access_expression
-                condition: (identifier)
-                (member_binding_expression
-                  name: (identifier)))
-              right: (integer_literal)))
+            (conditional_access_expression
+              condition: (identifier)
+              consequence: (assignment_expression
+                left: (member_binding_expression
+                  name: (identifier))
+                right: (integer_literal))))
           (expression_statement
-            (assignment_expression
-              left: (element_access_expression
-                expression: (conditional_access_expression
-                  condition: (identifier)
-                  (member_binding_expression
-                    name: (identifier)))
-                subscript: (bracketed_argument_list
-                  (argument
-                    (integer_literal))))
-              right: (integer_literal)))
+            (conditional_access_expression
+              condition: (identifier)
+              consequence: (assignment_expression
+                left: (element_access_expression
+                  expression: (member_binding_expression
+                    name: (identifier))
+                  subscript: (bracketed_argument_list
+                    (argument
+                      (integer_literal))))
+                right: (integer_literal))))
           (expression_statement
-            (assignment_expression
-              left: (conditional_access_expression
-                condition: (identifier)
-                (element_binding_expression
+            (conditional_access_expression
+              condition: (identifier)
+              consequence: (assignment_expression
+                left: (element_binding_expression
                   (argument
-                    (identifier))))
-              right: (identifier))))))))
+                    (identifier)))
+                right: (identifier)))))))))
 
 ================================================================================
 Conditional access expression with simple member access
@@ -4209,18 +4231,18 @@ if ((p as Person[])?[0]._Age != 1) { }
   (global_statement
     (if_statement
       condition: (binary_expression
-        left: (member_access_expression
-          expression: (conditional_access_expression
-            condition: (parenthesized_expression
-              (as_expression
-                left: (identifier)
-                right: (array_type
-                  type: (identifier)
-                  rank: (array_rank_specifier))))
-            (element_binding_expression
+        left: (conditional_access_expression
+          condition: (parenthesized_expression
+            (as_expression
+              left: (identifier)
+              right: (array_type
+                type: (identifier)
+                rank: (array_rank_specifier))))
+          consequence: (member_access_expression
+            expression: (element_binding_expression
               (argument
-                (integer_literal))))
-          name: (identifier))
+                (integer_literal)))
+            name: (identifier)))
         right: (integer_literal))
       consequence: (block))))
 

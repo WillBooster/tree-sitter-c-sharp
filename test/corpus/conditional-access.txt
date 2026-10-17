@@ -1,0 +1,660 @@
+================================================================================
+Conditional access binds before logical operators
+================================================================================
+var result = a || b?.C;
+var element = a && b?[0];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (binary_expression
+            left: (identifier)
+            right: (conditional_access_expression
+              condition: (identifier)
+              consequence: (member_binding_expression
+                name: (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (binary_expression
+            left: (identifier)
+            right: (conditional_access_expression
+              condition: (identifier)
+              consequence: (element_binding_expression
+                (argument
+                  (integer_literal))))))))))
+
+================================================================================
+Parenthesized conditional receivers
+================================================================================
+var a = (x)?.y;
+var b = (x.y)?.z;
+var c = (this)?.y;
+var d = ((x))?.y;
+var e = (x)?[0];
+var f = (x)?.y.z;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (parenthesized_expression
+              (identifier))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (parenthesized_expression
+              (member_access_expression
+                expression: (identifier)
+                name: (identifier)))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (parenthesized_expression)
+            consequence: (member_binding_expression
+              name: (identifier)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (parenthesized_expression
+              (parenthesized_expression
+                (identifier)))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (parenthesized_expression
+              (identifier))
+            consequence: (element_binding_expression
+              (argument
+                (integer_literal))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (parenthesized_expression
+              (identifier))
+            consequence: (member_access_expression
+              expression: (member_binding_expression
+                name: (identifier))
+              name: (identifier))))))))
+
+================================================================================
+Intrinsic conditional receivers
+================================================================================
+var a = __refvalue(tr, string)?.Length;
+var b = __refvalue(tr, string[])?[0];
+var c = __reftype(tr)?.Name;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (refvalue_expression
+              value: (identifier)
+              type: (predefined_type))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (refvalue_expression
+              value: (identifier)
+              type: (array_type
+                type: (predefined_type)
+                rank: (array_rank_specifier)))
+            consequence: (element_binding_expression
+              (argument
+                (integer_literal))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (reftype_expression
+              (identifier))
+            consequence: (member_binding_expression
+              name: (identifier))))))))
+
+================================================================================
+Ternary collection expressions
+================================================================================
+var r = c ? [1] : [2];
+var s = c ? [x, y] : [];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (identifier)
+            consequence: (collection_expression
+              (collection_element
+                (expression_element
+                  (integer_literal))))
+            alternative: (collection_expression
+              (collection_element
+                (expression_element
+                  (integer_literal)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (identifier)
+            consequence: (collection_expression
+              (collection_element
+                (expression_element
+                  (identifier)))
+              (collection_element
+                (expression_element
+                  (identifier))))
+            alternative: (collection_expression)))))))
+
+================================================================================
+Preprocessor-selected conditional receiver
+================================================================================
+var result =
+#if A
+ a
+#else
+ b
+#endif
+ ?.Member;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (preproc_if
+              condition: (identifier)
+              (identifier)
+              alternative: (preproc_else
+                (identifier)))
+            consequence: (member_binding_expression
+              name: (identifier))))))))
+
+================================================================================
+Conditional indexing before type tests and ternary collections
+================================================================================
+var r = items?[0] is Foo ? [1] : [2];
+var s = items?[0] is Foo?[] ? [1] : [2];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (is_pattern_expression
+              expression: (conditional_access_expression
+                condition: (identifier)
+                consequence: (element_binding_expression
+                  (argument
+                    (integer_literal))))
+              pattern: (constant_pattern
+                (identifier)))
+            consequence: (collection_expression
+              (collection_element
+                (expression_element
+                  (integer_literal))))
+            alternative: (collection_expression
+              (collection_element
+                (expression_element
+                  (integer_literal)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (is_pattern_expression
+              expression: (conditional_access_expression
+                condition: (identifier)
+                consequence: (element_binding_expression
+                  (argument
+                    (integer_literal))))
+              pattern: (type_pattern
+                type: (array_type
+                  type: (nullable_type
+                    type: (identifier))
+                  rank: (array_rank_specifier))))
+            consequence: (collection_expression
+              (collection_element
+                (expression_element
+                  (integer_literal))))
+            alternative: (collection_expression
+              (collection_element
+                (expression_element
+                  (integer_literal))))))))))
+
+================================================================================
+Base and makeref conditional receivers
+================================================================================
+class C { void M() { var a = base?.Foo(); var b = base?[i]; var c = __makeref(x)?.GetHashCode(); var d = __makeref(x)?[i]; } }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list)
+        body: (block
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (conditional_access_expression
+                  consequence: (invocation_expression
+                    function: (member_binding_expression
+                      name: (identifier))
+                    arguments: (argument_list))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (conditional_access_expression
+                  consequence: (element_binding_expression
+                    (argument
+                      (identifier)))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (conditional_access_expression
+                  condition: (makeref_expression
+                    (identifier))
+                  consequence: (invocation_expression
+                    function: (member_binding_expression
+                      name: (identifier))
+                    arguments: (argument_list))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (conditional_access_expression
+                  condition: (makeref_expression
+                    (identifier))
+                  consequence: (element_binding_expression
+                    (argument
+                      (identifier))))))))))))
+
+================================================================================
+Pointer operands retain conditional access
+================================================================================
+var a = *x!?.Member;
+var b = *x!?[0];
+var c = &Get()?.Member;
+var d = &Get()?[0];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (postfix_unary_expression
+                (identifier))
+              consequence: (member_binding_expression
+                name: (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (postfix_unary_expression
+                (identifier))
+              consequence: (element_binding_expression
+                (argument
+                  (integer_literal)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (invocation_expression
+                function: (identifier)
+                arguments: (argument_list))
+              consequence: (member_binding_expression
+                name: (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (invocation_expression
+                function: (identifier)
+                arguments: (argument_list))
+              consequence: (element_binding_expression
+                (argument
+                  (integer_literal))))))))))
+
+================================================================================
+Pointer casts and ternary conditions
+================================================================================
+var a = *(T*)x!?.Member;
+var b = *(T*)Get()?.Member;
+var c = *x! ? y : z;
+var d = &Get() ? y : z;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (identifier))
+              value: (conditional_access_expression
+                condition: (postfix_unary_expression
+                  (identifier))
+                consequence: (member_binding_expression
+                  name: (identifier)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (identifier))
+              value: (conditional_access_expression
+                condition: (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list))
+                consequence: (member_binding_expression
+                  name: (identifier)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (prefix_unary_expression
+              (postfix_unary_expression
+                (identifier)))
+            consequence: (identifier)
+            alternative: (identifier))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_expression
+            condition: (prefix_unary_expression
+              (invocation_expression
+                function: (identifier)
+                arguments: (argument_list)))
+            consequence: (identifier)
+            alternative: (identifier)))))))
+
+================================================================================
+Value expressions inside pointer operands
+================================================================================
+var a = *(Get())?.Member;
+var b = *(x+y)?[0];
+var c = *(T*)(Get())?.Member;
+var d = *(T*)(x+y)?[0];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (parenthesized_expression
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list)))
+              consequence: (member_binding_expression
+                name: (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (conditional_access_expression
+              condition: (parenthesized_expression
+                (binary_expression
+                  left: (identifier)
+                  right: (identifier)))
+              consequence: (element_binding_expression
+                (argument
+                  (integer_literal)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (identifier))
+              value: (conditional_access_expression
+                condition: (parenthesized_expression
+                  (invocation_expression
+                    function: (identifier)
+                    arguments: (argument_list)))
+                consequence: (member_binding_expression
+                  name: (identifier)))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (prefix_unary_expression
+            (cast_expression
+              type: (pointer_type
+                type: (identifier))
+              value: (conditional_access_expression
+                condition: (parenthesized_expression
+                  (binary_expression
+                    left: (identifier)
+                    right: (identifier)))
+                consequence: (element_binding_expression
+                  (argument
+                    (integer_literal)))))))))))
+
+================================================================================
+Anonymous method and stack allocation question ownership
+================================================================================
+var a = delegate { return 1; }?.Member;
+var b = delegate { return 1; }?[0];
+var c = stackalloc int[1]?.Member;
+var d = stackalloc int[1]?[0];
+var e = stackalloc[] {1}?.Member;
+var f = stackalloc[] {1}?[0];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (anonymous_method_expression
+              (block
+                (return_statement
+                  (integer_literal))))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (anonymous_method_expression
+              (block
+                (return_statement
+                  (integer_literal))))
+            consequence: (element_binding_expression
+              (argument
+                (integer_literal))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (member_access_expression
+            expression: (stackalloc_expression
+              type: (nullable_type
+                type: (array_type
+                  type: (predefined_type)
+                  rank: (array_rank_specifier
+                    (integer_literal)))))
+            name: (identifier))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (stackalloc_expression
+            type: (array_type
+              type: (nullable_type
+                type: (array_type
+                  type: (predefined_type)
+                  rank: (array_rank_specifier
+                    (integer_literal))))
+              rank: (array_rank_specifier
+                (integer_literal))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (implicit_stackalloc_expression
+              (initializer_expression
+                (integer_literal)))
+            consequence: (member_binding_expression
+              name: (identifier)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (conditional_access_expression
+            condition: (implicit_stackalloc_expression
+              (initializer_expression
+                (integer_literal)))
+            consequence: (element_binding_expression
+              (argument
+                (integer_literal)))))))))

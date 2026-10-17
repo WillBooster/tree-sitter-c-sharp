@@ -215,12 +215,12 @@ struct A {
             name: (identifier))))
       (field_declaration
         (variable_declaration
-          type: (predefined_type)
+          type: (identifier)
           (variable_declarator
             name: (identifier))))
       (field_declaration
         (variable_declaration
-          type: (predefined_type)
+          type: (identifier)
           (variable_declarator
             name: (identifier))))
       (field_declaration
