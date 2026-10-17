@@ -279,6 +279,9 @@ module.exports = grammar({
     sym('_statement_end'),
     sym('_block_end'),
     sym('_ampersand_operator'),
+    sym('_generic_call_identifier'),
+    sym('_type_argument_enter'),
+    sym('_type_argument_leave'),
   ],
 
   extras: ($) => [
@@ -297,6 +300,7 @@ module.exports = grammar({
   ],
 
   inline: ($) => [
+    $._generic_head_identifier,
     $._postfix_receiver,
     $._namespace_member_declaration,
     $._object_creation_type,
@@ -402,7 +406,7 @@ module.exports = grammar({
         repeat($._attribute_list),
         repeat($.modifier),
         'class',
-        field('name', $.identifier),
+        field('name', $._generic_head_identifier),
         repeat(choice($.type_parameter_list, $.parameter_list, $.base_list)),
         repeat($.type_parameter_constraints_clause)
       ),
@@ -415,7 +419,7 @@ module.exports = grammar({
         repeat($.modifier),
         optional(seq('ref', optional(alias('partial', $.modifier)))),
         'struct',
-        field('name', $.identifier),
+        field('name', $._generic_head_identifier),
         repeat(choice($.type_parameter_list, $.parameter_list, $.base_list)),
         repeat($.type_parameter_constraints_clause)
       ),
@@ -449,7 +453,7 @@ module.exports = grammar({
         repeat($._attribute_list),
         repeat($.modifier),
         'interface',
-        field('name', $.identifier),
+        field('name', $._generic_head_identifier),
         field('type_parameters', optional($.type_parameter_list)),
         optional($.base_list),
         repeat($.type_parameter_constraints_clause)
@@ -464,7 +468,7 @@ module.exports = grammar({
         repeat($.modifier),
         'delegate',
         field('type', $.type),
-        field('name', $.identifier),
+        field('name', $._generic_head_identifier),
         field('type_parameters', optional($.type_parameter_list)),
         field('parameters', $.parameter_list)
       ),
@@ -477,7 +481,7 @@ module.exports = grammar({
         repeat($.modifier),
         'record',
         optional(choice('class', 'struct')),
-        field('name', $.identifier),
+        field('name', $._generic_head_identifier),
         repeat(choice($.type_parameter_list, $.parameter_list)),
         optional(alias($.record_base, $.base_list)),
         repeat($.type_parameter_constraints_clause)
@@ -522,7 +526,8 @@ module.exports = grammar({
         )
       ),
 
-    type_parameter_list: ($) => seq('<', commaSep1($.type_parameter), '>'),
+    type_parameter_list: ($) =>
+      seq('<', sym('_type_argument_enter'), commaSep1($.type_parameter), '>', sym('_type_argument_leave')),
 
     type_parameter: ($) => seq(repeat($._attribute_list), optional(choice('in', 'out')), field('name', $.identifier)),
 
@@ -644,7 +649,7 @@ module.exports = grammar({
         1,
         seq(
           repeat($._attribute_list),
-          'extension',
+          choice('extension', alias(sym('_generic_call_identifier'), 'extension')),
           optional($.type_parameter_list),
           '(',
           $.receiver_parameter,
@@ -703,7 +708,7 @@ module.exports = grammar({
         repeat($.modifier),
         field('returns', $.type),
         optional($.explicit_interface_specifier),
-        field('name', $.identifier),
+        field('name', $._generic_head_identifier),
         field('type_parameters', optional($.type_parameter_list)),
         field('parameters', $.parameter_list),
         repeat($.type_parameter_constraints_clause)
@@ -840,9 +845,12 @@ module.exports = grammar({
 
     qualified_name: ($) => prec(PREC.DOT, seq(field('qualifier', $._name), '.', field('name', $._simple_name))),
 
-    generic_name: ($) => prec.dynamic(4, seq($.identifier, $.type_argument_list)),
+    _generic_head_identifier: ($) => choice($.identifier, alias(sym('_generic_call_identifier'), $.identifier)),
 
-    type_argument_list: ($) => seq('<', choice(repeat(','), commaSep1($.type)), '>'),
+    generic_name: ($) => prec.dynamic(1, seq($._generic_head_identifier, $.type_argument_list)),
+
+    type_argument_list: ($) =>
+      seq('<', sym('_type_argument_enter'), choice(repeat(','), commaSep1($.type)), '>', sym('_type_argument_leave')),
 
     type: ($) => typeAlternatives($),
 
@@ -1141,7 +1149,7 @@ module.exports = grammar({
         repeat($._attribute_list),
         repeat($.modifier),
         field('type', $.type),
-        field('name', $.identifier),
+        field('name', $._generic_head_identifier),
         field('type_parameters', optional($.type_parameter_list)),
         field('parameters', $.parameter_list)
       ),

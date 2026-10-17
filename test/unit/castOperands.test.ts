@@ -214,6 +214,18 @@ test('retains chained generic invocations in expression contexts', () => {
     ['f<b>(c)(d, e)', 'f<b>(c)'],
     ['x.f<b>(c)(d)', 'x.f<b>(c)'],
     ['F<G<T>>(a)(b)', 'F<G<T>>(a)'],
+    ['F<T>(a)(b)(c)', 'F<T>(a)(b)'],
+    ['var<T>(a)(b)', 'var<T>(a)'],
+    ['F<var>(a)(b)', 'F<var>(a)'],
+    ['F<G<var>>(a)(b)', 'F<G<var>>(a)'],
+    ['F<(var,T)>(a)(b)', 'F<(var,T)>(a)'],
+    ['F<T>\n#pragma warning disable CS0168\n(a)(b)', 'F<T>\n#pragma warning disable CS0168\n(a)'],
+    ['F\n#line 100\n<T>(a)(b)', 'F\n#line 100\n<T>(a)'],
+    ['F<\n#pragma warning disable CS0168\nT>(a)(b)', 'F<\n#pragma warning disable CS0168\nT>(a)'],
+    ['@await<T>(a)(b)', '@await<T>(a)'],
+    ['α<T>(a)(b)', 'α<T>(a)'],
+    ['F<(T,U)>(a)(b)', 'F<(T,U)>(a)'],
+    ['F /* gap */ <T> /* gap */ (a)(b)', 'F /* gap */ <T> /* gap */ (a)'],
   ]) {
     for (const source of [`var r = ${expression};`, `class C { object M() { return ${expression}; } }`]) {
       const tree = parser.parse(source)!;
@@ -225,6 +237,48 @@ test('retains chained generic invocations in expression contexts', () => {
         expect(invocation.childForFieldName('function')?.text, source).toBe(functionText);
       } finally {
         tree.delete();
+      }
+    }
+  }
+});
+
+test('keeps parenthesized expression arguments in relational comparisons', () => {
+  for (const expression of ['F<(a)>(x)(y)', 'F<((a), b)>(x)(y)', 'F<a+b>(x)(y)']) {
+    const tree = parser.parse(`var r = ${expression};`)!;
+    try {
+      expect(tree.rootNode.hasError, expression).toBe(false);
+      expect(tree.rootNode.descendantsOfType('generic_name'), expression).toHaveLength(0);
+      const cast = tree.rootNode.descendantsOfType('cast_expression')[0];
+      expect(cast?.childForFieldName('type')?.text, expression).toBe('x');
+      expect(cast?.childForFieldName('value')?.text, expression).toBe('(y)');
+    } finally {
+      tree.delete();
+    }
+  }
+});
+
+test('keeps qualified casts independent of earlier generic calls', () => {
+  for (const call of ['F<T>(x)(y)', 'F<G<T>>(x)(y)', '(F<T>)(U)']) {
+    for (const type of ['T.U', 'A.B.C']) {
+      for (const value of ['(a).b', '(a)[0]', '(a)++', '(a).b(1)']) {
+        const expression = `${call} + (${type})${value}`;
+        for (const source of [
+          `var r = ${expression};`,
+          `class C { object M() { return ${expression}; } }`,
+          `var r = ${call}; var s = (${type})${value};`,
+        ]) {
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            const cast = tree.rootNode
+              .descendantsOfType('cast_expression')
+              .find((node) => node.childForFieldName('type')?.text === type);
+            expect(cast?.text, source).toBe(`(${type})${value}`);
+            expect(cast?.childForFieldName('value')?.text, source).toBe(value);
+          } finally {
+            tree.delete();
+          }
+        }
       }
     }
   }
@@ -383,6 +437,39 @@ test('rechecks cast closing proofs after operand and type edits', () => {
     for (const [before, after] of [patterns, patterns.toReversed()]) {
       const source = `var 名 = x is ${before};`;
       const updated = `var 名 = x is ${after};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        editTree(tree, source, updated);
+        const incremental = parser.parse(updated, tree)!;
+        const fresh = parser.parse(updated)!;
+        try {
+          expect(incremental.rootNode.hasError, updated).toBe(false);
+          expect(fresh.rootNode.hasError, updated).toBe(false);
+          expect(syntaxSnapshot(incremental.rootNode), updated).toEqual(syntaxSnapshot(fresh.rootNode));
+        } finally {
+          incremental.delete();
+          fresh.delete();
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
+test('rechecks generic-call proofs after changing distant type arguments and call openings', () => {
+  for (const [before, after] of [
+    ['F<T>(x)(y)', 'F<T> + (x)(y)'],
+    ['F<(T,U)>(x)(y)', 'F<((T),U)>(x)(y)'],
+    ['F<T>(x)(y)', 'F /* gap */ <T> /* gap */ (x)(y)'],
+  ]) {
+    for (const [left, right] of [
+      [before, after],
+      [after, before],
+    ]) {
+      const source = `var 名 = ${left} + (T.U)(a).b;`;
+      const updated = `var 名 = ${right} + (T.U)(a).b;`;
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);

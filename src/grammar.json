@@ -690,7 +690,7 @@
           "name": "name",
           "content": {
             "type": "SYMBOL",
-            "name": "identifier"
+            "name": "_generic_head_identifier"
           }
         },
         {
@@ -795,7 +795,7 @@
           "name": "name",
           "content": {
             "type": "SYMBOL",
-            "name": "identifier"
+            "name": "_generic_head_identifier"
           }
         },
         {
@@ -1089,7 +1089,7 @@
           "name": "name",
           "content": {
             "type": "SYMBOL",
-            "name": "identifier"
+            "name": "_generic_head_identifier"
           }
         },
         {
@@ -1197,7 +1197,7 @@
           "name": "name",
           "content": {
             "type": "SYMBOL",
-            "name": "identifier"
+            "name": "_generic_head_identifier"
           }
         },
         {
@@ -1286,7 +1286,7 @@
           "name": "name",
           "content": {
             "type": "SYMBOL",
-            "name": "identifier"
+            "name": "_generic_head_identifier"
           }
         },
         {
@@ -1579,6 +1579,10 @@
           "value": "<"
         },
         {
+          "type": "SYMBOL",
+          "name": "_type_argument_enter"
+        },
+        {
           "type": "SEQ",
           "members": [
             {
@@ -1606,6 +1610,10 @@
         {
           "type": "STRING",
           "value": ">"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_type_argument_leave"
         }
       ]
     },
@@ -2277,8 +2285,22 @@
             }
           },
           {
-            "type": "STRING",
-            "value": "extension"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "extension"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_generic_call_identifier"
+                },
+                "named": false,
+                "value": "extension"
+              }
+            ]
           },
           {
             "type": "CHOICE",
@@ -2684,7 +2706,7 @@
           "name": "name",
           "content": {
             "type": "SYMBOL",
-            "name": "identifier"
+            "name": "_generic_head_identifier"
           }
         },
         {
@@ -4170,15 +4192,33 @@
         ]
       }
     },
+    "_generic_head_identifier": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "identifier"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_generic_call_identifier"
+          },
+          "named": true,
+          "value": "identifier"
+        }
+      ]
+    },
     "generic_name": {
       "type": "PREC_DYNAMIC",
-      "value": 4,
+      "value": 1,
       "content": {
         "type": "SEQ",
         "members": [
           {
             "type": "SYMBOL",
-            "name": "identifier"
+            "name": "_generic_head_identifier"
           },
           {
             "type": "SYMBOL",
@@ -4193,6 +4233,10 @@
         {
           "type": "STRING",
           "value": "<"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_type_argument_enter"
         },
         {
           "type": "CHOICE",
@@ -4234,6 +4278,10 @@
         {
           "type": "STRING",
           "value": ">"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_type_argument_leave"
         }
       ]
     },
@@ -6548,7 +6596,7 @@
           "name": "name",
           "content": {
             "type": "SYMBOL",
-            "name": "identifier"
+            "name": "_generic_head_identifier"
           }
         },
         {
@@ -20488,9 +20536,22 @@
     {
       "type": "SYMBOL",
       "name": "_ampersand_operator"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_generic_call_identifier"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_type_argument_enter"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_type_argument_leave"
     }
   ],
   "inline": [
+    "_generic_head_identifier",
     "_postfix_receiver",
     "_namespace_member_declaration",
     "_object_creation_type",
