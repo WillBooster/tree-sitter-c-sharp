@@ -7,8 +7,8 @@ const names = new Set(
   [...source.matchAll(/\b(ts_lex_sym__identifier_token_character_set_\d+)_ascii, /g)].map((match) => match[1])
 );
 const candidates = [...names].map(readTable);
-const letters = [...'AZaz_'].map((character) => character.codePointAt(0));
-const digits = [...'0123456789'].map((character) => character.codePointAt(0));
+const letters = 'AZaz_'.split('').map((character) => character.codePointAt(0));
+const digits = '0123456789'.split('').map((character) => character.codePointAt(0));
 const starts = candidates.filter(
   (table) =>
     letters.every((character) => containsAscii(table, character)) &&
