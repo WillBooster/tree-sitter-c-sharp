@@ -2351,10 +2351,6 @@
           "named": true
         },
         {
-          "type": "await_expression",
-          "named": true
-        },
-        {
           "type": "binary_expression",
           "named": true
         },

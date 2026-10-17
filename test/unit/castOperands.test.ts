@@ -83,6 +83,51 @@ test('keeps expression-shaped cast candidates as range starts', () => {
   }
 });
 
+test('keeps parenthesized expressions and patterns before contextual continuations', () => {
+  for (const statement of [
+    'var result = (a) switch { _ => 1 };',
+    'switch (x) { case (A) when c: break; }',
+    'var result = x switch { (A) when c => 1, _ => 2 };',
+    'var result = (a) with { P = 1 };',
+    'var result = from x in (a) select x;',
+    'var result = from x in xs join y in (b) on x equals y select x;',
+    'var result = from x in xs group x by (a) into y select y;',
+    'var result = from x in xs where (a) select x;',
+    'var result = from x in xs let y = (a) where y select x;',
+  ]) {
+    const source = `class C { object M() { ${statement} } }`;
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(false);
+      expect(tree.rootNode.descendantsOfType('cast_expression'), source).toHaveLength(0);
+    } finally {
+      tree.delete();
+    }
+  }
+});
+
+test('preserves division after ambiguous parenthesized cast candidates', () => {
+  for (const operand of ['T', 'A.B']) {
+    for (const operator of ['/', '/* before */ / /* after */']) {
+      const expression = `(${operand}) ${operator} a`;
+      for (const wrapped of [expression, `x is R(${expression})`, `x is { P: ${expression} }`]) {
+        const tree = parser.parse(`var result = ${wrapped};`)!;
+        try {
+          expect(tree.rootNode.hasError, wrapped).toBe(false);
+          expect(tree.rootNode.descendantsOfType('cast_expression'), wrapped).toHaveLength(0);
+          const division = tree.rootNode
+            .descendantsOfType('binary_expression')
+            .find((node) => node.childForFieldName('operator')?.text === '/')!;
+          expect(division?.childForFieldName('left')?.text, wrapped).toBe(`(${operand})`);
+          expect(division?.childForFieldName('right')?.text, wrapped).toBe('a');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  }
+});
+
 test('allows escaped operator keywords and longer identifiers as cast operands', () => {
   for (const value of [
     'island',

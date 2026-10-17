@@ -53,3 +53,42 @@ test('distinguishes logical pattern operators from contextual variable names', (
     parser.delete();
   }
 });
+
+test('retains contextual designations after closed property and list patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const left of ['{ P: 1 }', '[1]', 'T { P: 1 }', 'R(1) { P: 1 }']) {
+      for (const operator of ['and', 'or']) {
+        const pattern = `${left} ${operator}`;
+        for (const source of [
+          `var result = value is ${pattern};`,
+          `var result = value switch { ${pattern} => 1, _ => 0 };`,
+          `switch (value) { case ${pattern}: break; }`,
+          `if (value is ${pattern}) { }`,
+        ]) {
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            expect(tree.rootNode.descendantsOfType(`${operator}_pattern`), source).toHaveLength(0);
+            const node = tree.rootNode
+              .descendantsOfType(left.startsWith('[') ? 'list_pattern' : 'recursive_pattern')
+              .find((node) => node.text === pattern)!;
+            expect(node?.childForFieldName('name')?.text, source).toBe(operator);
+          } finally {
+            tree.delete();
+          }
+        }
+        const logical = `${left} ${operator} not null`;
+        const tree = parser.parse(`var result = value is ${logical};`)!;
+        try {
+          expect(tree.rootNode.hasError, logical).toBe(false);
+          expect(tree.rootNode.descendantsOfType(`${operator}_pattern`)[0]?.text, logical).toBe(logical);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

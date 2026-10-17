@@ -26,7 +26,7 @@ static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending, uint32_t *ques
 static bool rank_numeric_type_chain(const RankTokens *tokens);
 static RankCertificate rank_certify_character(RankCertificate certificate, int32_t c);
 static RankCertificate rank_certify_word(RankCertificate certificate, const QuestionIdentifier *name);
-static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite, bool opened);
+static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite);
 static bool rank_read_bracket(TSLexer *lexer);
 static bool rank_read_stream(TSLexer *lexer, RankTokens *tokens, unsigned *colons);
 static bool rank_read_atom(TSLexer *lexer, RankTokens *tokens, bool *colon);
@@ -84,7 +84,7 @@ static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending, uint32_t *ques
     RankTokens tail = array_new();
     bool definite = false;
     unsigned colons = 0;
-    if (!rank_read_omitted_ranks(lexer, &tail, &definite, true) || !rank_read_stream(lexer, &tail, &colons) || pending > colons) {
+    if (!rank_read_omitted_ranks(lexer, &tail, &definite) || !rank_read_stream(lexer, &tail, &colons) || pending > colons) {
         array_delete(&tail);
         return RANK_NONE;
     }
@@ -153,11 +153,9 @@ static RankCertificate rank_certify_word(RankCertificate certificate, const Ques
     return RANK_CERT_INVALID;
 }
 
-static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite, bool opened) {
+static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite) {
     unsigned count = 0;
-    while (opened || question_skip_separators(lexer) == '[') {
-        if (!opened) advance(lexer);
-        opened = false;
+    for (;;) {
         int32_t first = question_skip_separators(lexer);
         if (first != ',' && first != ']') {
             if (count != 1 || *definite || !rank_read_delimited(lexer, '[', RANK_BODY_BRACKET, NULL)) return false;
@@ -173,8 +171,9 @@ static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *defi
         advance(lexer);
         count++;
         *definite |= comma || count > 1;
+        if (question_skip_separators(lexer) != '[') return true;
+        advance(lexer);
     }
-    return count > 0;
 }
 
 static bool rank_read_bracket(TSLexer *lexer) {
@@ -224,12 +223,10 @@ static bool rank_read_operator(TSLexer *lexer, RankTokens *tokens, unsigned *col
     } else if (c == 'a') {
         if (!rank_read_as(lexer, tokens, atom)) return false;
     } else if (c == 's') {
-        bool colon = false;
         bool force_unsafe = false;
-        bool parsed = rank_read_switch(lexer, &force_unsafe);
-        if (!parsed) return false;
+        if (!rank_read_switch(lexer, &force_unsafe)) return false;
         array_push(tokens, ((RankToken){RANK_SWITCH, false, force_unsafe}));
-        *atom = colon;
+        *atom = false;
     } else {
         if (!rank_read_postfix(lexer, c)) return false;
         array_push(tokens, ((RankToken){RANK_CONTINUATION, false}));
@@ -628,7 +625,7 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
     }
     RankTokens ranks = array_new();
     bool definite = false;
-    if (!rank_read_omitted_ranks(lexer, &ranks, &definite, true)) { array_delete(&ranks); return RANK_READ_UNKNOWN; }
+    if (!rank_read_omitted_ranks(lexer, &ranks, &definite)) { array_delete(&ranks); return RANK_READ_UNKNOWN; }
     if (definite || ranks.size) tokens->contents[expression->token].certificate = RANK_CERT_INVALID;
     expression->nullable_event = tokens->size;
     array_push(tokens, ((RankToken){definite ? RANK_DEFINITE_TYPE : RANK_IS_TYPE, false}));

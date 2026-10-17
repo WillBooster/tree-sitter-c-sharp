@@ -14,7 +14,7 @@
 //! assert!(!tree.root_node().has_error());
 //! ```
 //!
-//! Use `willbooster-tree-sitter` 2.0.22 or later; upstream's `tree-sitter` crate rejects this parser.
+//! Use `willbooster-tree-sitter` 2.0.23 or later; upstream's `tree-sitter` crate rejects this parser.
 //!
 //! [`Parser`]: https://docs.rs/willbooster-tree-sitter/2/tree_sitter/struct.Parser.html
 //! [tree-sitter]: https://tree-sitter.github.io/

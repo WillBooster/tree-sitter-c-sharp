@@ -8,6 +8,31 @@ beforeAll(async () => {
   language = await Language.load('tree-sitter-c_sharp.wasm');
 });
 
+test('distinguishes await expressions from constant-pattern roots', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const expression of ['x is await T()', 'x is { P: await T() }', 'x is (await T())']) {
+      const tree = parser.parse(`class C { async void M() { var result = ${expression}; } }`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(true);
+      } finally {
+        tree.delete();
+      }
+    }
+    for (const expression of ['await T()', 'x is (throw new Exception())']) {
+      const tree = parser.parse(`class C { async void M() { var result = ${expression}; } }`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('keeps logical operators and collection ternaries outside an is constant pattern', () => {
   const parser = new Parser();
   parser.setLanguage(language);
@@ -827,7 +852,7 @@ test('keeps complete constants inside nested generic positional patterns', () =>
   }
 });
 
-test('distinguishes named singleton positionals from unnamed pattern parentheses', () => {
+test('preserves named singleton positional clauses', () => {
   const parser = new Parser().setLanguage(language);
   try {
     for (const child of ['A.B', 'int item', 'var item']) {
@@ -853,7 +878,7 @@ test('distinguishes named singleton positionals from unnamed pattern parentheses
   }
 });
 
-test('preserves complete alias-qualified is types beside anchored member constants', () => {
+test('preserves complete alias-qualified is type tests', () => {
   const parser = new Parser().setLanguage(language);
   try {
     for (const type of [

@@ -54,6 +54,8 @@ enum TokenType {
     PATTERN_BRACKET_END,
     BANG_OPERATOR,
     CONDITIONAL_ALTERNATIVE_START,
+    STATEMENT_END,
+    BLOCK_END,
 };
 
 typedef enum {
@@ -533,6 +535,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
 static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_bang_operator(TSLexer *lexer);
 static bool scan_ambiguous_cast_operand_start(TSLexer *lexer);
 static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols);
@@ -566,6 +569,8 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         lexer->result_symbol = CONDITIONAL_ALTERNATIVE_START;
         return true;
     }
+
+    if (scan_statement_end(scanner, lexer, valid_symbols)) return true;
 
     if (valid_symbols[AMBIGUOUS_CAST_OPERAND_START]) return scan_ambiguous_cast_operand_start(lexer);
 
@@ -691,6 +696,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         if (lexer->lookahead == ';') {
             advance(lexer);
         }
+        scanner->question_type_uncertain = false;
+        scanner->question_access_cache = 0;
+        clear_question_rank(scanner);
         return true;
     }
 
@@ -1018,6 +1026,22 @@ static bool scan_ambiguous_cast_operand_start(TSLexer *lexer) {
 }
 
 
+static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+    if (!valid_symbols[STATEMENT_END] && !valid_symbols[BLOCK_END]) return false;
+    if (!scanner->question_type_uncertain && !scanner->question_rank_role && !scanner->question_access_cache) return false;
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    unsigned end = lexer->lookahead == ';' ? STATEMENT_END : BLOCK_END;
+    if ((lexer->lookahead != ';' && lexer->lookahead != '}') || !valid_symbols[end]) return false;
+    if (end == STATEMENT_END && valid_symbols[OPT_SEMI]) return false;
+    advance(lexer);
+    lexer->mark_end(lexer);
+    scanner->question_type_uncertain = false;
+    scanner->question_access_cache = 0;
+    clear_question_rank(scanner);
+    lexer->result_symbol = end;
+    return true;
+}
+
 static bool scan_bang_operator(TSLexer *lexer) {
     advance(lexer);
     lexer->mark_end(lexer);
@@ -1099,6 +1123,7 @@ static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLex
     advance(lexer);
     lexer->mark_end(lexer);
     int32_t following = question_skip_separators(lexer);
+    if (following < 0) return QUESTION_MISMATCHED;
     if (cast && scan_cast_type_end(lexer, valid_symbols)) return QUESTION_MATCHED;
     if (!symbol || following != '?') return QUESTION_MISMATCHED;
     advance(lexer);
@@ -1142,13 +1167,19 @@ static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
         advance(lexer);
         return question_skip_separators(lexer) == ']';
     }
-    if (next != 'i' && next != 'a' && next != 'o' && next != 'n') return true;
+    if (!is_id_start(next) && next != '\\') return true;
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return false;
     if (!identifier.keyword) return true;
     if (!strcmp(identifier.word, "is") || !strcmp(identifier.word, "as")) return false;
-    return !preferred || prefix ||
-        (strcmp(identifier.word, "and") && strcmp(identifier.word, "or") && strcmp(identifier.word, "not"));
+    if (!preferred) return true;
+    static const char *const continuations[] = {
+        "switch", "when", "with", "and", "or", "not", "from", "join", "on", "equals", "by", "into",
+        "where", "select", "group", "orderby", "let", "ascending", "descending"
+    };
+    for (unsigned i = 0; i < sizeof(continuations) / sizeof(continuations[0]); i++)
+        if (!strcmp(identifier.word, continuations[i])) return false;
+    return true;
 }
 
 

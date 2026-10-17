@@ -64,6 +64,56 @@ test('reparses collection-arm type operators without changing the preceding rece
   }
 });
 
+test('does not carry type uncertainty across statement and block boundaries', () => {
+  const parser = new Parser().setLanguage(language);
+  const expression = 'q?[0] ? [1] : z';
+  const statement = `var result = ${expression};`;
+  const sources = [
+    ...[
+      'var pre = o is T;',
+      'var pre = o as T;',
+      'var pre = o is T t;',
+      'var pre = o is T; var a = 1; var b = 2;',
+      'if (o is T) {}',
+      'switch (o is T) {}',
+      'for (var pre = o is T; ; ) { break; }',
+      'var pre = F(() => { return o is T; });',
+    ].map((prefix) => `class C { void M() { ${prefix} ${statement} } }`),
+    `class C { bool P => o is T; void M() { ${statement} } }`,
+    `class C { void A() { if (o is T) {} } void M() { ${statement} } }`,
+    `var pre = o is T; ${statement}`,
+  ];
+  let source = `// 😀\nclass C { void M() { ${statement} } }`;
+  let tree = parser.parse(source)!;
+  try {
+    for (const next of [...sources, source]) {
+      editTree(tree, source, next);
+      const incremental = parser.parse(next, tree)!;
+      tree.delete();
+      tree = incremental;
+      source = next;
+      const fresh = parser.parse(source)!;
+      try {
+        for (const parsed of [tree, fresh]) {
+          expect(parsed.rootNode.hasError, source).toBe(false);
+          const conditional = parsed.rootNode
+            .descendantsOfType('conditional_expression')
+            .find((node) => node.text === expression)!;
+          expect(conditional?.childForFieldName('condition')?.text, source).toBe('q?[0]');
+          expect(conditional?.childForFieldName('consequence')?.text, source).toBe('[1]');
+          expect(conditional?.childForFieldName('alternative')?.text, source).toBe('z');
+        }
+        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+      } finally {
+        fresh.delete();
+      }
+    }
+  } finally {
+    tree.delete();
+    parser.delete();
+  }
+});
+
 function assertConditional(tree: Tree, condition: string, consequence: string, alternative: string): void {
   expect(tree.rootNode.hasError, tree.rootNode.text).toBe(false);
   const conditional = tree.rootNode.descendantsOfType('conditional_expression')[0]!;

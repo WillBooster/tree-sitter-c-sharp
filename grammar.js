@@ -53,6 +53,8 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.list_pattern],
+    [$.recursive_pattern],
     [$.type, $._pattern_type, $.recursive_pattern],
     [$.implicit_type, $._pattern_identifier, $.var_pattern, $._reserved_identifier],
     [$._pattern_primary_expression, $._pattern_non_name_primary_expression],
@@ -274,6 +276,8 @@ module.exports = grammar({
     sym('_pattern_bracket_end'),
     sym('_bang_operator'),
     sym('_conditional_alternative_start'),
+    sym('_statement_end'),
+    sym('_block_end'),
   ],
 
   extras: ($) => [
@@ -339,7 +343,7 @@ module.exports = grammar({
 
     global_statement: ($) => prec(1, $.statement),
 
-    extern_alias_directive: ($) => seq('extern', 'alias', field('name', $.identifier), ';'),
+    extern_alias_directive: ($) => seq('extern', 'alias', field('name', $.identifier), statementEnd()),
 
     using_directive: ($) =>
       seq(
@@ -349,7 +353,7 @@ module.exports = grammar({
           seq(optional('unsafe'), field('name', $.identifier), '=', $.type),
           seq(repeat(choice('static', 'unsafe')), $._name)
         ),
-        ';'
+        statementEnd()
       ),
 
     global_attribute: ($) => seq('[', choice('assembly', 'module'), ':', commaSep1($.attribute), optional(','), ']'),
@@ -378,7 +382,7 @@ module.exports = grammar({
     namespace_declaration: ($) =>
       seq('namespace', field('name', $._name), field('body', $.declaration_list), sym('_optional_semi')),
 
-    file_scoped_namespace_declaration: ($) => seq('namespace', field('name', $._name), ';'),
+    file_scoped_namespace_declaration: ($) => seq('namespace', field('name', $._name), statementEnd()),
 
     type_declaration: ($) =>
       choice(
@@ -418,7 +422,7 @@ module.exports = grammar({
     enum_declaration: ($) =>
       seq(
         $._enum_declaration_initializer,
-        choice(seq(field('body', $.enum_member_declaration_list), sym('_optional_semi')), ';')
+        choice(seq(field('body', $.enum_member_declaration_list), sym('_optional_semi')), statementEnd())
       ),
 
     _enum_declaration_initializer: ($) =>
@@ -451,7 +455,7 @@ module.exports = grammar({
       ),
 
     delegate_declaration: ($) =>
-      seq($._delegate_declaration_initializer, repeat($.type_parameter_constraints_clause), ';'),
+      seq($._delegate_declaration_initializer, repeat($.type_parameter_constraints_clause), statementEnd()),
 
     _delegate_declaration_initializer: ($) =>
       seq(
@@ -484,7 +488,8 @@ module.exports = grammar({
         seq(':', $.primary_constructor_base_type, optional(seq(',', commaSep1($._name))))
       ),
 
-    _declaration_list_body: ($) => choice(seq(field('body', $.declaration_list), sym('_optional_semi')), ';'),
+    _declaration_list_body: ($) =>
+      choice(seq(field('body', $.declaration_list), sym('_optional_semi')), statementEnd()),
 
     primary_constructor_base_type: ($) => seq(field('type', $._name), $.argument_list),
 
@@ -598,7 +603,7 @@ module.exports = grammar({
         $._function_body
       ),
 
-    declaration_list: ($) => seq('{', repeat($.declaration), '}'),
+    declaration_list: ($) => seq('{', repeat($.declaration), blockEnd()),
 
     declaration: ($) =>
       choice(
@@ -652,12 +657,13 @@ module.exports = grammar({
     receiver_parameter: ($) =>
       prec(1, seq(repeat($._attribute_list), $._parameter_type_with_modifiers, optional(field('name', $.identifier)))),
 
-    extension_body: ($) => seq('{', repeat($._extension_member_declaration), '}', optional(';')),
+    extension_body: ($) => seq('{', repeat($._extension_member_declaration), '}', optional(statementEnd())),
 
     _extension_member_declaration: ($) =>
       choice($.method_declaration, $.conditional_method_declaration, $.property_declaration, $.operator_declaration),
 
-    field_declaration: ($) => seq(repeat($._attribute_list), repeat($.modifier), $.variable_declaration, ';'),
+    field_declaration: ($) =>
+      seq(repeat($._attribute_list), repeat($.modifier), $.variable_declaration, statementEnd()),
 
     constructor_declaration: ($) => seq($._constructor_declaration_initializer, $._function_body),
 
@@ -710,11 +716,14 @@ module.exports = grammar({
         field('type', $.type),
         optional($.explicit_interface_specifier),
         field('name', $.identifier),
-        choice(field('accessors', $.accessor_list), ';')
+        choice(field('accessors', $.accessor_list), statementEnd())
       ),
 
     event_field_declaration: ($) =>
-      prec.dynamic(1, seq(repeat($._attribute_list), repeat($.modifier), 'event', $.variable_declaration, ';')),
+      prec.dynamic(
+        1,
+        seq(repeat($._attribute_list), repeat($.modifier), 'event', $.variable_declaration, statementEnd())
+      ),
 
     accessor_list: ($) => seq('{', repeat($.accessor_declaration), '}'),
 
@@ -734,7 +743,7 @@ module.exports = grammar({
         optional($.explicit_interface_specifier),
         'this',
         field('parameters', $.bracketed_parameter_list),
-        choice(field('accessors', $.accessor_list), seq(field('value', $.arrow_expression_clause), ';'))
+        choice(field('accessors', $.accessor_list), seq(field('value', $.arrow_expression_clause), statementEnd()))
       ),
 
     bracketed_parameter_list: ($) => seq('[', sep(choice($.parameter, $._parameter_array), ','), ']'),
@@ -747,8 +756,8 @@ module.exports = grammar({
         optional($.explicit_interface_specifier),
         field('name', $.identifier),
         choice(
-          seq(field('accessors', $.accessor_list), optional(seq('=', field('value', $.expression), ';'))),
-          seq(field('value', $.arrow_expression_clause), ';')
+          seq(field('accessors', $.accessor_list), optional(seq('=', field('value', $.expression), statementEnd()))),
+          seq(field('value', $.arrow_expression_clause), statementEnd())
         )
       ),
 
@@ -797,11 +806,12 @@ module.exports = grammar({
         )
       ),
 
-    block: ($) => seq('{', repeat($.statement), '}'),
+    block: ($) => seq('{', repeat($.statement), blockEnd()),
 
     arrow_expression_clause: ($) => seq('=>', $.expression),
 
-    _function_body: ($) => choice(field('body', $.block), seq(field('body', $.arrow_expression_clause), ';'), ';'),
+    _function_body: ($) =>
+      choice(field('body', $.block), seq(field('body', $.arrow_expression_clause), statementEnd()), statementEnd()),
 
     variable_declaration: ($) => seq(field('type', $.type), commaSep1($.variable_declarator)),
 
@@ -1008,18 +1018,18 @@ module.exports = grammar({
         )
       ),
 
-    break_statement: () => seq('break', ';'),
+    break_statement: () => seq('break', statementEnd()),
 
     checked_statement: ($) => seq(choice('checked', 'unchecked'), $.block),
 
-    continue_statement: () => seq('continue', ';'),
+    continue_statement: () => seq('continue', statementEnd()),
 
     do_statement: ($) =>
-      seq('do', field('body', $.statement), 'while', '(', field('condition', $.expression), ')', ';'),
+      seq('do', field('body', $.statement), 'while', '(', field('condition', $.expression), ')', statementEnd()),
 
-    empty_statement: () => ';',
+    empty_statement: () => statementEnd(),
 
-    expression_statement: ($) => seq($._expression_statement_expression, ';'),
+    expression_statement: ($) => seq($._expression_statement_expression, statementEnd()),
 
     fixed_statement: ($) => seq('fixed', '(', $.variable_declaration, ')', $.statement),
 
@@ -1029,18 +1039,18 @@ module.exports = grammar({
       seq(
         '(',
         field('initializer', optional(choice($.variable_declaration, commaSep1($.expression)))),
-        ';',
+        statementEnd(),
         field('condition', optional($.expression)),
-        ';',
+        statementEnd(),
         field('update', optional(commaSep1($.expression))),
         ')'
       ),
 
-    return_statement: ($) => seq('return', optional($.expression), ';'),
+    return_statement: ($) => seq('return', optional($.expression), statementEnd()),
 
     lock_statement: ($) => seq('lock', '(', $.expression, ')', $.statement),
 
-    yield_statement: ($) => seq('yield', choice(seq('return', $.expression), 'break'), ';'),
+    yield_statement: ($) => seq('yield', choice(seq('return', $.expression), 'break'), statementEnd()),
 
     switch_statement: ($) =>
       seq(
@@ -1049,7 +1059,7 @@ module.exports = grammar({
         field('body', $.switch_body)
       ),
 
-    switch_body: ($) => seq('{', repeat($.switch_section), '}'),
+    switch_body: ($) => seq('{', repeat($.switch_section), blockEnd()),
 
     switch_section: ($) =>
       prec.left(
@@ -1060,7 +1070,7 @@ module.exports = grammar({
         )
       ),
 
-    throw_statement: ($) => seq('throw', optional($.expression), ';'),
+    throw_statement: ($) => seq('throw', optional($.expression), statementEnd()),
 
     try_statement: ($) => seq('try', field('body', $.block), repeat($.catch_clause), optional($.finally_clause)),
 
@@ -1101,7 +1111,7 @@ module.exports = grammar({
         ')'
       ),
 
-    goto_statement: ($) => seq('goto', optional(choice('case', 'default')), optional($.expression), ';'),
+    goto_statement: ($) => seq('goto', optional(choice('case', 'default')), optional($.expression), statementEnd()),
 
     labeled_statement: ($) => seq($.identifier, ':', $.statement),
 
@@ -1120,7 +1130,7 @@ module.exports = grammar({
     while_statement: ($) => seq('while', '(', field('condition', $.expression), ')', field('body', $.statement)),
 
     local_declaration_statement: ($) =>
-      seq(optional('await'), optional('using'), repeat($.modifier), $.variable_declaration, ';'),
+      seq(optional('await'), optional('using'), repeat($.modifier), $.variable_declaration, statementEnd()),
 
     local_function_statement: ($) =>
       seq($._local_function_declaration, repeat($.type_parameter_constraints_clause), $._function_body),
@@ -1184,7 +1194,7 @@ module.exports = grammar({
       ),
 
     _pattern_unary_expression: ($) =>
-      choice($._pattern_primary_expression, $.prefix_unary_expression, $.cast_expression, $.await_expression),
+      choice($._pattern_primary_expression, $.prefix_unary_expression, $.cast_expression),
 
     _pattern_parenthesized_expression: ($) =>
       seq('(', choice(...nestedConstantExpressionRoots($)), choice(')', alias(sym('_pattern_paren_end'), ')'))),
@@ -1358,56 +1368,47 @@ module.exports = grammar({
     // reparse can switch it without reporting a changed range.
     type_pattern: ($) => prec.dynamic(-1, field('type', $._pattern_type)),
 
-    // Left-associative so that a contextual keyword after `]` (`when` in a switch arm or section, `select` in a query)
-    // ends the pattern instead of becoming its designation.
     list_pattern: ($) =>
-      prec.left(
-        seq(
-          '[',
-          optional(seq(commaSep1($.pattern), optional(','))),
-          choice(']', alias(sym('_pattern_bracket_end'), ']')),
-          optional($._simple_designation)
-        )
+      seq(
+        '[',
+        optional(seq(commaSep1($.pattern), optional(','))),
+        choice(']', alias(sym('_pattern_bracket_end'), ']')),
+        optional($._simple_designation)
       ),
 
     slice_pattern: ($) => prec.right(seq(alias(sym('_slice_pattern_start'), '..'), optional($.pattern))),
 
     recursive_pattern: ($) =>
-      prec.left(
-        choice(
-          prec.dynamic(
-            1,
-            seq(
-              field('type', $._name),
-              $.positional_pattern_clause,
-              optional($.property_pattern_clause),
-              $._simple_designation
-            )
-          ),
-          prec.dynamic(
-            1,
-            seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))
-          ),
-          prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
-          alias($._untyped_positional_pattern_clause, $.positional_pattern_clause),
+      choice(
+        prec.dynamic(
+          1,
           seq(
-            field('type', typeAlternatives($, true, true, false)),
-            $.property_pattern_clause,
-            optional($._simple_designation)
-          ),
-          // A positional clause follows only a name (above), a predefined type, or an array type. Letting any type take
-          // one reads `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed
-          // the runtime's limit, and which reading survives depends on the versions alive, not on dynamic precedence.
-          seq(
-            field('type', choice($.predefined_type, prec.dynamic(1, alias($._pattern_array_type, $.array_type)))),
+            field('type', $._name),
             $.positional_pattern_clause,
             optional($.property_pattern_clause),
-            optional($._simple_designation)
-          ),
-          seq(
-            choice(seq($.positional_pattern_clause, $.property_pattern_clause), $.property_pattern_clause),
-            optional($._simple_designation)
+            $._simple_designation
           )
+        ),
+        prec.dynamic(1, seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))),
+        prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
+        alias($._untyped_positional_pattern_clause, $.positional_pattern_clause),
+        seq(
+          field('type', typeAlternatives($, true, true, false)),
+          $.property_pattern_clause,
+          optional($._simple_designation)
+        ),
+        // A positional clause follows only a name (above), a predefined type, or an array type. Letting any type take
+        // one reads `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed
+        // the runtime's limit, and which reading survives depends on the versions alive, not on dynamic precedence.
+        seq(
+          field('type', choice($.predefined_type, prec.dynamic(1, alias($._pattern_array_type, $.array_type)))),
+          $.positional_pattern_clause,
+          optional($.property_pattern_clause),
+          optional($._simple_designation)
+        ),
+        seq(
+          choice(seq($.positional_pattern_clause, $.property_pattern_clause), $.property_pattern_clause),
+          optional($._simple_designation)
         )
       ),
 
@@ -3015,4 +3016,12 @@ function rangeExpression(left, right, prefix = true) {
 /** @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand */
 function prefixRangeExpression(operand) {
   return prec.right(PREC.RANGE, seq('..', optional(operand)));
+}
+
+function statementEnd() {
+  return choice(';', alias(sym('_statement_end'), ';'));
+}
+
+function blockEnd() {
+  return choice('}', alias(sym('_block_end'), '}'));
 }
