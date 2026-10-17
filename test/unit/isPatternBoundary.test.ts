@@ -8,6 +8,43 @@ beforeAll(async () => {
   language = await Language.load('tree-sitter-c_sharp.wasm');
 });
 
+test('retains function-pointer types on positional recursive patterns', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const type of ['delegate*<void>', 'delegate*unmanaged<void>', 'delegate*unmanaged[Cdecl]<int,void>']) {
+      for (const clause of ['(p,q)', '(1,2)', '(p,q) { P: 1 } item']) {
+        const pattern = `${type} ${clause}`;
+        for (const statement of [
+          `var result = x is ${pattern};`,
+          `var result = x switch { ${pattern} => 1, _ => 0 };`,
+          `switch (x) { case ${pattern}: break; }`,
+          `var result = x is { P: ${pattern} };`,
+          `var result = x is [${pattern}];`,
+        ]) {
+          const source = `class C { unsafe void M() { ${statement} } }`;
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            const recursive = tree.rootNode
+              .descendantsOfType('recursive_pattern')
+              .find((node) => node.childForFieldName('type')?.type === 'function_pointer_type');
+            expect(recursive?.text, source).toBe(pattern);
+            expect(recursive?.childForFieldName('type')?.text, source).toBe(type);
+            expect(
+              recursive?.namedChildren.find((node) => node.type === 'positional_pattern_clause')?.text,
+              source
+            ).toBe(clause.slice(0, clause.indexOf(')') + 1));
+          } finally {
+            tree.delete();
+          }
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('distinguishes await expressions from constant-pattern roots', () => {
   const parser = new Parser();
   parser.setLanguage(language);

@@ -1404,11 +1404,17 @@ module.exports = grammar({
           $.property_pattern_clause,
           optional($._simple_designation)
         ),
-        // A positional clause follows only a name (above), a predefined type, or an array type. Letting any type take
-        // one reads `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed
-        // the runtime's limit, and which reading survives depends on the versions alive, not on dynamic precedence.
+        // Names already use the branch above. Admitting them again through type duplicates Name(A.B)
+        // and can evict viable GLR versions during recovery.
         seq(
-          field('type', choice($.predefined_type, prec.dynamic(1, alias($._pattern_array_type, $.array_type)))),
+          field(
+            'type',
+            choice(
+              $.predefined_type,
+              $.function_pointer_type,
+              prec.dynamic(1, alias($._pattern_array_type, $.array_type))
+            )
+          ),
           $.positional_pattern_clause,
           optional($.property_pattern_clause),
           optional($._simple_designation)

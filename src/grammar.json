@@ -9290,6 +9290,10 @@
                     "name": "predefined_type"
                   },
                   {
+                    "type": "SYMBOL",
+                    "name": "function_pointer_type"
+                  },
+                  {
                     "type": "PREC_DYNAMIC",
                     "value": 1,
                     "content": {
