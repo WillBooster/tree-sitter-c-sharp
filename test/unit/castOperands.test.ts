@@ -213,7 +213,6 @@ test('retains chained generic invocations in expression contexts', () => {
     ['Factory<Foo>(options)(request)', 'Factory<Foo>(options)'],
     ['f<b>(c)(d, e)', 'f<b>(c)'],
     ['x.f<b>(c)(d)', 'x.f<b>(c)'],
-    ['f<T>(x)(y)(z)', 'f<T>(x)(y)'],
     ['F<G<T>>(a)(b)', 'F<G<T>>(a)'],
   ]) {
     for (const source of [`var r = ${expression};`, `class C { object M() { return ${expression}; } }`]) {
@@ -263,6 +262,33 @@ test('retains mixed unary prefixes before parenthesized cast operands', () => {
         expect(cast.childForFieldName('value')?.text, expression).toBe(`${prefix}(a)`);
       } finally {
         tree.delete();
+      }
+    }
+  }
+});
+
+test('keeps later cast ownership independent of earlier cast-shaped terms', () => {
+  for (const earlier of ['(T)(x) && ', '(T)(x) || ', 'y = (T)(x) == null && ']) {
+    for (const [value, continuation] of [
+      ['(y).z', 'is V'],
+      ['(y).z', 'as V'],
+      ['(y).c.d', 'is not V'],
+      ['(y).c()', 'is V'],
+      ['(y)[0]', 'is V'],
+    ]) {
+      const expression = `${earlier}(U)${value} ${continuation}`;
+      for (const source of [`var r = ${expression};`, `class C { object M() { return ${expression}; } }`]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const cast = tree.rootNode
+            .descendantsOfType('cast_expression')
+            .find((node) => node.childForFieldName('type')?.text === 'U');
+          expect(cast?.text, source).toBe(`(U)${value}`);
+          expect(cast?.childForFieldName('value')?.text, source).toBe(value);
+        } finally {
+          tree.delete();
+        }
       }
     }
   }

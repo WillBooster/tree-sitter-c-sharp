@@ -4172,7 +4172,7 @@
     },
     "generic_name": {
       "type": "PREC_DYNAMIC",
-      "value": 2,
+      "value": 4,
       "content": {
         "type": "SEQ",
         "members": [
