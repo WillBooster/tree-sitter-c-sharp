@@ -1822,10 +1822,10 @@ module.exports = grammar({
     _range_cast_type: ($) =>
       choice(
         typeAlternatives($, false, true, false, false, $.alias_qualified_name),
-        alias($._range_cast_array_type, $.array_type)
+        alias($._omitted_cast_array_type, $.array_type)
       ),
 
-    _range_cast_array_type: ($) =>
+    _omitted_cast_array_type: ($) =>
       seq(
         field('type', $._array_base_type),
         field('rank', alias($._omitted_array_rank_specifier, $.array_rank_specifier))
@@ -1835,7 +1835,11 @@ module.exports = grammar({
 
     _ambiguous_cast_type: ($) => $._ambiguous_cast_name,
 
-    _definite_cast_type: ($) => typeAlternatives($, false, true, true, true, $._definite_cast_name),
+    _definite_cast_type: ($) =>
+      choice(
+        typeAlternatives($, false, true, true, false, $._definite_cast_name),
+        alias($._omitted_cast_array_type, $.array_type)
+      ),
 
     _preferred_cast_head: ($) =>
       choice(
@@ -1847,7 +1851,7 @@ module.exports = grammar({
           3,
           seq(
             '(',
-            field('type', alias($._pattern_array_type, $.array_type)),
+            field('type', alias($._omitted_cast_array_type, $.array_type)),
             alias(sym('_definite_cast_type_end'), ')')
           )
         )
@@ -1856,7 +1860,11 @@ module.exports = grammar({
     _preferred_range_cast_head: ($) =>
       prec.dynamic(
         3,
-        seq('(', field('type', alias($._range_cast_array_type, $.array_type)), alias(sym('_range_cast_type_end'), ')'))
+        seq(
+          '(',
+          field('type', alias($._omitted_cast_array_type, $.array_type)),
+          alias(sym('_range_cast_type_end'), ')')
+        )
       ),
 
     _ambiguous_cast_name: ($) => choice($.identifier, alias($._ambiguous_cast_qualified_name, $.qualified_name)),

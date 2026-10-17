@@ -131,6 +131,44 @@ test('preserves division after ambiguous parenthesized cast candidates', () => {
   }
 });
 
+test('keeps indexed parenthesized operands before surrounding binary operators', () => {
+  for (const receiver of ['a[i]', 'a[0]', 'arr[i, j]']) {
+    for (const operator of ['+', '-', '*', '&', '&&', '^', '|']) {
+      const expression = `(${receiver}) ${operator} b`;
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        expect(tree.rootNode.descendantsOfType('cast_expression'), expression).toHaveLength(0);
+        const binary = tree.rootNode.descendantsOfType('binary_expression')[0]!;
+        expect(binary?.text, expression).toBe(expression);
+        expect(binary.childForFieldName('left')?.text, expression).toBe(`(${receiver})`);
+        expect(binary.childForFieldName('operator')?.text, expression).toBe(operator);
+        expect(binary.childForFieldName('right')?.text, expression).toBe('b');
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
+test('retains negated parenthesized and collection cast operands in constant patterns', () => {
+  for (const type of ['T', 'T[]', 'T[,]']) {
+    for (const value of ['!(a)', '![a]']) {
+      const expression = `x is R((${type})${value})`;
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        const cast = tree.rootNode.descendantsOfType('cast_expression')[0]!;
+        expect(cast?.childForFieldName('type')?.text, expression).toBe(type);
+        expect(cast.childForFieldName('value')?.text, expression).toBe(value);
+        expect(cast.parent?.type, expression).toBe('constant_pattern');
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
 test('allows escaped operator keywords and longer identifiers as cast operands', () => {
   for (const value of [
     'island',

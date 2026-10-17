@@ -13578,14 +13578,14 @@
           "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
-            "name": "_range_cast_array_type"
+            "name": "_omitted_cast_array_type"
           },
           "named": true,
           "value": "array_type"
         }
       ]
     },
-    "_range_cast_array_type": {
+    "_omitted_cast_array_type": {
       "type": "SEQ",
       "members": [
         {
@@ -13639,40 +13639,50 @@
       "type": "CHOICE",
       "members": [
         {
-          "type": "SYMBOL",
-          "name": "array_type"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "_definite_cast_name"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "nullable_type"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "pointer_type"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "function_pointer_type"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "predefined_type"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "tuple_type"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "ref_type"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "scoped_type"
+            }
+          ]
         },
         {
-          "type": "SYMBOL",
-          "name": "_definite_cast_name"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "nullable_type"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "pointer_type"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "function_pointer_type"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "predefined_type"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "tuple_type"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "ref_type"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "scoped_type"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_omitted_cast_array_type"
+          },
+          "named": true,
+          "value": "array_type"
         }
       ]
     },
@@ -13731,7 +13741,7 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "SYMBOL",
-                    "name": "_pattern_array_type"
+                    "name": "_omitted_cast_array_type"
                   },
                   "named": true,
                   "value": "array_type"
@@ -13768,7 +13778,7 @@
               "type": "ALIAS",
               "content": {
                 "type": "SYMBOL",
-                "name": "_range_cast_array_type"
+                "name": "_omitted_cast_array_type"
               },
               "named": true,
               "value": "array_type"

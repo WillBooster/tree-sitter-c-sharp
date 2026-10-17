@@ -1152,11 +1152,14 @@ static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
     int32_t next = question_skip_separators(lexer);
     if (ambiguous && (next == '+' || next == '-' || next == '*' || next == '&' || next == '^')) return false;
     bool prefix = false;
+    bool only_bangs = next == '!';
     while (next == '!' || next == '~' || next == '+' || next == '-' || next == '*' || next == '&' || next == '^') {
         prefix = true;
+        only_bangs &= next == '!';
         advance(lexer);
         next = question_skip_separators(lexer);
     }
+    if (preferred && ambiguous && only_bangs && (next == '(' || next == '[')) return false;
     if (next < 0 || next == ')' || next == ']' || next == '}' || next == '{' || next == ',' || next == ':' || next == ';' || next == '?' ||
         next == '=' || next == '|' || next == '<' || next == '>' || next == '/' || next == '%' || !next) return false;
     if (next == '.') {

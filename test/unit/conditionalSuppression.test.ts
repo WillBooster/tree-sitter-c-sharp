@@ -56,6 +56,35 @@ test('retains conditional receiver continuations after suppression', () => {
   }
 });
 
+test('retains generic call receivers through suppression and postfix continuations', () => {
+  for (const receiver of ['f<T>(a)', 'f<T>(x.y)', 'f<T>(c?[1])']) {
+    for (const suppression of ['!', '!!', ' /* gap */ !']) {
+      for (const continuation of ['[b]', '(b)', '[1, 2]']) {
+        const expression = `${receiver}${suppression}${continuation}`;
+        const tree = parser.parse(`var result = ${expression};`)!;
+        try {
+          expect(tree.rootNode.hasError, expression).toBe(false);
+          expect(tree.rootNode.descendantsOfType('cast_expression'), expression).toHaveLength(0);
+          expect(tree.rootNode.descendantsOfType('binary_expression'), expression).toHaveLength(0);
+          const invocation = continuation.startsWith('(');
+          const outer = tree.rootNode
+            .descendantsOfType(invocation ? 'invocation_expression' : 'element_access_expression')
+            .find((node) => node.text === expression)!;
+          const suppressed = outer?.childForFieldName(invocation ? 'function' : 'expression');
+          expect(suppressed?.type, expression).toBe('postfix_unary_expression');
+          expect(suppressed?.text, expression).toBe(`${receiver}${suppression}`);
+          expect(
+            suppressed?.descendantsOfType('invocation_expression').map((node) => node.text),
+            expression
+          ).toContain(receiver);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  }
+});
+
 test('keeps logical negation as the right range operand in conditional assignments', () => {
   for (const receiver of ['b?.b', 'b?[0]']) {
     for (const value of ['a .. !c', '..!c', '(T)..!c', 'a ?? ..!c']) {
@@ -91,7 +120,7 @@ function assertBinary(expression: string, left: string, operator: string): void 
 }
 
 test('keeps suppressed generic calls as is-pattern receivers', () => {
-  for (const call of ['f<T>(d)', 'g.f<T>(d)', 'f<T,U>(d)', 'f(d)']) {
+  for (const call of ['f<T>(d)', 'g.f<T>(d)', 'f<T,U>(d)', 'f(d)', 'f<T>(a[i])', 'f<T>(c?[1])']) {
     for (const suppression of ['!', '!!']) {
       const receiver = `${call}${suppression}`;
       for (const pattern of ['(1, 2)', '(null)', '(A)', '[1]', '[_]']) {
