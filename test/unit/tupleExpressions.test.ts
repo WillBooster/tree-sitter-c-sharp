@@ -1,5 +1,6 @@
-import { Edit, Language, Parser, Query, type Node, type Tree } from '@willbooster/web-tree-sitter';
+import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
+import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
 
 let language: Language;
 
@@ -27,7 +28,7 @@ class C {
     parser.setLanguage(language);
     query = new Query(
       language,
-      `(non_lvalue_expression/binary_expression left: (identifier) @left right: (identifier) @right) @product
+      `(binary_expression left: (identifier) @left right: (identifier) @right) @product
 (type/generic_name) @generic`
     );
     tree = parser.parse(source)!;
@@ -55,26 +56,15 @@ class C {
         .map(({ node }) => node.text)
     ).toEqual(['List<A>', 'List<A>', 'List<List<int>>']);
     const offset = source.indexOf('*');
-    const row = source.slice(0, offset).split('\n').length - 1;
-    const column = offset - source.lastIndexOf('\n', offset) - 1;
     for (const operator of ['/', '*']) {
       const next = source.slice(0, offset) + operator + source.slice(offset + 1);
-      tree.edit(
-        new Edit({
-          startIndex: offset,
-          oldEndIndex: offset + 1,
-          newEndIndex: offset + 1,
-          startPosition: { row, column },
-          oldEndPosition: { row, column: column + 1 },
-          newEndPosition: { row, column: column + 1 },
-        })
-      );
+      editTree(tree, source, next);
       const previous: Tree = tree;
       tree = parser.parse(next, previous)!;
       previous.delete();
       const fresh = parser.parse(next)!;
       try {
-        expect(snapshot(tree.rootNode)).toEqual(snapshot(fresh.rootNode));
+        expect(syntaxSnapshot(tree.rootNode)).toEqual(syntaxSnapshot(fresh.rootNode));
         expect(
           query.captures(tree.rootNode).map(({ name, node }) => [name, node.text, node.startIndex, node.endIndex])
         ).toEqual(
@@ -92,17 +82,3 @@ class C {
     parser.delete();
   }
 });
-
-function snapshot(node: Node): unknown {
-  return [
-    node.type,
-    node.isNamed,
-    node.isMissing,
-    node.startIndex,
-    node.endIndex,
-    node.startPosition,
-    node.endPosition,
-    node.children.map((_, index) => node.fieldNameForChild(index)),
-    node.children.map(snapshot),
-  ];
-}

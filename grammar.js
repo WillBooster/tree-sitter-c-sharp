@@ -53,27 +53,140 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
-    [$._assignment_pointer_cast, $._lvalue_cast_expression],
-    [$._assignment_pointer_expression, $._pointer_indirection_expression],
+    [$.list_pattern],
+    [$._conditional_binding_receiver, $._binding_generic_suppression_expression],
+    [$._member_conditional_binding_receiver, $._member_binding_generic_suppression_expression],
+    [$._binding_invocation_expression, $._binding_generic_suppression_expression],
+    [$._member_binding_invocation_expression, $._member_binding_generic_suppression_expression],
+    [$._simple_name, $._generic_alias_qualified_name],
+    [$._simple_name, $._generic_invocation_simple_name],
+    [$._pattern_declaration_type, $._assignment_target_await_expression, $.await_expression],
+    [$.recursive_pattern],
+    [$.type, $._pattern_type, $.recursive_pattern],
+    [$.implicit_type, $._pattern_identifier, $.var_pattern, $._reserved_identifier],
+    [$._pattern_primary_expression, $._pattern_non_name_primary_expression],
+    [$._pattern_type, $._pattern_array_type],
+    [$._pattern_type, $.recursive_pattern],
+    [$._pattern_type, $._pattern_array_type, $._array_base_type],
+    [$._pattern_identifier, $.var_pattern, $._reserved_identifier],
+    [
+      $._pattern_primary_expression,
+      $._pattern_non_name_primary_expression,
+      $._primary_no_conditional_access_expression,
+    ],
+    [
+      $._pattern_primary_expression,
+      $._primary_no_conditional_access_expression,
+      $.conditional_access_expression,
+      $._conditional_assignment_expression,
+    ],
+    [$._pattern_primary_expression, $.conditional_access_expression, $._conditional_assignment_expression],
+    [
+      $._primary_no_conditional_access_expression,
+      $.conditional_access_expression,
+      $._conditional_assignment_expression,
+    ],
+    [$._pattern_array_type, $._array_base_type],
+    [$._definite_cast_type, $._range_cast_type],
+    [$.type, $._definite_cast_type, $._range_cast_type],
+    [$._pattern_type, $._definite_cast_type, $._range_cast_type],
+    [$._definite_cast_name, $._range_cast_type],
+    [$._name, $._definite_cast_name, $._range_cast_type],
+    [$.array_rank_specifier, $._omitted_array_rank_specifier],
+    [$._pattern_parenthesized_expression, $.constant_pattern, $.expression],
+    [$._pattern_parenthesized_expression, $.constant_pattern],
+    [$._simple_name, $._pattern_simple_identifier_name, $._ambiguous_cast_qualified_name],
+    [$._simple_name, $._ambiguous_cast_qualified_name],
+    [$._simple_name, $._definite_cast_qualified_name],
+    [$.positional_pattern_clause, $._untyped_positional_pattern_clause],
+    [$._parenthesized_pattern_with_designation, $.subpattern],
+    [$._pattern_type, $._definite_cast_type],
+    [$.type, $._definite_cast_type],
+    [$.parameter, $._simple_name, $._ambiguous_cast_name],
+    [$._simple_name, $._ambiguous_cast_name],
+    [$._simple_name, $._definite_cast_name],
+    [$._name, $._definite_cast_name],
+    [$._object_initializer_expression, $.initializer_expression],
+    [
+      $._pattern_primary_expression,
+      $._primary_no_conditional_access_expression,
+      $._definite_conditional_access_receiver,
+    ],
+    [$._pattern_primary_expression, $._definite_conditional_access_receiver],
+    [$._primary_no_conditional_access_expression, $._definite_conditional_access_receiver],
+    [$._pattern_unary_expression, $._nonconditional_unary_expression],
+    [$._pattern_primary_expression, $._nonconditional_unary_expression],
+    [$._pattern_primary_expression, $._primary_no_conditional_access_expression, $._conditional_access_receiver],
+    [$.parameter, $._pattern_non_name_primary_expression, $._primary_no_conditional_access_expression],
+    [$._named_subpattern, $.subpattern],
+    [$.parameter_list, $._untyped_positional_pattern_clause],
+    [$.pattern, $._nonconstant_pattern],
+    [$.attribute, $._pattern_type],
+    [$.type, $._pattern_type],
+    [$.type, $._pattern_declaration_type],
+    [$._pattern_type, $._pattern_declaration_type],
+    [$._pattern_type, $.nullable_type],
+    [$._pattern_type, $._pattern_nullable_type, $.nullable_type],
+    [$._pattern_type, $._pattern_nullable_type],
+    [$._pattern_nullable_type, $.nullable_type],
+    [$._pattern_type, $._pointer_base_type],
+    [$._pattern_member_access_expression, $._pattern_generic_member_expression],
+    [$._simple_name, $._pattern_simple_generic_name],
+    [$._simple_name, $.generic_name, $._pattern_simple_identifier_name],
+    [$._simple_name, $._pattern_simple_identifier_name],
+    [$.generic_name, $._pattern_simple_identifier_name],
+    [$._pattern_non_name_member_access_expression, $.member_access_expression],
+    [$._pattern_unary_expression, $._unary_expression],
+    [$._pattern_primary_expression, $._primary_expression],
+    [$._pattern_primary_expression, $._primary_no_conditional_access_expression],
+    [$._pattern_identifier, $.from_clause, $._reserved_identifier],
+    [$.scoped_type, $._pattern_identifier, $._reserved_identifier],
+    [$._pattern_identifier, $._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
+    [$._pattern_identifier, $.identifier],
+    [$.implicit_type, $._pattern_identifier, $._reserved_identifier],
+    [$._pattern_primary_expression, $._conditional_access_receiver],
+    [$._pattern_non_name_primary_expression, $._primary_no_conditional_access_expression],
+    [$._pattern_identifier, $._reserved_identifier],
+    [$.var_pattern, $._reserved_identifier],
+    [$.anonymous_method_expression, $._reserved_identifier],
+    [$.attribute, $.type, $.recursive_pattern],
+    [$._initialized_stackalloc_expression, $.stackalloc_expression],
+    [$._member_conditional_binding_expression, $._member_conditional_binding_receiver],
+    [$.array_creation_expression, $._initialized_array_creation_expression],
+    [$.type, $.array_creation_expression, $._initialized_array_creation_expression],
+    [$._name, $._primary_no_conditional_access_expression, $._conditional_access_receiver],
+    [$._primary_no_conditional_access_expression, $._conditional_access_receiver],
+    [$._name, $._conditional_access_receiver],
+    [$.constant_pattern, $._nonconditional_unary_expression],
+    [$._unary_expression, $._nonconditional_unary_expression],
+    [$._primary_expression, $._nonconditional_unary_expression],
+    [$.constant_pattern, $._primary_no_conditional_access_expression],
+    [$._name, $.constant_pattern, $._primary_no_conditional_access_expression],
+    [$._conditional_binding_expression, $._conditional_binding_receiver],
+    [$.parameter, $._primary_no_conditional_access_expression],
+    [$._primary_expression, $.conditional_access_expression],
+    [$._name, $._primary_no_conditional_access_expression],
+    [$.constant_pattern, $._primary_expression],
+    [$._name, $.constant_pattern, $._primary_expression],
+    [$.parameter, $._primary_expression],
+    [$._unary_expression, $.conditional_access_expression],
+    [$._name, $._primary_expression],
+    [$.constant_pattern, $._unary_expression],
+    [$.constant_pattern, $.expression],
+    [$.tuple_element, $.declaration_expression],
+    [$.nullable_type, $.array_creation_expression],
+    [$._array_base_type, $.array_creation_expression],
+    [$.modifier, $.anonymous_method_expression, $._reserved_identifier],
+    [$.modifier, $.anonymous_method_expression],
     [$.modifier, $._constructor_declaration_initializer, $._reserved_identifier],
     [$._simple_name, $.generic_name],
     [$._simple_name, $.type_parameter],
     [$._simple_name, $.subpattern],
-
     [$.tuple_element, $.type_pattern],
     [$.type_pattern, $.declaration_pattern],
     [$.tuple_element, $.using_variable_declarator],
-
     [$.tuple_pattern, $.parameter],
     [$.tuple_pattern, $._simple_name],
-
-    [$.lvalue_expression, $._name],
-    [$.parameter, $.lvalue_expression],
-    // C# 14 null-conditional assignment: `obj?.x = v` requires
-    // `conditional_access_expression` to appear in both lvalue and
-    // non-lvalue contexts. Tree-sitter needs GLR for the decision.
-    [$.lvalue_expression, $.non_lvalue_expression],
-
     [$.type, $.attribute],
     [$.type, $.nullable_type],
     [$.type, $.nullable_type, $.array_creation_expression],
@@ -81,28 +194,18 @@ module.exports = grammar({
     [$.type, $._array_base_type, $.array_creation_expression],
     [$.type, $.array_creation_expression],
     [$.type, $._pointer_base_type],
-
     [$.qualified_name, $.member_access_expression],
     [$.qualified_name, $.explicit_interface_specifier],
-
     [$._array_base_type, $.stackalloc_expression],
-
-    [$.constant_pattern, $.non_lvalue_expression],
     [$.constant_pattern, $._expression_statement_expression],
-    [$.constant_pattern, $.lvalue_expression],
     [$.constant_pattern, $._name],
-    [$.constant_pattern, $.lvalue_expression, $._name],
-
     [$.type, $._name_invocation_pattern, $.recursive_pattern],
     [$.type, $.recursive_pattern],
     [$.attribute, $.type, $._name_invocation_pattern, $.recursive_pattern],
-
     [$.parenthesized_pattern, $._parenthesized_pattern_with_designation],
-
     [$.expression_element, $.argument],
     [$.spread_element, $.range_expression],
     [$.collection_expression, $.list_pattern],
-
     [$._reserved_identifier, $.modifier],
     [$._reserved_identifier],
     [$._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
@@ -122,19 +225,11 @@ module.exports = grammar({
     [$.tuple_element, $.parameter, $.declaration_expression],
     [$.parameter, $.declaration_expression],
     [$.parameter, $.tuple_element],
-
     [$.event_declaration, $.variable_declarator],
-
     [$.base_list],
     [$.using_directive, $.modifier],
     [$.using_directive],
-
     [$._constructor_declaration_initializer, $._simple_name],
-
-    // For C# 14 extension declarations: `extension(scoped X x)` —
-    // `scoped` can be a parameter modifier, a scoped_type, or a
-    // reserved identifier (when there's no further type). Keep all
-    // three alive until later tokens disambiguate.
     [$.receiver_parameter, $.scoped_type, $._reserved_identifier],
   ],
 
@@ -168,6 +263,29 @@ module.exports = grammar({
     sym('file_directive_kind'),
     sym('_file_directive_literal_context'),
     sym('_file_directive_newline'),
+    sym('_question_unknown'),
+    sym('_question_ternary'),
+    sym('_question_member_access'),
+    sym('_question_element_access'),
+    sym('_question_nullable'),
+    sym('_case_label_colon'),
+    sym('_type_context_is'),
+    sym('_type_context_as'),
+    sym('_question_definite_access'),
+    sym('_object_index_start'),
+    sym('_slice_pattern_start'),
+    sym('_ambiguous_cast_operand_start'),
+    sym('_ambiguous_cast_type_end'),
+    sym('_definite_cast_type_end'),
+    sym('_range_cast_type_end'),
+    sym('_nonprimary_expression_end'),
+    sym('_pattern_paren_end'),
+    sym('_pattern_bracket_end'),
+    sym('_bang_operator'),
+    sym('_conditional_alternative_start'),
+    sym('_statement_end'),
+    sym('_block_end'),
+    sym('_ampersand_operator'),
   ],
 
   extras: ($) => [
@@ -186,6 +304,7 @@ module.exports = grammar({
   ],
 
   inline: ($) => [
+    $._postfix_receiver,
     $._namespace_member_declaration,
     $._object_creation_type,
     $._nullable_base_type,
@@ -201,13 +320,16 @@ module.exports = grammar({
   supertypes: ($) => [
     $.declaration,
     $.expression,
-    $.non_lvalue_expression,
-    $.lvalue_expression,
     $.literal,
     $.statement,
     $.type,
     $.type_declaration,
     $.pattern,
+    $._ambiguous_cast_type,
+    $._definite_cast_type,
+    $._range_cast_type,
+    $._is_pattern,
+    $._nonconstant_pattern,
   ],
 
   word: ($) => $._identifier_token,
@@ -229,7 +351,7 @@ module.exports = grammar({
 
     global_statement: ($) => prec(1, $.statement),
 
-    extern_alias_directive: ($) => seq('extern', 'alias', field('name', $.identifier), ';'),
+    extern_alias_directive: ($) => seq('extern', 'alias', field('name', $.identifier), statementEnd()),
 
     using_directive: ($) =>
       seq(
@@ -239,7 +361,7 @@ module.exports = grammar({
           seq(optional('unsafe'), field('name', $.identifier), '=', $.type),
           seq(repeat(choice('static', 'unsafe')), $._name)
         ),
-        ';'
+        statementEnd()
       ),
 
     global_attribute: ($) => seq('[', choice('assembly', 'module'), ':', commaSep1($.attribute), optional(','), ']'),
@@ -268,7 +390,7 @@ module.exports = grammar({
     namespace_declaration: ($) =>
       seq('namespace', field('name', $._name), field('body', $.declaration_list), sym('_optional_semi')),
 
-    file_scoped_namespace_declaration: ($) => seq('namespace', field('name', $._name), ';'),
+    file_scoped_namespace_declaration: ($) => seq('namespace', field('name', $._name), statementEnd()),
 
     type_declaration: ($) =>
       choice(
@@ -308,7 +430,7 @@ module.exports = grammar({
     enum_declaration: ($) =>
       seq(
         $._enum_declaration_initializer,
-        choice(seq(field('body', $.enum_member_declaration_list), sym('_optional_semi')), ';')
+        choice(seq(field('body', $.enum_member_declaration_list), sym('_optional_semi')), statementEnd())
       ),
 
     _enum_declaration_initializer: ($) =>
@@ -341,7 +463,7 @@ module.exports = grammar({
       ),
 
     delegate_declaration: ($) =>
-      seq($._delegate_declaration_initializer, repeat($.type_parameter_constraints_clause), ';'),
+      seq($._delegate_declaration_initializer, repeat($.type_parameter_constraints_clause), statementEnd()),
 
     _delegate_declaration_initializer: ($) =>
       seq(
@@ -374,7 +496,8 @@ module.exports = grammar({
         seq(':', $.primary_constructor_base_type, optional(seq(',', commaSep1($._name))))
       ),
 
-    _declaration_list_body: ($) => choice(seq(field('body', $.declaration_list), sym('_optional_semi')), ';'),
+    _declaration_list_body: ($) =>
+      choice(seq(field('body', $.declaration_list), sym('_optional_semi')), statementEnd()),
 
     primary_constructor_base_type: ($) => seq(field('type', $._name), $.argument_list),
 
@@ -416,7 +539,7 @@ module.exports = grammar({
 
     type_parameter_constraint: ($) =>
       choice(
-        seq('class', optional('?')),
+        seq('class', optional(nullableQuestion())),
         'struct',
         'notnull',
         'unmanaged',
@@ -437,7 +560,7 @@ module.exports = grammar({
         field(
           'operator',
           choice(
-            '!',
+            bangOperator(),
             '~',
             '++',
             '--',
@@ -450,7 +573,7 @@ module.exports = grammar({
             '%',
             '^',
             '|',
-            '&',
+            ampersandOperator(),
             '<<',
             '>>',
             '>>>',
@@ -482,20 +605,13 @@ module.exports = grammar({
         repeat($._attribute_list),
         repeat($.modifier),
         choice('implicit', 'explicit'),
-        repeat1(
-          choice(
-            // Intentionally structured this way for grammar size
-            $.explicit_interface_specifier,
-            'operator',
-            'checked'
-          )
-        ),
+        repeat1(choice($.explicit_interface_specifier, 'operator', 'checked')),
         field('type', $.type),
         field('parameters', $.parameter_list),
         $._function_body
       ),
 
-    declaration_list: ($) => seq('{', repeat($.declaration), '}'),
+    declaration_list: ($) => seq('{', repeat($.declaration), blockEnd()),
 
     declaration: ($) =>
       choice(
@@ -549,12 +665,13 @@ module.exports = grammar({
     receiver_parameter: ($) =>
       prec(1, seq(repeat($._attribute_list), $._parameter_type_with_modifiers, optional(field('name', $.identifier)))),
 
-    extension_body: ($) => seq('{', repeat($._extension_member_declaration), '}', optional(';')),
+    extension_body: ($) => seq('{', repeat($._extension_member_declaration), '}', optional(statementEnd())),
 
     _extension_member_declaration: ($) =>
       choice($.method_declaration, $.conditional_method_declaration, $.property_declaration, $.operator_declaration),
 
-    field_declaration: ($) => seq(repeat($._attribute_list), repeat($.modifier), $.variable_declaration, ';'),
+    field_declaration: ($) =>
+      seq(repeat($._attribute_list), repeat($.modifier), $.variable_declaration, statementEnd()),
 
     constructor_declaration: ($) => seq($._constructor_declaration_initializer, $._function_body),
 
@@ -607,11 +724,14 @@ module.exports = grammar({
         field('type', $.type),
         optional($.explicit_interface_specifier),
         field('name', $.identifier),
-        choice(field('accessors', $.accessor_list), ';')
+        choice(field('accessors', $.accessor_list), statementEnd())
       ),
 
     event_field_declaration: ($) =>
-      prec.dynamic(1, seq(repeat($._attribute_list), repeat($.modifier), 'event', $.variable_declaration, ';')),
+      prec.dynamic(
+        1,
+        seq(repeat($._attribute_list), repeat($.modifier), 'event', $.variable_declaration, statementEnd())
+      ),
 
     accessor_list: ($) => seq('{', repeat($.accessor_declaration), '}'),
 
@@ -631,7 +751,7 @@ module.exports = grammar({
         optional($.explicit_interface_specifier),
         'this',
         field('parameters', $.bracketed_parameter_list),
-        choice(field('accessors', $.accessor_list), seq(field('value', $.arrow_expression_clause), ';'))
+        choice(field('accessors', $.accessor_list), seq(field('value', $.arrow_expression_clause), statementEnd()))
       ),
 
     bracketed_parameter_list: ($) => seq('[', sep(choice($.parameter, $._parameter_array), ','), ']'),
@@ -644,8 +764,8 @@ module.exports = grammar({
         optional($.explicit_interface_specifier),
         field('name', $.identifier),
         choice(
-          seq(field('accessors', $.accessor_list), optional(seq('=', field('value', $.expression), ';'))),
-          seq(field('value', $.arrow_expression_clause), ';')
+          seq(field('accessors', $.accessor_list), optional(seq('=', field('value', $.expression), statementEnd()))),
+          seq(field('value', $.arrow_expression_clause), statementEnd())
         )
       ),
 
@@ -694,11 +814,12 @@ module.exports = grammar({
         )
       ),
 
-    block: ($) => seq('{', repeat($.statement), '}'),
+    block: ($) => seq('{', repeat($.statement), blockEnd()),
 
     arrow_expression_clause: ($) => seq('=>', $.expression),
 
-    _function_body: ($) => choice(field('body', $.block), seq(field('body', $.arrow_expression_clause), ';'), ';'),
+    _function_body: ($) =>
+      choice(field('body', $.block), seq(field('body', $.arrow_expression_clause), statementEnd()), statementEnd()),
 
     variable_declaration: ($) => seq(field('type', $.type), commaSep1($.variable_declarator)),
 
@@ -707,14 +828,14 @@ module.exports = grammar({
 
     variable_declarator: ($) =>
       seq(
-        choice(field('name', $.identifier), $.tuple_pattern),
+        choice(field('name', $.identifier), prec.dynamic(-1, $.tuple_pattern)),
         optional($.bracketed_argument_list),
         optional(seq('=', $.expression))
       ),
 
     using_variable_declarator: ($) => seq(field('name', $.identifier), optional(seq('=', $.expression))),
 
-    bracketed_argument_list: ($) => seq('[', commaSep1($.argument), optional(','), ']'),
+    bracketed_argument_list: ($) => bracketedArgumentList($, '['),
 
     qualified_identifier: ($) => sep1($.identifier, '.'),
 
@@ -730,16 +851,51 @@ module.exports = grammar({
 
     type_argument_list: ($) => seq('<', choice(repeat(','), commaSep1($.type)), '>'),
 
-    type: ($) =>
+    type: ($) => typeAlternatives($),
+
+    _pattern_type: ($) =>
       choice(
-        $.implicit_type,
-        $.array_type,
+        prec.dynamic(2, alias($._pattern_array_type, $.array_type)),
         $._name,
-        $.nullable_type,
-        $.pointer_type,
+        alias($._pattern_nullable_type, $.nullable_type),
         $.function_pointer_type,
         $.predefined_type,
-        $.tuple_type,
+        $.ref_type,
+        $.scoped_type
+      ),
+
+    _pattern_array_type: ($) =>
+      seq(
+        field(
+          'type',
+          choice(
+            alias($._pattern_array_type, $.array_type),
+            $._name,
+            alias($._pattern_nullable_type, $.nullable_type),
+            $.pointer_type,
+            $.function_pointer_type,
+            $.predefined_type,
+            $.tuple_type
+          )
+        ),
+        field('rank', $.array_rank_specifier)
+      ),
+
+    _pattern_nullable_type: ($) =>
+      seq(
+        field('type', choice(alias($._pattern_array_type, $.array_type), $._name, $.predefined_type)),
+        nullableQuestion()
+      ),
+
+    _pattern_declaration_type: ($) =>
+      choice(
+        $.implicit_type,
+        prec(PREC.UNARY, alias('await', $.identifier)),
+        alias($._pattern_array_type, $.array_type),
+        $._name,
+        alias($._pattern_nullable_type, $.nullable_type),
+        $.function_pointer_type,
+        $.predefined_type,
         $.ref_type,
         $.scoped_type
       ),
@@ -761,7 +917,7 @@ module.exports = grammar({
 
     array_rank_specifier: ($) => seq('[', commaSep(optional($.expression)), ']'),
 
-    nullable_type: ($) => seq(field('type', $._nullable_base_type), '?'),
+    nullable_type: ($) => seq(field('type', $._nullable_base_type), nullableQuestion()),
 
     _nullable_base_type: ($) => choice($.array_type, $._name, $.predefined_type, $.tuple_type),
 
@@ -810,8 +966,6 @@ module.exports = grammar({
           'uint',
           'ulong',
           'ushort',
-          'nint',
-          'nuint',
           'void'
         )
       ),
@@ -871,18 +1025,18 @@ module.exports = grammar({
         )
       ),
 
-    break_statement: () => seq('break', ';'),
+    break_statement: () => seq('break', statementEnd()),
 
     checked_statement: ($) => seq(choice('checked', 'unchecked'), $.block),
 
-    continue_statement: () => seq('continue', ';'),
+    continue_statement: () => seq('continue', statementEnd()),
 
     do_statement: ($) =>
-      seq('do', field('body', $.statement), 'while', '(', field('condition', $.expression), ')', ';'),
+      seq('do', field('body', $.statement), 'while', '(', field('condition', $.expression), ')', statementEnd()),
 
-    empty_statement: () => ';',
+    empty_statement: () => statementEnd(),
 
-    expression_statement: ($) => seq($._expression_statement_expression, ';'),
+    expression_statement: ($) => seq($._expression_statement_expression, statementEnd()),
 
     fixed_statement: ($) => seq('fixed', '(', $.variable_declaration, ')', $.statement),
 
@@ -892,18 +1046,18 @@ module.exports = grammar({
       seq(
         '(',
         field('initializer', optional(choice($.variable_declaration, commaSep1($.expression)))),
-        ';',
+        statementEnd(),
         field('condition', optional($.expression)),
-        ';',
+        statementEnd(),
         field('update', optional(commaSep1($.expression))),
         ')'
       ),
 
-    return_statement: ($) => seq('return', optional($.expression), ';'),
+    return_statement: ($) => seq('return', optional($.expression), statementEnd()),
 
     lock_statement: ($) => seq('lock', '(', $.expression, ')', $.statement),
 
-    yield_statement: ($) => seq('yield', choice(seq('return', $.expression), 'break'), ';'),
+    yield_statement: ($) => seq('yield', choice(seq('return', $.expression), 'break'), statementEnd()),
 
     switch_statement: ($) =>
       seq(
@@ -912,18 +1066,18 @@ module.exports = grammar({
         field('body', $.switch_body)
       ),
 
-    switch_body: ($) => seq('{', repeat($.switch_section), '}'),
+    switch_body: ($) => seq('{', repeat($.switch_section), blockEnd()),
 
     switch_section: ($) =>
       prec.left(
         seq(
           choice(seq('case', choice($.expression, seq($.pattern, optional($.when_clause)))), 'default'),
-          ':',
+          alias(sym('_case_label_colon'), ':'),
           repeat($.statement)
         )
       ),
 
-    throw_statement: ($) => seq('throw', optional($.expression), ';'),
+    throw_statement: ($) => seq('throw', optional($.expression), statementEnd()),
 
     try_statement: ($) => seq('try', field('body', $.block), repeat($.catch_clause), optional($.finally_clause)),
 
@@ -964,7 +1118,7 @@ module.exports = grammar({
         ')'
       ),
 
-    goto_statement: ($) => seq('goto', optional(choice('case', 'default')), optional($.expression), ';'),
+    goto_statement: ($) => seq('goto', optional(choice('case', 'default')), optional($.expression), statementEnd()),
 
     labeled_statement: ($) => seq($.identifier, ':', $.statement),
 
@@ -983,7 +1137,7 @@ module.exports = grammar({
     while_statement: ($) => seq('while', '(', field('condition', $.expression), ')', field('body', $.statement)),
 
     local_declaration_statement: ($) =>
-      seq(optional('await'), optional('using'), repeat($.modifier), $.variable_declaration, ';'),
+      seq(optional('await'), optional('using'), repeat($.modifier), $.variable_declaration, statementEnd()),
 
     local_function_statement: ($) =>
       seq($._local_function_declaration, repeat($.type_parameter_constraints_clause), $._function_body),
@@ -998,50 +1152,195 @@ module.exports = grammar({
         field('parameters', $.parameter_list)
       ),
 
-    pattern: ($) =>
+    _is_pattern: ($) =>
       choice(
-        $.constant_pattern,
+        alias($._is_constant_pattern, $.constant_pattern),
         $.declaration_pattern,
         $.discard,
         $.recursive_pattern,
         $.var_pattern,
-        $.negated_pattern,
-        // This must come before plain parenthesized_pattern to create GLR conflict
-        prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
+        alias($._is_negated_pattern, $.negated_pattern),
+        alias($._parenthesized_pattern_with_designation, $.recursive_pattern),
         $.parenthesized_pattern,
         $.relational_pattern,
-        $.or_pattern,
-        $.and_pattern,
+        alias($._is_or_pattern, $.or_pattern),
+        alias($._is_and_pattern, $.and_pattern),
         $.list_pattern,
+        $.slice_pattern,
         $.type_pattern
       ),
 
-    // Uses '(' pattern ')' to create direct conflict with parenthesized_pattern
-    _parenthesized_pattern_with_designation: ($) => seq('(', $.pattern, ')', $._simple_designation),
+    _is_constant_pattern: ($) => prec(PREC.REL, choice(...constantExpressionRoots($))),
 
-    constant_pattern: ($) =>
-      choice(
-        $.binary_expression,
-        $.default_expression,
-        $.interpolated_string_expression,
-        $.parenthesized_expression,
-        $.postfix_unary_expression,
-        $.prefix_unary_expression,
-        $.sizeof_expression,
-        $.tuple_expression,
-        $.typeof_expression,
-        $.member_access_expression,
-        alias($._name_invocation_pattern, $.invocation_expression),
-        alias($._complex_invocation_expression, $.invocation_expression),
-        $.cast_expression,
-        $._simple_name,
-        $.literal
+    _is_negated_pattern: ($) => seq('not', alias($._is_pattern, $.pattern)),
+
+    _is_or_pattern: ($) =>
+      prec.dynamic(
+        2,
+        prec.left(
+          PREC.OR,
+          seq(
+            field('left', alias($._is_pattern, $.pattern)),
+            field('operator', 'or'),
+            field('right', alias($._is_pattern, $.pattern))
+          )
+        )
       ),
 
-    // Invocation with name - creates conflict with recursive_pattern's Name(positional_pattern_clause)
+    _is_and_pattern: ($) =>
+      prec.dynamic(
+        2,
+        prec.left(
+          PREC.AND,
+          seq(
+            field('left', alias($._is_pattern, $.pattern)),
+            field('operator', 'and'),
+            field('right', alias($._is_pattern, $.pattern))
+          )
+        )
+      ),
+
+    _pattern_unary_expression: ($) =>
+      choice($._pattern_primary_expression, $.prefix_unary_expression, $.cast_expression),
+
+    _pattern_parenthesized_expression: ($) =>
+      seq('(', choice(...nestedConstantExpressionRoots($)), choice(')', alias(sym('_pattern_paren_end'), ')'))),
+
+    _pattern_primary_expression: ($) =>
+      choice(
+        primaryAtoms($, {
+          name: alias($._pattern_identifier, $.identifier),
+          member: alias($._pattern_member_access_expression, $.member_access_expression),
+          collection: false,
+          element: alias($._pattern_element_access_expression, $.element_access_expression),
+          invocation: alias($._pattern_invocation_expression, $.invocation_expression),
+          tuple: false,
+          parenthesized: alias($._pattern_parenthesized_expression, $.parenthesized_expression),
+        }),
+        $.conditional_access_expression,
+        alias($._conditional_suppression_expression, $.postfix_unary_expression)
+      ),
+
+    _pattern_identifier: ($) => choice($._identifier_token, ...reservedIdentifiers().slice(1)),
+
+    _pattern_simple_identifier_name: ($) => $.identifier,
+
+    _pattern_simple_generic_name: ($) => $.generic_name,
+
+    _pattern_member_access_expression: ($) =>
+      choice(
+        memberAccessExpression(
+          $,
+          choice($._primary_no_conditional_access_expression, $.predefined_type, $._name),
+          $._pattern_simple_identifier_name
+        ),
+        memberAccessExpression(
+          $,
+          choice($._pattern_non_name_primary_expression, $.predefined_type),
+          $._pattern_simple_generic_name,
+          '.'
+        ),
+        memberAccessExpression(
+          $,
+          choice($._primary_no_conditional_access_expression, $.predefined_type, $._name),
+          $._pattern_simple_generic_name,
+          '->'
+        )
+      ),
+
+    _pattern_non_name_primary_expression: ($) =>
+      choice(
+        primaryAtoms($, {
+          member: alias($._pattern_non_name_member_access_expression, $.member_access_expression),
+          collection: true,
+          parenthesized: alias($._pattern_parenthesized_expression, $.parenthesized_expression),
+        })
+      ),
+
+    _pattern_non_name_member_access_expression: ($) =>
+      choice(
+        memberAccessExpression(
+          $,
+          choice($._pattern_non_name_primary_expression, $.predefined_type),
+          $._simple_name,
+          '.'
+        ),
+        memberAccessExpression(
+          $,
+          choice($._primary_no_conditional_access_expression, $.predefined_type, $._name),
+          $._simple_name,
+          '->'
+        )
+      ),
+
+    _pattern_element_access_expression: ($) => elementAccessExpression($, $._pattern_non_name_primary_expression),
+
+    _pattern_invocation_expression: ($) => invocationExpression($, $._pattern_non_name_primary_expression),
+
+    _nameof_expression: ($) => invocationExpression($, alias('nameof', $.identifier)),
+
+    _pattern_generic_member_expression: ($) =>
+      memberAccessExpression(
+        $,
+        choice($._primary_no_conditional_access_expression, $.predefined_type, $._name),
+        $._pattern_simple_generic_name
+      ),
+
+    _is_arithmetic_start_expression: ($) =>
+      prec(
+        PREC.SHIFT,
+        choice(
+          ...constantExpressionRoots($),
+          $.generic_name,
+          $.element_access_expression,
+          alias($._pattern_generic_member_expression, $.member_access_expression)
+        )
+      ),
+
+    _is_arithmetic_expression: ($) =>
+      prec(
+        PREC.SHIFT,
+        choice(
+          $._unary_expression,
+          alias($._is_arithmetic_operand_binary_expression, $.binary_expression),
+          alias($._is_operand_range_expression, $.range_expression),
+          alias($._is_operand_switch_expression, $.switch_expression),
+          alias($._is_operand_with_expression, $.with_expression)
+        )
+      ),
+
+    _is_constant_receiver_expression: ($) => prec(PREC.SHIFT, choice(...constantExpressionRoots($))),
+
+    _is_range_expression: ($) => rangeExpression($._is_arithmetic_start_expression, $._is_arithmetic_expression, false),
+
+    _is_operand_range_expression: ($) => rangeExpression($._is_arithmetic_expression, $._is_arithmetic_expression),
+
+    _is_switch_expression: ($) => switchExpression($, $._is_constant_receiver_expression),
+
+    _is_operand_switch_expression: ($) => switchExpression($, $._is_arithmetic_expression),
+
+    _is_with_expression: ($) => withExpression($, $._is_constant_receiver_expression),
+
+    _is_operand_with_expression: ($) => withExpression($, $._is_arithmetic_expression),
+
+    _is_arithmetic_binary_expression: ($) =>
+      arithmeticBinaryExpression($._is_arithmetic_start_expression, $._is_arithmetic_expression, true),
+
+    _is_arithmetic_operand_binary_expression: ($) =>
+      arithmeticBinaryExpression($._is_arithmetic_expression, $._is_arithmetic_expression),
+
+    pattern: ($) => choice($.constant_pattern, nonconstantPatterns($)),
+
+    _nonconstant_pattern: ($) => nonconstantPatterns($),
+
+    // Uses '(' pattern ')' to create direct conflict with parenthesized_pattern
+    _parenthesized_pattern_with_designation: ($) =>
+      seq('(', $.pattern, choice(')', alias(sym('_pattern_paren_end'), ')')), $._simple_designation),
+
+    constant_pattern: ($) => choice(...nestedConstantExpressionRoots($)),
+
     _name_invocation_pattern: ($) => seq(field('function', $._name), field('arguments', $.argument_list)),
 
-    // One above `invocation_expression`, which reads the same tokens where both fit.
     _complex_invocation_expression: ($) =>
       prec(
         PREC.INVOCATION + 1,
@@ -1063,11 +1362,10 @@ module.exports = grammar({
 
     discard: () => '_',
 
-    parenthesized_pattern: ($) => seq('(', $.pattern, ')'),
+    parenthesized_pattern: ($) =>
+      seq('(', alias($._nonconstant_pattern, $.pattern), choice(')', alias(sym('_pattern_paren_end'), ')'))),
 
-    // `var x` parses as a declaration_pattern with an implicit_type. `var (x, y)` also reads as a positional pattern
-    // of type `var` or, after `is`, as an invocation of `o is var`; each of those carries the implicit_type's dynamic
-    // precedence of 1, so this needs more.
+    // The implicit_type reading of `var` contributes dynamic precedence 1; its parenthesized designation needs more.
     var_pattern: ($) => prec.dynamic(2, seq('var', $.parenthesized_variable_designation)),
 
     // No associativity: tree-sitter 0.27 resolves a precedence tie with a right-associative reduce as a shift, which
@@ -1075,63 +1373,80 @@ module.exports = grammar({
     // A name such as `A.B` in `R(A.B or C)` also parses as a constant pattern. Without the negative dynamic
     // precedence, the reading depends on the other GLR stack versions alive at that point, so an incremental
     // reparse can switch it without reporting a changed range.
-    type_pattern: ($) => prec.dynamic(-1, field('type', $.type)),
+    type_pattern: ($) => prec.dynamic(-1, field('type', $._pattern_type)),
 
-    // Left-associative so that a contextual keyword after `]` (`when` in a switch arm or section, `select` in a query)
-    // ends the pattern instead of becoming its designation.
     list_pattern: ($) =>
-      prec.left(
+      seq(
+        '[',
+        optional(seq(commaSep1($.pattern), optional(','))),
+        choice(']', alias(sym('_pattern_bracket_end'), ']')),
+        optional($._simple_designation)
+      ),
+
+    slice_pattern: ($) => prec.right(seq(alias(sym('_slice_pattern_start'), '..'), optional($.pattern))),
+
+    recursive_pattern: ($) =>
+      choice(
+        prec.dynamic(
+          2,
+          seq(
+            field('type', $._name),
+            $.positional_pattern_clause,
+            optional($.property_pattern_clause),
+            $._simple_designation
+          )
+        ),
+        prec.dynamic(2, seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))),
+        prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
+        alias($._untyped_positional_pattern_clause, $.positional_pattern_clause),
         seq(
-          '[',
-          optional(seq(commaSep1(choice($.pattern, $.slice_pattern)), optional(','))),
-          ']',
+          field('type', typeAlternatives($, true, true, false)),
+          $.property_pattern_clause,
+          optional($._simple_designation)
+        ),
+        // Names already use the branch above. Admitting them again through type duplicates Name(A.B)
+        // and can evict viable GLR versions during recovery.
+        seq(
+          field(
+            'type',
+            choice(
+              $.predefined_type,
+              $.function_pointer_type,
+              prec.dynamic(1, alias($._pattern_array_type, $.array_type))
+            )
+          ),
+          $.positional_pattern_clause,
+          optional($.property_pattern_clause),
+          optional($._simple_designation)
+        ),
+        seq(
+          choice(seq($.positional_pattern_clause, $.property_pattern_clause), $.property_pattern_clause),
           optional($._simple_designation)
         )
       ),
 
-    slice_pattern: ($) => prec.right(seq('..', optional($.pattern))),
+    positional_pattern_clause: ($) =>
+      prec(1, seq('(', optional(commaSep($.subpattern)), choice(')', alias(sym('_pattern_paren_end'), ')')))),
 
-    recursive_pattern: ($) =>
-      prec.left(
-        choice(
-          prec.dynamic(
-            1,
-            seq(
-              field('type', $._name),
-              $.positional_pattern_clause,
-              optional($.property_pattern_clause),
-              $._simple_designation
-            )
-          ),
-          prec.dynamic(
-            -1,
-            seq(field('type', $._name), $.positional_pattern_clause, optional($.property_pattern_clause))
-          ),
-          prec.dynamic(1, seq($.positional_pattern_clause, $._simple_designation)),
-          $.positional_pattern_clause,
-          seq(field('type', $.type), $.property_pattern_clause, optional($._simple_designation)),
-          // A positional clause follows only a name (above), a predefined type, or an array type. Letting any type take
-          // one reads `Name(A.B)` once more, through `type`; after a syntax error, the extra GLR versions then exceed
-          // the runtime's limit, and which reading survives depends on the versions alive, not on dynamic precedence.
-          seq(
-            field('type', choice($.predefined_type, $.array_type)),
-            $.positional_pattern_clause,
-            optional($.property_pattern_clause),
-            optional($._simple_designation)
-          ),
-          // no type, just pattern clauses (no variable designation to avoid conflict with above)
-          seq(
-            choice(seq($.positional_pattern_clause, $.property_pattern_clause), $.property_pattern_clause),
-            optional($._simple_designation)
-          )
+    _untyped_positional_pattern_clause: ($) =>
+      prec(
+        1,
+        seq(
+          '(',
+          optional(choice(commaSep2($.subpattern), alias($._named_subpattern, $.subpattern))),
+          choice(')', alias(sym('_pattern_paren_end'), ')'))
         )
       ),
 
-    positional_pattern_clause: ($) => prec(1, seq('(', optional(commaSep($.subpattern)), ')')),
+    _named_subpattern: ($) => subpattern($, true),
 
-    property_pattern_clause: ($) => prec(1, seq('{', commaSep($.subpattern), optional(','), '}')),
+    property_pattern_clause: ($) =>
+      prec(
+        1,
+        seq('{', commaSep($.subpattern), optional(','), choice('}', alias(sym('_nonprimary_expression_end'), '}')))
+      ),
 
-    subpattern: ($) => prec.right(seq(optional(choice(seq($.expression, ':'), seq($.identifier, ':'))), $.pattern)),
+    subpattern: ($) => subpattern($),
 
     relational_pattern: ($) =>
       choice(seq('<', $.expression), seq('<=', $.expression), seq('>', $.expression), seq('>=', $.expression)),
@@ -1139,179 +1454,145 @@ module.exports = grammar({
     negated_pattern: ($) => seq('not', $.pattern),
 
     and_pattern: ($) =>
-      prec.left(PREC.AND, seq(field('left', $.pattern), field('operator', 'and'), field('right', $.pattern))),
+      prec.dynamic(
+        2,
+        prec.left(PREC.AND, seq(field('left', $.pattern), field('operator', 'and'), field('right', $.pattern)))
+      ),
 
     or_pattern: ($) =>
-      prec.left(PREC.OR, seq(field('left', $.pattern), field('operator', 'or'), field('right', $.pattern))),
+      prec.dynamic(
+        2,
+        prec.left(PREC.OR, seq(field('left', $.pattern), field('operator', 'or'), field('right', $.pattern)))
+      ),
 
-    declaration_pattern: ($) => seq(field('type', $.type), $._simple_designation),
+    declaration_pattern: ($) => seq(field('type', $._pattern_declaration_type), $._simple_designation),
 
     _variable_designation: ($) => choice($._simple_designation, $.parenthesized_variable_designation),
 
     // C# admits a parenthesized designation in a pattern only after `var`; elsewhere `T (x)` and `nameof(x)` are
     // positional patterns or invocations.
-    _simple_designation: ($) => prec(1, choice($.discard, field('name', $.identifier))),
+    _simple_designation: ($) =>
+      prec(
+        1,
+        choice(
+          $.discard,
+          field('name', $.identifier),
+          prec.dynamic(-2, field('name', alias(choice('and', 'or'), $.identifier)))
+        )
+      ),
 
     parenthesized_variable_designation: ($) => seq('(', commaSep($._variable_designation), ')'),
 
-    expression: ($) => choice($.non_lvalue_expression, $.lvalue_expression),
-
-    non_lvalue_expression: ($) =>
+    expression: ($) =>
       choice(
-        'base',
+        $._unary_expression,
+        $.assignment_expression,
         $.binary_expression,
-        $.interpolated_string_expression,
         $.conditional_expression,
-        $.conditional_access_expression,
-        $.literal,
-        $._expression_statement_expression,
-        $.is_expression,
         $.is_pattern_expression,
         $.as_expression,
-        $.cast_expression,
-        $.checked_expression,
-        $.collection_expression,
         $.switch_expression,
         $.throw_expression,
-        $.default_expression,
         $.lambda_expression,
         $.with_expression,
-        $.sizeof_expression,
-        $.typeof_expression,
-        $.makeref_expression,
         $.ref_expression,
-        alias($._address_of_expression, $.prefix_unary_expression),
-        alias($._value_indirection_expression, $.prefix_unary_expression),
-        $.reftype_expression,
-        $.refvalue_expression,
-        $.stackalloc_expression,
         $.range_expression,
-        $.array_creation_expression,
-        $.anonymous_method_expression,
-        $.anonymous_object_creation_expression,
-        $.implicit_array_creation_expression,
-        $.implicit_object_creation_expression,
-        $.implicit_stackalloc_expression,
         $.initializer_expression,
-        $.query_expression,
-        alias(sym('preproc_if_in_expression'), sym('preproc_if'))
+        $.query_expression
       ),
 
-    lvalue_expression: ($) =>
+    _unary_expression: ($) =>
+      choice($._primary_expression, $.prefix_unary_expression, $.cast_expression, $.await_expression),
+
+    _primary_expression: ($) =>
       choice(
-        'this',
-        $.member_access_expression,
-        $.tuple_expression,
-        $._simple_name,
-        $.element_access_expression,
-        alias($.bracketed_argument_list, sym('element_binding_expression')),
-        alias($._pointer_indirection_expression, $.prefix_unary_expression),
-        alias($._parenthesized_lvalue_expression, $.parenthesized_expression),
-        // C# 14 null-conditional assignment: `obj?.x = v`, `obj?[i] = v`.
-        // https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-14#null-conditional-assignment
-        $.conditional_access_expression
+        $._primary_no_conditional_access_expression,
+        $.conditional_access_expression,
+        alias($._conditional_suppression_expression, $.postfix_unary_expression)
       ),
 
-    // Covers error CS0201: Only assignment, call, increment, decrement, await, and new object expressions can be used as a statement
-    _expression_statement_expression: ($) =>
+    _nonconditional_unary_expression: ($) =>
       choice(
-        $.assignment_expression,
-        $.invocation_expression,
-        $.postfix_unary_expression,
-        $.prefix_unary_expression,
-        $.await_expression,
-        $.object_creation_expression,
-        $.parenthesized_expression
+        $._primary_no_conditional_access_expression,
+        alias($._assignment_target_prefix_unary_expression, $.prefix_unary_expression),
+        alias($._assignment_target_cast_expression, $.cast_expression),
+        alias($._assignment_target_await_expression, $.await_expression)
       ),
 
-    assignment_expression: ($) =>
-      seq(
-        // An invocation can return a reference (`Unsafe.Add(ref x, i) = v`). It ends with `)`, so `=` after it adds few
-        // parse states, unlike making any expression assignable.
-        field(
-          'left',
-          choice(
-            $.lvalue_expression,
-            $.invocation_expression,
-            alias($._assignment_pointer_expression, $.prefix_unary_expression)
-          )
+    _assignment_target_unary_operand: ($) =>
+      choice(
+        $._nonconditional_unary_expression,
+        alias($._assignment_target_prefix_range_expression, $.range_expression)
+      ),
+
+    _assignment_target_prefix_unary_expression: ($) => prefixUnaryExpression($._assignment_target_unary_operand),
+
+    _assignment_target_cast_expression: ($) =>
+      castExpression(
+        $,
+        $._nonconditional_unary_expression,
+        alias($._assignment_target_prefix_range_expression, $.range_expression)
+      ),
+
+    _assignment_target_prefix_range_expression: ($) => prefixRangeExpression($._assignment_target_unary_operand),
+
+    _assignment_target_await_expression: ($) =>
+      prec.right(PREC.UNARY, seq('await', $._assignment_target_unary_operand)),
+
+    _conditional_suppression_expression: ($) =>
+      postfixExpression(
+        choice(
+          $.conditional_access_expression,
+          alias($._conditional_suppression_expression, $.postfix_unary_expression)
         ),
-        field('operator', choice('=', '+=', '-=', '*=', '/=', '%=', '&=', '^=', '|=', '<<=', '>>=', '>>>=', '??=')),
-        field('right', $.expression)
+        bangOperator()
       ),
 
-    // Keep this alternative confined to assignment targets: sharing it with ordinary dereferences changes hidden
-    // expression-supertype captures in nested reads. -3 prefers the existing lvalue path (-2) when both fit.
-    _assignment_pointer_expression: ($) =>
-      prec.dynamic(
-        -3,
-        prec.right(
-          PREC.UNARY,
-          seq(
-            '*',
-            choice(
-              $.lvalue_expression,
-              $.parenthesized_expression,
-              $.invocation_expression,
-              $.postfix_unary_expression,
-              alias($._assignment_pointer_expression, $.prefix_unary_expression),
-              alias($._pointer_prefix_update, $.prefix_unary_expression),
-              alias($._assignment_pointer_cast, $.cast_expression)
-            )
-          )
-        )
+    _conditional_update_expression: ($) =>
+      postfixExpression(
+        choice(
+          $.conditional_access_expression,
+          alias($._conditional_suppression_expression, $.postfix_unary_expression)
+        ),
+        choice('++', '--')
       ),
 
-    _pointer_prefix_update: ($) =>
-      prec(
-        PREC.UNARY,
-        seq(choice('++', '--'), choice($.lvalue_expression, $.invocation_expression, $.parenthesized_expression))
-      ),
+    _primary_no_conditional_access_expression: ($) =>
+      primaryAtoms($, { name: $._simple_name, member: $.member_access_expression, collection: true }),
 
-    _assignment_pointer_cast: ($) =>
-      prec(
-        PREC.CAST,
-        seq(
-          '(',
-          field('type', $.type),
-          ')',
-          field(
-            'value',
-            choice(
-              $.lvalue_expression,
-              $.parenthesized_expression,
-              $.invocation_expression,
-              $.postfix_unary_expression,
-              alias($._assignment_pointer_expression, $.prefix_unary_expression),
-              alias($._pointer_prefix_update, $.prefix_unary_expression)
-            )
-          )
-        )
-      ),
+    _conditional_access_receiver: ($) =>
+      primaryAtoms($, {
+        name: $._simple_name,
+        member: $.member_access_expression,
+        collection: true,
+        element: $.element_access_expression,
+        invocation: $.invocation_expression,
+        tuple: true,
+        array: alias($._initialized_array_creation_expression, $.array_creation_expression),
+        stackalloc: alias($._initialized_stackalloc_expression, $.stackalloc_expression),
+        definite: false,
+      }),
+
+    _definite_conditional_access_receiver: ($) =>
+      primaryAtoms($, {
+        name: $._simple_name,
+        member: $.member_access_expression,
+        collection: true,
+        element: $.element_access_expression,
+        invocation: $.invocation_expression,
+        tuple: true,
+        array: alias($._initialized_array_creation_expression, $.array_creation_expression),
+        stackalloc: alias($._initialized_stackalloc_expression, $.stackalloc_expression),
+        definite: true,
+      }),
+
+    _expression_statement_expression: ($) => choice($._unary_expression, $.assignment_expression),
+
+    assignment_expression: ($) => assignmentExpression($, $._nonconditional_unary_expression),
 
     binary_expression: ($) =>
       choice(
-        .../** @type {[string, number][]} */ ([
-          ['&&', PREC.LOGICAL_AND],
-          ['||', PREC.LOGICAL_OR],
-          ['>>', PREC.SHIFT],
-          ['>>>', PREC.SHIFT],
-          ['<<', PREC.SHIFT],
-          ['&', PREC.AND],
-          ['^', PREC.XOR],
-          ['|', PREC.OR],
-          ['+', PREC.ADD],
-          ['-', PREC.ADD],
-          ['*', PREC.MULT],
-          ['/', PREC.MULT],
-          ['%', PREC.MULT],
-          ['<', PREC.REL],
-          ['<=', PREC.REL],
-          ['==', PREC.EQUAL],
-          ['!=', PREC.EQUAL],
-          ['>=', PREC.REL],
-          ['>', PREC.REL],
-        ]).map(([operator, precedence]) =>
+        ...binaryOperators().map(([operator, precedence]) =>
           prec.left(
             precedence,
             seq(field('left', $.expression), field('operator', operator), field('right', $.expression))
@@ -1323,80 +1604,13 @@ module.exports = grammar({
         )
       ),
 
-    postfix_unary_expression: ($) => prec(PREC.POSTFIX, seq(postfixOperand($), choice('++', '--', '!'))),
-
-    // `&` and `*` have rules of their own (`_address_of_expression`, `_pointer_indirection_expression`, and
-    // `_value_indirection_expression`), aliased to this node. The dynamic precedence of `+`, `-`, and `^` is explained
-    // at `_pointer_indirection_expression`.
-    prefix_unary_expression: ($) =>
-      prec(
-        PREC.UNARY,
-        choice(
-          seq(choice('++', '--', '!', '~'), $.expression),
-          prec.dynamic(-2, seq(choice('+', '-', '^'), $.expression))
-        )
+    postfix_unary_expression: ($) =>
+      choice(
+        postfixExpression($._primary_no_conditional_access_expression, choice('++', '--', bangOperator())),
+        $._generic_invocation_suppression_expression
       ),
 
-    // Keep the lvalue operand set restricted: a general expression also permits assignment after every operand,
-    // substantially increasing parser states. Additional call and prefix-update operands use the assignment-only
-    // `_assignment_pointer_expression` path to preserve the shared read derivations and their query captures.
-    // Dynamic precedences: an assignable dereference -2, a read-only one -4, a read-only cast +1, an assignable cast -1,
-    // and a unary `+`, `-`, `^`, or `&` -2. C# reads a parenthesized name as a cast only when the token after `)` is
-    // `~`, `!`, `(`, an identifier, a literal, or a keyword (C# spec §12.9.8 Cast expressions), and these values keep
-    // that reading: `(a) * b`, `(a) - b`, and `(a) & b` are binary expressions (0), not casts of `*b`, `-b`, or `&b`
-    // (+1 - 2); `*(p) + 1` and `*(p) & x` apply to a dereference of `(p)` (-2), not to a dereference of a cast of `+1`
-    // or `&x` (-5); `*(b)[0]` dereferences an element access (-2), not a cast of `[0]` (-3). Where both casts fit, they
-    // give the same tree.
-    _pointer_indirection_expression: ($) =>
-      prec.dynamic(
-        -2,
-        prec.right(
-          PREC.UNARY,
-          seq(
-            '*',
-            choice(
-              $.lvalue_expression,
-              $.parenthesized_expression,
-              alias($._address_of_expression, $.prefix_unary_expression),
-              alias($._lvalue_cast_expression, $.cast_expression),
-              $.postfix_unary_expression
-            )
-          )
-        )
-      ),
-
-    _lvalue_cast_expression: ($) =>
-      prec(
-        PREC.CAST,
-        prec.dynamic(
-          -1,
-          seq(
-            '(',
-            field('type', $.type),
-            ')',
-            field(
-              'value',
-              choice(
-                $.lvalue_expression,
-                $.parenthesized_expression,
-                alias($._address_of_expression, $.prefix_unary_expression),
-                $.postfix_unary_expression,
-                $.invocation_expression
-              )
-            )
-          )
-        )
-      ),
-
-    _value_indirection_expression: ($) => prec.dynamic(-4, prec.right(PREC.UNARY, seq('*', $.non_lvalue_expression))),
-
-    // Address-of is split out from `prefix_unary_expression` and takes only a variable: an lvalue, or an invocation,
-    // which can return a reference (`&span.GetPinnableReference()`). If a cast could take `&` before any expression,
-    // the lexer would split `&&` into two `&` tokens and `(a) && (b > 0)` would read as a cast of `&(&(b > 0))`; as
-    // `(b > 0)` is not a variable, that reading fails and `&&` stays one token. The dynamic precedence is explained at
-    // `_pointer_indirection_expression`.
-    _address_of_expression: ($) =>
-      prec.dynamic(-2, prec.right(PREC.UNARY, seq('&', choice($.lvalue_expression, $.invocation_expression)))),
+    prefix_unary_expression: ($) => prefixUnaryExpression($._unary_operand),
 
     query_expression: ($) => seq($.from_clause, $._query_body),
 
@@ -1434,65 +1648,352 @@ module.exports = grammar({
         PREC.CONDITIONAL,
         seq(
           field('condition', $.expression),
-          '?',
+          ternaryQuestion(),
           field('consequence', $.expression),
           ':',
+          sym('_conditional_alternative_start'),
           field('alternative', $.expression)
         )
       ),
 
     conditional_access_expression: ($) =>
-      prec.right(
-        PREC.CONDITIONAL,
+      choice(
+        $._conditional_assignment_expression,
+        conditionalAccessExpression($, $._conditional_access_receiver),
         seq(
-          field('condition', $.expression),
-          '?',
-          choice($.member_binding_expression, alias($.bracketed_argument_list, sym('element_binding_expression')))
+          field('condition', $._definite_conditional_access_receiver),
+          definiteAccessQuestion(),
+          field('consequence', $._conditional_access_consequence)
+        ),
+        seq(
+          field('condition', $.array_creation_expression),
+          memberAccessQuestion(),
+          field('consequence', $._member_conditional_access_consequence)
         )
       ),
 
-    as_expression: ($) =>
-      prec(PREC.REL, seq(field('left', $.expression), field('operator', 'as'), field('right', $.type))),
+    _member_conditional_access_consequence: ($) => $._member_conditional_binding_expression,
 
-    is_expression: ($) =>
-      prec(PREC.REL, seq(field('left', $.expression), field('operator', 'is'), field('right', $.type))),
+    _member_conditional_binding_expression: ($) =>
+      choice(
+        $._member_nonconditional_binding_expression,
+        alias($._member_binding_conditional_access_expression, $.conditional_access_expression)
+      ),
+
+    _member_nonconditional_binding_expression: ($) =>
+      choice(
+        $.member_binding_expression,
+        alias($._member_binding_member_access_expression, $.member_access_expression),
+        alias($._member_binding_element_access_expression, $.element_access_expression),
+        alias($._member_binding_invocation_expression, $.invocation_expression)
+      ),
+
+    _member_conditional_binding_receiver: ($) =>
+      choice(
+        $._member_nonconditional_binding_expression,
+        alias($._member_binding_suppression_expression, $.postfix_unary_expression),
+        alias($._member_binding_generic_suppression_expression, $.postfix_unary_expression)
+      ),
+
+    _member_binding_suppression_expression: ($) =>
+      postfixExpression($._member_conditional_binding_receiver, bangOperator()),
+
+    _member_binding_member_access_expression: ($) => memberAccessExpression($, $._member_conditional_binding_receiver),
+
+    _member_binding_element_access_expression: ($) =>
+      elementAccessExpression($, $._member_conditional_binding_receiver),
+
+    _member_binding_invocation_expression: ($) =>
+      choice(
+        invocationExpression($, $._member_conditional_binding_receiver),
+        $._member_binding_generic_invocation_expression
+      ),
+
+    _member_binding_generic_invocation_expression: ($) =>
+      genericInvocationExpression(
+        $,
+        choice(
+          alias($._generic_member_binding_expression, $.member_binding_expression),
+          alias($._member_binding_generic_member_expression, $.member_access_expression)
+        ),
+        $._member_binding_generic_invocation_expression,
+        $._member_binding_generic_suppression_expression
+      ),
+
+    _member_binding_generic_member_expression: ($) =>
+      memberAccessExpression($, $._member_conditional_binding_receiver, $._generic_invocation_simple_name),
+
+    _member_binding_generic_suppression_expression: ($) =>
+      seq(
+        genericInvocationReceiver(
+          $,
+          $._member_binding_generic_invocation_expression,
+          $._member_binding_generic_suppression_expression
+        ),
+        bangOperator()
+      ),
+
+    _member_binding_conditional_access_expression: ($) =>
+      conditionalAccessExpression($, $._member_conditional_binding_receiver),
+
+    _member_conditional_binding_assignment_expression: ($) =>
+      assignmentExpression($, $._member_conditional_binding_receiver),
+
+    _conditional_access_consequence: ($) => $._conditional_binding_expression,
+
+    _conditional_binding_expression: ($) =>
+      choice(
+        $._nonconditional_binding_expression,
+        alias($._binding_conditional_access_expression, $.conditional_access_expression)
+      ),
+
+    _nonconditional_binding_expression: ($) =>
+      choice(
+        $.member_binding_expression,
+        alias($.bracketed_argument_list, sym('element_binding_expression')),
+        alias($._binding_member_access_expression, $.member_access_expression),
+        alias($._binding_element_access_expression, $.element_access_expression),
+        alias($._binding_invocation_expression, $.invocation_expression)
+      ),
+
+    _conditional_binding_receiver: ($) =>
+      choice(
+        $._nonconditional_binding_expression,
+        alias($._binding_suppression_expression, $.postfix_unary_expression),
+        alias($._binding_generic_suppression_expression, $.postfix_unary_expression)
+      ),
+
+    _binding_suppression_expression: ($) => postfixExpression($._conditional_binding_receiver, bangOperator()),
+
+    _binding_member_access_expression: ($) => memberAccessExpression($, $._conditional_binding_receiver),
+
+    _binding_element_access_expression: ($) => elementAccessExpression($, $._conditional_binding_receiver),
+
+    _binding_invocation_expression: ($) =>
+      choice(invocationExpression($, $._conditional_binding_receiver), $._binding_generic_invocation_expression),
+
+    _binding_generic_invocation_expression: ($) =>
+      genericInvocationExpression(
+        $,
+        choice(
+          alias($._generic_member_binding_expression, $.member_binding_expression),
+          alias($._binding_generic_member_expression, $.member_access_expression)
+        ),
+        $._binding_generic_invocation_expression,
+        $._binding_generic_suppression_expression
+      ),
+
+    _binding_generic_member_expression: ($) =>
+      memberAccessExpression($, $._conditional_binding_receiver, $._generic_invocation_simple_name),
+
+    _binding_generic_suppression_expression: ($) =>
+      seq(
+        genericInvocationReceiver(
+          $,
+          $._binding_generic_invocation_expression,
+          $._binding_generic_suppression_expression
+        ),
+        bangOperator()
+      ),
+
+    _binding_conditional_access_expression: ($) => conditionalAccessExpression($, $._conditional_binding_receiver),
+
+    _conditional_binding_assignment_expression: ($) => assignmentExpression($, $._conditional_binding_receiver),
+
+    _conditional_assignment_expression: ($) =>
+      choice(
+        seq(
+          field('condition', $._conditional_access_receiver),
+          accessQuestion(),
+          field('consequence', $._conditional_assignment_consequence)
+        ),
+        seq(
+          field('condition', $._definite_conditional_access_receiver),
+          definiteAccessQuestion(),
+          field('consequence', $._conditional_assignment_consequence)
+        ),
+        seq(
+          field('condition', $.array_creation_expression),
+          memberAccessQuestion(),
+          field('consequence', $._member_conditional_assignment_consequence)
+        )
+      ),
+
+    _conditional_assignment_consequence: ($) =>
+      choice(
+        alias($._conditional_binding_assignment_expression, $.assignment_expression),
+        alias($._binding_conditional_assignment_expression, $.conditional_access_expression)
+      ),
+
+    _member_conditional_assignment_consequence: ($) =>
+      choice(
+        alias($._member_conditional_binding_assignment_expression, $.assignment_expression),
+        alias($._member_binding_conditional_assignment_expression, $.conditional_access_expression)
+      ),
+
+    _binding_conditional_assignment_expression: ($) =>
+      seq(
+        field('condition', $._conditional_binding_receiver),
+        accessQuestion(),
+        field('consequence', $._conditional_assignment_consequence)
+      ),
+
+    _member_binding_conditional_assignment_expression: ($) =>
+      seq(
+        field('condition', $._member_conditional_binding_receiver),
+        accessQuestion(),
+        field('consequence', $._conditional_assignment_consequence)
+      ),
+
+    _postfix_receiver: ($) =>
+      choice(
+        $._primary_no_conditional_access_expression,
+        alias($._conditional_assignment_expression, $.conditional_access_expression)
+      ),
+
+    _conditional_assignment_suppression_expression: ($) =>
+      postfixExpression(
+        choice(
+          alias($._conditional_assignment_expression, $.conditional_access_expression),
+          alias($._conditional_assignment_suppression_expression, $.postfix_unary_expression)
+        ),
+        bangOperator()
+      ),
+
+    as_expression: ($) =>
+      prec(
+        PREC.REL,
+        seq(
+          field('left', $.expression),
+          field('operator', alias(sym('_type_context_as'), 'as')),
+          field('right', $.type)
+        )
+      ),
 
     is_pattern_expression: ($) =>
-      prec(PREC.REL, seq(field('expression', $.expression), 'is', field('pattern', $.pattern))),
-
-    cast_expression: ($) =>
       prec(
-        PREC.CAST,
+        PREC.REL,
+        seq(
+          field('expression', $.expression),
+          alias(sym('_type_context_is'), 'is'),
+          field('pattern', alias($._is_pattern, $.pattern))
+        )
+      ),
+
+    // C# treats a non-generic terminal name followed by a nonempty collection as parenthesized indexing.
+    cast_expression: ($) =>
+      castExpression($, $._non_range_unary_operand, alias($._prefix_range_expression, $.range_expression)),
+
+    _non_range_unary_operand: ($) => choice($._unary_expression, $.query_expression),
+
+    _unary_operand: ($) => choice($._non_range_unary_operand, alias($._prefix_range_expression, $.range_expression)),
+
+    _prefix_range_expression: ($) => prefixRangeExpression($._unary_operand),
+
+    _range_cast_type: ($) =>
+      choice(
+        typeAlternatives($, false, true, false, false, $.alias_qualified_name),
+        alias($._omitted_cast_array_type, $.array_type)
+      ),
+
+    _omitted_cast_array_type: ($) =>
+      seq(
+        field('type', $._array_base_type),
+        field('rank', alias($._omitted_array_rank_specifier, $.array_rank_specifier))
+      ),
+
+    _omitted_array_rank_specifier: () => seq('[', repeat(','), ']'),
+
+    _ambiguous_cast_type: ($) => $._ambiguous_cast_name,
+
+    _definite_cast_type: ($) =>
+      choice(
+        typeAlternatives($, false, true, true, false, $._definite_cast_name),
+        alias($._omitted_cast_array_type, $.array_type)
+      ),
+
+    _preferred_cast_head: ($) =>
+      choice(
         prec.dynamic(
-          1,
+          2,
+          seq('(', field('type', alias($._ambiguous_cast_type, $.type)), alias(sym('_ambiguous_cast_type_end'), ')'))
+        ),
+        prec.dynamic(
+          3,
           seq(
-            // higher than invocation, lower than binary
             '(',
-            field('type', $.type),
-            ')',
-            field('value', $.expression)
+            field('type', alias($._omitted_cast_array_type, $.array_type)),
+            alias(sym('_definite_cast_type_end'), ')')
           )
         )
       ),
 
+    _preferred_range_cast_head: ($) =>
+      prec.dynamic(
+        3,
+        seq(
+          '(',
+          field('type', alias($._omitted_cast_array_type, $.array_type)),
+          alias(sym('_range_cast_type_end'), ')')
+        )
+      ),
+
+    _ambiguous_cast_name: ($) => choice($.identifier, alias($._ambiguous_cast_qualified_name, $.qualified_name)),
+
+    _ambiguous_cast_qualified_name: ($) => seq(field('qualifier', $._name), '.', field('name', $.identifier)),
+
+    _definite_cast_name: ($) =>
+      choice($.generic_name, $.alias_qualified_name, alias($._definite_cast_qualified_name, $.qualified_name)),
+
+    _definite_cast_qualified_name: ($) => seq(field('qualifier', $._name), '.', field('name', $.generic_name)),
+
     checked_expression: ($) => seq(choice('checked', 'unchecked'), '(', $.expression, ')'),
 
     invocation_expression: ($) =>
-      prec(PREC.INVOCATION, seq(field('function', postfixOperand($)), field('arguments', $.argument_list))),
+      choice(invocationExpression($, $._postfix_receiver), $._generic_invocation_expression),
 
-    switch_expression: ($) => prec(PREC.SWITCH, seq($.expression, 'switch', $._switch_expression_body)),
-    _switch_expression_body: ($) => seq('{', commaSep($.switch_expression_arm), optional(','), '}'),
+    _generic_invocation_expression: ($) =>
+      genericInvocationExpression(
+        $,
+        choice(
+          $._generic_invocation_simple_name,
+          alias($._pattern_generic_member_expression, $.member_access_expression),
+          alias($._generic_alias_qualified_name, $.alias_qualified_name)
+        ),
+        $._generic_invocation_expression,
+        $._generic_invocation_suppression_expression
+      ),
+
+    _generic_member_binding_expression: ($) => seq('.', field('name', $._generic_invocation_simple_name)),
+
+    _generic_invocation_simple_name: ($) => $.generic_name,
+
+    _generic_alias_qualified_name: ($) => seq(field('alias', $.identifier), '::', field('name', $.generic_name)),
+
+    _generic_invocation_suppression_expression: ($) =>
+      postfixExpression(
+        genericInvocationReceiver($, $._generic_invocation_expression, $._generic_invocation_suppression_expression),
+        bangOperator()
+      ),
+
+    switch_expression: ($) => switchExpression($, $.expression),
+    _switch_expression_body: ($) =>
+      seq(
+        '{',
+        commaSep($.switch_expression_arm),
+        optional(','),
+        choice('}', alias(sym('_nonprimary_expression_end'), '}'))
+      ),
 
     switch_expression_arm: ($) => seq($.pattern, optional($.when_clause), '=>', $.expression),
 
     when_clause: ($) => seq('when', $.expression),
 
-    await_expression: ($) => prec.right(PREC.UNARY, seq('await', $.expression)),
+    await_expression: ($) => prec.right(PREC.UNARY, seq('await', $._unary_operand)),
 
     throw_expression: ($) => seq('throw', $.expression),
 
-    element_access_expression: ($) =>
-      prec(PREC.POSTFIX, seq(field('expression', postfixOperand($)), field('subscript', $.bracketed_argument_list))),
+    element_access_expression: ($) => elementAccessExpression($, $._postfix_receiver),
 
     interpolated_string_expression: ($) =>
       choice(
@@ -1545,7 +2046,10 @@ module.exports = grammar({
     interpolation_alignment_clause: ($) => seq(',', $.expression),
 
     interpolation_format_clause: () =>
-      seq(':', optional(sym('_file_directive_literal_context')), token.immediate(/[^}"\n\r\u0085\u2028\u2029]+/)),
+      prec.dynamic(
+        1,
+        seq(':', optional(sym('_file_directive_literal_context')), token.immediate(/[^}"\n\r\u0085\u2028\u2029]+/))
+      ),
 
     _multiline_interpolation: ($) =>
       seq(
@@ -1556,17 +2060,10 @@ module.exports = grammar({
         alias(sym('interpolation_close_brace'), sym('interpolation_brace'))
       ),
 
-    _multiline_interpolation_format_clause: () => seq(':', optional(sym('_file_directive_literal_context')), /[^}"]+/),
+    _multiline_interpolation_format_clause: () =>
+      prec.dynamic(1, seq(':', optional(sym('_file_directive_literal_context')), /[^}"]+/)),
 
-    member_access_expression: ($) =>
-      prec(
-        PREC.DOT,
-        seq(
-          field('expression', choice(postfixOperand($), $.predefined_type, $._name)),
-          choice('.', '->'),
-          field('name', $._simple_name)
-        )
-      ),
+    member_access_expression: ($) => memberAccessExpression($, choice($._postfix_receiver, $.predefined_type, $._name)),
 
     member_binding_expression: ($) => seq('.', field('name', $._simple_name)),
 
@@ -1574,17 +2071,20 @@ module.exports = grammar({
       prec.right(
         seq(
           'new',
-          field('type', $.type),
-          field('arguments', optional($.argument_list)),
-          field('initializer', optional($.initializer_expression))
+          field('type', $._object_creation_type),
+          choice(
+            seq(
+              field('arguments', $.argument_list),
+              field('initializer', optional(alias($._object_initializer_expression, $.initializer_expression)))
+            ),
+            field('initializer', alias($._object_initializer_expression, $.initializer_expression))
+          )
         )
       ),
 
-    _object_creation_type: ($) => choice($._name, $.nullable_type, $.predefined_type),
+    _object_creation_type: ($) => typeAlternatives($, true, true, true, false),
 
-    parenthesized_expression: ($) => seq('(', $.non_lvalue_expression, ')'),
-
-    _parenthesized_lvalue_expression: ($) => seq('(', $.lvalue_expression, ')'),
+    parenthesized_expression: ($) => seq('(', $.expression, ')'),
 
     lambda_expression: ($) =>
       prec(-1, seq($._lambda_expression_init, '=>', field('body', choice($.block, $.expression)))),
@@ -1634,8 +2134,11 @@ module.exports = grammar({
         ')'
       ),
 
-    array_creation_expression: ($) =>
-      prec.dynamic(PREC.UNARY, seq('new', field('type', $.array_type), optional($.initializer_expression))),
+    array_creation_expression: ($) => arrayCreationExpression($, optional($.initializer_expression)),
+
+    _initialized_array_creation_expression: ($) => arrayCreationExpression($, $.initializer_expression),
+
+    _initialized_stackalloc_expression: ($) => stackallocExpression($, $.initializer_expression),
 
     anonymous_method_expression: ($) =>
       seq(
@@ -1653,7 +2156,9 @@ module.exports = grammar({
     implicit_array_creation_expression: ($) => seq('new', '[', repeat(','), ']', $.initializer_expression),
 
     implicit_object_creation_expression: ($) =>
-      prec.right(seq('new', $.argument_list, optional($.initializer_expression))),
+      prec.right(
+        seq('new', $.argument_list, optional(alias($._object_initializer_expression, $.initializer_expression)))
+      ),
 
     implicit_stackalloc_expression: ($) => seq('stackalloc', '[', ']', $.initializer_expression),
 
@@ -1665,14 +2170,44 @@ module.exports = grammar({
 
     spread_element: ($) => prec.dynamic(1, prec(PREC.RANGE, seq('..', $.expression))),
 
+    _object_initializer_expression: ($) =>
+      seq(
+        '{',
+        commaSep(
+          choice(
+            alias($._object_index_initializer, $.assignment_expression),
+            alias($._object_member_initializer, $.assignment_expression),
+            $.expression
+          )
+        ),
+        optional(','),
+        '}'
+      ),
+
+    _object_initializer_value: ($) =>
+      choice($.expression, alias($._object_initializer_expression, $.initializer_expression)),
+
+    _object_index_initializer: ($) =>
+      assignmentExpression(
+        $,
+        alias($._object_index_target, sym('element_binding_expression')),
+        '=',
+        $._object_initializer_value
+      ),
+
+    _object_index_target: ($) => bracketedArgumentList($, alias(sym('_object_index_start'), '[')),
+
+    _object_member_initializer: ($) => assignmentExpression($, $.identifier, '=', $._object_initializer_value),
+
     initializer_expression: ($) => seq('{', commaSep($.expression), optional(','), '}'),
 
     declaration_expression: ($) => prec.dynamic(1, seq(field('type', $.type), field('name', $.identifier))),
 
     default_expression: ($) => prec.right(seq('default', optional(seq('(', field('type', $.type), ')')))),
 
-    with_expression: ($) => prec.left(PREC.WITH, seq($.expression, 'with', $._with_body)),
-    _with_body: ($) => seq('{', commaSep($.with_initializer), optional(','), '}'),
+    with_expression: ($) => withExpression($, $.expression),
+    _with_body: ($) =>
+      seq('{', commaSep($.with_initializer), optional(','), choice('}', alias(sym('_nonprimary_expression_end'), '}'))),
 
     with_initializer: ($) => seq($.identifier, '=', $.expression),
 
@@ -1688,10 +2223,9 @@ module.exports = grammar({
 
     refvalue_expression: ($) => seq('__refvalue', '(', field('value', $.expression), ',', field('type', $.type), ')'),
 
-    stackalloc_expression: ($) =>
-      prec.left(seq('stackalloc', field('type', $.array_type), optional($.initializer_expression))),
+    stackalloc_expression: ($) => stackallocExpression($, optional($.initializer_expression)),
 
-    range_expression: ($) => prec.right(PREC.RANGE, seq(optional($.expression), '..', optional($.expression))),
+    range_expression: ($) => rangeExpression($.expression, $.expression),
 
     tuple_expression: ($) => seq('(', commaSep2(alias($._tuple_argument, $.argument)), ')'),
 
@@ -1779,47 +2313,7 @@ module.exports = grammar({
       ),
     identifier: ($) => choice($._identifier_token, $._reserved_identifier),
 
-    _reserved_identifier: () =>
-      choice(
-        prec(-1, '_'),
-        'alias',
-        'async',
-        'ascending',
-        'by',
-        'descending',
-        'equals',
-        // attribute_target_specifier keywords — contextual only when followed
-        // by `:` in `[target: Attr]` position. Anywhere else they're
-        // identifiers. Without listing them here the LR table preferred the
-        // literal-keyword interpretation, breaking `[type]`, `[field]`, etc.
-        // as collection_expression elements. Excludes `'event'` and `'return'`
-        // from the attribute_target_specifier choice — those are real C#
-        // keywords and must not be accepted as identifiers anywhere else.
-        'field',
-        'file',
-        'from',
-        'global',
-        'group',
-        'into',
-        'join',
-        'let',
-        'method',
-        'notnull',
-        'on',
-        'orderby',
-        'param',
-        'partial',
-        'property',
-        'scoped',
-        'select',
-        'type',
-        'typevar',
-        'unmanaged',
-        'var',
-        'when',
-        'where',
-        'yield'
-      ),
+    _reserved_identifier: () => choice(...reservedIdentifiers()),
 
     ...preprocIf(
       '_in_method_signature',
@@ -1857,7 +2351,7 @@ module.exports = grammar({
     preproc_parenthesized_expression: ($) => seq('(', $._preproc_expression, ')'),
 
     preproc_unary_expression: ($) =>
-      prec.left(PREC.UNARY, seq(field('operator', '!'), field('argument', $._preproc_expression))),
+      prec.left(PREC.UNARY, seq(field('operator', bangOperator()), field('argument', $._preproc_expression))),
 
     preproc_binary_expression: ($) => {
       /** @type {[string, number][]} */
@@ -2163,23 +2657,190 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
 }
 
 /**
- * The operand of a postfix operator, an invocation, an element access, or a member access. Besides `expression`, it
- * lists the forms that are operands of `&`, of the assignable `*`, or of the assignable cast: reaching them only
- * through `expression` would reduce the unary operator or the cast (precedence UNARY or CAST) before `expression`
- * (precedence 0) lets the postfix operator apply, reading `&a[0]` as `(&a)[0]` and `*(T*)f()[0]` as `(*(T*)f())[0]`.
- *
- * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'expression' | 'invocation_expression' | 'lvalue_expression' | 'parenthesized_expression' | 'postfix_unary_expression'>} $
- *
- * @returns {import('@willbooster/web-tree-sitter/dsl').ChoiceRule}
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_simple_name'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} [name]
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} [operator]
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
  */
-function postfixOperand($) {
+function memberAccessExpression($, receiver, name = $._simple_name, operator = choice('.', '->')) {
+  return prec(PREC.DOT, seq(field('expression', receiver), operator, field('name', name)));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'bracketed_argument_list'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function elementAccessExpression($, receiver) {
+  return prec(PREC.DOT, seq(field('expression', receiver), field('subscript', $.bracketed_argument_list)));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'argument_list'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function invocationExpression($, receiver) {
+  return prec(PREC.INVOCATION, seq(field('function', receiver), field('arguments', $.argument_list)));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'argument_list' | 'invocation_expression' | 'postfix_unary_expression'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} first
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} call
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} suppression
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function genericInvocationExpression($, first, call, suppression) {
   return choice(
-    $.expression,
-    $.lvalue_expression,
-    $.invocation_expression,
-    $.postfix_unary_expression,
-    $.parenthesized_expression
+    prec.dynamic(1, invocationExpression($, first)),
+    prec.dynamic(3, invocationExpression($, genericInvocationReceiver($, call, suppression)))
   );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'invocation_expression' | 'postfix_unary_expression'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} call
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} suppression
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function genericInvocationReceiver($, call, suppression) {
+  return choice(alias(call, $.invocation_expression), alias(suppression, $.postfix_unary_expression));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function prefixUnaryExpression(operand) {
+  return prec.right(
+    PREC.UNARY,
+    choice(
+      seq(choice('++', '--', bangOperator(), '~'), operand),
+      prec.dynamic(-2, seq(choice('+', '-', '^', '*', ampersandOperator()), operand))
+    )
+  );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_ambiguous_cast_type' | '_definite_cast_type' | '_preferred_cast_head' | '_preferred_range_cast_head' | '_range_cast_type' | 'type'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} [rangeOperand]
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function castExpression($, operand, rangeOperand) {
+  return prec(
+    PREC.CAST,
+    prec.dynamic(
+      1,
+      choice(
+        seq(
+          '(',
+          field('type', alias($._ambiguous_cast_type, $.type)),
+          ')',
+          sym('_ambiguous_cast_operand_start'),
+          field('value', operand)
+        ),
+        seq('(', field('type', alias($._definite_cast_type, $.type)), ')', field('value', operand)),
+        seq($._preferred_cast_head, field('value', operand)),
+        ...(rangeOperand
+          ? [
+              seq('(', field('type', alias($._range_cast_type, $.type)), ')', field('value', rangeOperand)),
+              seq($._preferred_range_cast_head, field('value', rangeOperand)),
+            ]
+          : [])
+      )
+    )
+  );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_conditional_access_consequence'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function conditionalAccessExpression($, receiver) {
+  return seq(field('condition', receiver), accessQuestion(), field('consequence', $._conditional_access_consequence));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} operator
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function postfixExpression(receiver, operator) {
+  return prec(PREC.POSTFIX, seq(receiver, operator));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'expression'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} [operator]
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} [value]
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function assignmentExpression(
+  $,
+  receiver,
+  operator = choice('=', '+=', '-=', '*=', '/=', '%=', '&=', '^=', '|=', '<<=', '>>=', '>>>=', '??='),
+  value = $.expression
+) {
+  return prec.right(PREC.ASSIGN, seq(field('left', receiver), field('operator', operator), field('right', value)));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'array_type'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} initializer
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function arrayCreationExpression($, initializer) {
+  return prec.dynamic(PREC.UNARY, seq('new', field('type', $.array_type), initializer));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'type'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} initializer
+ * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
+ */
+function stackallocExpression($, initializer) {
+  return prec.left(seq('stackalloc', field('type', $.type), initializer));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'argument'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} opener
+ */
+function bracketedArgumentList($, opener) {
+  return seq(opener, commaSep1($.argument), optional(','), ']');
+}
+
+function bangOperator() {
+  return alias(sym('_bang_operator'), '!');
+}
+
+function definiteAccessQuestion() {
+  return choice(alias(sym('_question_definite_access'), '?'), alias(sym('_question_unknown'), '?'));
+}
+
+function accessQuestion() {
+  return choice(
+    alias(sym('_question_member_access'), '?'),
+    alias(sym('_question_element_access'), '?'),
+    alias(sym('_question_unknown'), '?')
+  );
+}
+
+function memberAccessQuestion() {
+  return choice(alias(sym('_question_member_access'), '?'), alias(sym('_question_unknown'), '?'));
+}
+
+function ternaryQuestion() {
+  return choice(alias(sym('_question_ternary'), '?'), alias(sym('_question_unknown'), '?'));
+}
+
+function nullableQuestion() {
+  return choice(alias(sym('_question_nullable'), '?'), alias(sym('_question_unknown'), '?'));
 }
 
 /**
@@ -2229,4 +2890,277 @@ function sep1(rule, separator) {
  */
 function sep(rule, separator) {
   return optional(sep1(rule, separator));
+}
+
+function binaryOperators() {
+  /** @type {[import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral, number][]} */
+  const operators = [
+    ['&&', PREC.LOGICAL_AND],
+    ['||', PREC.LOGICAL_OR],
+    ['>>', PREC.SHIFT],
+    ['>>>', PREC.SHIFT],
+    ['<<', PREC.SHIFT],
+    [ampersandOperator(), PREC.AND],
+    ['^', PREC.XOR],
+    ['|', PREC.OR],
+    ['+', PREC.ADD],
+    ['-', PREC.ADD],
+    ['*', PREC.MULT],
+    ['/', PREC.MULT],
+    ['%', PREC.MULT],
+    ['<', PREC.REL],
+    ['<=', PREC.REL],
+    ['==', PREC.EQUAL],
+    ['!=', PREC.EQUAL],
+    ['>=', PREC.REL],
+    ['>', PREC.REL],
+  ];
+  return operators;
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_conditional_assignment_suppression_expression' | '_conditional_update_expression' | '_nameof_expression' | 'anonymous_method_expression' | 'anonymous_object_creation_expression' | 'array_creation_expression' | 'checked_expression' | 'collection_expression' | 'default_expression' | 'element_access_expression' | 'implicit_array_creation_expression' | 'implicit_object_creation_expression' | 'implicit_stackalloc_expression' | 'interpolated_string_expression' | 'invocation_expression' | 'literal' | 'makeref_expression' | 'object_creation_expression' | 'parenthesized_expression' | 'postfix_unary_expression' | 'reftype_expression' | 'refvalue_expression' | 'sizeof_expression' | 'stackalloc_expression' | 'tuple_expression' | 'typeof_expression'>} $
+ * @param {{name?: import('@willbooster/web-tree-sitter/dsl').Rule, member: import('@willbooster/web-tree-sitter/dsl').Rule, collection: boolean, element?: import('@willbooster/web-tree-sitter/dsl').Rule, invocation?: import('@willbooster/web-tree-sitter/dsl').Rule, parenthesized?: import('@willbooster/web-tree-sitter/dsl').Rule, tuple?: boolean, array?: import('@willbooster/web-tree-sitter/dsl').Rule, stackalloc?: import('@willbooster/web-tree-sitter/dsl').Rule, definite?: boolean}} options
+ */
+function primaryAtoms(
+  $,
+  {
+    name,
+    member,
+    collection,
+    element = $.element_access_expression,
+    invocation = $.invocation_expression,
+    parenthesized = $.parenthesized_expression,
+    tuple = true,
+    array = $.array_creation_expression,
+    stackalloc = $.stackalloc_expression,
+    definite,
+  }
+) {
+  const uncertain = [
+    ...(name ? [name] : []),
+    member,
+    element,
+    invocation,
+    ...(tuple ? [$.tuple_expression] : []),
+    parenthesized,
+    ...(collection ? [$.collection_expression] : []),
+    alias(sym('preproc_if_in_expression'), sym('preproc_if')),
+  ];
+  const completed = [
+    alias($._nameof_expression, $.invocation_expression),
+    alias($._conditional_update_expression, $.postfix_unary_expression),
+    alias($._conditional_assignment_suppression_expression, $.postfix_unary_expression),
+    'this',
+    'base',
+    $.postfix_unary_expression,
+    $.literal,
+    $.interpolated_string_expression,
+    $.checked_expression,
+    $.default_expression,
+    $.sizeof_expression,
+    $.typeof_expression,
+    $.makeref_expression,
+    $.reftype_expression,
+    $.refvalue_expression,
+    stackalloc,
+    array,
+    $.object_creation_expression,
+    $.anonymous_method_expression,
+    $.anonymous_object_creation_expression,
+    $.implicit_array_creation_expression,
+    $.implicit_object_creation_expression,
+    $.implicit_stackalloc_expression,
+  ];
+  return choice(...(definite === true ? [] : uncertain), ...(definite === false ? [] : completed));
+}
+
+function reservedIdentifiers() {
+  return [
+    prec(-1, '_'),
+    'alias',
+    'async',
+    'ascending',
+    'by',
+    'descending',
+    'equals',
+    // attribute_target_specifier keywords — contextual only when followed
+    // by `:` in `[target: Attr]` position. Anywhere else they're
+    // identifiers. Without listing them here the LR table preferred the
+    // literal-keyword interpretation, breaking `[type]`, `[field]`, etc.
+    // as collection_expression elements. Excludes `'event'` and `'return'`
+    // from the attribute_target_specifier choice — those are real C#
+    // keywords and must not be accepted as identifiers anywhere else.
+    'field',
+    'file',
+    'from',
+    'global',
+    'group',
+    'into',
+    'join',
+    'let',
+    'method',
+    'nameof',
+    'nint',
+    'nuint',
+    'notnull',
+    'on',
+    'orderby',
+    'param',
+    'partial',
+    'property',
+    'scoped',
+    'select',
+    'type',
+    'typevar',
+    'unmanaged',
+    'var',
+    'when',
+    'where',
+    'yield',
+  ];
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} left
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} right
+ * @param {boolean} [preferArithmetic]
+ */
+function arithmeticBinaryExpression(left, right, preferArithmetic = false) {
+  return choice(
+    ...binaryOperators()
+      .filter(([, precedence]) => precedence >= PREC.SHIFT)
+      .map(([operator, precedence]) => {
+        const rule = prec.left(
+          precedence,
+          seq(field('left', left), field('operator', operator), field('right', right))
+        );
+        return preferArithmetic && operator !== '>>' && operator !== '>>>' ? prec.dynamic(2, rule) : rule;
+      })
+  );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_name' | 'array_type' | 'function_pointer_type' | 'implicit_type' | 'nullable_type' | 'pointer_type' | 'predefined_type' | 'ref_type' | 'scoped_type' | 'tuple_type'>} $
+ * @param {boolean} [implicit]
+ * @param {boolean} [pointer]
+ * @param {boolean} [tuple]
+ * @param {boolean} [array]
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} [name]
+ */
+function typeAlternatives($, implicit = true, pointer = true, tuple = true, array = true, name = $._name) {
+  return choice(
+    ...(implicit ? [$.implicit_type] : []),
+    ...(array ? [$.array_type] : []),
+    name,
+    $.nullable_type,
+    ...(pointer ? [$.pointer_type] : []),
+    $.function_pointer_type,
+    $.predefined_type,
+    ...(tuple ? [$.tuple_type] : []),
+    $.ref_type,
+    $.scoped_type
+  );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_parenthesized_pattern_with_designation' | 'and_pattern' | 'declaration_pattern' | 'discard' | 'list_pattern' | 'negated_pattern' | 'or_pattern' | 'parenthesized_pattern' | 'recursive_pattern' | 'relational_pattern' | 'slice_pattern' | 'type_pattern' | 'var_pattern'>} $
+ */
+function nonconstantPatterns($) {
+  return choice(
+    $.declaration_pattern,
+    $.discard,
+    $.recursive_pattern,
+    $.var_pattern,
+    $.negated_pattern,
+    prec.dynamic(1, alias($._parenthesized_pattern_with_designation, $.recursive_pattern)),
+    $.parenthesized_pattern,
+    $.relational_pattern,
+    $.or_pattern,
+    $.and_pattern,
+    $.list_pattern,
+    $.slice_pattern,
+    $.type_pattern
+  );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'expression' | 'identifier' | 'pattern'>} $
+ * @param {boolean} [named]
+ */
+function subpattern($, named = false) {
+  const name = choice(seq($.expression, ':'), seq($.identifier, ':'));
+  return seq(named ? name : optional(name), $.pattern);
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_pattern_unary_expression' | 'binary_expression' | 'conditional_expression' | 'is_pattern_expression' | 'as_expression' | 'switch_expression' | 'throw_expression' | 'range_expression' | 'with_expression'>} $
+ */
+function nestedConstantExpressionRoots($) {
+  return [
+    $._pattern_unary_expression,
+    $.binary_expression,
+    $.conditional_expression,
+    $.is_pattern_expression,
+    $.as_expression,
+    $.switch_expression,
+    $.throw_expression,
+    $.range_expression,
+    $.with_expression,
+  ];
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_is_arithmetic_binary_expression' | '_is_range_expression' | '_is_switch_expression' | '_is_with_expression' | '_pattern_unary_expression' | 'binary_expression' | 'range_expression' | 'switch_expression' | 'with_expression'>} $
+ */
+function constantExpressionRoots($) {
+  return [
+    $._pattern_unary_expression,
+    alias($._is_arithmetic_binary_expression, $.binary_expression),
+    alias($._is_range_expression, $.range_expression),
+    alias($._is_switch_expression, $.switch_expression),
+    alias($._is_with_expression, $.with_expression),
+  ];
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_switch_expression_body'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
+ */
+function switchExpression($, receiver) {
+  return prec(PREC.SWITCH, seq(receiver, 'switch', $._switch_expression_body));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_with_body'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
+ */
+function withExpression($, receiver) {
+  return prec.left(PREC.WITH, seq(receiver, 'with', $._with_body));
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} left
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} right
+ * @param {boolean} [prefix]
+ */
+function rangeExpression(left, right, prefix = true) {
+  return prec.right(PREC.RANGE, seq(prefix ? optional(left) : left, '..', optional(right)));
+}
+
+/** @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand */
+function prefixRangeExpression(operand) {
+  return prec.right(PREC.RANGE, seq('..', optional(operand)));
+}
+
+function statementEnd() {
+  return choice(';', alias(sym('_statement_end'), ';'));
+}
+
+function blockEnd() {
+  return choice('}', alias(sym('_block_end'), '}'));
+}
+
+function ampersandOperator() {
+  return alias(sym('_ampersand_operator'), '&');
 }

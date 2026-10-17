@@ -27,5 +27,11 @@ fn main() {
         println!("cargo:rerun-if-changed={}", scanner_path.to_str().unwrap());
     }
 
+    println!("cargo:rerun-if-changed=src/identifierCharacters.h");
+    println!("cargo:rerun-if-changed=src/nullableRank.h");
+    println!("cargo:rerun-if-changed=src/nullableTypes.h");
+    println!("cargo:rerun-if-changed=src/questionContext.h");
+    println!("cargo:rerun-if-changed=src/questionLiterals.h");
+
     c_config.compile("tree-sitter-c-sharp");
 }

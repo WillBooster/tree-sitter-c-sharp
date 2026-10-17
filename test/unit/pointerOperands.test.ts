@@ -2,6 +2,8 @@ import path from 'node:path';
 import { Edit, Language, Parser, Query, type Node, type Tree } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
+import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot.js';
+
 await Parser.init();
 const language = await Language.load(path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm'));
 
@@ -22,7 +24,7 @@ const operands = [
   '*++pp',
 ];
 
-test('retains assignable pointer operands and fresh query ranges through edits', () => {
+test('retains pointer operands and fresh query ranges through edits', () => {
   const parser = new Parser().setLanguage(language);
   let query: Query | undefined;
   let tree: Tree | undefined;
@@ -95,7 +97,7 @@ test('preserves cast and postfix binding around pointer reads', () => {
   const parser = new Parser().setLanguage(language);
   let query: Query | undefined;
   try {
-    query = new Query(language, '(expression) @pointer');
+    query = new Query(language, '(prefix_unary_expression) @pointer (identifier) @operand');
     for (const expression of [
       '*++p',
       '*--p',
@@ -171,6 +173,60 @@ test('binds pointer assignments inside larger expressions', () => {
       }
     }
   } finally {
+    parser.delete();
+  }
+});
+
+test('distinguishes casts of collections from parenthesized indexing through edits', () => {
+  const parser = new Parser().setLanguage(language);
+  const cases = [
+    ['(b)[0]', 'element_access_expression'],
+    ['(b)[]', 'cast_expression'],
+    ['(b)[/* marker */]', 'cast_expression'],
+    ['(b)[/* marker */0]', 'element_access_expression'],
+    ['(b)/* marker */[0]', 'element_access_expression'],
+    ['(b)[// marker\n]', 'cast_expression'],
+    ['(N.T)[0]', 'element_access_expression'],
+    ['(N.T)[]', 'cast_expression'],
+    ['(G<T>.N)[0]', 'element_access_expression'],
+    ['(G<T>.N)[]', 'cast_expression'],
+    ['(global::N.T)[0]', 'element_access_expression'],
+    ['(N.G<T>)[0]', 'cast_expression'],
+    ['(G<T>)[0]', 'cast_expression'],
+    ['(int)[0]', 'cast_expression'],
+    ['(T[])[0]', 'cast_expression'],
+    ['(T?)[0]', 'cast_expression'],
+    ['(T*)[0]', 'cast_expression'],
+    ['(global::T)[0]', 'cast_expression'],
+  ] as const;
+  let tree: Tree | undefined;
+  let previous = '';
+  try {
+    for (const [expression, kind] of [...cases, ...cases.toReversed()]) {
+      const source = `/* α */ var result = ${expression};`;
+      if (tree) editTree(tree, previous, source);
+      const next = parser.parse(source, tree)!;
+      tree?.delete();
+      tree = next;
+      previous = source;
+      const fresh = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        expect(syntaxSnapshot(tree.rootNode), expression).toEqual(syntaxSnapshot(fresh.rootNode));
+        const initializer = tree.rootNode.descendantsOfType('variable_declarator')[0]?.lastNamedChild;
+        expect(initializer?.type, expression).toBe(kind);
+        expect(initializer?.text, expression).toBe(expression);
+        if (kind === 'cast_expression') {
+          expect(initializer?.childForFieldName('value')?.type, expression).toBe('collection_expression');
+        } else {
+          expect(initializer?.childForFieldName('expression')?.type, expression).toBe('parenthesized_expression');
+        }
+      } finally {
+        fresh.delete();
+      }
+    }
+  } finally {
+    tree?.delete();
     parser.delete();
   }
 });
