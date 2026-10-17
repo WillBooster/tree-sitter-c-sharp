@@ -22,6 +22,7 @@ test('keeps ternary and lower-precedence operators outside relational patterns',
           '^ ready',
           '| ready',
           '?? fallback',
+          '< 2',
         ]) {
           const condition = `${receiver} is ${operator} 0`;
           const source = `var result = ${condition} ${suffix};`;
@@ -48,10 +49,10 @@ test('keeps ternary and lower-precedence operators outside relational patterns',
   }
 });
 
-test('retains arithmetic, nested relations, and parenthesized operands in every pattern context', () => {
+test('retains arithmetic and parenthesized operands in every pattern context', () => {
   const parser = new Parser().setLanguage(language);
   try {
-    for (const operand of ['1 + 2 * 3', '1 << 2', '1 < 2', '(flag ? 1 : 2)', '(1 & 2)', 'Limit.Value', 'Limit?[0]']) {
+    for (const operand of ['1 + 2 * 3', '1 << 2', '(1 < 2)', '(flag ? 1 : 2)', '(1 & 2)', 'Limit.Value', 'Limit?[0]']) {
       const pattern = `> ${operand}`;
       for (const source of [
         `var result = x is ${pattern};`,

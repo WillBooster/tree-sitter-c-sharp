@@ -1448,7 +1448,7 @@ module.exports = grammar({
 
     subpattern: ($) => subpattern($),
 
-    relational_pattern: ($) => prec.right(PREC.REL, seq(choice('<', '<=', '>', '>='), $.expression)),
+    relational_pattern: ($) => prec.left(PREC.REL, seq(choice('<', '<=', '>', '>='), $.expression)),
 
     negated_pattern: ($) => seq('not', $.pattern),
 

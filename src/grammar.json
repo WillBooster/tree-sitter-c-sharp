@@ -9695,7 +9695,7 @@
       ]
     },
     "relational_pattern": {
-      "type": "PREC_RIGHT",
+      "type": "PREC_LEFT",
       "value": 10,
       "content": {
         "type": "SEQ",
