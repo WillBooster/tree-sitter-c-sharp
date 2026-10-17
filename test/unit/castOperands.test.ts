@@ -109,6 +109,39 @@ test('keeps parenthesized expressions and patterns before contextual continuatio
   }
 });
 
+test('retains parenthesized operands across directive trivia before continuations', () => {
+  for (const directive of ['#pragma warning disable CS0168', '#line 42', '#nullable enable', '#region R\n#endregion']) {
+    for (const suffix of ['? 1 : 2', '+ 1', '== b', '.Length']) {
+      const expression = `(a)\n${directive}\n${suffix}`;
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        expect(tree.rootNode.descendantsOfType('cast_expression'), expression).toHaveLength(0);
+        expect(tree.rootNode.descendantsOfType('parenthesized_expression')[0]?.text, expression).toBe('(a)');
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
+test('retains ordinary cast operands separated or selected by directives', () => {
+  for (const type of ['T', 'T[]']) {
+    for (const value of ['#pragma warning disable CS0168\na', '#if true\na\n#else\nb\n#endif\n']) {
+      const expression = `(${type})\n${value}`;
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        const casts = tree.rootNode.descendantsOfType('cast_expression');
+        expect(casts, expression).toHaveLength(1);
+        expect(casts[0]?.childForFieldName('type')?.text, expression).toBe(type);
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
 test('preserves division after ambiguous parenthesized cast candidates', () => {
   for (const operand of ['T', 'A.B']) {
     for (const operator of ['/', '/* before */ / /* after */']) {

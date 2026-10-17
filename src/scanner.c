@@ -1161,7 +1161,7 @@ static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
         if (!advance_operator_character(lexer)) return false;
         next = question_skip_separators(lexer);
     }
-    if (preferred && ambiguous && only_bangs && (next == '(' || next == '[')) return false;
+    if (preferred && (next == '#' || (ambiguous && only_bangs && (next == '(' || next == '[')))) return false;
     if (next < 0 || next == ')' || next == ']' || next == '}' || next == '{' || next == ',' || next == ':' || next == ';' || next == '?' ||
         next == '=' || next == '|' || next == '<' || next == '>' || next == '/' || next == '%' || !next) return false;
     if (next == '.') {
