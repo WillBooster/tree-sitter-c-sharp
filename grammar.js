@@ -53,6 +53,30 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$.type, $._pattern_type, $.recursive_pattern],
+    [$.implicit_type, $._pattern_identifier, $.var_pattern, $._reserved_identifier],
+    [$._pattern_primary_expression, $._pattern_non_name_primary_expression],
+    [$._pattern_type, $._pattern_array_type],
+    [$._pattern_type, $.recursive_pattern],
+    [$._pattern_type, $._pattern_array_type, $._array_base_type],
+    [$._pattern_identifier, $.var_pattern, $._reserved_identifier],
+    [
+      $._pattern_primary_expression,
+      $._pattern_non_name_primary_expression,
+      $._primary_no_conditional_access_expression,
+    ],
+    [
+      $._pattern_primary_expression,
+      $._primary_no_conditional_access_expression,
+      $.conditional_access_expression,
+      $._conditional_assignment_expression,
+    ],
+    [$._pattern_primary_expression, $.conditional_access_expression, $._conditional_assignment_expression],
+    [
+      $._primary_no_conditional_access_expression,
+      $.conditional_access_expression,
+      $._conditional_assignment_expression,
+    ],
     [$._pattern_array_type, $._array_base_type],
     [$._definite_cast_type, $._range_cast_type],
     [$.type, $._definite_cast_type, $._range_cast_type],
@@ -83,7 +107,6 @@ module.exports = grammar({
     [$._primary_no_conditional_access_expression, $._definite_conditional_access_receiver],
     [$._pattern_unary_expression, $._nonconditional_unary_expression],
     [$._pattern_primary_expression, $._nonconditional_unary_expression],
-    [$._pattern_primary_expression, $._primary_no_conditional_access_expression, $.conditional_access_expression],
     [$._pattern_primary_expression, $._primary_no_conditional_access_expression, $._conditional_access_receiver],
     [$.parameter, $._pattern_non_name_primary_expression, $._primary_no_conditional_access_expression],
     [$._named_subpattern, $.subpattern],
@@ -110,7 +133,6 @@ module.exports = grammar({
     [$._pattern_identifier, $.from_clause, $._reserved_identifier],
     [$.scoped_type, $._pattern_identifier, $._reserved_identifier],
     [$._pattern_identifier, $._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
-    [$._pattern_primary_expression, $.conditional_access_expression],
     [$._pattern_identifier, $.identifier],
     [$.implicit_type, $._pattern_identifier, $._reserved_identifier],
     [$._pattern_primary_expression, $._conditional_access_receiver],
@@ -123,7 +145,6 @@ module.exports = grammar({
     [$._member_conditional_binding_expression, $._member_conditional_binding_receiver],
     [$.array_creation_expression, $._initialized_array_creation_expression],
     [$.type, $.array_creation_expression, $._initialized_array_creation_expression],
-    [$._primary_no_conditional_access_expression, $.conditional_access_expression],
     [$._name, $._primary_no_conditional_access_expression, $._conditional_access_receiver],
     [$._primary_no_conditional_access_expression, $._conditional_access_receiver],
     [$._name, $._conditional_access_receiver],
@@ -268,6 +289,7 @@ module.exports = grammar({
   ],
 
   inline: ($) => [
+    $._postfix_receiver,
     $._namespace_member_declaration,
     $._object_creation_type,
     $._nullable_base_type,
@@ -1596,6 +1618,7 @@ module.exports = grammar({
 
     conditional_access_expression: ($) =>
       choice(
+        $._conditional_assignment_expression,
         conditionalAccessExpression($, $._conditional_access_receiver),
         seq(
           field('condition', $._definite_conditional_access_receiver),
@@ -1609,11 +1632,7 @@ module.exports = grammar({
         )
       ),
 
-    _member_conditional_access_consequence: ($) =>
-      choice(
-        $._member_conditional_binding_expression,
-        alias($._member_conditional_binding_assignment_expression, $.assignment_expression)
-      ),
+    _member_conditional_access_consequence: ($) => $._member_conditional_binding_expression,
 
     _member_conditional_binding_expression: ($) =>
       choice(
@@ -1651,11 +1670,7 @@ module.exports = grammar({
     _member_conditional_binding_assignment_expression: ($) =>
       assignmentExpression($, $._member_conditional_binding_receiver),
 
-    _conditional_access_consequence: ($) =>
-      choice(
-        $._conditional_binding_expression,
-        alias($._conditional_binding_assignment_expression, $.assignment_expression)
-      ),
+    _conditional_access_consequence: ($) => $._conditional_binding_expression,
 
     _conditional_binding_expression: ($) =>
       choice(
@@ -1689,6 +1704,57 @@ module.exports = grammar({
     _binding_conditional_access_expression: ($) => conditionalAccessExpression($, $._conditional_binding_receiver),
 
     _conditional_binding_assignment_expression: ($) => assignmentExpression($, $._conditional_binding_receiver),
+
+    _conditional_assignment_expression: ($) =>
+      choice(
+        seq(
+          field('condition', $._conditional_access_receiver),
+          accessQuestion(),
+          field('consequence', $._conditional_assignment_consequence)
+        ),
+        seq(
+          field('condition', $._definite_conditional_access_receiver),
+          definiteAccessQuestion(),
+          field('consequence', $._conditional_assignment_consequence)
+        ),
+        seq(
+          field('condition', $.array_creation_expression),
+          memberAccessQuestion(),
+          field('consequence', $._member_conditional_assignment_consequence)
+        )
+      ),
+
+    _conditional_assignment_consequence: ($) =>
+      choice(
+        alias($._conditional_binding_assignment_expression, $.assignment_expression),
+        alias($._binding_conditional_assignment_expression, $.conditional_access_expression)
+      ),
+
+    _member_conditional_assignment_consequence: ($) =>
+      choice(
+        alias($._member_conditional_binding_assignment_expression, $.assignment_expression),
+        alias($._member_binding_conditional_assignment_expression, $.conditional_access_expression)
+      ),
+
+    _binding_conditional_assignment_expression: ($) =>
+      seq(
+        field('condition', $._conditional_binding_receiver),
+        accessQuestion(),
+        field('consequence', $._conditional_assignment_consequence)
+      ),
+
+    _member_binding_conditional_assignment_expression: ($) =>
+      seq(
+        field('condition', $._member_conditional_binding_receiver),
+        accessQuestion(),
+        field('consequence', $._conditional_assignment_consequence)
+      ),
+
+    _postfix_receiver: ($) =>
+      choice(
+        $._primary_no_conditional_access_expression,
+        alias($._conditional_assignment_expression, $.conditional_access_expression)
+      ),
 
     as_expression: ($) =>
       prec(
@@ -1749,7 +1815,7 @@ module.exports = grammar({
 
     checked_expression: ($) => seq(choice('checked', 'unchecked'), '(', $.expression, ')'),
 
-    invocation_expression: ($) => invocationExpression($, $._primary_no_conditional_access_expression),
+    invocation_expression: ($) => invocationExpression($, $._postfix_receiver),
 
     switch_expression: ($) => switchExpression($, $.expression),
     _switch_expression_body: ($) =>
@@ -1768,7 +1834,7 @@ module.exports = grammar({
 
     throw_expression: ($) => seq('throw', $.expression),
 
-    element_access_expression: ($) => elementAccessExpression($, $._primary_no_conditional_access_expression),
+    element_access_expression: ($) => elementAccessExpression($, $._postfix_receiver),
 
     interpolated_string_expression: ($) =>
       choice(
@@ -1838,8 +1904,7 @@ module.exports = grammar({
     _multiline_interpolation_format_clause: () =>
       prec.dynamic(1, seq(':', optional(sym('_file_directive_literal_context')), /[^}"]+/)),
 
-    member_access_expression: ($) =>
-      memberAccessExpression($, choice($._primary_no_conditional_access_expression, $.predefined_type, $._name)),
+    member_access_expression: ($) => memberAccessExpression($, choice($._postfix_receiver, $.predefined_type, $._name)),
 
     member_binding_expression: ($) => seq('.', field('name', $._simple_name)),
 

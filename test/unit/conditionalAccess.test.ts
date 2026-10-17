@@ -1803,3 +1803,51 @@ test('keeps later nullable logical patterns out of ternary colon counts', () => 
     parser.delete();
   }
 });
+
+test('continues outside completed conditional assignments while retaining ordinary right-hand-side postfixes', () => {
+  const parser = new Parser();
+  parser.setLanguage(language);
+  try {
+    for (const target of ['a?.b', 'a?[0]', 'a?.b?.c', 'a?[0]?[1]', 'true?.b', 'default(T)?[0]']) {
+      for (const [right, suffix, parentKind] of [
+        ['c as T[]', '.d()', 'member_access_expression'],
+        ['c as T?', '.d()', 'member_access_expression'],
+        ['c as List<int>.d', '()', 'invocation_expression'],
+        ['c as List<int>', '!', 'postfix_unary_expression'],
+        ['b with { P = 1 }', '.d()', 'member_access_expression'],
+        ['b with { P = 1 }', '[0]', 'element_access_expression'],
+        ['b with { P = 1 }', '()', 'invocation_expression'],
+      ]) {
+        const assignmentText = `${target} = ${right}`;
+        const expression = `${assignmentText}${suffix}`;
+        const tree = parser.parse(`var result = ${expression};`)!;
+        try {
+          expect(tree.rootNode.hasError, expression).toBe(false);
+          const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
+          expect(access?.text, expression).toBe(assignmentText);
+          expect(access?.parent?.text, expression).toBe(suffix === '.d()' ? `${assignmentText}.d` : expression);
+          expect(access?.parent?.type, expression).toBe(parentKind);
+          const assignment = access?.descendantsOfType('assignment_expression')[0];
+          expect(assignment?.childForFieldName('right')?.text, expression).toBe(right);
+        } finally {
+          tree.delete();
+        }
+      }
+      for (const right of ['c.d()', 'c[0]', 'c()', 'c!', '(c as T[]).d()', '(b with { P = 1 }).d()']) {
+        const expression = `${target} = ${right}`;
+        const tree = parser.parse(`var result = ${expression};`)!;
+        try {
+          expect(tree.rootNode.hasError, expression).toBe(false);
+          const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
+          expect(access?.text, expression).toBe(expression);
+          const assignment = access?.descendantsOfType('assignment_expression')[0];
+          expect(assignment?.childForFieldName('right')?.text, expression).toBe(right);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

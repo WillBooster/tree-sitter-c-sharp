@@ -11551,6 +11551,10 @@
       "type": "CHOICE",
       "members": [
         {
+          "type": "SYMBOL",
+          "name": "_conditional_assignment_expression"
+        },
+        {
           "type": "SEQ",
           "members": [
             {
@@ -11694,22 +11698,8 @@
       ]
     },
     "_member_conditional_access_consequence": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "_member_conditional_binding_expression"
-        },
-        {
-          "type": "ALIAS",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_member_conditional_binding_assignment_expression"
-          },
-          "named": true,
-          "value": "assignment_expression"
-        }
-      ]
+      "type": "SYMBOL",
+      "name": "_member_conditional_binding_expression"
     },
     "_member_conditional_binding_expression": {
       "type": "CHOICE",
@@ -12033,22 +12023,8 @@
       }
     },
     "_conditional_access_consequence": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "_conditional_binding_expression"
-        },
-        {
-          "type": "ALIAS",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_conditional_binding_assignment_expression"
-          },
-          "named": true,
-          "value": "assignment_expression"
-        }
-      ]
+      "type": "SYMBOL",
+      "name": "_conditional_binding_expression"
     },
     "_conditional_binding_expression": {
       "type": "CHOICE",
@@ -12379,6 +12355,322 @@
           }
         ]
       }
+    },
+    "_conditional_assignment_expression": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "condition",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_conditional_access_receiver"
+              }
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_question_member_access"
+                  },
+                  "named": false,
+                  "value": "?"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_question_element_access"
+                  },
+                  "named": false,
+                  "value": "?"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_question_unknown"
+                  },
+                  "named": false,
+                  "value": "?"
+                }
+              ]
+            },
+            {
+              "type": "FIELD",
+              "name": "consequence",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_conditional_assignment_consequence"
+              }
+            }
+          ]
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "condition",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_definite_conditional_access_receiver"
+              }
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_question_definite_access"
+                  },
+                  "named": false,
+                  "value": "?"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_question_unknown"
+                  },
+                  "named": false,
+                  "value": "?"
+                }
+              ]
+            },
+            {
+              "type": "FIELD",
+              "name": "consequence",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_conditional_assignment_consequence"
+              }
+            }
+          ]
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "condition",
+              "content": {
+                "type": "SYMBOL",
+                "name": "array_creation_expression"
+              }
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_question_member_access"
+                  },
+                  "named": false,
+                  "value": "?"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_question_unknown"
+                  },
+                  "named": false,
+                  "value": "?"
+                }
+              ]
+            },
+            {
+              "type": "FIELD",
+              "name": "consequence",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_member_conditional_assignment_consequence"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "_conditional_assignment_consequence": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_conditional_binding_assignment_expression"
+          },
+          "named": true,
+          "value": "assignment_expression"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_binding_conditional_assignment_expression"
+          },
+          "named": true,
+          "value": "conditional_access_expression"
+        }
+      ]
+    },
+    "_member_conditional_assignment_consequence": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_member_conditional_binding_assignment_expression"
+          },
+          "named": true,
+          "value": "assignment_expression"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_member_binding_conditional_assignment_expression"
+          },
+          "named": true,
+          "value": "conditional_access_expression"
+        }
+      ]
+    },
+    "_binding_conditional_assignment_expression": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "condition",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_conditional_binding_receiver"
+          }
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_question_member_access"
+              },
+              "named": false,
+              "value": "?"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_question_element_access"
+              },
+              "named": false,
+              "value": "?"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_question_unknown"
+              },
+              "named": false,
+              "value": "?"
+            }
+          ]
+        },
+        {
+          "type": "FIELD",
+          "name": "consequence",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_conditional_assignment_consequence"
+          }
+        }
+      ]
+    },
+    "_member_binding_conditional_assignment_expression": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "condition",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_member_conditional_binding_receiver"
+          }
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_question_member_access"
+              },
+              "named": false,
+              "value": "?"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_question_element_access"
+              },
+              "named": false,
+              "value": "?"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_question_unknown"
+              },
+              "named": false,
+              "value": "?"
+            }
+          ]
+        },
+        {
+          "type": "FIELD",
+          "name": "consequence",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_conditional_assignment_consequence"
+          }
+        }
+      ]
+    },
+    "_postfix_receiver": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_primary_no_conditional_access_expression"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_conditional_assignment_expression"
+          },
+          "named": true,
+          "value": "conditional_access_expression"
+        }
+      ]
     },
     "as_expression": {
       "type": "PREC",
@@ -12906,7 +13198,7 @@
             "name": "function",
             "content": {
               "type": "SYMBOL",
-              "name": "_primary_no_conditional_access_expression"
+              "name": "_postfix_receiver"
             }
           },
           {
@@ -13096,7 +13388,7 @@
             "name": "expression",
             "content": {
               "type": "SYMBOL",
-              "name": "_primary_no_conditional_access_expression"
+              "name": "_postfix_receiver"
             }
           },
           {
@@ -13509,7 +13801,7 @@
               "members": [
                 {
                   "type": "SYMBOL",
-                  "name": "_primary_no_conditional_access_expression"
+                  "name": "_postfix_receiver"
                 },
                 {
                   "type": "SYMBOL",
@@ -18571,6 +18863,60 @@
   ],
   "conflicts": [
     [
+      "type",
+      "_pattern_type",
+      "recursive_pattern"
+    ],
+    [
+      "implicit_type",
+      "_pattern_identifier",
+      "var_pattern",
+      "_reserved_identifier"
+    ],
+    [
+      "_pattern_primary_expression",
+      "_pattern_non_name_primary_expression"
+    ],
+    [
+      "_pattern_type",
+      "_pattern_array_type"
+    ],
+    [
+      "_pattern_type",
+      "recursive_pattern"
+    ],
+    [
+      "_pattern_type",
+      "_pattern_array_type",
+      "_array_base_type"
+    ],
+    [
+      "_pattern_identifier",
+      "var_pattern",
+      "_reserved_identifier"
+    ],
+    [
+      "_pattern_primary_expression",
+      "_pattern_non_name_primary_expression",
+      "_primary_no_conditional_access_expression"
+    ],
+    [
+      "_pattern_primary_expression",
+      "_primary_no_conditional_access_expression",
+      "conditional_access_expression",
+      "_conditional_assignment_expression"
+    ],
+    [
+      "_pattern_primary_expression",
+      "conditional_access_expression",
+      "_conditional_assignment_expression"
+    ],
+    [
+      "_primary_no_conditional_access_expression",
+      "conditional_access_expression",
+      "_conditional_assignment_expression"
+    ],
+    [
       "_pattern_array_type",
       "_array_base_type"
     ],
@@ -18680,11 +19026,6 @@
     [
       "_pattern_primary_expression",
       "_nonconditional_unary_expression"
-    ],
-    [
-      "_pattern_primary_expression",
-      "_primary_no_conditional_access_expression",
-      "conditional_access_expression"
     ],
     [
       "_pattern_primary_expression",
@@ -18799,10 +19140,6 @@
       "_reserved_identifier"
     ],
     [
-      "_pattern_primary_expression",
-      "conditional_access_expression"
-    ],
-    [
       "_pattern_identifier",
       "identifier"
     ],
@@ -18852,10 +19189,6 @@
       "type",
       "array_creation_expression",
       "_initialized_array_creation_expression"
-    ],
-    [
-      "_primary_no_conditional_access_expression",
-      "conditional_access_expression"
     ],
     [
       "_name",
@@ -19379,6 +19712,7 @@
     }
   ],
   "inline": [
+    "_postfix_receiver",
     "_namespace_member_declaration",
     "_object_creation_type",
     "_nullable_base_type",

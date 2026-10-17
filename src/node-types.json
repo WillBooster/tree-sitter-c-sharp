@@ -2949,6 +2949,10 @@
             "named": true
           },
           {
+            "type": "conditional_access_expression",
+            "named": true
+          },
+          {
             "type": "default_expression",
             "named": true
           },
@@ -4344,6 +4348,10 @@
             "named": true
           },
           {
+            "type": "conditional_access_expression",
+            "named": true
+          },
+          {
             "type": "default_expression",
             "named": true
           },
@@ -4821,6 +4829,10 @@
           },
           {
             "type": "collection_expression",
+            "named": true
+          },
+          {
+            "type": "conditional_access_expression",
             "named": true
           },
           {
