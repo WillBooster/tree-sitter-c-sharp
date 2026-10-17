@@ -2295,7 +2295,7 @@
                 "type": "ALIAS",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_generic_call_identifier"
+                  "name": "_extension_generic_keyword"
                 },
                 "named": false,
                 "value": "extension"
@@ -20548,6 +20548,10 @@
     {
       "type": "SYMBOL",
       "name": "_type_argument_leave"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_extension_generic_keyword"
     }
   ],
   "inline": [

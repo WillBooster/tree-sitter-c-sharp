@@ -282,6 +282,7 @@ module.exports = grammar({
     sym('_generic_call_identifier'),
     sym('_type_argument_enter'),
     sym('_type_argument_leave'),
+    sym('_extension_generic_keyword'),
   ],
 
   extras: ($) => [
@@ -649,7 +650,7 @@ module.exports = grammar({
         1,
         seq(
           repeat($._attribute_list),
-          choice('extension', alias(sym('_generic_call_identifier'), 'extension')),
+          choice('extension', alias(sym('_extension_generic_keyword'), 'extension')),
           optional($.type_parameter_list),
           '(',
           $.receiver_parameter,

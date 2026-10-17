@@ -216,6 +216,9 @@ test('retains chained generic invocations in expression contexts', () => {
     ['F<G<T>>(a)(b)', 'F<G<T>>(a)'],
     ['F<T>(a)(b)(c)', 'F<T>(a)(b)'],
     ['var<T>(a)(b)', 'var<T>(a)'],
+    ['extension<T>(a)(b)', 'extension<T>(a)'],
+    ['nint<T>(a)(b)', 'nint<T>(a)'],
+    ['nuint<T>(a)(b)', 'nuint<T>(a)'],
     ['F<var>(a)(b)', 'F<var>(a)'],
     ['F<G<var>>(a)(b)', 'F<G<var>>(a)'],
     ['F<(var,T)>(a)(b)', 'F<(var,T)>(a)'],
@@ -509,5 +512,34 @@ test('retains generic calls in type-parameter attribute expressions', () => {
     expect(tree.rootNode.descendantsOfType('type_parameter')[0]?.childForFieldName('name')?.text).toBe('U');
   } finally {
     tree.delete();
+  }
+});
+
+test('keeps extension keywords distinct from generic names and reserved words', () => {
+  for (const source of [
+    'class C<T> { C<T>(int x) {} }',
+    'struct S<T> where T : class { S<T>(int x) {} }',
+    'var r = int<T>(x)(y);',
+    'var r = __makeref<T>(x);',
+  ]) {
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(true);
+      expect(tree.rootNode.descendantsOfType('extension_declaration'), source).toHaveLength(0);
+    } finally {
+      tree.delete();
+    }
+  }
+  for (const [source, kind] of [
+    ['static class C { extension<T>(T value) {} }', 'extension_declaration'],
+    ['class C { void extension<T>(T value) {} }', 'method_declaration'],
+  ] as const) {
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(false);
+      expect(tree.rootNode.descendantsOfType(kind), source).toHaveLength(1);
+    } finally {
+      tree.delete();
+    }
   }
 });

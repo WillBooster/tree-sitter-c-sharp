@@ -60,6 +60,7 @@ enum TokenType {
     GENERIC_CALL_IDENTIFIER,
     TYPE_ARGUMENT_ENTER,
     TYPE_ARGUMENT_LEAVE,
+    EXTENSION_GENERIC_KEYWORD,
 };
 
 typedef enum {
@@ -554,11 +555,13 @@ static bool advance_operator_character(TSLexer *lexer);
 static bool scan_ambiguous_cast_operand_start(TSLexer *lexer);
 static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols);
 static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred);
-static bool scan_generic_call_identifier(Scanner *scanner, TSLexer *lexer, bool verbatim);
+static bool scan_generic_call_identifier(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols, bool verbatim);
+static bool generic_call_name_allowed(const QuestionIdentifier *name);
 static bool scan_type_argument_boundary(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
+    bool generic_name_token_valid = valid_symbols[GENERIC_CALL_IDENTIFIER] || valid_symbols[EXTENSION_GENERIC_KEYWORD];
 
     uint8_t brace_advanced = 0;
     uint8_t quote_count = 0;
@@ -792,8 +795,8 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         if (lexer->lookahead == '@') {
             is_verbatim = true;
             advance(lexer);
-            if (valid_symbols[GENERIC_CALL_IDENTIFIER] && (is_id_start(lexer->lookahead) || lexer->lookahead == '\\'))
-                return scan_generic_call_identifier(scanner, lexer, true);
+            if (generic_name_token_valid && (is_id_start(lexer->lookahead) || lexer->lookahead == '\\'))
+                return scan_generic_call_identifier(scanner, lexer, valid_symbols, true);
         }
 
         while (lexer->lookahead == '$' && quote_count == 0) {
@@ -1036,11 +1039,11 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         return did_advance;
     }
 
-    if (valid_symbols[GENERIC_CALL_IDENTIFIER])
+    if (generic_name_token_valid)
         while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
-    if (valid_symbols[GENERIC_CALL_IDENTIFIER] &&
+    if (generic_name_token_valid &&
         rank_identifier_start(lexer->lookahead))
-        return scan_generic_call_identifier(scanner, lexer, false);
+        return scan_generic_call_identifier(scanner, lexer, valid_symbols, false);
 
     return false;
 }
@@ -1064,18 +1067,31 @@ static bool scan_type_argument_boundary(Scanner *scanner, TSLexer *lexer, const 
     return true;
 }
 
-static bool scan_generic_call_identifier(Scanner *scanner, TSLexer *lexer, bool verbatim) {
+static bool scan_generic_call_identifier(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols, bool verbatim) {
     if (scanner->certified_type_depth) return false;
     QuestionIdentifier name;
     if (verbatim ? !question_identifier(lexer, true, &name) : !rank_read_identifier(lexer, &name)) return false;
-    if (!rank_identifier_allowed(&name, true) && strcmp(name.word, "var")) return false;
+    if (!generic_call_name_allowed(&name)) return false;
+    unsigned symbol = name.keyword && !strcmp(name.word, "extension") && valid_symbols[EXTENSION_GENERIC_KEYWORD]
+        ? EXTENSION_GENERIC_KEYWORD : GENERIC_CALL_IDENTIFIER;
+    if (!valid_symbols[symbol]) return false;
     lexer->mark_end(lexer);
     RankTypeRead read = {.generic_call = true};
     if (rank_type_separators(lexer, &read) != '<') return false;
     advance(lexer);
     if (!rank_read_as_arguments(lexer, '>', &read) || rank_type_separators(lexer, &read) != '(') return false;
-    lexer->result_symbol = GENERIC_CALL_IDENTIFIER;
+    lexer->result_symbol = symbol;
     return true;
+}
+
+static bool generic_call_name_allowed(const QuestionIdentifier *name) {
+    if (!name->keyword) return true;
+    if (!rank_identifier_allowed(name, true) && strcmp(name->word, "var")) return false;
+    static const char *const keywords[] = {
+        "bool", "byte", "char", "decimal", "double", "float", "int", "long", "object", "sbyte", "short",
+        "string", "uint", "ulong", "ushort", "void", "__arglist", "__makeref", "__reftype", "__refvalue"
+    };
+    return !question_word_in(name->word, keywords, sizeof(keywords) / sizeof(keywords[0]));
 }
 
 static bool scan_ambiguous_cast_operand_start(TSLexer *lexer) {
