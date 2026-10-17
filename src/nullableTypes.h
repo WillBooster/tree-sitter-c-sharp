@@ -12,6 +12,9 @@ static bool rank_read_type_name_step(TSLexer *, RankTypeRead *, RankTypeFrames *
 static bool rank_read_type_tail_step(TSLexer *, RankTypeRead *, RankTypeFrames *, bool);
 static bool rank_read_type_argument_end(TSLexer *, RankTypeRead *, RankTypeFrames *, int32_t, bool);
 static bool rank_prepare_name_suffix(TSLexer *, RankTypeRead *, const QuestionIdentifier *, bool *);
+static bool rank_type_name_allowed(const RankTypeRead *, const QuestionIdentifier *);
+static bool rank_read_generic_type_prefix(TSLexer *, RankTypeRead *, QuestionIdentifier *, bool *);
+static bool rank_identifier_start(int32_t);
 
 static bool rank_read_prefix(TSLexer *lexer, bool *simple, uint32_t *questions);
 static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *name, bool *simple, uint32_t *questions);
@@ -173,9 +176,40 @@ static bool rank_read_type_step(TSLexer *lexer, RankTypeRead *read, RankTypeFram
 static bool rank_read_type_name_step(TSLexer *lexer, RankTypeRead *read, RankTypeFrames *frames) {
     QuestionIdentifier name;
     bool arguments = false;
-    if (!rank_read_identifier(lexer, &name) || !rank_prepare_name_suffix(lexer, read, &name, &arguments)) return false;
+    if (!rank_read_identifier(lexer, &name)) return false;
+    bool nested_type = false;
+    if (read->generic_call && !rank_read_generic_type_prefix(lexer, read, &name, &nested_type)) return false;
+    if (nested_type) {
+        array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_START}));
+        return true;
+    }
+    if (!rank_prepare_name_suffix(lexer, read, &name, &arguments)) return false;
     if (arguments) array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = '>'}));
     return true;
+}
+
+static bool rank_read_generic_type_prefix(TSLexer *lexer, RankTypeRead *read, QuestionIdentifier *name, bool *nested_type) {
+    if (!name->keyword) return true;
+    if (!strcmp(name->word, "scoped")) {
+        int32_t c = rank_type_separators(lexer, read);
+        if (!rank_identifier_start(c)) return c >= 0;
+        if (!rank_read_identifier(lexer, name) || !name->keyword || strcmp(name->word, "ref")) return false;
+    }
+    bool reference = !strcmp(name->word, "ref");
+    if (!reference && strcmp(name->word, "in") && strcmp(name->word, "out")) return true;
+    int32_t c = rank_type_separators(lexer, read);
+    if (c < 0) return false;
+    if (!rank_identifier_start(c)) {
+        *nested_type = true;
+        return true;
+    }
+    if (!rank_read_identifier(lexer, name)) return false;
+    *nested_type = reference && name->keyword && !strcmp(name->word, "readonly");
+    return !*nested_type || rank_type_separators(lexer, read) >= 0;
+}
+
+static bool rank_identifier_start(int32_t c) {
+    return is_id_start(c) || c == '@' || c == '\\';
 }
 
 static bool rank_read_type_tail_step(TSLexer *lexer, RankTypeRead *read, RankTypeFrames *frames, bool arguments_allowed) {
@@ -205,7 +239,7 @@ static bool rank_read_type_argument_end(TSLexer *lexer, RankTypeRead *read, Rank
     int32_t c = rank_type_gap(lexer, read);
     if (close == ')' && c != ',' && c != close) {
         QuestionIdentifier name;
-        if (!rank_read_identifier(lexer, &name) || !rank_identifier_allowed(&name, true)) return false;
+        if (!rank_read_identifier(lexer, &name) || !rank_type_name_allowed(read, &name)) return false;
         c = rank_type_gap(lexer, read);
     }
     if ((require_comma && c != ',') || (c != ',' && c != close)) return false;
@@ -303,13 +337,17 @@ static bool rank_prepare_name_suffix(TSLexer *lexer, RankTypeRead *read, const Q
         if (rank_type_separators(lexer, read) != '*') return false;
         advance(lexer);
         if (!rank_read_calling_convention(lexer, read)) return false;
-    } else if (!rank_identifier_allowed(name, true) && !(read->generic_call && !strcmp(name->word, "var"))) return false;
+    } else if (!rank_type_name_allowed(read, name)) return false;
     int32_t next = rank_type_gap(lexer, read);
     if (next != '<') return next >= -1 && !function_pointer;
     read->complex = true;
     advance(lexer);
     *arguments = true;
     return true;
+}
+
+static bool rank_type_name_allowed(const RankTypeRead *read, const QuestionIdentifier *name) {
+    return rank_identifier_allowed(name, true) || (read->generic_call && name->keyword && !strcmp(name->word, "var"));
 }
 
 static bool rank_read_calling_convention(TSLexer *lexer, const RankTypeRead *read) {

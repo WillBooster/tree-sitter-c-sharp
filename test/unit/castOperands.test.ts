@@ -219,6 +219,10 @@ test('retains chained generic invocations in expression contexts', () => {
     ['F<var>(a)(b)', 'F<var>(a)'],
     ['F<G<var>>(a)(b)', 'F<G<var>>(a)'],
     ['F<(var,T)>(a)(b)', 'F<(var,T)>(a)'],
+    ['F<(T var,U other)>(a)(b)', 'F<(T var,U other)>(a)'],
+    ['F<ref T>(a)(b)', 'F<ref T>(a)'],
+    ['F<ref readonly T>(a)(b)', 'F<ref readonly T>(a)'],
+    ['F<delegate*<ref int,void>>(a)(b)', 'F<delegate*<ref int,void>>(a)'],
     ['F<T>\n#pragma warning disable CS0168\n(a)(b)', 'F<T>\n#pragma warning disable CS0168\n(a)'],
     ['F\n#line 100\n<T>(a)(b)', 'F\n#line 100\n<T>(a)'],
     ['F<\n#pragma warning disable CS0168\nT>(a)(b)', 'F<\n#pragma warning disable CS0168\nT>(a)'],
@@ -266,6 +270,7 @@ test('keeps qualified casts independent of earlier generic calls', () => {
           `var r = ${expression};`,
           `class C { object M() { return ${expression}; } }`,
           `var r = ${call}; var s = (${type})${value};`,
+          `class C { void M() { var q = ${call}; var r = (${type})${value}; M2(); } }`,
         ]) {
           const tree = parser.parse(source)!;
           try {
@@ -488,5 +493,21 @@ test('rechecks generic-call proofs after changing distant type arguments and cal
         tree.delete();
       }
     }
+  }
+});
+
+test('retains generic calls in type-parameter attribute expressions', () => {
+  const source = 'class C { void M<[A(F<T>(x)(y))] U>() {} }';
+  const tree = parser.parse(source)!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(tree.rootNode.descendantsOfType('cast_expression')).toHaveLength(0);
+    expect(tree.rootNode.descendantsOfType('invocation_expression').map((node) => node.text)).toEqual([
+      'F<T>(x)(y)',
+      'F<T>(x)',
+    ]);
+    expect(tree.rootNode.descendantsOfType('type_parameter')[0]?.childForFieldName('name')?.text).toBe('U');
+  } finally {
+    tree.delete();
   }
 });

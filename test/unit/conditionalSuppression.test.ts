@@ -34,6 +34,10 @@ test('retains conditional assignments after a separated suppression operator', (
       expect(assignment[0]?.childForFieldName('left')?.type, expression).toBe('postfix_unary_expression');
       expect(assignment[0]?.childForFieldName('right')?.text, expression).toBe('c');
       expect(tree.rootNode.descendantsOfType('binary_expression'), expression).toHaveLength(0);
+      const accesses = tree.rootNode.descendantsOfType('conditional_access_expression');
+      expect(accesses, expression).toHaveLength(1);
+      expect(accesses[0]?.text, expression).toBe(expression);
+      expect(accesses[0]?.childForFieldName('consequence')?.type, expression).toBe('assignment_expression');
     } finally {
       tree.delete();
     }

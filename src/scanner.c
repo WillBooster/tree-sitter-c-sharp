@@ -81,7 +81,7 @@ static inline bool is_verbatim(Interpolation *interpolation) { return interpolat
 
 static inline bool is_raw(Interpolation *interpolation) { return interpolation->string_type & RAW; }
 
-#define QUESTION_FRAME_LIMIT ((TREE_SITTER_SERIALIZATION_BUFFER_SIZE - 9) / 2)
+#define QUESTION_FRAME_LIMIT ((TREE_SITTER_SERIALIZATION_BUFFER_SIZE - 13) / 2)
 
 typedef struct {
     uint8_t group;
@@ -96,6 +96,7 @@ typedef struct {
     bool question_type_uncertain;
     uint32_t question_access_cache;
     uint32_t type_argument_depth;
+    uint32_t certified_type_depth;
     uint8_t question_rank_role;
     uint32_t question_rank_prefix_questions;
     uint16_t question_frame_count;
@@ -214,7 +215,7 @@ static bool question_read_varint(const char *buffer, unsigned length, unsigned *
 
 unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buffer) {
     Scanner *scanner = (Scanner *)payload;
-    unsigned original_size = scanner->interpolation_stack.size * 4 + 7;
+    unsigned original_size = scanner->interpolation_stack.size * 4 + 11;
     if (original_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) return 0;
     bool extended = !scanner->question_unknown && (scanner->question_frame_count > 1 ||
         scanner->question_frames[0].pending || scanner->question_frames[0].unknown);
@@ -237,6 +238,7 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
         (!unknown && scanner->question_type_uncertain ? QUESTION_STATE_TYPE_UNCERTAIN : 0));
     buffer[size++] = (char)scanner->interpolation_stack.size;
     for (unsigned byte = 0; byte < 4; byte++) buffer[size++] = (char)(scanner->type_argument_depth >> (byte * 8));
+    for (unsigned byte = 0; byte < 4; byte++) buffer[size++] = (char)(scanner->certified_type_depth >> (byte * 8));
     for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
         Interpolation item = scanner->interpolation_stack.contents[i];
         buffer[size++] = (char)item.dollar_count;
@@ -261,10 +263,11 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
     scanner->quote_count = 0;
     scanner->next_file_directive = false;
     scanner->type_argument_depth = 0;
+    scanner->certified_type_depth = 0;
     array_clear(&scanner->interpolation_stack);
     reset_question_context(scanner);
     if (!length) return;
-    if (length < 7) goto unknown;
+    if (length < 11) goto unknown;
     unsigned size = 0;
     scanner->quote_count = (unsigned char)buffer[size++];
     unsigned flags = (unsigned char)buffer[size++];
@@ -272,7 +275,9 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
     unsigned count = (unsigned char)buffer[size++];
     for (unsigned byte = 0; byte < 4; byte++) scanner->type_argument_depth |=
         (uint32_t)(unsigned char)buffer[size++] << (byte * 8);
-    if (7 + count * 4 > length) goto unknown;
+    for (unsigned byte = 0; byte < 4; byte++) scanner->certified_type_depth |=
+        (uint32_t)(unsigned char)buffer[size++] << (byte * 8);
+    if (scanner->certified_type_depth > scanner->type_argument_depth || 11 + count * 4 > length) goto unknown;
     array_reserve(&scanner->interpolation_stack, count);
     scanner->interpolation_stack.size = count;
     for (unsigned i = 0; i < count; i++) {
@@ -292,6 +297,7 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
     return;
 unknown:
     scanner->type_argument_depth = 0;
+    scanner->certified_type_depth = 0;
     reset_question_context(scanner);
     scanner->question_unknown = true;
 }
@@ -563,6 +569,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     scanner->next_file_directive = false;
     if (recovery) {
         scanner->type_argument_depth = 0;
+        scanner->certified_type_depth = 0;
         scanner->question_unknown = true; scanner->question_access_cache = 0;
         clear_question_rank(scanner);
         bool line_start = next_file_directive;
@@ -1032,27 +1039,33 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     if (valid_symbols[GENERIC_CALL_IDENTIFIER])
         while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     if (valid_symbols[GENERIC_CALL_IDENTIFIER] &&
-        (is_id_start(lexer->lookahead) || lexer->lookahead == '@' || lexer->lookahead == '\\'))
+        rank_identifier_start(lexer->lookahead))
         return scan_generic_call_identifier(scanner, lexer, false);
 
     return false;
 }
 
 static bool scan_type_argument_boundary(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+    if (!valid_symbols[TYPE_ARGUMENT_ENTER] && !valid_symbols[TYPE_ARGUMENT_LEAVE]) return false;
+    lexer->mark_end(lexer);
     if (valid_symbols[TYPE_ARGUMENT_ENTER]) {
         if (scanner->type_argument_depth == UINT32_MAX) return false;
         scanner->type_argument_depth++;
+        if (!scanner->certified_type_depth) {
+            RankTypeRead read = {.generic_call = true};
+            if (rank_read_as_arguments(lexer, '>', &read)) scanner->certified_type_depth = scanner->type_argument_depth;
+        }
         lexer->result_symbol = TYPE_ARGUMENT_ENTER;
     } else if (valid_symbols[TYPE_ARGUMENT_LEAVE]) {
+        if (scanner->certified_type_depth == scanner->type_argument_depth) scanner->certified_type_depth = 0;
         if (scanner->type_argument_depth) scanner->type_argument_depth--;
         lexer->result_symbol = TYPE_ARGUMENT_LEAVE;
     } else return false;
-    lexer->mark_end(lexer);
     return true;
 }
 
 static bool scan_generic_call_identifier(Scanner *scanner, TSLexer *lexer, bool verbatim) {
-    if (scanner->type_argument_depth) return false;
+    if (scanner->certified_type_depth) return false;
     QuestionIdentifier name;
     if (verbatim ? !question_identifier(lexer, true, &name) : !rank_read_identifier(lexer, &name)) return false;
     if (!rank_identifier_allowed(&name, true) && strcmp(name.word, "var")) return false;
