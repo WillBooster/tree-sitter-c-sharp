@@ -89,3 +89,26 @@ function assertBinary(expression: string, left: string, operator: string): void 
     tree.delete();
   }
 }
+
+test('keeps suppressed generic calls as is-pattern receivers', () => {
+  for (const call of ['f<T>(d)', 'g.f<T>(d)', 'f<T,U>(d)', 'f(d)']) {
+    for (const suppression of ['!', '!!']) {
+      const receiver = `${call}${suppression}`;
+      for (const pattern of ['(1, 2)', '(null)', '(A)', '[1]', '[_]']) {
+        const expression = `${receiver} is ${pattern}`;
+        const tree = parser.parse(`var result = ${expression};`)!;
+        try {
+          expect(tree.rootNode.hasError, expression).toBe(false);
+          const isPattern = tree.rootNode.descendantsOfType('is_pattern_expression')[0]!;
+          expect(isPattern?.text, expression).toBe(expression);
+          expect(isPattern.childForFieldName('expression')?.text, expression).toBe(receiver);
+          expect(isPattern.childForFieldName('expression')?.type, expression).toBe('postfix_unary_expression');
+          expect(isPattern.descendantsOfType('invocation_expression')[0]?.text, expression).toBe(call);
+          expect(tree.rootNode.descendantsOfType('cast_expression'), expression).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  }
+});

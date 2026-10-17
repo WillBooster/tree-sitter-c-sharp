@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 
-import { Edit, Language, Parser, Query, type Node, type Point, type Tree } from '@willbooster/web-tree-sitter';
+import { Edit, Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
+
+import { pointAt, syntaxSnapshot } from '../helpers/syntaxSnapshot';
 
 test('retains raw interpolation expressions beside literal braces through edits', async () => {
   await Parser.init();
@@ -29,9 +31,9 @@ var location = ${'$'.repeat(dollars)}"""
                 startIndex: start,
                 oldEndIndex: start + length,
                 newEndIndex: start + text.length,
-                startPosition: position(source, start),
-                oldEndPosition: position(source, start + length),
-                newEndPosition: position(next, start + text.length),
+                startPosition: pointAt(source, start),
+                oldEndPosition: pointAt(source, start + length),
+                newEndPosition: pointAt(next, start + text.length),
               })
             );
             const previous: Tree = tree;
@@ -39,7 +41,7 @@ var location = ${'$'.repeat(dollars)}"""
             previous.delete();
             const fresh = parser.parse(next)!;
             try {
-              expect(snapshot(tree.rootNode)).toEqual(snapshot(fresh.rootNode));
+              expect(syntaxSnapshot(tree.rootNode)).toEqual(syntaxSnapshot(fresh.rootNode));
               expect(captures(tree)).toEqual(captures(fresh));
               check(tree);
             } finally {
@@ -102,9 +104,9 @@ test('updates format newline validity when an interpolated string changes betwee
               startIndex: start,
               oldEndIndex: start + removed,
               newEndIndex: start + inserted.length,
-              startPosition: position(source, start),
-              oldEndPosition: position(source, start + removed),
-              newEndPosition: position(next, start + inserted.length),
+              startPosition: pointAt(source, start),
+              oldEndPosition: pointAt(source, start + removed),
+              newEndPosition: pointAt(next, start + inserted.length),
             })
           );
           const previous = tree;
@@ -113,7 +115,7 @@ test('updates format newline validity when an interpolated string changes betwee
           const fresh = parser.parse(next)!;
           try {
             expect(tree.rootNode.hasError, JSON.stringify(next)).toBe(!verbatim);
-            expect(snapshot(tree.rootNode)).toEqual(snapshot(fresh.rootNode));
+            expect(syntaxSnapshot(tree.rootNode)).toEqual(syntaxSnapshot(fresh.rootNode));
             const captures = (current: Tree): unknown =>
               highlights
                 .captures(current.rootNode)
@@ -160,9 +162,9 @@ test('preserves interpolation brace and format ranges when adding and removing a
                 startIndex: index,
                 oldEndIndex: oldEnd,
                 newEndIndex: index + format.length,
-                startPosition: position(source, index),
-                oldEndPosition: position(source, oldEnd),
-                newEndPosition: position(next, index + format.length),
+                startPosition: pointAt(source, index),
+                oldEndPosition: pointAt(source, oldEnd),
+                newEndPosition: pointAt(next, index + format.length),
               })
             );
             const previous = tree;
@@ -171,7 +173,7 @@ test('preserves interpolation brace and format ranges when adding and removing a
             const fresh = parser.parse(next)!;
             try {
               check(tree, Boolean(format));
-              expect(snapshot(tree.rootNode)).toEqual(snapshot(fresh.rootNode));
+              expect(syntaxSnapshot(tree.rootNode)).toEqual(syntaxSnapshot(fresh.rootNode));
             } finally {
               fresh.delete();
             }
@@ -226,16 +228,16 @@ test('retains declarations around incomplete raw interpolation formats through e
             startIndex: index,
             oldEndIndex: index + 1,
             newEndIndex: index + 1,
-            startPosition: position(source, index),
-            oldEndPosition: position(source, index + 1),
-            newEndPosition: position(next, index + 1),
+            startPosition: pointAt(source, index),
+            oldEndPosition: pointAt(source, index + 1),
+            newEndPosition: pointAt(next, index + 1),
           })
         );
         const incremental = parser.parse(next, tree)!;
         const fresh = parser.parse(next)!;
         try {
           check(incremental);
-          expect(snapshot(incremental.rootNode)).toEqual(snapshot(fresh.rootNode));
+          expect(syntaxSnapshot(incremental.rootNode)).toEqual(syntaxSnapshot(fresh.rootNode));
         } finally {
           incremental.delete();
           fresh.delete();
@@ -264,27 +266,6 @@ test('retains declarations around incomplete raw interpolation formats through e
   }
 });
 
-function position(source: string, index: number): Point {
-  const lines = source.slice(0, index).split('\n');
-  return { row: lines.length - 1, column: lines.at(-1)!.length };
-}
-
-function snapshot(node: Node): unknown {
-  return [
-    node.type,
-    node.isNamed,
-    node.isMissing,
-    node.isExtra,
-    node.hasError,
-    node.startIndex,
-    node.endIndex,
-    node.startPosition,
-    node.endPosition,
-    node.children.map((_, index) => node.fieldNameForChild(index)),
-    node.children.map(snapshot),
-  ];
-}
-
 test('retains declarations while a raw interpolation is missing its expression', async () => {
   await Parser.init();
   const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
@@ -304,16 +285,16 @@ test('retains declarations while a raw interpolation is missing its expression',
             startIndex: start,
             oldEndIndex: start + 5,
             newEndIndex: start + 4,
-            startPosition: position(source, start),
-            oldEndPosition: position(source, start + 5),
-            newEndPosition: position(source, start + 4),
+            startPosition: pointAt(source, start),
+            oldEndPosition: pointAt(source, start + 5),
+            newEndPosition: pointAt(source, start + 4),
           })
         );
         const changed = source.slice(0, start) + 'next' + source.slice(start + 5);
         const incremental = parser.parse(changed, tree)!;
         const fresh = parser.parse(changed)!;
         try {
-          expect(snapshot(incremental.rootNode)).toEqual(snapshot(fresh.rootNode));
+          expect(syntaxSnapshot(incremental.rootNode)).toEqual(syntaxSnapshot(fresh.rootNode));
           expect(
             incremental.rootNode
               .descendantsOfType('class_declaration')

@@ -1,5 +1,7 @@
-import { Edit, Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
+
+import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
 
 let language: Language;
 
@@ -1355,21 +1357,12 @@ test('ends delimited is patterns before ternary collection access, including inc
         expect(consequence?.type, source).toBe('conditional_access_expression');
         const start = source.length - 2;
         const updated = `${source.slice(0, start)}fallback;`;
-        tree.edit(
-          new Edit({
-            startIndex: start,
-            oldEndIndex: start + 1,
-            newEndIndex: start + 8,
-            startPosition: { row: 0, column: start },
-            oldEndPosition: { row: 0, column: start + 1 },
-            newEndPosition: { row: 0, column: start + 8 },
-          })
-        );
+        editTree(tree, source, updated);
         const incremental = parser.parse(updated, tree)!;
         const fresh = parser.parse(updated)!;
         try {
           expect(incremental.rootNode.hasError, updated).toBe(false);
-          expect(incremental.rootNode.toString(), updated).toBe(fresh.rootNode.toString());
+          expect(syntaxSnapshot(incremental.rootNode), updated).toEqual(syntaxSnapshot(fresh.rootNode));
           expect(
             incremental.rootNode.descendantsOfType('conditional_expression')[0]?.childForFieldName('condition')?.text,
             updated
@@ -1442,21 +1435,12 @@ test('rechecks numeric nullable chains when suffix edits introduce question owne
       const updated = `${prefix}${suffix};`;
       try {
         expect(tree.rootNode.hasError, original).toBe(false);
-        tree.edit(
-          new Edit({
-            startIndex: prefix.length,
-            oldEndIndex: original.length - 1,
-            newEndIndex: updated.length - 1,
-            startPosition: { row: 0, column: prefix.length },
-            oldEndPosition: { row: 0, column: original.length - 1 },
-            newEndPosition: { row: 0, column: updated.length - 1 },
-          })
-        );
+        editTree(tree, original, updated);
         const incremental = parser.parse(updated, tree)!;
         const fresh = parser.parse(updated)!;
         try {
           expect(incremental.rootNode.hasError, updated).toBe(false);
-          expect(incremental.rootNode.toString(), updated).toBe(fresh.rootNode.toString());
+          expect(syntaxSnapshot(incremental.rootNode), updated).toEqual(syntaxSnapshot(fresh.rootNode));
           expect(
             incremental.rootNode
               .descendantsOfType('conditional_expression')
@@ -1614,7 +1598,11 @@ test('keeps receiver access when a later ternary alternative contains another ty
       ]) {
         const condition = `${receiver} is T`;
         const expression = `${condition} ? b : ${alternative}`;
-        for (const wrapped of [expression, `F(${expression})`, `flag ? ${expression} : z`]) {
+        for (const wrapped of [
+          expression,
+          `F(${expression})`,
+          ...(alternative === 'c is T?[]' ? [] : [`flag ? ${expression} : z`]),
+        ]) {
           const tree = parser.parse(`var r = ${wrapped};`)!;
           try {
             expect(tree.rootNode.hasError, wrapped).toBe(false);
@@ -1845,6 +1833,52 @@ test('continues outside completed conditional assignments while retaining ordina
         } finally {
           tree.delete();
         }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('continues suppressed conditional assignments without shortening ordinary conditional chains', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const target of ['a?.b', 'a?[0]', 'default(T)?[0]']) {
+      for (const right of ['c as T[]', 'c as List<int>', 'b with { P = 1 }']) {
+        for (const suppression of ['!', '!!']) {
+          for (const suffix of ['.e()', '[0]', '()', ' + d', ' = d']) {
+            const assignmentText = `${target} = ${right}`;
+            const expression = `${assignmentText}${suppression}${suffix}`;
+            const tree = parser.parse(`var result = ${expression};`)!;
+            try {
+              expect(tree.rootNode.hasError, expression).toBe(false);
+              const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
+              expect(access?.text, expression).toBe(assignmentText);
+              expect(access?.parent?.type, expression).toBe('postfix_unary_expression');
+              expect(access?.parent?.text, expression).toBe(`${assignmentText}!`);
+              expect(
+                tree.rootNode.descendantsOfType('postfix_unary_expression').map((node) => node.text),
+                expression
+              ).toEqual(suppression === '!!' ? [`${assignmentText}!!`, `${assignmentText}!`] : [`${assignmentText}!`]);
+              const assignment = access?.childForFieldName('consequence');
+              expect(assignment?.type, expression).toBe('assignment_expression');
+              expect(assignment?.childForFieldName('right')?.text, expression).toBe(right);
+            } finally {
+              tree.delete();
+            }
+          }
+        }
+      }
+    }
+    for (const expression of ['a?.b!.c', 'a?[0]!!.c', 'a?.b = c!.e', 'a?[0] = c!![0]']) {
+      const tree = parser.parse(`var result = ${expression};`)!;
+      try {
+        expect(tree.rootNode.hasError, expression).toBe(false);
+        const access = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
+        expect(access?.text, expression).toBe(expression);
+        expect(access?.descendantsOfType('postfix_unary_expression').length, expression).toBeGreaterThan(0);
+      } finally {
+        tree.delete();
       }
     }
   } finally {

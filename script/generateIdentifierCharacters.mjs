@@ -3,8 +3,32 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 assert.equal(process.argv.length, 4, 'Usage: generateIdentifierCharacters.mjs <parser.c> <header>');
 const source = readFileSync(process.argv[2], 'utf8');
-const tables = ['2', '3'].map((index) => {
-  const name = `ts_lex_sym__identifier_token_character_set_${index}`;
+const names = new Set(
+  [...source.matchAll(/\b(ts_lex_sym__identifier_token_character_set_\d+)_ascii, /g)].map((match) => match[1])
+);
+const candidates = [...names].map(readTable);
+const letters = [...'AZaz_'].map((character) => character.codePointAt(0));
+const digits = [...'0123456789'].map((character) => character.codePointAt(0));
+const starts = candidates.filter(
+  (table) =>
+    letters.every((character) => containsAscii(table, character)) &&
+    digits.every((character) => !containsAscii(table, character))
+);
+const continues = candidates.filter((table) =>
+  [...letters, ...digits].every((character) => containsAscii(table, character))
+);
+assert.equal(starts.length, 1, 'Expected one identifier-start set with letters/underscore but no digits');
+assert.equal(continues.length, 1, 'Expected one identifier-continuation set with letters/underscore and digits');
+const tables = [starts[0], continues[0]];
+assert.ok(tables[0] && tables[1]);
+for (let character = 0; character < 128; character++) {
+  assert.ok(
+    !containsAscii(tables[0], character) || containsAscii(tables[1], character),
+    `Identifier continuation excludes start character U+${character.toString(16)}`
+  );
+}
+
+function readTable(name) {
   const declarations = [
     ...source.matchAll(new RegExp(`static const [^;]+\\b${name}(?:_\\w+)?\\[[\\s\\S]*?\\n?};`, 'g')),
   ];
@@ -18,8 +42,16 @@ const tables = ['2', '3'].map((index) => {
   assert.equal(expressions.size, 1, `Expected one identifier lookup representation: ${name}`);
   const [expression] = expressions;
   assert.ok(expression, `Missing identifier lookup: ${name}`);
-  return { declarations: declarations.map((match) => match[0]).join('\n'), expression };
-});
+  const ascii = source.match(new RegExp(`static const uint32_t ${name}_ascii\\[\\] = \\{([^}]+)\\}`));
+  assert.ok(ascii, `Missing generated ASCII identifier table: ${name}`);
+  const words = [...ascii[1].matchAll(/0x[\da-f]+|\b\d+\b/gi)].map((match) => Number(match[0]));
+  assert.equal(words.length, 4, `Expected 128 ASCII identifier bits: ${name}`);
+  return { declarations: declarations.map((match) => match[0]).join('\n'), expression, words };
+}
+
+function containsAscii(table, character) {
+  return ((table.words[character >>> 5] >>> (character & 31)) & 1) !== 0;
+}
 const helpers = [...new Set(tables.map(({ expression }) => expression.slice(0, expression.indexOf('('))))].map(
   (name) => {
     const matches = [...source.matchAll(new RegExp(`static inline bool ${name}\\([\\s\\S]*?\\n}`, 'g'))];

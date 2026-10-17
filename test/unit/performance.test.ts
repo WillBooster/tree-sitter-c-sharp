@@ -125,6 +125,10 @@ const expressionSources = [
     name: 'nullable-array-type-test ternaries',
     expression: (count: number): string => 'a is T?[] ? 1 : '.repeat(count) + '0',
   },
+  ...[' ', '/* type */', '\n', '// type\n'].map((trivia) => ({
+    name: `nullable-array-type-test ternaries with ${JSON.stringify(trivia)} before the question`,
+    expression: (count: number): string => `a is T${trivia}?[] ? 1 : `.repeat(count) + '0',
+  })),
 ];
 
 const questionSources = [

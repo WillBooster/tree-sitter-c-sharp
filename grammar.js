@@ -266,6 +266,9 @@ module.exports = grammar({
     sym('_object_index_start'),
     sym('_slice_pattern_start'),
     sym('_ambiguous_cast_operand_start'),
+    sym('_ambiguous_cast_type_end'),
+    sym('_definite_cast_type_end'),
+    sym('_range_cast_type_end'),
     sym('_nonprimary_expression_end'),
     sym('_pattern_paren_end'),
     sym('_pattern_bracket_end'),
@@ -807,7 +810,7 @@ module.exports = grammar({
 
     variable_declarator: ($) =>
       seq(
-        choice(field('name', $.identifier), $.tuple_pattern),
+        choice(field('name', $.identifier), prec.dynamic(-1, $.tuple_pattern)),
         optional($.bracketed_argument_list),
         optional(seq('=', $.expression))
       ),
@@ -1155,22 +1158,28 @@ module.exports = grammar({
     _is_negated_pattern: ($) => seq('not', alias($._is_pattern, $.pattern)),
 
     _is_or_pattern: ($) =>
-      prec.left(
-        PREC.OR,
-        seq(
-          field('left', alias($._is_pattern, $.pattern)),
-          field('operator', 'or'),
-          field('right', alias($._is_pattern, $.pattern))
+      prec.dynamic(
+        2,
+        prec.left(
+          PREC.OR,
+          seq(
+            field('left', alias($._is_pattern, $.pattern)),
+            field('operator', 'or'),
+            field('right', alias($._is_pattern, $.pattern))
+          )
         )
       ),
 
     _is_and_pattern: ($) =>
-      prec.left(
-        PREC.AND,
-        seq(
-          field('left', alias($._is_pattern, $.pattern)),
-          field('operator', 'and'),
-          field('right', alias($._is_pattern, $.pattern))
+      prec.dynamic(
+        2,
+        prec.left(
+          PREC.AND,
+          seq(
+            field('left', alias($._is_pattern, $.pattern)),
+            field('operator', 'and'),
+            field('right', alias($._is_pattern, $.pattern))
+          )
         )
       ),
 
@@ -1431,10 +1440,16 @@ module.exports = grammar({
     negated_pattern: ($) => seq('not', $.pattern),
 
     and_pattern: ($) =>
-      prec.left(PREC.AND, seq(field('left', $.pattern), field('operator', 'and'), field('right', $.pattern))),
+      prec.dynamic(
+        2,
+        prec.left(PREC.AND, seq(field('left', $.pattern), field('operator', 'and'), field('right', $.pattern)))
+      ),
 
     or_pattern: ($) =>
-      prec.left(PREC.OR, seq(field('left', $.pattern), field('operator', 'or'), field('right', $.pattern))),
+      prec.dynamic(
+        2,
+        prec.left(PREC.OR, seq(field('left', $.pattern), field('operator', 'or'), field('right', $.pattern)))
+      ),
 
     declaration_pattern: ($) => seq(field('type', $._pattern_declaration_type), $._simple_designation),
 
@@ -1442,7 +1457,15 @@ module.exports = grammar({
 
     // C# admits a parenthesized designation in a pattern only after `var`; elsewhere `T (x)` and `nameof(x)` are
     // positional patterns or invocations.
-    _simple_designation: ($) => prec(1, choice($.discard, field('name', $.identifier))),
+    _simple_designation: ($) =>
+      prec(
+        1,
+        choice(
+          $.discard,
+          field('name', $.identifier),
+          prec.dynamic(-2, field('name', alias(choice('and', 'or'), $.identifier)))
+        )
+      ),
 
     parenthesized_variable_designation: ($) => seq('(', commaSep($._variable_designation), ')'),
 
@@ -1756,6 +1779,15 @@ module.exports = grammar({
         alias($._conditional_assignment_expression, $.conditional_access_expression)
       ),
 
+    _conditional_assignment_suppression_expression: ($) =>
+      postfixExpression(
+        choice(
+          alias($._conditional_assignment_expression, $.conditional_access_expression),
+          alias($._conditional_assignment_suppression_expression, $.postfix_unary_expression)
+        ),
+        bangOperator()
+      ),
+
     as_expression: ($) =>
       prec(
         PREC.REL,
@@ -1803,6 +1835,28 @@ module.exports = grammar({
     _ambiguous_cast_type: ($) => $._ambiguous_cast_name,
 
     _definite_cast_type: ($) => typeAlternatives($, false, true, true, true, $._definite_cast_name),
+
+    _preferred_cast_head: ($) =>
+      choice(
+        prec.dynamic(
+          2,
+          seq('(', field('type', alias($._ambiguous_cast_type, $.type)), alias(sym('_ambiguous_cast_type_end'), ')'))
+        ),
+        prec.dynamic(
+          3,
+          seq(
+            '(',
+            field('type', alias($._pattern_array_type, $.array_type)),
+            alias(sym('_definite_cast_type_end'), ')')
+          )
+        )
+      ),
+
+    _preferred_range_cast_head: ($) =>
+      prec.dynamic(
+        3,
+        seq('(', field('type', alias($._range_cast_array_type, $.array_type)), alias(sym('_range_cast_type_end'), ')'))
+      ),
 
     _ambiguous_cast_name: ($) => choice($.identifier, alias($._ambiguous_cast_qualified_name, $.qualified_name)),
 
@@ -2541,7 +2595,7 @@ function prefixUnaryExpression(operand) {
 }
 
 /**
- * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_ambiguous_cast_type' | '_definite_cast_type' | '_range_cast_type' | 'type'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_ambiguous_cast_type' | '_definite_cast_type' | '_preferred_cast_head' | '_preferred_range_cast_head' | '_range_cast_type' | 'type'>} $
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} operand
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} [rangeOperand]
  * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
@@ -2560,8 +2614,12 @@ function castExpression($, operand, rangeOperand) {
           field('value', operand)
         ),
         seq('(', field('type', alias($._definite_cast_type, $.type)), ')', field('value', operand)),
+        seq($._preferred_cast_head, field('value', operand)),
         ...(rangeOperand
-          ? [seq('(', field('type', alias($._range_cast_type, $.type)), ')', field('value', rangeOperand))]
+          ? [
+              seq('(', field('type', alias($._range_cast_type, $.type)), ')', field('value', rangeOperand)),
+              seq($._preferred_range_cast_head, field('value', rangeOperand)),
+            ]
           : [])
       )
     )
@@ -2732,7 +2790,7 @@ function binaryOperators() {
 }
 
 /**
- * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_conditional_update_expression' | '_nameof_expression' | 'anonymous_method_expression' | 'anonymous_object_creation_expression' | 'array_creation_expression' | 'checked_expression' | 'collection_expression' | 'default_expression' | 'element_access_expression' | 'implicit_array_creation_expression' | 'implicit_object_creation_expression' | 'implicit_stackalloc_expression' | 'interpolated_string_expression' | 'invocation_expression' | 'literal' | 'makeref_expression' | 'object_creation_expression' | 'parenthesized_expression' | 'postfix_unary_expression' | 'reftype_expression' | 'refvalue_expression' | 'sizeof_expression' | 'stackalloc_expression' | 'tuple_expression' | 'typeof_expression'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_conditional_assignment_suppression_expression' | '_conditional_update_expression' | '_nameof_expression' | 'anonymous_method_expression' | 'anonymous_object_creation_expression' | 'array_creation_expression' | 'checked_expression' | 'collection_expression' | 'default_expression' | 'element_access_expression' | 'implicit_array_creation_expression' | 'implicit_object_creation_expression' | 'implicit_stackalloc_expression' | 'interpolated_string_expression' | 'invocation_expression' | 'literal' | 'makeref_expression' | 'object_creation_expression' | 'parenthesized_expression' | 'postfix_unary_expression' | 'reftype_expression' | 'refvalue_expression' | 'sizeof_expression' | 'stackalloc_expression' | 'tuple_expression' | 'typeof_expression'>} $
  * @param {{name?: import('@willbooster/web-tree-sitter/dsl').Rule, member: import('@willbooster/web-tree-sitter/dsl').Rule, collection: boolean, element?: import('@willbooster/web-tree-sitter/dsl').Rule, invocation?: import('@willbooster/web-tree-sitter/dsl').Rule, parenthesized?: import('@willbooster/web-tree-sitter/dsl').Rule, tuple?: boolean, array?: import('@willbooster/web-tree-sitter/dsl').Rule, stackalloc?: import('@willbooster/web-tree-sitter/dsl').Rule, definite?: boolean}} options
  */
 function primaryAtoms(
@@ -2763,6 +2821,7 @@ function primaryAtoms(
   const completed = [
     alias($._nameof_expression, $.invocation_expression),
     alias($._conditional_update_expression, $.postfix_unary_expression),
+    alias($._conditional_assignment_suppression_expression, $.postfix_unary_expression),
     'this',
     'base',
     $.postfix_unary_expression,

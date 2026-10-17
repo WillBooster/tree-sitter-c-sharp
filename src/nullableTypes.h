@@ -1,7 +1,7 @@
 #ifndef TREE_SITTER_C_SHARP_NULLABLE_TYPES_H_
 #define TREE_SITTER_C_SHARP_NULLABLE_TYPES_H_
 
-typedef struct { uint32_t questions; bool colon; bool comma; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
+typedef struct { uint32_t questions; int32_t initial_suffix; bool colon; bool comma; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
 
 typedef enum { RANK_TYPE_START, RANK_TYPE_SUFFIX, RANK_TYPE_NAME, RANK_TYPE_TAIL, RANK_TYPE_ARGUMENT, RANK_TYPE_ARGUMENT_END } RankTypeStage;
 typedef struct { RankTypeStage stage; int32_t close; bool flag; } RankTypeFrame;
@@ -38,7 +38,7 @@ static bool rank_read_prefix(TSLexer *lexer, bool *simple, uint32_t *questions) 
         if (!operand && lexer->lookahead == '?') return true;
         QuestionIdentifier word;
         if (!rank_read_identifier(lexer, &word)) return false;
-        if (++words != 1 || lexer->lookahead != '?') *simple = false;
+        if (++words != 1) *simple = false;
         bool logical = word.keyword && (!strcmp(word.word, "and") || !strcmp(word.word, "or"));
         if (!operand) {
             if (!logical) return false;
@@ -55,7 +55,9 @@ static bool rank_read_prefix(TSLexer *lexer, bool *simple, uint32_t *questions) 
 
 static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *name, bool *simple, uint32_t *questions) {
     RankTypeRead read = {0};
-    if (!rank_read_as_name_suffix(lexer, &read, name) || !rank_read_as_name_tail(lexer, &read, false) || read.colon ||
+    if (!rank_read_as_name_suffix(lexer, &read, name)) return false;
+    if (read.initial_suffix != '?') *simple = false;
+    if (!rank_read_as_name_tail(lexer, &read, false) || read.colon ||
         read.coalesce || read.conditional || read.division) return false;
     if (UINT32_MAX - *questions < read.questions) return false;
     *questions += read.questions;
@@ -93,6 +95,7 @@ static bool rank_identifier_allowed(const QuestionIdentifier *word, bool type) {
 
 static int32_t rank_type_gap(TSLexer *lexer, RankTypeRead *read) {
     int32_t c = question_skip_separators(lexer);
+    if (!read->initial_suffix) read->initial_suffix = c;
     read->division |= c == -1;
     return c;
 }

@@ -46,6 +46,9 @@ enum TokenType {
     OBJECT_INDEX_START,
     SLICE_PATTERN_START,
     AMBIGUOUS_CAST_OPERAND_START,
+    AMBIGUOUS_CAST_TYPE_END,
+    DEFINITE_CAST_TYPE_END,
+    RANGE_CAST_TYPE_END,
     NONPRIMARY_EXPRESSION_END,
     PATTERN_PAREN_END,
     PATTERN_BRACKET_END,
@@ -532,6 +535,8 @@ static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *l
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_bang_operator(TSLexer *lexer);
 static bool scan_ambiguous_cast_operand_start(TSLexer *lexer);
+static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols);
+static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred);
 
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
@@ -591,7 +596,8 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         }
     }
 
-    if (valid_symbols[NONPRIMARY_EXPRESSION_END] || valid_symbols[PATTERN_PAREN_END] || valid_symbols[PATTERN_BRACKET_END]) {
+    if (valid_symbols[NONPRIMARY_EXPRESSION_END] || valid_symbols[PATTERN_PAREN_END] || valid_symbols[PATTERN_BRACKET_END] ||
+        valid_symbols[AMBIGUOUS_CAST_TYPE_END] || valid_symbols[DEFINITE_CAST_TYPE_END] || valid_symbols[RANGE_CAST_TYPE_END]) {
         QuestionScanResult closing = scan_nonprimary_expression_end(scanner, lexer, valid_symbols);
         if (closing != QUESTION_NOT_STARTED) return closing == QUESTION_MATCHED;
     }
@@ -1006,20 +1012,11 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
 static bool scan_ambiguous_cast_operand_start(TSLexer *lexer) {
     lexer->mark_end(lexer);
-    int32_t next = question_skip_separators(lexer);
-    if (next < 0) return false;
-    if (next == '[') {
-        advance(lexer);
-        if (question_skip_separators(lexer) != ']') return false;
-    }
-    if (next == 'i' || next == 'a') {
-        QuestionIdentifier identifier;
-        if (!question_identifier(lexer, false, &identifier)) return false;
-        if (identifier.keyword && (!strcmp(identifier.word, "is") || !strcmp(identifier.word, "as"))) return false;
-    }
+    if (!cast_operand_start(lexer, true, false)) return false;
     lexer->result_symbol = AMBIGUOUS_CAST_OPERAND_START;
     return true;
 }
+
 
 static bool scan_bang_operator(TSLexer *lexer) {
     advance(lexer);
@@ -1093,14 +1090,17 @@ static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *val
 
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
-    unsigned symbol;
+    unsigned symbol = 0;
+    bool cast = lexer->lookahead == ')' && (valid_symbols[AMBIGUOUS_CAST_TYPE_END] || valid_symbols[DEFINITE_CAST_TYPE_END] || valid_symbols[RANGE_CAST_TYPE_END]);
     if (lexer->lookahead == '}' && valid_symbols[NONPRIMARY_EXPRESSION_END]) symbol = NONPRIMARY_EXPRESSION_END;
     else if (lexer->lookahead == ')' && valid_symbols[PATTERN_PAREN_END]) symbol = PATTERN_PAREN_END;
     else if (lexer->lookahead == ']' && valid_symbols[PATTERN_BRACKET_END]) symbol = PATTERN_BRACKET_END;
-    else return QUESTION_NOT_STARTED;
+    else if (!cast) return QUESTION_NOT_STARTED;
     advance(lexer);
     lexer->mark_end(lexer);
-    if (question_skip_separators(lexer) != '?') return QUESTION_MISMATCHED;
+    int32_t following = question_skip_separators(lexer);
+    if (cast && scan_cast_type_end(lexer, valid_symbols)) return QUESTION_MATCHED;
+    if (!symbol || following != '?') return QUESTION_MISMATCHED;
     advance(lexer);
     if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
     scanner->question_rank_role = RANK_PATTERN_COMPLETE;
@@ -1109,6 +1109,48 @@ static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLex
     lexer->result_symbol = symbol;
     return QUESTION_MATCHED;
 }
+
+static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols) {
+    bool normal = valid_symbols[AMBIGUOUS_CAST_TYPE_END] || valid_symbols[DEFINITE_CAST_TYPE_END];
+    bool ambiguous = !valid_symbols[DEFINITE_CAST_TYPE_END];
+    unsigned symbol = ambiguous ? AMBIGUOUS_CAST_TYPE_END : DEFINITE_CAST_TYPE_END;
+    if (question_skip_separators(lexer) == '.') {
+        advance(lexer);
+        if (lexer->lookahead == '.' && valid_symbols[RANGE_CAST_TYPE_END]) symbol = RANGE_CAST_TYPE_END;
+        else if (!normal || lexer->lookahead < '0' || lexer->lookahead > '9') return false;
+    } else if (!normal || !cast_operand_start(lexer, ambiguous, true)) return false;
+    lexer->result_symbol = symbol;
+    return true;
+}
+
+static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
+    int32_t next = question_skip_separators(lexer);
+    if (ambiguous && (next == '+' || next == '-' || next == '*' || next == '&' || next == '^')) return false;
+    bool prefix = false;
+    while (next == '!' || next == '~' || next == '+' || next == '-' || next == '*' || next == '&' || next == '^') {
+        prefix = true;
+        advance(lexer);
+        next = question_skip_separators(lexer);
+    }
+    if (next < 0 || next == ')' || next == ']' || next == '}' || next == '{' || next == ',' || next == ':' || next == ';' || next == '?' ||
+        next == '=' || next == '|' || next == '<' || next == '>' || next == '/' || next == '%' || !next) return false;
+    if (next == '.') {
+        advance(lexer);
+        return (prefix && lexer->lookahead == '.') || (lexer->lookahead >= '0' && lexer->lookahead <= '9');
+    }
+    if (ambiguous && !prefix && next == '[') {
+        advance(lexer);
+        return question_skip_separators(lexer) == ']';
+    }
+    if (next != 'i' && next != 'a' && next != 'o' && next != 'n') return true;
+    QuestionIdentifier identifier;
+    if (!question_identifier(lexer, false, &identifier)) return false;
+    if (!identifier.keyword) return true;
+    if (!strcmp(identifier.word, "is") || !strcmp(identifier.word, "as")) return false;
+    return !preferred || prefix ||
+        (strcmp(identifier.word, "and") && strcmp(identifier.word, "or") && strcmp(identifier.word, "not"));
+}
+
 
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);

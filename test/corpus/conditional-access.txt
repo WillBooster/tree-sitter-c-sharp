@@ -32,7 +32,7 @@ var element = a && b?[0];
                 (argument (integer_literal))))))))))
 
 ================================================================================
-Parenthesized lvalue conditional receivers
+Parenthesized conditional receivers
 ================================================================================
 var a = (x)?.y;
 var b = (x.y)?.z;
@@ -307,7 +307,7 @@ var d = &Get() ? y : z;
 (compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (postfix_unary_expression (identifier)) (member_binding_expression (identifier))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (invocation_expression (identifier) (argument_list)) (member_binding_expression (identifier))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (prefix_unary_expression (postfix_unary_expression (identifier))) (identifier) (identifier)))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (conditional_expression (prefix_unary_expression (invocation_expression (identifier) (argument_list))) (identifier) (identifier)))))))
 
 ================================================================================
-Parenthesized non-lvalues inside pointer operands
+Value expressions inside pointer operands
 ================================================================================
 var a = *(Get())?.Member;
 var b = *(x+y)?[0];
@@ -319,7 +319,7 @@ var d = *(T*)(x+y)?[0];
 (compilation_unit (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (parenthesized_expression (invocation_expression (identifier) (argument_list))) (member_binding_expression (identifier)))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (conditional_access_expression (parenthesized_expression (binary_expression (identifier) (identifier))) (element_binding_expression (argument (integer_literal))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (parenthesized_expression (invocation_expression (identifier) (argument_list))) (member_binding_expression (identifier))))))))) (global_statement (local_declaration_statement (variable_declaration (implicit_type) (variable_declarator (identifier) (prefix_unary_expression (cast_expression (pointer_type (identifier)) (conditional_access_expression (parenthesized_expression (binary_expression (identifier) (identifier))) (element_binding_expression (argument (integer_literal)))))))))))
 
 ================================================================================
-Anonymous method and stack allocation conditional receivers
+Anonymous method and stack allocation question ownership
 ================================================================================
 var a = delegate { return 1; }?.Member;
 var b = delegate { return 1; }?[0];

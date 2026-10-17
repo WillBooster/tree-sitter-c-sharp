@@ -4126,7 +4126,7 @@ var a = b?.Something;
               name: (identifier))))))))
 
 ================================================================================
-Conditional access to element (should be implicit_element_access)
+Conditional access to element
 ================================================================================
 
 var x = dict?["a"];

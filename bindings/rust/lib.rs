@@ -103,8 +103,7 @@ mod tests {
         new_parser();
     }
 
-    // The input and edits are the corpus case "Precedence between is operator and as operator" and the edits
-    // `tree-sitter fuzz` makes with TREE_SITTER_SEED=1133. They leave a syntax error before the unchanged last line.
+    // The input and edits were captured by `tree-sitter fuzz` with TREE_SITTER_SEED=1133.
     #[test]
     fn test_parsing_var_as_an_implicit_type_after_an_error_on_a_preceding_line() {
         let mut parser = new_parser();

@@ -25,7 +25,7 @@ static bool question_type_boundary(int32_t c);
 static uint8_t rank_stream_role(TSLexer *lexer, uint32_t pending, uint32_t *questions);
 static bool rank_numeric_type_chain(const RankTokens *tokens);
 static RankCertificate rank_certify_character(RankCertificate certificate, int32_t c);
-static RankCertificate rank_certify_word(RankCertificate certificate, const QuestionIdentifier *name, int32_t following);
+static RankCertificate rank_certify_word(RankCertificate certificate, const QuestionIdentifier *name);
 static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite, bool opened);
 static bool rank_read_bracket(TSLexer *lexer);
 static bool rank_read_stream(TSLexer *lexer, RankTokens *tokens, unsigned *colons);
@@ -48,7 +48,7 @@ static RankReadStep rank_read_expression_name(TSLexer *lexer, RankTokens *tokens
 static bool rank_read_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
 static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression, QuestionIdentifier name);
 static bool rank_read_creation(TSLexer *lexer, bool *force_unsafe);
-static RankReadStep rank_read_pattern_word(TSLexer *lexer, const QuestionIdentifier *name, RankExpression *expression);
+static RankReadStep rank_read_pattern_word(TSLexer *lexer, const QuestionIdentifier *name, RankExpression *expression, RankCertificate *certificate);
 static void rank_start_lambda(RankTokens *tokens, unsigned *expression);
 static bool rank_read_lambda_arrow(TSLexer *lexer, RankTokens *tokens, unsigned *expression, RankLambdaHeader *header, bool *content, bool *primary);
 static RankLambdaHeader rank_expression_group(RankTokens *tokens, unsigned *expression, RankLambdaHeader header, int32_t c, bool *primary);
@@ -146,10 +146,10 @@ static RankCertificate rank_certify_character(RankCertificate certificate, int32
     return certificate;
 }
 
-static RankCertificate rank_certify_word(RankCertificate certificate, const QuestionIdentifier *name, int32_t following) {
+static RankCertificate rank_certify_word(RankCertificate certificate, const QuestionIdentifier *name) {
     if (certificate == RANK_CERT_START && rank_identifier_allowed(name, true)) return RANK_CERT_NAME;
     if (certificate == RANK_CERT_NAME && name->keyword && !strcmp(name->word, "is")) return RANK_CERT_IS;
-    if (certificate == RANK_CERT_IS && rank_identifier_allowed(name, true) && following == '?') return RANK_CERT_TYPE;
+    if (certificate == RANK_CERT_IS && rank_identifier_allowed(name, true)) return RANK_CERT_TYPE;
     return RANK_CERT_INVALID;
 }
 
@@ -443,7 +443,7 @@ static bool rank_read_expression_word(TSLexer *lexer, RankTokens *tokens, RankEx
 
 static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression, QuestionIdentifier name) {
     RankCertificate *certificate = &tokens->contents[expression->token].certificate;
-    *certificate = rank_certify_word(*certificate, &name, lexer->lookahead);
+    *certificate = rank_certify_word(*certificate, &name);
 
     if (expression->member) {
         expression->member = false;
@@ -476,7 +476,7 @@ static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankE
         expression->header = RANK_HEADER_INVALID;
         return true;
     }
-    RankReadStep pattern = rank_read_pattern_word(lexer, &name, expression);
+    RankReadStep pattern = rank_read_pattern_word(lexer, &name, expression, certificate);
     if (pattern != RANK_READ_TOKEN) return pattern == RANK_READ_MORE;
     if (expression->type_complete && expression->nullable_event != ((unsigned)-1) && rank_identifier_allowed(&name, true)) {
         tokens->contents[expression->nullable_event].kind = RANK_DEFINITE_TYPE;
@@ -507,7 +507,7 @@ static bool rank_read_creation(TSLexer *lexer, bool *force_unsafe) {
     return rank_read_delimited(lexer, (char)c, RANK_BODY_EXPRESSION, force_unsafe);
 }
 
-static RankReadStep rank_read_pattern_word(TSLexer *lexer, const QuestionIdentifier *name, RankExpression *expression) {
+static RankReadStep rank_read_pattern_word(TSLexer *lexer, const QuestionIdentifier *name, RankExpression *expression, RankCertificate *certificate) {
     bool logical = name->keyword && (!strcmp(name->word, "and") || !strcmp(name->word, "or"));
     if ((name->keyword && !strcmp(name->word, "is")) || (expression->pattern && logical)) {
         expression->pattern = true;
@@ -528,6 +528,7 @@ static RankReadStep rank_read_pattern_word(TSLexer *lexer, const QuestionIdentif
         expression->primary = false;
         RankTypeRead read = {0};
         expression->type_complete = rank_read_as_name_tail(lexer, &read, true);
+        if (*certificate == RANK_CERT_TYPE && read.initial_suffix != '?') *certificate = RANK_CERT_INVALID;
         expression->colon = read.colon;
         return expression->type_complete ? RANK_READ_MORE : RANK_READ_UNKNOWN;
     }

@@ -508,15 +508,15 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
 
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as) {
         bool is_keyword = !strcmp(identifier->word, "is");
-        if (is_keyword) {
+        bool independent_type = is_or_as && (walk->depth || walk->is_later_alternative);
+        if (is_keyword && !walk->depth) {
             if (!walk->is_later_alternative) {
                 if (walk->is_seen) walk->is_eligible = false;
-                if (!walk->depth) walk->is_seen = true;
-                else walk->is_eligible = false;
+                walk->is_seen = true;
             }
         } else if (is_or_as && !walk->depth && !walk->recording && walk->is_seen) {
             walk->is_as_phase = true;
-        } else {
+        } else if (!independent_type) {
             walk->is_eligible = false;
         }
         if (is_or_as) {
@@ -525,7 +525,7 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
             scanner->question_unknown = true;
         }
         scanner->question_access_cache = 0;
-        walk->role_known = false;
+        if (!independent_type) walk->role_known = false;
  }
 
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk) {
@@ -552,7 +552,8 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
         if (following.token == '.' && !following.member && walk->binding && !walk->cache_colon)
             walk->root_binary = true;
         later_nullable = walk->is_later_alternative &&
-            (following.token == '?' || following.token == ':' || following.token == ')' || following.token == ',');
+            (following.token == '?' || following.token == ':' || question_closing_group(following.token) ||
+             following.token == ',' || following.token == ';');
         if (later_nullable) {
             walk->cache_shaped = false;
             walk->is_as_phase = false;
@@ -652,7 +653,7 @@ static void question_walk_colon(QuestionWalk *walk) {
     if (walk->root_colons < 2) walk->root_colons++;
     bool later_obligation = walk->mandatory > walk->is_reserved ||
         walk->optional > (walk->following.token == '[' ? 1u : 0u);
-    if (walk->is_eligible && walk->is_seen && later_obligation)
+    if (walk->is_eligible && later_obligation)
         walk->is_later_alternative = true;
     if (walk->is_eligible && walk->mandatory == walk->is_reserved) {
         if (walk->is_reserved) walk->is_reserved--;

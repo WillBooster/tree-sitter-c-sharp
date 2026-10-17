@@ -5,6 +5,8 @@ export function syntaxSnapshot(node: Node): unknown {
     node.type,
     node.isNamed,
     node.isMissing,
+    node.isExtra,
+    node.hasError,
     node.startIndex,
     node.endIndex,
     node.startPosition,
@@ -35,7 +37,7 @@ export function editTree(tree: Tree, previous: string, next: string): void {
   );
 }
 
-function pointAt(source: string, index: number): { row: number; column: number } {
+export function pointAt(source: string, index: number): { row: number; column: number } {
   const prefix = source.slice(0, index);
   return { row: prefix.split('\n').length - 1, column: index - prefix.lastIndexOf('\n') - 1 };
 }
