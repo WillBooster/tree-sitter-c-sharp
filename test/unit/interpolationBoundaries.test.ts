@@ -284,6 +284,12 @@ test('recovers malformed interpolation holes without swallowing the following cl
           ['X', '-1', '?foo'].flatMap((format) => ['a', 'x is T'].map((receiver) => `${receiver}?[;${tail}]:${format}`))
         ),
         ...['X', '-1', '?foo'].map((format) => `a?[,delegate)^{?[0]]:${format}`),
+        ...['{.),], b:?foo', '{.),]]', '{.), b:?foo'].flatMap((tail) =>
+          ['', ':X', ':-1', ':?foo'].map((format) => `x is T?[${tail}${format}`)
+        ),
+        ...[';{]', ';,{]', ';stackalloc|{]', '.),typeof,{]'].map((tail) => `x is T?[${tail}`),
+        'a?[,{]',
+        'x is int?[;|{+], b:?foo:X',
         'a?[;]:?foo',
         'a?[.]:?foo',
         ...['/', '<', '>', '|', '%', '?', "''", 'a ?'].map((index) => `a?[${index}]:X`),
@@ -305,6 +311,10 @@ test('recovers malformed interpolation holes without swallowing the following cl
         'x is T?[]:C:D',
       ].map((hole) => `var r = ${wrap(hole)};\nclass Following { int Value => 1; }`);
       if (wrap === interpolate[0]) {
+        sources.push(
+          'var r = $"{x is T?[;|{+], b:?foo:X}";\nclass Following { int Value => 1; }',
+          'var r = $@"{x is T?[;|{+], b:?foo:X}";\nclass Following { int Value => 1; }'
+        );
         for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
           for (const format of ['', ' ', String.raw`\t`]) {
             sources.push(
