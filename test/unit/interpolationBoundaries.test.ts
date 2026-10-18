@@ -24,9 +24,26 @@ test('keeps interpolation format text outside access and nullable expressions', 
       'a?[0]',
       'a?[.5]',
       'a?[..5]',
-      ...['^1', '(0)', '-1', '!x', 'b?[0]', 'x as int?', 'typeof(T?)', 'M<T?>()', 'M<T?, U>()', '(T?)x'].map(
-        (index) => `a?[${index}]`
-      ),
+      ...[
+        '^1',
+        '(0)',
+        '-1',
+        '!x',
+        'b?[0]',
+        'x as int?',
+        'typeof(T?)',
+        'M<T?>()',
+        'M<T?, U>()',
+        '(T?)x',
+        'new T()',
+        'new()',
+        'f()',
+        '() => 0',
+        '(int x) => x',
+        '[]',
+        '*p',
+        '&a',
+      ].map((index) => `a?[${index}]`),
       ...[
         String.raw`'a'`,
         String.raw`'\n'`,
@@ -243,6 +260,13 @@ test('recovers malformed interpolation holes without swallowing the following cl
         'a?[.]:?foo',
         ...['/', '<', '>', '|', '%', '?', "''", 'a ?'].map((index) => `a?[${index}]:X`),
         'x is T?[<]:C:D',
+        ...['()', '(', '(()', 'new'].flatMap((index) =>
+          ['X', '?foo', 'C:D', '-1'].map((format) => `a?[${index}]:${format}`)
+        ),
+        ...['(*', '(&'].flatMap((index) => ['X', '?foo', 'C:D'].map((format) => `a?[${index}]:${format}`)),
+        ...["x is T?['], b:?foo", "x is T?['] , b:?foo"].flatMap((hole) =>
+          [':X', ':?foo', ''].map((format) => hole + format)
+        ),
         'x is T?[=]:C:D',
         'x is T?[.]:C:D',
         'a?[0;]:?foo',
