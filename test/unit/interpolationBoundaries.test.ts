@@ -67,6 +67,9 @@ test('preserves nested expressions and multiple interpolation holes', () => {
         'a?[f("?:", 0)]',
         'a?[b?[0] ?? 1]',
         'a?[0] + f($"{(c ? [1] : [2])}")?[1]',
+        'f(() => { var y = a?[0]; return 1; })?[2]',
+        'f(() => { int? y = 1; return b; })?[2]',
+        'f(() => { if (a?[0] == 1) { } return b; })?[2]',
       ]) {
         const source = `var r = ${wrap(`${expression},10:?foo`)} + ${wrap('a?[0]?[1]:C:D')};`;
         const tree = parser.parse(source)!;
@@ -105,6 +108,7 @@ test('keeps incremental interpolation boundaries consistent through nested and i
   const parser = new Parser().setLanguage(language);
   const sources = [
     'var r = $"{a?[0]:?foo}";',
+    'var r = $"{f(() => { var y = a?[0]; return 1; })?[2]:?x}";',
     'var r = $"{(c ? a?[0] : b?[1]):?foo}";',
     'var r = $"{(c ? a?[0] : b?[1]),10:??=}";',
     'var r = $"{(c ? a?[0] : ):??=}";',
@@ -127,6 +131,33 @@ test('keeps incremental interpolation boundaries consistent through nested and i
           source
         ).toEqual(['class Following { int Value => 1; }']);
         if (!source.includes(': )')) expect(fresh.rootNode.hasError, source).toBe(false);
+      } finally {
+        tree.delete();
+        tree = incremental;
+        fresh.delete();
+        previous = source;
+      }
+    }
+  } finally {
+    tree.delete();
+    parser.delete();
+  }
+});
+
+test('preserves structural nesting when incremental edits exhaust optional proof storage', () => {
+  const parser = new Parser().setLanguage(language);
+  let previous = 'var r = a;';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const depth of [170, 171, 254, 255, 171, 170]) {
+      const source = `var r = ${'$"{'.repeat(depth)}a${'}"'.repeat(depth)};`;
+      editTree(tree, previous, source);
+      const incremental = parser.parse(source, tree)!;
+      const fresh = parser.parse(source)!;
+      try {
+        expect(fresh.rootNode.hasError, source).toBe(false);
+        expect(incremental.rootNode.descendantsOfType('interpolated_string_expression')).toHaveLength(depth);
+        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
       } finally {
         tree.delete();
         tree = incremental;

@@ -172,6 +172,7 @@ static bool buf_equals(const char *buf, size_t n, const char *kw) {
 #define QUESTION_STATE_ACCESS_CACHE 8
 #define QUESTION_STATE_TYPE_UNCERTAIN 16
 #define QUESTION_STATE_RANK_ROLE 32
+#define QUESTION_STATE_INTERPOLATION_DEPTH 64
 
 static void clear_question_rank(Scanner *scanner);
 
@@ -210,39 +211,37 @@ static void question_serialize(const Scanner *scanner, char *buffer, unsigned *s
 static bool question_deserialize(Scanner *scanner, const char *buffer, unsigned length, unsigned *size);
 static bool question_read_varint(const char *buffer, unsigned length, unsigned *size, uint32_t *value);
 
+static unsigned interpolation_serialize(const Scanner *scanner, char *buffer, bool depths);
+
 unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buffer) {
     Scanner *scanner = (Scanner *)payload;
-    unsigned original_size = scanner->interpolation_stack.size * 6 + 3;
+    unsigned original_size = scanner->interpolation_stack.size * 4 + 3;
     if (original_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) return 0;
+    unsigned available = TREE_SITTER_SERIALIZATION_BUFFER_SIZE - original_size;
     bool extended = !scanner->question_unknown && (scanner->question_frame_count > 1 ||
         scanner->question_frames[0].pending || scanner->question_frames[0].unknown || scanner->question_frames[0].case_colon);
     bool unknown = scanner->question_unknown;
     unsigned extension_size = extended ? question_serialized_size(scanner) : 2;
-    if (extended && original_size + extension_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
+    if (extended && extension_size > available) {
         extended = false;
         unknown = true;
     }
+    if (extended) available -= extension_size;
     bool rank = !unknown && scanner->question_rank_role &&
-        (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE) &&
-        original_size + (extended ? extension_size : 0) + 5 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
-    bool cache = !unknown && !rank && !scanner->question_type_uncertain && scanner->question_access_cache && original_size +
-        (extended ? extension_size : 0) + (rank ? 5 : 0) + 4 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
+        (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE) && available >= 5;
+    if (rank) available -= 5;
+    bool cache = !unknown && !rank && !scanner->question_type_uncertain && scanner->question_access_cache && available >= 4;
+    if (cache) available -= 4;
+    bool depths = scanner->interpolation_stack.size && scanner->interpolation_stack.size * 2 <= available;
     unsigned size = 0;
     buffer[size++] = (char)scanner->quote_count;
     buffer[size++] = (char)((scanner->next_file_directive ? 1 : 0) |
         (unknown ? QUESTION_STATE_UNKNOWN : 0) | (extended ? QUESTION_STATE_EXTENDED : 0) |
         (cache ? QUESTION_STATE_ACCESS_CACHE : 0) | (rank ? QUESTION_STATE_RANK_ROLE : 0) |
-        (!unknown && scanner->question_type_uncertain ? QUESTION_STATE_TYPE_UNCERTAIN : 0));
+        (!unknown && scanner->question_type_uncertain ? QUESTION_STATE_TYPE_UNCERTAIN : 0) |
+        (depths ? QUESTION_STATE_INTERPOLATION_DEPTH : 0));
     buffer[size++] = (char)scanner->interpolation_stack.size;
-    for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
-        Interpolation item = scanner->interpolation_stack.contents[i];
-        buffer[size++] = (char)item.dollar_count;
-        buffer[size++] = (char)item.open_brace_count;
-        buffer[size++] = (char)item.quote_count;
-        buffer[size++] = (char)item.string_type;
-        buffer[size++] = (char)item.question_depth;
-        buffer[size++] = (char)(item.question_depth >> 8);
-    }
+    size += interpolation_serialize(scanner, buffer + size, depths);
     if (rank) {
         buffer[size++] = (char)scanner->question_rank_role;
         for (unsigned byte = 0; byte < 4; byte++)
@@ -252,6 +251,22 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
         for (unsigned byte = 0; byte < 4; byte++) buffer[size++] = (char)(scanner->question_access_cache >> (byte * 8));
     }
     if (extended) question_serialize(scanner, buffer, &size);
+    return size;
+}
+
+static unsigned interpolation_serialize(const Scanner *scanner, char *buffer, bool depths) {
+    unsigned size = 0;
+    for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
+        Interpolation item = scanner->interpolation_stack.contents[i];
+        buffer[size++] = (char)item.dollar_count;
+        buffer[size++] = (char)item.open_brace_count;
+        buffer[size++] = (char)item.quote_count;
+        buffer[size++] = (char)item.string_type;
+        if (depths) {
+            buffer[size++] = (char)item.question_depth;
+            buffer[size++] = (char)(item.question_depth >> 8);
+        }
+    }
     return size;
 }
 
@@ -268,7 +283,8 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
     unsigned flags = (unsigned char)buffer[size++];
     scanner->next_file_directive = (flags & 1) != 0;
     unsigned count = (unsigned char)buffer[size++];
-    if (3 + count * 6 > length) goto unknown;
+    bool depths = flags & QUESTION_STATE_INTERPOLATION_DEPTH;
+    if (3 + count * (depths ? 6 : 4) > length) goto unknown;
     array_reserve(&scanner->interpolation_stack, count);
     scanner->interpolation_stack.size = count;
     for (unsigned i = 0; i < count; i++) {
@@ -277,8 +293,11 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
         item.open_brace_count = (unsigned char)buffer[size++];
         item.quote_count = (unsigned char)buffer[size++];
         item.string_type = (unsigned char)buffer[size++];
-        item.question_depth = (unsigned char)buffer[size++];
-        item.question_depth |= (uint16_t)(unsigned char)buffer[size++] << 8;
+        item.question_depth = UINT16_MAX;
+        if (depths) {
+            item.question_depth = (unsigned char)buffer[size++];
+            item.question_depth |= (uint16_t)(unsigned char)buffer[size++] << 8;
+        }
         scanner->interpolation_stack.contents[i] = item;
     }
     if (!question_read_modes(scanner, flags, buffer, length, &size)) goto unknown;
@@ -294,7 +313,7 @@ unknown:
 }
 
 static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size) {
-    if ((flags & ~63U) || (flags & QUESTION_STATE_UNKNOWN)) return false;
+    if ((flags & ~127U) || (flags & QUESTION_STATE_UNKNOWN)) return false;
     scanner->question_type_uncertain = (flags & QUESTION_STATE_TYPE_UNCERTAIN) != 0;
     if (flags & QUESTION_STATE_RANK_ROLE) {
         if (*size + 5 > length || (flags & QUESTION_STATE_ACCESS_CACHE)) return false;
@@ -893,7 +912,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             }
             lexer->mark_end(lexer);
             current_interpolation->open_brace_count = brace_advanced;
-            interpolation_question_prefix(lexer, current_interpolation);
+            interpolation_question_prefix(lexer, current_interpolation, 0);
             lexer->result_symbol = INTERPOLATION_OPEN_BRACE;
             return true;
         }
