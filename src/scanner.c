@@ -84,6 +84,7 @@ typedef struct {
     uint8_t group;
     uint32_t pending;
     bool unknown;
+    bool case_colon;
 } QuestionFrame;
 
 typedef struct {
@@ -213,7 +214,7 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
     unsigned original_size = scanner->interpolation_stack.size * 4 + 3;
     if (original_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) return 0;
     bool extended = !scanner->question_unknown && (scanner->question_frame_count > 1 ||
-        scanner->question_frames[0].pending || scanner->question_frames[0].unknown);
+        scanner->question_frames[0].pending || scanner->question_frames[0].unknown || scanner->question_frames[0].case_colon);
     bool unknown = scanner->question_unknown;
     unsigned extension_size = extended ? question_serialized_size(scanner) : 2;
     if (extended && original_size + extension_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
@@ -323,7 +324,7 @@ static void question_serialize(const Scanner *scanner, char *buffer, unsigned *s
     for (unsigned i = 0; i < scanner->question_frame_count; i++) {
         QuestionFrame frame = scanner->question_frames[i];
         unsigned group = frame.group == '(' ? 1 : frame.group == '[' ? 2 : frame.group == '{' ? 3 : 0;
-        buffer[(*size)++] = (char)(group | (frame.unknown ? 4 : 0));
+        buffer[(*size)++] = (char)(group | (frame.unknown ? 4 : 0) | (frame.case_colon ? 8 : 0));
         do {
             unsigned byte = frame.pending & 127;
             frame.pending >>= 7;
@@ -341,9 +342,9 @@ static bool question_deserialize(Scanner *scanner, const char *buffer, unsigned 
     for (unsigned i = 0; i < count; i++) {
         if (*size == length) return false;
         unsigned group = (unsigned char)buffer[(*size)++];
-        if ((group & ~7U) || (!i && (group & 3)) || (i && !(group & 3))) return false;
+        if ((group & ~15U) || (!i && (group & 3)) || (i && !(group & 3))) return false;
         QuestionFrame frame = {.group = (group & 3) == 1 ? '(' : (group & 3) == 2 ? '[' : (group & 3) == 3 ? '{' : 0,
-            .unknown = (group & 4) != 0};
+            .unknown = (group & 4) != 0, .case_colon = (group & 8) != 0};
         if (!question_read_varint(buffer, length, size, &frame.pending)) return false;
         scanner->question_frames[i] = frame;
     }
@@ -615,6 +616,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             advance(lexer);
             if (lexer->lookahead == ':') return false;
             lexer->mark_end(lexer);
+            scanner->question_frames[scanner->question_frame_count - 1].case_colon = false;
             lexer->result_symbol = CASE_LABEL_COLON;
             return true;
         }
@@ -1058,6 +1060,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     advance(lexer);
     lexer->mark_end(lexer);
     if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
+    scanner->question_frames[scanner->question_frame_count - 1].case_colon |= valid_symbols[CASE_LABEL_COLON];
     bool consumed_division = question_skip_separators(lexer) == -1;
     QuestionFollowing next = consumed_division ? (QuestionFollowing){.token = '/'} : question_following(lexer);
     bool known_ternary = false;

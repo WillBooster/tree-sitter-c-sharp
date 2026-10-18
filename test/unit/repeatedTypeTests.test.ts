@@ -89,3 +89,47 @@ test('keeps repeated type tests consistent when edits change access and ternary 
     parser.delete();
   }
 });
+
+test('preserves a valid following switch section after ambiguous repeated type-test guards', () => {
+  const parser = new Parser().setLanguage(language);
+  const guards = [
+    '(flag ? a?[0] is T is U : false)',
+    'flag ? a?[0] is T is U : false',
+    'flag ? a?[0]?.b is not null is U : M(false)',
+    'flag ? a?[0] is T?[] is U : false',
+    'flag ? a?[0] is T is U?[] ? true : false : false',
+  ];
+  const following = 'case var w when (e?[0] is T is U): break;';
+  let previous = '';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const guard of [...guards, ...guards.toReversed()]) {
+      const source = `switch (y) { case var v when ${guard}: break; ${following} }`;
+      editTree(tree, previous, source);
+      const incremental = parser.parse(source, tree)!;
+      const fresh = parser.parse(source)!;
+      try {
+        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        const section = fresh.rootNode.descendantsOfType('switch_section').find((node) => node.text === following);
+        expect(section?.hasError, source).toBe(false);
+        expect(
+          section?.descendantsOfType('when_clause').map((node) => node.text),
+          source
+        ).toEqual(['when (e?[0] is T is U)']);
+        expect(
+          section?.descendantsOfType('conditional_access_expression').map((node) => node.text),
+          source
+        ).toEqual(['e?[0]']);
+        if (guard.startsWith('(')) expect(fresh.rootNode.hasError, source).toBe(false);
+      } finally {
+        fresh.delete();
+        tree.delete();
+        tree = incremental;
+        previous = source;
+      }
+    }
+  } finally {
+    tree.delete();
+    parser.delete();
+  }
+});
