@@ -22,6 +22,8 @@ test('keeps interpolation format text outside access and nullable expressions', 
   try {
     for (const expression of [
       'a?[0]',
+      'a?[.5]',
+      'a?[..5]',
       'a?.b?[0]',
       'a?[c ? 0 : 1]',
       'x is T?[]',
@@ -225,6 +227,9 @@ test('recovers malformed interpolation holes without swallowing the following cl
         'a?[0]:X',
         'T?[]:-1',
         'a?[;]:?foo',
+        'a?[.]:?foo',
+        'x is T?[=]:C:D',
+        'x is T?[.]:C:D',
         'a?[0;]:?foo',
         'a?[(;)]:?foo',
         'a ? int:X',
@@ -232,6 +237,15 @@ test('recovers malformed interpolation holes without swallowing the following cl
         'x is int ? a :X',
         'x is T?[]:C:D',
       ].map((hole) => `var r = ${wrap(hole)};\nclass Following { int Value => 1; }`);
+      if (wrap === interpolate[0]) {
+        for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+          for (const format of ['', ' ', String.raw`\t`]) {
+            sources.push(
+              `var r = $"{f($"{a?[0]}")?[0]:${format}${newline}?foo}${newline}class Following { int Value => 1; }`
+            );
+          }
+        }
+      }
       let previous = sources[0]!;
       let tree = parser.parse(previous)!;
       try {

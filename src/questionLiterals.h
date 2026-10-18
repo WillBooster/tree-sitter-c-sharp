@@ -8,14 +8,14 @@ typedef struct {
     RankGroups groups;
     RankBodyMode mode;
     unsigned quotes, dollars, format_braces;
-    bool string, verbatim, content, access, colon;
+    bool string, verbatim, content, access, colon, question;
 } RankLiteralFrame;
 typedef Array(RankLiteralFrame) RankLiteralFrames;
 
 static bool rank_read_delimited(TSLexer *, char, RankBodyMode, bool *);
 static RankReadStep rank_skip_literal(TSLexer *, int32_t, RankBodyMode, bool *, unsigned);
-static bool rank_skip_interpolated(TSLexer *, bool, RankBodyMode, unsigned);
-static bool rank_read_frames(TSLexer *, RankLiteralFrames *, bool *, unsigned);
+static bool rank_skip_interpolated(TSLexer *, bool, RankBodyMode, unsigned, bool *);
+static bool rank_read_frames(TSLexer *, RankLiteralFrames *, bool *, unsigned, bool *);
 static void rank_push_code(RankLiteralFrames *, char, RankBodyMode, unsigned);
 static RankReadStep rank_read_code_step(TSLexer *, RankLiteralFrames *);
 static RankReadStep rank_read_string_step(TSLexer *, RankLiteralFrames *);
@@ -30,24 +30,24 @@ static unsigned rank_read_character_run(TSLexer *, int32_t);
 static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode, bool *force_unsafe) {
     RankLiteralFrames frames = array_new();
     rank_push_code(&frames, opening, mode, 0);
-    return rank_read_frames(lexer, &frames, force_unsafe, 0);
+    return rank_read_frames(lexer, &frames, force_unsafe, 0, NULL);
 }
 
 static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, RankBodyMode mode, bool *force_unsafe, unsigned frame_limit) {
     RankLiteralFrames frames = array_new();
     RankReadStep step = rank_push_literal(lexer, &frames, c, mode);
-    bool valid = rank_read_frames(lexer, &frames, force_unsafe, frame_limit);
+    bool valid = rank_read_frames(lexer, &frames, force_unsafe, frame_limit, NULL);
     return valid ? step : RANK_READ_UNKNOWN;
 }
 
-static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, RankBodyMode mode, unsigned frame_limit) {
+static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, RankBodyMode mode, unsigned frame_limit, bool *has_question) {
     RankLiteralFrames frames = array_new();
     RankReadStep step = rank_push_interpolated(lexer, &frames, verbatim, mode);
-    bool valid = rank_read_frames(lexer, &frames, NULL, frame_limit);
+    bool valid = rank_read_frames(lexer, &frames, NULL, frame_limit, has_question);
     return step != RANK_READ_UNKNOWN && valid;
 }
 
-static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *force_unsafe, unsigned frame_limit) {
+static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *force_unsafe, unsigned frame_limit, bool *has_question) {
     bool valid = true;
     while (frames->size) {
         if (frame_limit && frames->size > frame_limit) { valid = false; break; }
@@ -57,11 +57,13 @@ static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *fo
         if (step != RANK_READ_DONE) continue;
         RankLiteralFrame frame = array_pop(frames);
         if (force_unsafe) *force_unsafe |= frame.access && frame.colon;
+        if (has_question) *has_question |= frame.question;
         array_delete(&frame.groups);
     }
     for (unsigned i = 0; i < frames->size; i++) {
         RankLiteralFrame *frame = &frames->contents[i];
         if (force_unsafe) *force_unsafe |= frame->access && frame->colon;
+        if (has_question) *has_question |= frame->question;
         array_delete(&frame->groups);
     }
     array_delete(frames);
@@ -97,6 +99,7 @@ static RankReadStep rank_read_code_step(TSLexer *lexer, RankLiteralFrames *frame
     if (literal != RANK_READ_TOKEN) return literal;
     if (c == '@') return RANK_READ_MORE;
     if (c == '?') {
+        frame->question = true;
         advance(lexer);
         bool binding = question_skip_separators(lexer) == '[';
         frame->access |= binding;

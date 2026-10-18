@@ -133,6 +133,11 @@ const questionSources = [
     source: (count: number): string => `var x = a${`?[${index}]`.repeat(count)};`,
     node: 'conditional_access_expression',
   })),
+  ...['$"x"', '$"{k}"'].map((index) => ({
+    name: `question-free interpolated index ${index} inside an interpolation hole`,
+    source: (count: number): string => `var x = $"{a${`?[${index}]`.repeat(count)}:X}";`,
+    node: 'conditional_access_expression',
+  })),
   ...['a is T?', 'a as T?', 'new T?[1]'].map((arm) => ({
     name: `nullable true arm ${arm}`,
     source: (count: number): string => `class C { void M() { var x = ${`c ? ${arm} : `.repeat(count)}0; } }`,

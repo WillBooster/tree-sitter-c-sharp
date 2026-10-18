@@ -263,8 +263,9 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
-static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
+static bool question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *walk);
+static bool question_binding_start(TSLexer *lexer);
 static void question_walk_colon(QuestionWalk *walk);
 static void question_walk_complete_colon(QuestionWalk *walk);
 static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next);
@@ -275,7 +276,8 @@ static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk);
 static Interpolation *question_interpolation(Scanner *scanner);
 static void interpolation_question_events(Scanner *scanner, const char *events, unsigned count);
 static bool question_walk_interpolation_end(const QuestionWalk *walk, int32_t c);
-static QuestionWalkStep question_walk_end_interpolation(TSLexer *lexer, QuestionWalk *walk);
+static bool question_regular_format_line(TSLexer *lexer);
+static QuestionWalkStep question_walk_end_interpolation(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
 static bool interpolation_question_group(RankGroups *groups, uint16_t *depth, int32_t c);
 static void interpolation_question_prefix(TSLexer *lexer, Interpolation *interpolation, uint16_t depth);
 
@@ -363,7 +365,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
 }
 
 static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c) {
-    if (question_walk_interpolation_end(walk, c)) return question_walk_end_interpolation(lexer, walk);
+    if (question_walk_interpolation_end(walk, c)) return question_walk_end_interpolation(scanner, lexer, walk);
     question_walk_nullable_tail(walk, c);
     bool first_identifier = walk->ordinary_first_token;
     bool future_identifier = walk->future_first_token;
@@ -521,10 +523,11 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
     if (walk->recording && walk->first_word && walk->ordinary) walk->definite_ternary = true;
     bool interpolated = lexer->lookahead == '$';
     bool opaque_questions = interpolated && walk->interpolation_depth >= 0;
-    if (opaque_questions) walk->cache_shaped = false;
+    bool has_question = false;
     bool valid = interpolated
-        ? rank_skip_interpolated(lexer, verbatim, opaque_questions ? RANK_BODY_EXPRESSION : RANK_BODY_QUESTION_FREE, 2 * UINT8_MAX)
+        ? rank_skip_interpolated(lexer, verbatim, opaque_questions ? RANK_BODY_EXPRESSION : RANK_BODY_QUESTION_FREE, 2 * UINT8_MAX, &has_question)
         : question_skip_quoted(lexer, verbatim);
+    if (has_question) walk->cache_shaped = false;
     return valid ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
 }
 
@@ -653,7 +656,8 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
         return QUESTION_WALK_CONTINUE;
     }
     if (walk->role_active && c == ':') question_walk_colon(walk);
-    if (walk->entering_binding && c == '[') question_walk_enter_binding(scanner, lexer, walk);
+    if (walk->entering_binding && c == '[' && !question_walk_enter_binding(scanner, lexer, walk))
+        return QUESTION_WALK_INVALID;
     if (walk->is_pending_bracket && !walk->depth && c == '[' && !question_walk_enter_pending_binding(lexer, walk))
         return QUESTION_WALK_UNKNOWN;
     if (walk->recording) array_push(&walk->events, (char)c);
@@ -665,7 +669,7 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
     return root_statement_end || (!walk->role_active && !walk->recording) ? QUESTION_WALK_STOP : QUESTION_WALK_CONTINUE;
 }
 
-static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
+static bool question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
         int32_t first = question_skip_separators(lexer);
         walk->binding = first >= 0 && first != ']' && first != ',' && !lexer->eof(lexer);
         bool first_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT ||
@@ -685,6 +689,7 @@ static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, Questi
         if (!walk->binding && !walk->role_known) walk->role_active = false;
         walk->rank_phase = RANK_NONE;
         walk->entering_binding = false;
+        return question_binding_start(lexer);
 }
 
 static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *walk) {
@@ -696,7 +701,15 @@ static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *wa
         if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;
         else walk->is_optional++;
     }
-    return true;
+    return question_binding_start(lexer);
+}
+
+static bool question_binding_start(TSLexer *lexer) {
+    int32_t first = lexer->lookahead;
+    if (first != '.')
+        return first != '=' && first != ';' && first != ':' && first != ')' && first != '}';
+    advance(lexer);
+    return lexer->lookahead == '.' || (lexer->lookahead >= '0' && lexer->lookahead <= '9');
 }
 
 static void question_walk_colon(QuestionWalk *walk) {
@@ -808,9 +821,12 @@ static bool question_walk_interpolation_end(const QuestionWalk *walk, int32_t c)
         walk->depth + walk->interpolation_depth == 0;
 }
 
-static QuestionWalkStep question_walk_end_interpolation(TSLexer *lexer, QuestionWalk *walk) {
+static QuestionWalkStep question_walk_end_interpolation(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
     walk->interpolation_end = true;
+    bool format = lexer->lookahead == ':';
     advance(lexer);
+    if (format && is_regular(question_interpolation(scanner)) && !question_regular_format_line(lexer))
+        return QUESTION_WALK_UNKNOWN;
     if (!walk->interpolation_depth) {
         if (walk->nullable_context)
             walk->known_nullable |= walk->omitted_rank_candidate || walk->nullable_name_candidate || walk->ordinary_name_candidate;
@@ -821,6 +837,19 @@ static QuestionWalkStep question_walk_end_interpolation(TSLexer *lexer, Question
         walk->mandatory = 0;
     }
     return QUESTION_WALK_STOP;
+}
+
+static bool question_regular_format_line(TSLexer *lexer) {
+    while (!lexer->eof(lexer) && lexer->lookahead != '}' && lexer->lookahead != '"') {
+        if (is_line_terminator(lexer->lookahead)) return false;
+        bool escape = lexer->lookahead == '\\';
+        advance(lexer);
+        if (escape && !lexer->eof(lexer)) {
+            if (is_line_terminator(lexer->lookahead)) return false;
+            advance(lexer);
+        }
+    }
+    return !lexer->eof(lexer);
 }
 
 static Interpolation *question_interpolation(Scanner *scanner) {
