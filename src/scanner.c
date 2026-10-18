@@ -57,6 +57,7 @@ enum TokenType {
     STATEMENT_END,
     BLOCK_END,
     AMPERSAND_OPERATOR,
+    INTERPOLATION_FORMAT_COLON,
 };
 
 typedef enum {
@@ -559,6 +560,7 @@ static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *val
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static bool scan_interpolation_format_colon(TSLexer *lexer);
 static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *valid_symbols);
 static bool advance_operator_character(TSLexer *lexer);
 static bool scan_ambiguous_cast_operand_start(TSLexer *lexer);
@@ -586,6 +588,8 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         if (!scan_file_directive_prefix(lexer)) return false;
         return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
     }
+
+    if (valid_symbols[INTERPOLATION_FORMAT_COLON] && scan_interpolation_format_colon(lexer)) return true;
 
     if (valid_symbols[CONDITIONAL_ALTERNATIVE_START]) {
         scanner->question_type_uncertain = false;
@@ -1049,6 +1053,15 @@ static bool scan_ambiguous_cast_operand_start(TSLexer *lexer) {
     return true;
 }
 
+
+static bool scan_interpolation_format_colon(TSLexer *lexer) {
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    if (lexer->lookahead != ':') return false;
+    advance(lexer);
+    lexer->mark_end(lexer);
+    lexer->result_symbol = INTERPOLATION_FORMAT_COLON;
+    return true;
+}
 
 static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     if (!valid_symbols[STATEMENT_END] && !valid_symbols[BLOCK_END]) return false;

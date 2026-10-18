@@ -359,3 +359,18 @@ test.each([254, 255])('retains %i nested interpolation states and parser reuse',
     true
   );
 });
+
+test('recovers from repeated unterminated interpolation holes in linear time', { timeout: 60_000 }, () => {
+  const line = 'var r = $"{(a, f(b, (c +\n';
+  const small = `class C { void M() {\n${line.repeat(500)}} }`;
+  const large = `class C { void M() {\n${line.repeat(5000)}} }`;
+  parseCpuTime(large);
+  let smallFastest = Infinity;
+  let largeFastest = Infinity;
+  for (let run = 0; run < 3; run++) {
+    smallFastest = Math.min(smallFastest, parseCpuTime(small));
+    largeFastest = Math.min(largeFastest, parseCpuTime(large));
+  }
+  expect(largeFastest / smallFastest).toBeLessThan(18);
+  expect(largeFastest).toBeLessThan(5_000_000);
+});

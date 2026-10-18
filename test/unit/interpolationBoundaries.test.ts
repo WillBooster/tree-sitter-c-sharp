@@ -108,6 +108,8 @@ test('keeps incremental interpolation boundaries consistent through nested and i
   const parser = new Parser().setLanguage(language);
   const sources = [
     'var r = $"{a?[0]:?foo}";',
+    'var r = $"{a?[0] + global::N.F(b?[1])?[2]:?foo}";',
+    'var r = $"{(a?[0] + global::N.F(b?[1])?[2]):?foo}";',
     'var r = $"{f(() => { var y = a?[0]; return 1; })?[2]:?x}";',
     'var r = $"{(c ? a?[0] : b?[1]):?foo}";',
     'var r = $"{(c ? a?[0] : b?[1]),10:??=}";',
@@ -167,6 +169,36 @@ test('preserves structural nesting when incremental edits exhaust optional proof
     }
   } finally {
     tree.delete();
+    parser.delete();
+  }
+});
+
+test('recognizes a root colon before alias-shaped format text while preserving parenthesized aliases', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const wrap of interpolate) {
+      for (const [expression, format] of [
+        ['global', ':N.F(b?[1])?[2]:?foo'],
+        ['a?[0] + global', ':N.F(b?[1])?[2]:?foo'],
+        ['(a?[0] + global::N.F(b?[1])?[2])', '?foo'],
+      ]) {
+        const source = `var r = ${wrap(`${expression}:${format}`)};`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const hole = tree.rootNode.descendantsOfType('interpolation')[0]!;
+          expect(hole.namedChildren[1]?.text, source).toBe(expression);
+          expect(
+            hole.descendantsOfType('interpolation_format_clause').map((node) => node.text),
+            source
+          ).toEqual([`:${format}`]);
+          expect(hole.descendantsOfType('conditional_expression'), source).toHaveLength(0);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
     parser.delete();
   }
 });
