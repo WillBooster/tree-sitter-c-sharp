@@ -828,7 +828,7 @@ static void interpolation_question_prefix(TSLexer *lexer, Interpolation *interpo
             continue;
         }
         if (!depth && !groups.size && (c == ':' || c == '}')) break;
-        RankReadStep literal = rank_skip_literal(lexer, c, RANK_BODY_EXPRESSION, NULL);
+        RankReadStep literal = rank_skip_literal(lexer, c, RANK_BODY_EXPRESSION, NULL, 2 * UINT8_MAX);
         if (literal == RANK_READ_UNKNOWN) break;
         if (literal != RANK_READ_TOKEN || c == '@') continue;
         if (!interpolation_question_group(&groups, &depth, c)) break;
