@@ -231,7 +231,7 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
     bool rank = !unknown && scanner->question_rank_role &&
         (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE) && available >= 5;
     if (rank) available -= 5;
-    bool cache = !unknown && !rank && !scanner->question_type_uncertain && scanner->question_access_cache && available >= 4;
+    bool cache = !rank && (unknown || !scanner->question_type_uncertain) && scanner->question_access_cache && available >= 4;
     if (cache) available -= 4;
     bool depths = scanner->interpolation_stack.size && scanner->interpolation_stack.size * 2 <= available;
     unsigned size = 0;
@@ -314,7 +314,12 @@ unknown:
 }
 
 static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size) {
-    if ((flags & ~127U) || (flags & QUESTION_STATE_UNKNOWN)) return false;
+    if (flags & ~127U) return false;
+    if (flags & QUESTION_STATE_UNKNOWN) {
+        if (!(flags & QUESTION_STATE_ACCESS_CACHE) ||
+            (flags & (QUESTION_STATE_EXTENDED | QUESTION_STATE_RANK_ROLE | QUESTION_STATE_TYPE_UNCERTAIN))) return false;
+        scanner->question_unknown = true;
+    }
     scanner->question_type_uncertain = (flags & QUESTION_STATE_TYPE_UNCERTAIN) != 0;
     if (flags & QUESTION_STATE_RANK_ROLE) {
         if (*size + 5 > length || (flags & QUESTION_STATE_ACCESS_CACHE)) return false;

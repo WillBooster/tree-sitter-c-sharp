@@ -162,6 +162,12 @@ const questionSources = [
     node: 'nullable_type',
   },
   {
+    name: 'access chains after nullable interpolation holes',
+    source: (count: number): string =>
+      `var r = $"{(f(a?[0], x is null) ? f($"{x as int?:?foo}")${'?[0]'.repeat(count - 1)} : b):X}";`,
+    node: 'conditional_access_expression',
+  },
+  {
     name: 'numeric ternaries',
     source: (count: number): string =>
       'class C { void M() { var x = ' +
