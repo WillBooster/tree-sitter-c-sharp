@@ -533,11 +533,8 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
     } else if (!independent_type) {
         walk->is_eligible = false;
     }
-    if (is_or_as) {
-        if (walk->recording) scanner->question_type_uncertain = true;
-    } else {
-        scanner->question_unknown = true;
-    }
+    if (is_or_as && walk->recording) scanner->question_type_uncertain = true;
+    if (!is_or_as) scanner->question_unknown = true;
     scanner->question_access_cache = 0;
     if (!independent_type) walk->role_known = false;
 }
