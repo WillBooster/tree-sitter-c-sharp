@@ -523,7 +523,6 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
         bool independent_type = is_or_as && (walk->depth || walk->is_later_alternative);
         if (is_keyword && !walk->depth) {
             if (!walk->is_later_alternative) {
-                if (walk->is_seen) walk->is_eligible = false;
                 walk->is_seen = true;
             }
         } else if (is_or_as && !walk->depth && !walk->recording && walk->is_seen) {
