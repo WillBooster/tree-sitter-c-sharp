@@ -280,6 +280,10 @@ test('recovers malformed interpolation holes without swallowing the following cl
         ...['typeof', 'sizeof', 'checked', 'unchecked', 'delegate', 'int', 'string', '+='].flatMap((index) =>
           ['X', '?foo'].map((format) => `a?[${index}]:${format}`)
         ),
+        ...['{', '{|', ',{', 'stackalloc|{', 'new{'].flatMap((tail) =>
+          ['X', '-1', '?foo'].flatMap((format) => ['a', 'x is T'].map((receiver) => `${receiver}?[;${tail}]:${format}`))
+        ),
+        ...['X', '-1', '?foo'].map((format) => `a?[,delegate)^{?[0]]:${format}`),
         'a?[;]:?foo',
         'a?[.]:?foo',
         ...['/', '<', '>', '|', '%', '?', "''", 'a ?'].map((index) => `a?[${index}]:X`),

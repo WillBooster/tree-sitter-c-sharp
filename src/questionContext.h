@@ -711,7 +711,8 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
 }
 
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c) {
-    if (c == ';' && walk->role_active && walk->depth > 0 && !walk->brace_depth) return QUESTION_WALK_INVALID;
+    if (c == ';' && walk->role_active && walk->depth > 0 && !walk->brace_depth)
+        return walk->nullable_context ? QUESTION_WALK_UNKNOWN : QUESTION_WALK_INVALID;
     if (c == '{') walk->brace_depth++;
     if (c == '}' && walk->brace_depth) walk->brace_depth--;
     advance(lexer);
@@ -722,7 +723,8 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
     }
     if (walk->role_active && c == ':') question_walk_colon(walk);
     if (walk->entering_binding && c == '[' && !question_walk_enter_binding(scanner, lexer, walk))
-        return QUESTION_WALK_INVALID;
+        return walk->known_ternary || (lexer->lookahead == ';' && walk->nullable_context) ?
+            QUESTION_WALK_UNKNOWN : QUESTION_WALK_INVALID;
     if (walk->is_pending_bracket && !walk->depth && c == '[' && !question_walk_enter_pending_binding(lexer, walk))
         return QUESTION_WALK_UNKNOWN;
     if (walk->recording) array_push(&walk->events, (char)c);
@@ -753,6 +755,10 @@ static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
 
 static bool question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
         int32_t first = question_skip_separators(lexer);
+        if (first == ',' && !walk->nullable_context && !walk->nullable_only) {
+            walk->known_ternary = true;
+            return false;
+        }
         walk->binding = first >= 0 && first != ']' && first != ',' && !lexer->eof(lexer);
         bool first_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT ||
             walk->rank_phase == RANK_TERNARY;
