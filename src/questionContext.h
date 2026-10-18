@@ -231,6 +231,7 @@ typedef struct {
     bool ordinary_name_candidate;
     bool ordinary_colon_context;
     bool found_next_question;
+    int32_t interpolation_depth;
     Array(char) events;
 } QuestionWalk;
 
@@ -263,10 +264,16 @@ static bool question_uncertain_keyword(const QuestionIdentifier *identifier);
 static bool question_expression_keyword(const QuestionIdentifier *identifier);
 static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool proved_access);
 static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk);
+static Interpolation *question_interpolation(Scanner *scanner);
+static void interpolation_question_events(Scanner *scanner, const char *events, unsigned count);
+static bool question_walk_interpolation_end(const QuestionWalk *walk, int32_t c);
+static QuestionWalkStep question_walk_end_interpolation(TSLexer *lexer, QuestionWalk *walk);
+static bool interpolation_question_group(RankGroups *groups, int32_t c);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
 static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t rank_phase, bool *known_ternary) {
     QuestionWalk walk = question_walk_create(scanner, following, *known_nullable, context_flags, rank_phase);
+    Interpolation *interpolation = question_interpolation(scanner);
     unsigned result = 0;
     while (!lexer->eof(lexer)) {
         int32_t c = question_skip_separators(lexer);
@@ -276,6 +283,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
         if (step == QUESTION_WALK_UNKNOWN) goto unknown;
         if (step == QUESTION_WALK_STOP) break;
     }
+    interpolation_question_events(scanner, walk.events.contents, walk.events.size);
     result = question_walk_finish(scanner, lexer, &walk);
     *known_nullable = walk.known_nullable;
     if (walk.known_nullable && rank_phase == RANK_NULLABLE_NEXT && !scanner->question_unknown &&
@@ -285,6 +293,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     array_delete(&walk.events);
     return result;
 unknown:
+    if (interpolation) interpolation->question_depth = UINT16_MAX;
     scanner->question_unknown = true;
     scanner->question_access_cache = 0;
     array_delete(&walk.events);
@@ -296,12 +305,14 @@ unknown:
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     bool known = !scanner->question_unknown && (!scanner->question_type_uncertain || (context_flags & QUESTION_EXPRESSION_RECEIVER)) && !frame->unknown;
+    const Interpolation *interpolation = question_interpolation(scanner);
     bool ternary_only = rank_phase == RANK_PATTERN_COMPLETE;
     bool cached = scanner->question_access_cache && following.token == '[' && known && !ternary_only;
     bool ordinary = following.token != '[' && !following.member;
     bool definite_ternary = ternary_only || (ordinary && !known_nullable && following.token >= '0' && following.token <= '9');
     QuestionWalk walk = {
         .following = following,
+        .interpolation_depth = interpolation && interpolation->question_depth != UINT16_MAX ? interpolation->question_depth : -1,
         .cached_count = scanner->question_access_cache,
         .reserved = frame->pending,
         .mandatory = (uint64_t)frame->pending + ordinary,
@@ -336,6 +347,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
 }
 
 static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c) {
+    if (question_walk_interpolation_end(walk, c)) return question_walk_end_interpolation(lexer, walk);
     question_walk_nullable_tail(walk, c);
     bool first_identifier = walk->ordinary_first_token;
     bool future_identifier = walk->future_first_token;
@@ -467,6 +479,7 @@ static bool question_operator(int32_t c) {
 }
 
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier) {
+    walk->cache_shaped = false;
     bool verbatim = c == '@';
     if (verbatim) {
         advance(lexer);
@@ -484,7 +497,7 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
     walk->logical_name_candidate = false;
     if (walk->recording && walk->first_word && walk->ordinary) walk->definite_ternary = true;
     bool valid = lexer->lookahead == '$'
-        ? rank_skip_interpolated(lexer, verbatim, RANK_BODY_QUESTION_FREE, NULL)
+        ? rank_skip_interpolated(lexer, verbatim, walk->interpolation_depth >= 0 ? RANK_BODY_EXPRESSION : RANK_BODY_QUESTION_FREE, NULL)
         : question_skip_quoted(lexer, verbatim);
     return valid ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
 }
@@ -753,5 +766,81 @@ static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk) {
 }
 
 
+static bool question_walk_interpolation_end(const QuestionWalk *walk, int32_t c) {
+    return (c == ':' || c == '}') && walk->interpolation_depth >= 0 &&
+        walk->depth + walk->interpolation_depth == 0;
+}
+
+static QuestionWalkStep question_walk_end_interpolation(TSLexer *lexer, QuestionWalk *walk) {
+    advance(lexer);
+    if (!walk->interpolation_depth) {
+        walk->known_nullable |= walk->omitted_rank_candidate || walk->nullable_name_candidate || walk->ordinary_name_candidate;
+        walk->known_ternary = false;
+        walk->proved_ternary = false;
+        walk->role_known = true;
+        walk->role_active = false;
+        walk->mandatory = 0;
+    }
+    return QUESTION_WALK_STOP;
+}
+
+static Interpolation *question_interpolation(Scanner *scanner) {
+    if (!scanner->interpolation_stack.size) return NULL;
+    Interpolation *interpolation = array_back(&scanner->interpolation_stack);
+    return interpolation->open_brace_count ? interpolation : NULL;
+}
+
+static void interpolation_question_events(Scanner *scanner, const char *events, unsigned count) {
+    Interpolation *interpolation = question_interpolation(scanner);
+    if (!interpolation || interpolation->question_depth == UINT16_MAX) return;
+    int32_t depth = interpolation->question_depth;
+    for (unsigned i = 0; i < count; i++) {
+        if (question_opening_group(events[i])) depth++;
+        else if (question_closing_group(events[i])) depth--;
+        if (depth < 0 || depth >= UINT16_MAX) {
+            interpolation->question_depth = UINT16_MAX;
+            return;
+        }
+    }
+    interpolation->question_depth = (uint16_t)depth;
+}
+
+static void interpolation_question_prefix(TSLexer *lexer, Interpolation *interpolation) {
+    RankGroups groups = array_new();
+    interpolation->question_depth = UINT16_MAX;
+    while (!lexer->eof(lexer)) {
+        int32_t c = question_skip_separators(lexer);
+        if (c == -2 || c == '#' || lexer->eof(lexer)) break;
+        if (c == -1) continue;
+        if (c == '?') {
+            if (question_read_single_question(lexer)) {
+                interpolation->question_depth = (uint16_t)groups.size;
+                break;
+            }
+            advance(lexer);
+            if (lexer->lookahead == '=') advance(lexer);
+            continue;
+        }
+        if (!groups.size && (c == ':' || c == '}')) break;
+        RankReadStep literal = rank_skip_literal(lexer, c, RANK_BODY_EXPRESSION, NULL);
+        if (literal == RANK_READ_UNKNOWN) break;
+        if (literal != RANK_READ_TOKEN || c == '@') continue;
+        if (!interpolation_question_group(&groups, c)) break;
+        advance(lexer);
+    }
+    array_delete(&groups);
+}
+
+static bool interpolation_question_group(RankGroups *groups, int32_t c) {
+    if (question_opening_group(c)) {
+        if (groups->size == UINT16_MAX - 1) return false;
+        array_push(groups, (char)c);
+    } else if (question_closing_group(c)) {
+        char opening = c == ')' ? '(' : c == ']' ? '[' : '{';
+        if (!groups->size || *array_back(groups) != opening) return false;
+        array_pop(groups);
+    }
+    return true;
+}
 
 #endif

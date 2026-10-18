@@ -69,6 +69,7 @@ typedef struct {
     uint8_t dollar_count;
     uint8_t open_brace_count;
     uint8_t quote_count;
+    uint16_t question_depth;
     StringType string_type;
 } Interpolation;
 
@@ -211,7 +212,7 @@ static bool question_read_varint(const char *buffer, unsigned length, unsigned *
 
 unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buffer) {
     Scanner *scanner = (Scanner *)payload;
-    unsigned original_size = scanner->interpolation_stack.size * 4 + 3;
+    unsigned original_size = scanner->interpolation_stack.size * 6 + 3;
     if (original_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) return 0;
     bool extended = !scanner->question_unknown && (scanner->question_frame_count > 1 ||
         scanner->question_frames[0].pending || scanner->question_frames[0].unknown || scanner->question_frames[0].case_colon);
@@ -239,6 +240,8 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
         buffer[size++] = (char)item.open_brace_count;
         buffer[size++] = (char)item.quote_count;
         buffer[size++] = (char)item.string_type;
+        buffer[size++] = (char)item.question_depth;
+        buffer[size++] = (char)(item.question_depth >> 8);
     }
     if (rank) {
         buffer[size++] = (char)scanner->question_rank_role;
@@ -265,7 +268,7 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
     unsigned flags = (unsigned char)buffer[size++];
     scanner->next_file_directive = (flags & 1) != 0;
     unsigned count = (unsigned char)buffer[size++];
-    if (3 + count * 4 > length) goto unknown;
+    if (3 + count * 6 > length) goto unknown;
     array_reserve(&scanner->interpolation_stack, count);
     scanner->interpolation_stack.size = count;
     for (unsigned i = 0; i < count; i++) {
@@ -274,6 +277,8 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
         item.open_brace_count = (unsigned char)buffer[size++];
         item.quote_count = (unsigned char)buffer[size++];
         item.string_type = (unsigned char)buffer[size++];
+        item.question_depth = (unsigned char)buffer[size++];
+        item.question_depth |= (uint16_t)(unsigned char)buffer[size++] << 8;
         scanner->interpolation_stack.contents[i] = item;
     }
     if (!question_read_modes(scanner, flags, buffer, length, &size)) goto unknown;
@@ -888,6 +893,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             }
             lexer->mark_end(lexer);
             current_interpolation->open_brace_count = brace_advanced;
+            interpolation_question_prefix(lexer, current_interpolation);
             lexer->result_symbol = INTERPOLATION_OPEN_BRACE;
             return true;
         }
