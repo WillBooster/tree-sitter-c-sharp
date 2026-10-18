@@ -128,7 +128,7 @@ const expressionSources = [
 ];
 
 const questionSources = [
-  ...['@i', '"x"', "'x'", '@"x"'].map((index) => ({
+  ...['@i', '"x"', "'x'", '@"x"', '$"x"', '$"{k}"'].map((index) => ({
     name: `literal and verbatim index ${index} access chains`,
     source: (count: number): string => `var x = a${`?[${index}]`.repeat(count)};`,
     node: 'conditional_access_expression',
@@ -365,17 +365,20 @@ test.each([254, 255])('retains %i nested interpolation states and parser reuse',
   );
 });
 
-test('recovers from repeated unterminated interpolation holes in linear time', { timeout: 60_000 }, () => {
-  const line = 'var r = $"{(a, f(b, (c +\n';
-  const small = `class C { void M() {\n${line.repeat(500)}} }`;
-  const large = `class C { void M() {\n${line.repeat(5000)}} }`;
-  parseCpuTime(large);
-  let smallFastest = Infinity;
-  let largeFastest = Infinity;
-  for (let run = 0; run < 3; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large));
+test.each(['var r = $"{(a, f(b, (c +\n', 'var r = $"{(a?[0], f(b, $"{(c\n'])(
+  'recovers from repeated unterminated interpolation holes %j in linear time',
+  { timeout: 60_000 },
+  (line) => {
+    const small = `class C { void M() {\n${line.repeat(500)}} }`;
+    const large = `class C { void M() {\n${line.repeat(5000)}} }`;
+    parseCpuTime(large);
+    let smallFastest = Infinity;
+    let largeFastest = Infinity;
+    for (let run = 0; run < 3; run++) {
+      smallFastest = Math.min(smallFastest, parseCpuTime(small));
+      largeFastest = Math.min(largeFastest, parseCpuTime(large));
+    }
+    expect(largeFastest / smallFastest).toBeLessThan(18);
+    expect(largeFastest).toBeLessThan(5_000_000);
   }
-  expect(largeFastest / smallFastest).toBeLessThan(18);
-  expect(largeFastest).toBeLessThan(5_000_000);
-});
+);

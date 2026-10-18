@@ -1133,6 +1133,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
 }
 
 static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable) {
+    if (role == QUESTION_ROLE_INVALID) return QUESTION_MISMATCHED;
     bool access = role == 1 || role == 3;
     if (known_nullable) {
         if (!valid_symbols[QUESTION_NULLABLE]) return QUESTION_MISMATCHED;

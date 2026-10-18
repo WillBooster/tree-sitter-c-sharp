@@ -201,6 +201,7 @@ typedef struct {
     bool is_current_consumed;
     bool is_pending_bracket;
     int depth;
+    unsigned brace_depth;
     uint8_t root_colons;
     bool root_binary;
     bool cached_access;
@@ -238,7 +239,8 @@ typedef struct {
     Array(char) events;
 } QuestionWalk;
 
-typedef enum { QUESTION_WALK_CONTINUE, QUESTION_WALK_STOP, QUESTION_WALK_UNKNOWN } QuestionWalkStep;
+enum { QUESTION_ROLE_INVALID = 4 };
+typedef enum { QUESTION_WALK_CONTINUE, QUESTION_WALK_STOP, QUESTION_WALK_UNKNOWN, QUESTION_WALK_INVALID } QuestionWalkStep;
 
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase);
 static QuestionWalkStep question_walk_argument_end(TSLexer *lexer, QuestionWalk *walk);
@@ -260,6 +262,7 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
 static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
+static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_colon(QuestionWalk *walk);
 static void question_walk_complete_colon(QuestionWalk *walk);
 static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next);
@@ -284,6 +287,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
         if (c == -2) goto unknown;
         if (lexer->eof(lexer)) break;
         QuestionWalkStep step = question_walk_step(scanner, lexer, &walk, c);
+        if (step == QUESTION_WALK_INVALID) { result = QUESTION_ROLE_INVALID; goto unknown; }
         if (step == QUESTION_WALK_UNKNOWN) goto unknown;
         if (step == QUESTION_WALK_STOP) break;
     }
@@ -305,7 +309,7 @@ unknown:
     array_delete(&walk.events);
     *known_nullable = walk.known_nullable;
     *known_ternary = walk.known_ternary;
-    return walk.known_ternary ? 2 : 0;
+    return result ? result : walk.known_ternary ? 2 : 0;
 }
 
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase) {
@@ -505,9 +509,10 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
     walk->logical_name_candidate = false;
     if (walk->recording && walk->first_word && walk->ordinary) walk->definite_ternary = true;
     bool interpolated = lexer->lookahead == '$';
-    if (interpolated) walk->cache_shaped = false;
+    bool opaque_questions = interpolated && walk->interpolation_depth >= 0;
+    if (opaque_questions) walk->cache_shaped = false;
     bool valid = interpolated
-        ? rank_skip_interpolated(lexer, verbatim, walk->interpolation_depth >= 0 ? RANK_BODY_EXPRESSION : RANK_BODY_QUESTION_FREE, NULL)
+        ? rank_skip_interpolated(lexer, verbatim, opaque_questions ? RANK_BODY_EXPRESSION : RANK_BODY_QUESTION_FREE, 2 * UINT8_MAX)
         : question_skip_quoted(lexer, verbatim);
     return valid ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
 }
@@ -625,6 +630,9 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
 }
 
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c) {
+    if (c == ';' && walk->depth > 0 && !walk->brace_depth) return QUESTION_WALK_INVALID;
+    if (c == '{') walk->brace_depth++;
+    if (c == '}' && walk->brace_depth) walk->brace_depth--;
     advance(lexer);
     if (c == ':' && lexer->lookahead == ':') {
         advance(lexer);
@@ -632,16 +640,8 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
     }
     if (walk->role_active && c == ':') question_walk_colon(walk);
     if (walk->entering_binding && c == '[') question_walk_enter_binding(scanner, lexer, walk);
-    if (walk->is_pending_bracket && !walk->depth && c == '[') {
-        int32_t first = question_skip_separators(lexer);
-        walk->is_pending_bracket = false;
-        if (first == -2) return QUESTION_WALK_UNKNOWN;
-        if (first < 0 || lexer->eof(lexer)) walk->is_eligible = false;
-        else if (first != ',') {
-            if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;
-            else walk->is_optional++;
-        }
-    }
+    if (walk->is_pending_bracket && !walk->depth && c == '[' && !question_walk_enter_pending_binding(lexer, walk))
+        return QUESTION_WALK_UNKNOWN;
     if (walk->recording) array_push(&walk->events, (char)c);
     if (question_opening_group(c)) walk->depth++;
     else if (question_closing_group(c)) walk->depth--;
@@ -671,6 +671,18 @@ static void question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, Questi
         if (!walk->binding && !walk->role_known) walk->role_active = false;
         walk->rank_phase = RANK_NONE;
         walk->entering_binding = false;
+}
+
+static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *walk) {
+    int32_t first = question_skip_separators(lexer);
+    walk->is_pending_bracket = false;
+    if (first == -2) return false;
+    if (first < 0 || lexer->eof(lexer)) walk->is_eligible = false;
+    else if (first != ',') {
+        if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;
+        else walk->is_optional++;
+    }
+    return true;
 }
 
 static void question_walk_colon(QuestionWalk *walk) {

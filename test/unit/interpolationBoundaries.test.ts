@@ -70,6 +70,7 @@ test('preserves nested expressions and multiple interpolation holes', () => {
         'a?[b?[0] ?? 1]',
         'a?[0] + f($"{(c ? [1] : [2])}")?[1]',
         'f(() => { var y = a?[0]; return 1; })?[2]',
+        'a?[f(() => { return 0; })]',
         'f(() => { int? y = 1; return b; })?[2]',
         'f(() => { if (a?[0] == 1) { } return b; })?[2]',
       ]) {
@@ -213,6 +214,9 @@ test('recovers malformed interpolation holes without swallowing the following cl
       const sources = [
         'a?[0]:X',
         'T?[]:-1',
+        'a?[;]:?foo',
+        'a?[0;]:?foo',
+        'a?[(;)]:?foo',
         'a ? int:X',
         '0 ? int : true.b,-2:',
         'x is int ? a :X',

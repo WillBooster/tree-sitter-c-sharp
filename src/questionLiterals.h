@@ -14,7 +14,7 @@ typedef Array(RankLiteralFrame) RankLiteralFrames;
 
 static bool rank_read_delimited(TSLexer *, char, RankBodyMode, bool *);
 static RankReadStep rank_skip_literal(TSLexer *, int32_t, RankBodyMode, bool *, unsigned);
-static bool rank_skip_interpolated(TSLexer *, bool, RankBodyMode, bool *);
+static bool rank_skip_interpolated(TSLexer *, bool, RankBodyMode, unsigned);
 static bool rank_read_frames(TSLexer *, RankLiteralFrames *, bool *, unsigned);
 static void rank_push_code(RankLiteralFrames *, char, RankBodyMode, unsigned);
 static RankReadStep rank_read_code_step(TSLexer *, RankLiteralFrames *);
@@ -40,10 +40,10 @@ static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, RankBodyMode mo
     return valid ? step : RANK_READ_UNKNOWN;
 }
 
-static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, RankBodyMode mode, bool *force_unsafe) {
+static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, RankBodyMode mode, unsigned frame_limit) {
     RankLiteralFrames frames = array_new();
     RankReadStep step = rank_push_interpolated(lexer, &frames, verbatim, mode);
-    bool valid = rank_read_frames(lexer, &frames, force_unsafe, 0);
+    bool valid = rank_read_frames(lexer, &frames, NULL, frame_limit);
     return step != RANK_READ_UNKNOWN && valid;
 }
 
