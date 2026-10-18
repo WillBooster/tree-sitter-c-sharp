@@ -128,6 +128,11 @@ const expressionSources = [
 ];
 
 const questionSources = [
+  ...['@i', '"x"', "'x'", '@"x"'].map((index) => ({
+    name: `literal and verbatim index ${index} access chains`,
+    source: (count: number): string => `var x = a${`?[${index}]`.repeat(count)};`,
+    node: 'conditional_access_expression',
+  })),
   ...['a is T?', 'a as T?', 'new T?[1]'].map((arm) => ({
     name: `nullable true arm ${arm}`,
     source: (count: number): string => `class C { void M() { var x = ${`c ? ${arm} : `.repeat(count)}0; } }`,

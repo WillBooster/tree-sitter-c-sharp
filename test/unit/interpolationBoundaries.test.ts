@@ -202,3 +202,44 @@ test('recognizes a root colon before alias-shaped format text while preserving p
     parser.delete();
   }
 });
+
+test('recovers malformed interpolation holes without swallowing the following class', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const wrap of interpolate) {
+      const sources = [
+        'a?[0]:X',
+        'T?[]:-1',
+        'a ? int:X',
+        '0 ? int : true.b,-2:',
+        'x is int ? a :X',
+        'x is T?[]:C:D',
+      ].map((hole) => `var r = ${wrap(hole)};\nclass Following { int Value => 1; }`);
+      let previous = sources[0]!;
+      let tree = parser.parse(previous)!;
+      try {
+        for (const source of [...sources.slice(1), ...sources.toReversed()]) {
+          editTree(tree, previous, source);
+          const incremental = parser.parse(source, tree)!;
+          const fresh = parser.parse(source)!;
+          try {
+            expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+            expect(
+              fresh.rootNode.descendantsOfType('class_declaration').map((node) => node.text),
+              source
+            ).toEqual(['class Following { int Value => 1; }']);
+          } finally {
+            tree.delete();
+            tree = incremental;
+            fresh.delete();
+            previous = source;
+          }
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

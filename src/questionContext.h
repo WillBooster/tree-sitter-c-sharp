@@ -233,6 +233,7 @@ typedef struct {
     bool found_next_question;
     int32_t interpolation_depth;
     bool interpolation_end;
+    bool nullable_context;
     Array(char) events;
 } QuestionWalk;
 
@@ -317,6 +318,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
     QuestionWalk walk = {
         .following = following,
         .interpolation_depth = interpolation && interpolation->question_depth != UINT16_MAX ? interpolation->question_depth : -1,
+        .nullable_context = scanner->question_type_uncertain || rank_phase != RANK_NONE,
         .cached_count = scanner->question_access_cache,
         .reserved = frame->pending,
         .mandatory = (uint64_t)frame->pending + ordinary,
@@ -483,7 +485,6 @@ static bool question_operator(int32_t c) {
 }
 
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier) {
-    walk->cache_shaped = false;
     bool verbatim = c == '@';
     if (verbatim) {
         advance(lexer);
@@ -500,7 +501,9 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
     if (walk->logical_name_candidate && !walk->recording && !walk->depth) question_walk_logical_nullable(walk);
     walk->logical_name_candidate = false;
     if (walk->recording && walk->first_word && walk->ordinary) walk->definite_ternary = true;
-    bool valid = lexer->lookahead == '$'
+    bool interpolated = lexer->lookahead == '$';
+    if (interpolated) walk->cache_shaped = false;
+    bool valid = interpolated
         ? rank_skip_interpolated(lexer, verbatim, walk->interpolation_depth >= 0 ? RANK_BODY_EXPRESSION : RANK_BODY_QUESTION_FREE, NULL)
         : question_skip_quoted(lexer, verbatim);
     return valid ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
@@ -779,7 +782,8 @@ static QuestionWalkStep question_walk_end_interpolation(TSLexer *lexer, Question
     walk->interpolation_end = true;
     advance(lexer);
     if (!walk->interpolation_depth) {
-        walk->known_nullable |= walk->omitted_rank_candidate || walk->nullable_name_candidate || walk->ordinary_name_candidate;
+        if (walk->nullable_context)
+            walk->known_nullable |= walk->omitted_rank_candidate || walk->nullable_name_candidate || walk->ordinary_name_candidate;
         walk->known_ternary = false;
         walk->proved_ternary = false;
         walk->role_known = true;
