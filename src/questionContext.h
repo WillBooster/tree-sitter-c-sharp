@@ -211,6 +211,7 @@ typedef struct {
     bool nullable_name_candidate;
     bool logical_name_candidate;
     bool role_known;
+    bool context_known;
     bool proved_ternary;
     bool no_colons;
     bool cache_shaped;
@@ -309,7 +310,8 @@ unknown:
 
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    bool known = !scanner->question_unknown && (!scanner->question_type_uncertain || (context_flags & QUESTION_EXPRESSION_RECEIVER)) && !frame->unknown;
+    bool context_known = !scanner->question_unknown && !frame->unknown;
+    bool known = context_known && (!scanner->question_type_uncertain || (context_flags & QUESTION_EXPRESSION_RECEIVER));
     const Interpolation *interpolation = question_interpolation(scanner);
     bool ternary_only = rank_phase == RANK_PATTERN_COMPLETE;
     bool cached = scanner->question_access_cache && following.token == '[' && known && !ternary_only;
@@ -332,6 +334,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .nullable_only = context_flags & QUESTION_NULLABLE_ONLY,
         .omitted_rank_candidate = following.token == '[',
         .role_known = known,
+        .context_known = context_known,
         .no_colons = true,
         .cache_shaped = following.token == '[' && !cached && !ternary_only,
         .role_active = !following.member && !cached && !known_nullable && !definite_ternary,
@@ -786,7 +789,7 @@ static QuestionWalkStep question_walk_end_interpolation(TSLexer *lexer, Question
             walk->known_nullable |= walk->omitted_rank_candidate || walk->nullable_name_candidate || walk->ordinary_name_candidate;
         walk->known_ternary = false;
         walk->proved_ternary = false;
-        walk->role_known = true;
+        walk->role_known = walk->context_known;
         walk->role_active = false;
         walk->mandatory = 0;
     }

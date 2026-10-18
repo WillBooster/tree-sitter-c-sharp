@@ -26,6 +26,8 @@ test('keeps interpolation format text outside access and nullable expressions', 
       'a?[c ? 0 : 1]',
       'x is T?[]',
       'a as T?[]',
+      'x as T?[0]',
+      'x as T?[c ? 0 : 1]',
       'a?[0]?.b',
       'a?[0]?[1]',
     ]) {
@@ -115,6 +117,7 @@ test('keeps incremental interpolation boundaries consistent through nested and i
     'var r = $"{(c ? a?[0] : b?[1]),10:??=}";',
     'var r = $"{(c ? a?[0] : ):??=}";',
     'var r = $"{f($"{a?[0]}")?[0]:?foo}";',
+    'var r = $"{(f(a?[0], x is null) ? f($"{a?[0]}")?[0] : b):X}";',
     'var r = $"{a?[0] + f($"{(c ? [1] : [2])}")?[1]:?foo}";',
     'var r = $$"""{{a?[c ? 0 : 1]:??=}}""";',
     'var r = $$"""{{x is T?[]:C:D}} {{a?[0]:?foo}}""";',
@@ -237,6 +240,40 @@ test('recovers malformed interpolation holes without swallowing the following cl
         }
       } finally {
         tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('preserves outer conditional ownership across nested interpolation access', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const condition of ['f(a?[0], x is null)', 'f(a?[0], x is T)', 'f(a?[0], x as T)', 'f(a?[0], x is T?[])']) {
+      for (const inner of interpolate) {
+        for (const outer of interpolate) {
+          const consequence = `f(${inner('a?[0]')})?[0]`;
+          const source = `var r = ${outer(`(${condition} ? ${consequence} : b):X`)};`;
+          const tree = parser.parse(source)!;
+          try {
+            expect(tree.rootNode.hasError, source).toBe(false);
+            expect(
+              tree.rootNode
+                .descendantsOfType('conditional_expression')
+                .map((node) =>
+                  ['condition', 'consequence', 'alternative'].map((field) => node.childForFieldName(field)?.text)
+                ),
+              source
+            ).toEqual([[condition, consequence, 'b']]);
+            expect(
+              tree.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text),
+              source
+            ).toEqual([':X']);
+          } finally {
+            tree.delete();
+          }
+        }
       }
     }
   } finally {
