@@ -24,6 +24,19 @@ test('keeps interpolation format text outside access and nullable expressions', 
       'a?[0]',
       'a?[.5]',
       'a?[..5]',
+      ...['^1', '(0)', '-1', '!x', 'b?[0]', 'x as int?', 'typeof(T?)', 'M<T?>()', 'M<T?, U>()', '(T?)x'].map(
+        (index) => `a?[${index}]`
+      ),
+      ...[
+        String.raw`'a'`,
+        String.raw`'\n'`,
+        String.raw`'\e'`,
+        String.raw`'\u0061'`,
+        String.raw`'\x61'`,
+        String.raw`'\U00000061'`,
+        String.raw`'\''`,
+        String.raw`\u0061`,
+      ].map((index) => `a?[${index}]`),
       'a?.b?[0]',
       'a?[c ? 0 : 1]',
       'x is T?[]',
@@ -228,6 +241,8 @@ test('recovers malformed interpolation holes without swallowing the following cl
         'T?[]:-1',
         'a?[;]:?foo',
         'a?[.]:?foo',
+        ...['/', '<', '>', '|', '%', '?', "''", 'a ?'].map((index) => `a?[${index}]:X`),
+        'x is T?[<]:C:D',
         'x is T?[=]:C:D',
         'x is T?[.]:C:D',
         'a?[0;]:?foo',
@@ -243,6 +258,9 @@ test('recovers malformed interpolation holes without swallowing the following cl
             sources.push(
               `var r = $"{f($"{a?[0]}")?[0]:${format}${newline}?foo}${newline}class Following { int Value => 1; }`
             );
+          }
+          for (const expression of ['a?[0]', 'f($"{a?[0]}")?[0]', 'f(() => { return a?[0]; })?[0]']) {
+            sources.push(`var r = $"{${expression}:x${newline}?foo}";\nclass Following { int Value => 1; }`);
           }
         }
       }
