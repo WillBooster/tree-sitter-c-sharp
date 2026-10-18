@@ -294,7 +294,7 @@ static bool question_closing_group(int32_t c);
 static bool question_operator(int32_t c);
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier);
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier);
-static bool question_creation_incomplete(TSLexer *lexer, const QuestionWalk *walk, bool creation);
+static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk, const QuestionIdentifier *identifier);
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as);
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk);
@@ -578,7 +578,7 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
     bool creation = identifier.keyword && !strcmp(identifier.word, "new");
     if (identifier.keyword && !walk->is_later_alternative && (creation || strcmp(identifier.word, "delegate") == 0 ||
         strcmp(identifier.word, "stackalloc") == 0 || strcmp(identifier.word, "from") == 0)) walk->is_eligible = false;
-    if (question_creation_incomplete(lexer, walk, creation)) return QUESTION_WALK_UNKNOWN;
+    if (question_keyword_incomplete(lexer, walk, &identifier)) return QUESTION_WALK_UNKNOWN;
     bool is_or_as = identifier.keyword && (strcmp(identifier.word, "is") == 0 || strcmp(identifier.word, "as") == 0);
     bool value_operator = is_or_as || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
     if (walk->logical_name_candidate && !walk->depth && !value_operator)
@@ -604,8 +604,14 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
     return QUESTION_WALK_CONTINUE;
 }
 
-static bool question_creation_incomplete(TSLexer *lexer, const QuestionWalk *walk, bool creation) {
-    if (!creation || !walk->role_active || !walk->binding) return false;
+static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk, const QuestionIdentifier *identifier) {
+    if (!identifier->keyword || !walk->role_active || !walk->binding) return false;
+    static const char *const operands[] = {"new", "typeof", "sizeof", "checked", "unchecked", "delegate", "stackalloc"};
+    static const char *const types[] = {"bool", "byte", "sbyte", "char", "decimal", "double", "float", "int", "uint", "long", "ulong", "short", "ushort", "string", "object", "void"};
+    bool required = question_word_in(identifier->word, operands, sizeof(operands) / sizeof(operands[0]));
+    if (walk->depth == 1 && !walk->cache_type_uncertain)
+        required |= question_word_in(identifier->word, types, sizeof(types) / sizeof(types[0]));
+    if (!required) return false;
     int32_t next = question_skip_separators(lexer);
     return question_closing_group(next) || next == ':' || next == ';';
 }
@@ -699,7 +705,9 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
         if (lexer->lookahead == '=') walk->definite_ternary = walk->ordinary;
         else walk->assignment_possible = true;
     }
-    return QUESTION_WALK_CONTINUE;
+    if (!walk->role_active || !walk->binding || walk->depth != 1) return QUESTION_WALK_CONTINUE;
+    int32_t next = question_skip_separators(lexer);
+    return question_closing_group(next) || next == ',' || next == ';' ? QUESTION_WALK_UNKNOWN : QUESTION_WALK_CONTINUE;
 }
 
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c) {

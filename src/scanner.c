@@ -572,6 +572,8 @@ static bool scan_ambiguous_cast_operand_start(TSLexer *lexer);
 static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols);
 static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred);
 
+static bool scan_recovery(Scanner *scanner, TSLexer *lexer, bool next_file_directive);
+
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
 
@@ -582,17 +584,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     bool recovery = valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START];
     bool next_file_directive = scanner->next_file_directive;
     scanner->next_file_directive = false;
-    if (recovery) {
-        scanner->question_unknown = true; scanner->question_access_cache = 0;
-        clear_question_rank(scanner);
-        bool line_start = next_file_directive;
-        while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
-            if (is_line_terminator(lexer->lookahead)) line_start = true;
-            skip(lexer);
-        }
-        if (!scan_file_directive_prefix(lexer)) return false;
-        return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
-    }
+    if (recovery) return scan_recovery(scanner, lexer, next_file_directive);
 
     if (valid_symbols[INTERPOLATION_FORMAT_COLON] && scan_interpolation_format_colon(lexer)) return true;
 
@@ -1289,4 +1281,27 @@ static bool scan_file_directive_kind(TSLexer *lexer) {
     }
     lexer->mark_end(lexer);
     return true;
+}
+
+static bool scan_recovery(Scanner *scanner, TSLexer *lexer, bool next_file_directive) {
+    scanner->question_unknown = true; scanner->question_access_cache = 0;
+    clear_question_rank(scanner);
+    bool line_start = next_file_directive;
+    while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
+        if (is_line_terminator(lexer->lookahead)) line_start = true;
+        skip(lexer);
+    }
+    if (scanner->interpolation_stack.size && lexer->lookahead == '"') {
+        Interpolation *interpolation = array_back(&scanner->interpolation_stack);
+        unsigned quotes = 0;
+        while (lexer->lookahead == '"') { advance(lexer); quotes++; }
+        if (quotes == interpolation->quote_count) {
+            array_pop(&scanner->interpolation_stack);
+            lexer->result_symbol = INTERPOLATION_END_QUOTE;
+            return true;
+        }
+        return false;
+    }
+    if (!scan_file_directive_prefix(lexer)) return false;
+    return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
 }
