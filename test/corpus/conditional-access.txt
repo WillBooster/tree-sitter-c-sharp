@@ -658,3 +658,61 @@ var f = stackalloc[] {1}?[0];
             consequence: (element_binding_expression
               (argument
                 (integer_literal)))))))))
+
+==================
+Repeated type-test access in switch guards
+==================
+
+switch (y) {
+  case var v when (flag ? a?[0] is T is U : false):
+    break;
+  case var w when (e?[0] is T is U):
+    break;
+}
+
+---
+
+(compilation_unit
+  (global_statement
+    (switch_statement
+      (identifier)
+      (switch_body
+        (switch_section
+          (declaration_pattern
+            (implicit_type)
+            (identifier))
+          (when_clause
+            (parenthesized_expression
+              (conditional_expression
+                (identifier)
+                (is_pattern_expression
+                  (is_pattern_expression
+                    (conditional_access_expression
+                      (identifier)
+                      (element_binding_expression
+                        (argument
+                          (integer_literal))))
+                    (constant_pattern
+                      (identifier)))
+                  (constant_pattern
+                    (identifier)))
+                (boolean_literal))))
+          (break_statement))
+        (switch_section
+          (declaration_pattern
+            (implicit_type)
+            (identifier))
+          (when_clause
+            (parenthesized_expression
+              (is_pattern_expression
+                (is_pattern_expression
+                  (conditional_access_expression
+                    (identifier)
+                    (element_binding_expression
+                      (argument
+                        (integer_literal))))
+                  (constant_pattern
+                    (identifier)))
+                (constant_pattern
+                  (identifier)))))
+          (break_statement))))))

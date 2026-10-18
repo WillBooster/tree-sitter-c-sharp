@@ -27,6 +27,7 @@ static void apply_question_events(Scanner *scanner, const char *events, unsigned
         if (c != ';') continue;
         frame->pending = 0;
         frame->unknown = false;
+        frame->case_colon = false;
         if (scanner->question_frame_count == 1) reset_question_context(scanner);
     }
 }
@@ -519,26 +520,24 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
 }
 
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as) {
-        bool is_keyword = !strcmp(identifier->word, "is");
-        bool independent_type = is_or_as && (walk->depth || walk->is_later_alternative);
-        if (is_keyword && !walk->depth) {
-            if (!walk->is_later_alternative) {
-                if (walk->is_seen) walk->is_eligible = false;
-                walk->is_seen = true;
-            }
-        } else if (is_or_as && !walk->depth && !walk->recording && walk->is_seen) {
-            walk->is_as_phase = true;
-        } else if (!independent_type) {
-            walk->is_eligible = false;
-        }
-        if (is_or_as) {
-            if (walk->recording) scanner->question_type_uncertain = true;
-        } else {
-            scanner->question_unknown = true;
-        }
-        scanner->question_access_cache = 0;
-        if (!independent_type) walk->role_known = false;
- }
+    bool is_keyword = !strcmp(identifier->word, "is");
+    bool root_is = is_keyword && !walk->depth;
+    bool independent_type = is_or_as && (walk->depth || walk->is_later_alternative);
+    bool repeated_case_test = root_is && !walk->is_later_alternative && walk->is_seen &&
+        scanner->question_frames[scanner->question_frame_count - 1].case_colon;
+    walk->is_eligible = walk->is_eligible && !repeated_case_test;
+    if (root_is) {
+        if (!walk->is_later_alternative) walk->is_seen = true;
+    } else if (is_or_as && !walk->depth && !walk->recording && walk->is_seen) {
+        walk->is_as_phase = true;
+    } else if (!independent_type) {
+        walk->is_eligible = false;
+    }
+    if (is_or_as && walk->recording) scanner->question_type_uncertain = true;
+    if (!is_or_as) scanner->question_unknown = true;
+    scanner->question_access_cache = 0;
+    if (!independent_type) walk->role_known = false;
+}
 
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk) {
     if (walk->known_nullable || walk->known_ternary) walk->role_active = false;
@@ -724,7 +723,7 @@ static bool question_expression_keyword(const QuestionIdentifier *identifier) {
 
 static bool question_context_idle(const Scanner *scanner) {
     return scanner->question_frame_count == 1 && !scanner->question_frames[0].pending &&
-        !scanner->question_frames[0].unknown;
+        !scanner->question_frames[0].unknown && !scanner->question_frames[0].case_colon;
 }
 
 static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool proved_access) {
