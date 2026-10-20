@@ -89,7 +89,6 @@ static RankReadStep rank_read_code_step(TSLexer *lexer, RankLiteralFrames *frame
     frame->content = true;
     if (c == ':' && frame->groups.size == 1 && frame->format_braces) {
         advance(lexer);
-        if (lexer->lookahead == ':') { advance(lexer); return RANK_READ_MORE; }
         return rank_read_format(lexer, frame->format_braces) ? RANK_READ_DONE : RANK_READ_UNKNOWN;
     }
     if (c == ':') frame->colon = true;

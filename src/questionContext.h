@@ -304,6 +304,7 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
+static QuestionWalkStep question_walk_leading_commas(TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *walk);
 static bool question_binding_start(TSLexer *lexer, int32_t first);
 static bool question_invalid_binding_has_clause(TSLexer *lexer, const QuestionWalk *walk);
@@ -761,36 +762,40 @@ static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
 }
 
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
-        int32_t first = question_skip_separators(lexer);
-        if (first == '#' || first == -2) return QUESTION_WALK_UNKNOWN;
-        if (first == ',' && !walk->nullable_context && !walk->nullable_only) {
-            do { advance(lexer); } while (question_skip_separators(lexer) == ',');
-            if (lexer->lookahead != ']') {
-                if (lexer->lookahead == '#' || lexer->lookahead == -2) return QUESTION_WALK_UNKNOWN;
-                walk->known_ternary = question_expression_start(lexer, lexer->lookahead) || question_invalid_binding_has_clause(lexer, walk);
-                return walk->known_ternary ? QUESTION_WALK_UNKNOWN : QUESTION_WALK_INVALID;
-            }
-        }
-        walk->binding = first >= 0 && first != ']' && first != ',' && !lexer->eof(lexer);
-        bool nullable_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
-        bool expression_rank = walk->rank_phase == RANK_TERNARY || walk->rank_phase == RANK_AFTER_NULLABLE;
-        bool rank_separator = first == ']' || first == ',';
-        if ((nullable_rank && rank_separator) || (expression_rank && (walk->binding || first == ']'))) {
-            walk->known_nullable = nullable_rank;
-            walk->known_ternary = !walk->known_nullable;
-            if (walk->known_ternary) scanner->question_type_uncertain = false;
-        }
-        if (walk->nullable_only && !walk->known_ternary && (first == ']' || first == ',')) {
-            walk->known_nullable = true;
-            walk->role_active = false;
-        }
-        if (!walk->binding && !walk->role_known) walk->role_active = false;
-        walk->rank_phase = RANK_NONE;
-        walk->entering_binding = false;
-        if (question_binding_start(lexer, first)) return QUESTION_WALK_CONTINUE;
-        if (first == ';' && walk->nullable_context && question_invalid_binding_has_clause(lexer, walk))
-            return QUESTION_WALK_UNKNOWN;
-        return QUESTION_WALK_INVALID;
+    int32_t first = question_skip_separators(lexer);
+    if (first == '#' || first == -2) return QUESTION_WALK_UNKNOWN;
+    if (first == ',' && !walk->nullable_context && !walk->nullable_only) {
+        QuestionWalkStep step = question_walk_leading_commas(lexer, walk);
+        if (step != QUESTION_WALK_CONTINUE) return step;
+    }
+    walk->binding = first >= 0 && first != ']' && first != ',' && !lexer->eof(lexer);
+    bool nullable_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
+    bool expression_rank = walk->rank_phase == RANK_TERNARY || walk->rank_phase == RANK_AFTER_NULLABLE;
+    bool rank_separator = first == ']' || first == ',';
+    if ((nullable_rank && rank_separator) || (expression_rank && (walk->binding || first == ']'))) {
+        walk->known_nullable = nullable_rank;
+        walk->known_ternary = !walk->known_nullable;
+        if (walk->known_ternary) scanner->question_type_uncertain = false;
+    }
+    if (walk->nullable_only && !walk->known_ternary && (first == ']' || first == ',')) {
+        walk->known_nullable = true;
+        walk->role_active = false;
+    }
+    if (!walk->binding && !walk->role_known) walk->role_active = false;
+    walk->rank_phase = RANK_NONE;
+    walk->entering_binding = false;
+    if (question_binding_start(lexer, first)) return QUESTION_WALK_CONTINUE;
+    if (first == ';' && walk->nullable_context && question_invalid_binding_has_clause(lexer, walk))
+        return QUESTION_WALK_UNKNOWN;
+    return QUESTION_WALK_INVALID;
+}
+
+static QuestionWalkStep question_walk_leading_commas(TSLexer *lexer, QuestionWalk *walk) {
+    do { advance(lexer); } while (question_skip_separators(lexer) == ',');
+    if (lexer->lookahead == ']') return QUESTION_WALK_CONTINUE;
+    if (lexer->lookahead == '#' || lexer->lookahead == -2) return QUESTION_WALK_UNKNOWN;
+    walk->known_ternary = question_expression_start(lexer, lexer->lookahead) || question_invalid_binding_has_clause(lexer, walk);
+    return walk->known_ternary ? QUESTION_WALK_UNKNOWN : QUESTION_WALK_INVALID;
 }
 
 static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *walk) {

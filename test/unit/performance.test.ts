@@ -133,7 +133,7 @@ const questionSources = [
     source: (count: number): string => `var x = a${`?[${index}]`.repeat(count)};`,
     node: 'conditional_access_expression',
   })),
-  ...['$"x"', '$"{k}"'].map((index) => ({
+  ...['$"x"', '$"{k}"', '$"{k::?x}"', '$"{(global::N.F()):?x}"'].map((index) => ({
     name: `question-free interpolated index ${index} inside an interpolation hole`,
     source: (count: number): string => `var x = $"{a${`?[${index}]`.repeat(count)}:X}";`,
     node: 'conditional_access_expression',
