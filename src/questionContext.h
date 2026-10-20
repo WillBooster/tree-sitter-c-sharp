@@ -747,7 +747,8 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
 static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
     if (question_opening_group(c)) {
         int32_t previous = walk->previous_token;
-        bool expression = question_opening_group(previous) || question_operator(previous) ||
+        // `!` is also the postfix null-forgiving operator, so `f!()` is an empty-argument invocation.
+        bool expression = question_opening_group(previous) || (question_operator(previous) && previous != '!') ||
             previous == ',' || previous == ':' || previous == '?' || previous == '=';
         array_push(&walk->groups, c == '(' && !expression ? 'p' : (char)c);
         return true;
