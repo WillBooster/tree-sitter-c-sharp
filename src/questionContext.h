@@ -654,10 +654,10 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
         return QUESTION_WALK_CONTINUE;
     }
     if (walk->role_active && walk->binding && walk->depth == 1 && walk->groups.size &&
-        *array_back(&walk->groups) == '[' && !walk->cache_type_uncertain && lexer->lookahead != '.') {
+        *array_back(&walk->groups) == '[' && !walk->cache_type_uncertain) {
         int32_t first = question_skip_separators(lexer);
         if (first == '#' || first == -2) return QUESTION_WALK_UNKNOWN;
-        if (first != '>' && first != ',' && !question_expression_start(lexer, first)) return QUESTION_WALK_INVALID;
+        if (first != '>' && first != ',' && first != '.' && !question_expression_start(lexer, first)) return QUESTION_WALK_INVALID;
     }
     bool later_nullable = false;
     if (walk->role_active && walk->depth) walk->cache_shaped = false;

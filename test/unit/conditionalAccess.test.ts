@@ -1943,3 +1943,30 @@ class Following {}`;
     parser.delete();
   }
 });
+
+test('retains spaced conditional member access inside element arguments', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const trivia of ['', ' ', '/* gap */', '\n', '// gap\n']) {
+      const expression = `a?[x?${trivia}.y]`;
+      for (const source of [`var y = ${expression};`, `var y = $"{${expression}:X}";`]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode
+              .descendantsOfType('conditional_access_expression')
+              .map((node) => node.childForFieldName('condition')?.text),
+            source
+          ).toEqual(['a', 'x']);
+          expect(tree.rootNode.descendantsOfType('element_binding_expression'), source).toHaveLength(1);
+          expect(tree.rootNode.descendantsOfType('member_binding_expression')[0]?.text, source).toBe('.y');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
