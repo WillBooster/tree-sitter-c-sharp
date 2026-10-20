@@ -1297,7 +1297,10 @@ static bool scan_interpolation_recovery(Scanner *scanner, TSLexer *lexer) {
         }
         if (braces != interpolation->open_brace_count) return false;
         lexer->mark_end(lexer);
-        line_end = is_regular(interpolation) && is_line_terminator(lexer->lookahead);
+        if (is_regular(interpolation)) {
+            while (is_directive_horizontal(lexer->lookahead)) advance(lexer);
+            line_end = is_line_terminator(lexer->lookahead);
+        }
     }
     unsigned quotes = 0;
     while (lexer->lookahead == '"' && quotes < interpolation->quote_count) {

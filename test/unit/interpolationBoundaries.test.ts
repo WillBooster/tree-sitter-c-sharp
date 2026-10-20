@@ -318,9 +318,12 @@ test('recovers malformed interpolation holes without swallowing the following cl
         );
         for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
           for (const format of ['', ' ', String.raw`\t`]) {
-            sources.push(
-              `var r = $"{f($"{a?[0]}")?[0]:${format}${newline}?foo}${newline}class Following { int Value => 1; }`
-            );
+            for (const trailing of ['', ' ', '\t', '\u00A0']) {
+              sources.push(
+                `var r = $"{f($"{a?[0]}")?[0]:${format}${newline}?foo}${trailing}${newline}class Following { int Value => 1; }`,
+                `var r = $"{a?[0]:${format}${newline}?foo}${trailing}${newline}";${newline}class Following { int Value => 1; }`
+              );
+            }
           }
           for (const expression of ['a?[0]', 'f($"{a?[0]}")?[0]', 'f(() => { return a?[0]; })?[0]']) {
             sources.push(`var r = $"{${expression}:x${newline}?foo}";\nclass Following { int Value => 1; }`);
