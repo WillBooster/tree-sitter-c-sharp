@@ -286,6 +286,7 @@ module.exports = grammar({
     sym('_statement_end'),
     sym('_block_end'),
     sym('_ampersand_operator'),
+    sym('_interpolation_format_colon'),
   ],
 
   extras: ($) => [
@@ -2047,7 +2048,11 @@ module.exports = grammar({
     interpolation_format_clause: () =>
       prec.dynamic(
         1,
-        seq(':', optional(sym('_file_directive_literal_context')), token.immediate(/[^}"\n\r\u0085\u2028\u2029]+/))
+        seq(
+          choice(alias(sym('_interpolation_format_colon'), ':'), ':'),
+          optional(sym('_file_directive_literal_context')),
+          token.immediate(/[^}"\n\r\u0085\u2028\u2029]+/)
+        )
       ),
 
     _multiline_interpolation: ($) =>
@@ -2060,7 +2065,14 @@ module.exports = grammar({
       ),
 
     _multiline_interpolation_format_clause: () =>
-      prec.dynamic(1, seq(':', optional(sym('_file_directive_literal_context')), /[^}"]+/)),
+      prec.dynamic(
+        1,
+        seq(
+          choice(alias(sym('_interpolation_format_colon'), ':'), ':'),
+          optional(sym('_file_directive_literal_context')),
+          /[^}"]+/
+        )
+      ),
 
     member_access_expression: ($) => memberAccessExpression($, choice($._postfix_receiver, $.predefined_type, $._name)),
 

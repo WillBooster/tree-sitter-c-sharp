@@ -657,7 +657,7 @@ static RankReadStep rank_read_expression_rank(TSLexer *lexer, RankTokens *tokens
 }
 
 static bool rank_skip_rhs_token(TSLexer *lexer, int32_t c, RankExpression *expression, bool *force_unsafe, bool prefix) {
-    RankReadStep literal = rank_skip_literal(lexer, c, RANK_BODY_EXPRESSION, force_unsafe);
+    RankReadStep literal = rank_skip_literal(lexer, c, RANK_BODY_EXPRESSION, force_unsafe, 0);
     if (literal != RANK_READ_TOKEN) {
         if (literal == RANK_READ_MORE) expression->primary = true;
         return literal == RANK_READ_MORE;

@@ -128,6 +128,21 @@ const expressionSources = [
 ];
 
 const questionSources = [
+  ...['@i', '"x"', "'x'", '@"x"', '$"x"', '$"{k}"'].map((index) => ({
+    name: `literal and verbatim index ${index} access chains`,
+    source: (count: number): string => `var x = a${`?[${index}]`.repeat(count)};`,
+    node: 'conditional_access_expression',
+  })),
+  {
+    name: 'null-forgiving invocation index access chains',
+    source: (count: number): string => `var x = a${'?[f!()]'.repeat(count)};`,
+    node: 'conditional_access_expression',
+  },
+  ...['$"x"', '$"{k}"', '$"{k::?x}"', '$"{(global::N.F()):?x}"'].map((index) => ({
+    name: `question-free interpolated index ${index} inside an interpolation hole`,
+    source: (count: number): string => `var x = $"{a${`?[${index}]`.repeat(count)}:X}";`,
+    node: 'conditional_access_expression',
+  })),
   ...['a is T?', 'a as T?', 'new T?[1]'].map((arm) => ({
     name: `nullable true arm ${arm}`,
     source: (count: number): string => `class C { void M() { var x = ${`c ? ${arm} : `.repeat(count)}0; } }`,
@@ -155,6 +170,12 @@ const questionSources = [
     source: (count: number): string =>
       'class C {' + Array.from({ length: count }, (_, index) => `int?[] M${index}() { return null; }`).join(' ') + '}',
     node: 'nullable_type',
+  },
+  {
+    name: 'access chains after nullable interpolation holes',
+    source: (count: number): string =>
+      `var r = $"{(f(a?[0], x is null) ? f($"{x as int?:?foo}")${'?[0]'.repeat(count - 1)} : b):X}";`,
+    node: 'conditional_access_expression',
   },
   {
     name: 'numeric ternaries',
@@ -359,3 +380,21 @@ test.each([254, 255])('retains %i nested interpolation states and parser reuse',
     true
   );
 });
+
+test.each(['var r = $"{(a, f(b, (c +\n', 'var r = $"{(a?[0], f(b, $"{(c\n'])(
+  'recovers from repeated unterminated interpolation holes %j in linear time',
+  { timeout: 60_000 },
+  (line) => {
+    const small = `class C { void M() {\n${line.repeat(500)}} }`;
+    const large = `class C { void M() {\n${line.repeat(5000)}} }`;
+    parseCpuTime(large);
+    let smallFastest = Infinity;
+    let largeFastest = Infinity;
+    for (let run = 0; run < 3; run++) {
+      smallFastest = Math.min(smallFastest, parseCpuTime(small));
+      largeFastest = Math.min(largeFastest, parseCpuTime(large));
+    }
+    expect(largeFastest / smallFastest).toBeLessThan(18);
+    expect(largeFastest).toBeLessThan(5_000_000);
+  }
+);

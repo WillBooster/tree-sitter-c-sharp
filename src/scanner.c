@@ -57,6 +57,7 @@ enum TokenType {
     STATEMENT_END,
     BLOCK_END,
     AMPERSAND_OPERATOR,
+    INTERPOLATION_FORMAT_COLON,
 };
 
 typedef enum {
@@ -69,6 +70,7 @@ typedef struct {
     uint8_t dollar_count;
     uint8_t open_brace_count;
     uint8_t quote_count;
+    uint16_t question_depth;
     StringType string_type;
 } Interpolation;
 
@@ -171,6 +173,7 @@ static bool buf_equals(const char *buf, size_t n, const char *kw) {
 #define QUESTION_STATE_ACCESS_CACHE 8
 #define QUESTION_STATE_TYPE_UNCERTAIN 16
 #define QUESTION_STATE_RANK_ROLE 32
+#define QUESTION_STATE_INTERPOLATION_DEPTH 64
 
 static void clear_question_rank(Scanner *scanner);
 
@@ -209,37 +212,37 @@ static void question_serialize(const Scanner *scanner, char *buffer, unsigned *s
 static bool question_deserialize(Scanner *scanner, const char *buffer, unsigned length, unsigned *size);
 static bool question_read_varint(const char *buffer, unsigned length, unsigned *size, uint32_t *value);
 
+static unsigned interpolation_serialize(const Scanner *scanner, char *buffer, bool depths);
+
 unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buffer) {
     Scanner *scanner = (Scanner *)payload;
     unsigned original_size = scanner->interpolation_stack.size * 4 + 3;
     if (original_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) return 0;
+    unsigned available = TREE_SITTER_SERIALIZATION_BUFFER_SIZE - original_size;
     bool extended = !scanner->question_unknown && (scanner->question_frame_count > 1 ||
         scanner->question_frames[0].pending || scanner->question_frames[0].unknown || scanner->question_frames[0].case_colon);
     bool unknown = scanner->question_unknown;
     unsigned extension_size = extended ? question_serialized_size(scanner) : 2;
-    if (extended && original_size + extension_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
+    if (extended && extension_size > available) {
         extended = false;
         unknown = true;
     }
+    if (extended) available -= extension_size;
     bool rank = !unknown && scanner->question_rank_role &&
-        (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE) &&
-        original_size + (extended ? extension_size : 0) + 5 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
-    bool cache = !unknown && !rank && !scanner->question_type_uncertain && scanner->question_access_cache && original_size +
-        (extended ? extension_size : 0) + (rank ? 5 : 0) + 4 <= TREE_SITTER_SERIALIZATION_BUFFER_SIZE;
+        (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE) && available >= 5;
+    if (rank) available -= 5;
+    bool cache = !rank && (unknown || !scanner->question_type_uncertain) && scanner->question_access_cache && available >= 4;
+    if (cache) available -= 4;
+    bool depths = scanner->interpolation_stack.size && scanner->interpolation_stack.size * 2 <= available;
     unsigned size = 0;
     buffer[size++] = (char)scanner->quote_count;
     buffer[size++] = (char)((scanner->next_file_directive ? 1 : 0) |
         (unknown ? QUESTION_STATE_UNKNOWN : 0) | (extended ? QUESTION_STATE_EXTENDED : 0) |
         (cache ? QUESTION_STATE_ACCESS_CACHE : 0) | (rank ? QUESTION_STATE_RANK_ROLE : 0) |
-        (!unknown && scanner->question_type_uncertain ? QUESTION_STATE_TYPE_UNCERTAIN : 0));
+        (!unknown && scanner->question_type_uncertain ? QUESTION_STATE_TYPE_UNCERTAIN : 0) |
+        (depths ? QUESTION_STATE_INTERPOLATION_DEPTH : 0));
     buffer[size++] = (char)scanner->interpolation_stack.size;
-    for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
-        Interpolation item = scanner->interpolation_stack.contents[i];
-        buffer[size++] = (char)item.dollar_count;
-        buffer[size++] = (char)item.open_brace_count;
-        buffer[size++] = (char)item.quote_count;
-        buffer[size++] = (char)item.string_type;
-    }
+    size += interpolation_serialize(scanner, buffer + size, depths);
     if (rank) {
         buffer[size++] = (char)scanner->question_rank_role;
         for (unsigned byte = 0; byte < 4; byte++)
@@ -249,6 +252,22 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
         for (unsigned byte = 0; byte < 4; byte++) buffer[size++] = (char)(scanner->question_access_cache >> (byte * 8));
     }
     if (extended) question_serialize(scanner, buffer, &size);
+    return size;
+}
+
+static unsigned interpolation_serialize(const Scanner *scanner, char *buffer, bool depths) {
+    unsigned size = 0;
+    for (unsigned i = 0; i < scanner->interpolation_stack.size; i++) {
+        Interpolation item = scanner->interpolation_stack.contents[i];
+        buffer[size++] = (char)item.dollar_count;
+        buffer[size++] = (char)item.open_brace_count;
+        buffer[size++] = (char)item.quote_count;
+        buffer[size++] = (char)item.string_type;
+        if (depths) {
+            buffer[size++] = (char)item.question_depth;
+            buffer[size++] = (char)(item.question_depth >> 8);
+        }
+    }
     return size;
 }
 
@@ -265,7 +284,8 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
     unsigned flags = (unsigned char)buffer[size++];
     scanner->next_file_directive = (flags & 1) != 0;
     unsigned count = (unsigned char)buffer[size++];
-    if (3 + count * 4 > length) goto unknown;
+    bool depths = flags & QUESTION_STATE_INTERPOLATION_DEPTH;
+    if (3 + count * (depths ? 6 : 4) > length) goto unknown;
     array_reserve(&scanner->interpolation_stack, count);
     scanner->interpolation_stack.size = count;
     for (unsigned i = 0; i < count; i++) {
@@ -274,6 +294,11 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
         item.open_brace_count = (unsigned char)buffer[size++];
         item.quote_count = (unsigned char)buffer[size++];
         item.string_type = (unsigned char)buffer[size++];
+        item.question_depth = UINT16_MAX;
+        if (depths) {
+            item.question_depth = (unsigned char)buffer[size++];
+            item.question_depth |= (uint16_t)(unsigned char)buffer[size++] << 8;
+        }
         scanner->interpolation_stack.contents[i] = item;
     }
     if (!question_read_modes(scanner, flags, buffer, length, &size)) goto unknown;
@@ -289,7 +314,12 @@ unknown:
 }
 
 static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size) {
-    if ((flags & ~63U) || (flags & QUESTION_STATE_UNKNOWN)) return false;
+    if (flags & ~127U) return false;
+    if (flags & QUESTION_STATE_UNKNOWN) {
+        if (!(flags & QUESTION_STATE_ACCESS_CACHE) ||
+            (flags & (QUESTION_STATE_EXTENDED | QUESTION_STATE_RANK_ROLE | QUESTION_STATE_TYPE_UNCERTAIN))) return false;
+        scanner->question_unknown = true;
+    }
     scanner->question_type_uncertain = (flags & QUESTION_STATE_TYPE_UNCERTAIN) != 0;
     if (flags & QUESTION_STATE_RANK_ROLE) {
         if (*size + 5 > length || (flags & QUESTION_STATE_ACCESS_CACHE)) return false;
@@ -535,11 +565,14 @@ static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *val
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static bool scan_interpolation_format_colon(TSLexer *lexer);
 static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *valid_symbols);
 static bool advance_operator_character(TSLexer *lexer);
 static bool scan_ambiguous_cast_operand_start(TSLexer *lexer);
 static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols);
 static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred);
+
+static bool scan_recovery(Scanner *scanner, TSLexer *lexer, bool next_file_directive);
 
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
@@ -551,17 +584,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     bool recovery = valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START];
     bool next_file_directive = scanner->next_file_directive;
     scanner->next_file_directive = false;
-    if (recovery) {
-        scanner->question_unknown = true; scanner->question_access_cache = 0;
-        clear_question_rank(scanner);
-        bool line_start = next_file_directive;
-        while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
-            if (is_line_terminator(lexer->lookahead)) line_start = true;
-            skip(lexer);
-        }
-        if (!scan_file_directive_prefix(lexer)) return false;
-        return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
-    }
+    if (recovery) return scan_recovery(scanner, lexer, next_file_directive);
+
+    if (valid_symbols[INTERPOLATION_FORMAT_COLON] && scan_interpolation_format_colon(lexer)) return true;
 
     if (valid_symbols[CONDITIONAL_ALTERNATIVE_START]) {
         scanner->question_type_uncertain = false;
@@ -888,6 +913,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             }
             lexer->mark_end(lexer);
             current_interpolation->open_brace_count = brace_advanced;
+            interpolation_question_prefix(lexer, current_interpolation, 0);
             lexer->result_symbol = INTERPOLATION_OPEN_BRACE;
             return true;
         }
@@ -1025,6 +1051,15 @@ static bool scan_ambiguous_cast_operand_start(TSLexer *lexer) {
 }
 
 
+static bool scan_interpolation_format_colon(TSLexer *lexer) {
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    if (lexer->lookahead != ':') return false;
+    advance(lexer);
+    lexer->mark_end(lexer);
+    lexer->result_symbol = INTERPOLATION_FORMAT_COLON;
+    return true;
+}
+
 static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     if (!valid_symbols[STATEMENT_END] && !valid_symbols[BLOCK_END]) return false;
     if (!scanner->question_type_uncertain && !scanner->question_rank_role && !scanner->question_access_cache) return false;
@@ -1079,6 +1114,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown || frame->unknown || next.token != '[')
         rank_phase = RANK_NONE;
     unsigned context_flags = (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
+        (valid_symbols[QUESTION_ELEMENT_ACCESS] ? QUESTION_ACCESS_ALTERNATIVE : 0) |
         (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
         (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
     unsigned role = prepare_question_context(scanner, lexer, next, &known_nullable,
@@ -1095,6 +1131,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
 }
 
 static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable) {
+    if (role == QUESTION_ROLE_INVALID) return QUESTION_MISMATCHED;
     bool access = role == 1 || role == 3;
     if (known_nullable) {
         if (!valid_symbols[QUESTION_NULLABLE]) return QUESTION_MISMATCHED;
@@ -1245,4 +1282,48 @@ static bool scan_file_directive_kind(TSLexer *lexer) {
     }
     lexer->mark_end(lexer);
     return true;
+}
+
+static bool scan_interpolation_recovery(Scanner *scanner, TSLexer *lexer) {
+    Interpolation *interpolation = array_back(&scanner->interpolation_stack);
+    bool closes_hole = lexer->lookahead == '}';
+    if (closes_hole) {
+        if (!interpolation->open_brace_count) return false;
+        unsigned braces = 0;
+        while (lexer->lookahead == '}' && braces < interpolation->open_brace_count) {
+            advance(lexer);
+            braces++;
+        }
+        if (braces != interpolation->open_brace_count || lexer->lookahead != '"') return false;
+        lexer->mark_end(lexer);
+    }
+    unsigned quotes = 0;
+    while (lexer->lookahead == '"' && quotes < interpolation->quote_count) {
+        advance(lexer);
+        quotes++;
+    }
+    if (!quotes || quotes != interpolation->quote_count || lexer->lookahead == '"') return false;
+    if (closes_hole) {
+        interpolation->open_brace_count = 0;
+        lexer->result_symbol = INTERPOLATION_CLOSE_BRACE;
+    } else {
+        array_pop(&scanner->interpolation_stack);
+        lexer->result_symbol = INTERPOLATION_END_QUOTE;
+    }
+    return true;
+}
+
+static bool scan_recovery(Scanner *scanner, TSLexer *lexer, bool next_file_directive) {
+    scanner->question_unknown = true; scanner->question_access_cache = 0;
+    clear_question_rank(scanner);
+    bool line_start = next_file_directive;
+    while (is_directive_horizontal(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
+        if (is_line_terminator(lexer->lookahead)) line_start = true;
+        skip(lexer);
+    }
+    if (scanner->interpolation_stack.size && (lexer->lookahead == '"' || lexer->lookahead == '}')) {
+        return scan_interpolation_recovery(scanner, lexer);
+    }
+    if (!scan_file_directive_prefix(lexer)) return false;
+    return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
 }

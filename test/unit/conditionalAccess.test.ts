@@ -1885,3 +1885,88 @@ test('continues suppressed conditional assignments without shortening ordinary c
     parser.delete();
   }
 });
+
+test('preserves conditional accesses across directives and later nullable operands', () => {
+  const parser = new Parser().setLanguage(language);
+  const expressions = [
+    `c ? [
+#if DEBUG
+1
+#endif
+] : []`,
+    `items?[
+#if DEBUG
+0
+#else
+1
+#endif
+]`,
+    `c ? [
+// note
+#region r
+1
+#endregion
+] : []`,
+    `a?[b ?
+#if X
+c
+#else
+d
+#endif
+:e]`,
+    'list?[0] != null ? (int?)list[0] : null',
+    '(x?[1] ? 1 : typeof(T?))',
+    'M(a?[0] ? default(int?) : null)',
+    'M(a?[0] ?? (int?)3)',
+  ];
+  try {
+    for (const expression of expressions) {
+      const source = `class C { void M() { var y = ${expression}; } }
+class Following {}`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text),
+          source
+        ).toEqual(['C', 'Following']);
+        if (expression.includes('?[')) {
+          expect(tree.rootNode.descendantsOfType('conditional_access_expression'), source).toHaveLength(1);
+        } else {
+          expect(tree.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(1);
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('retains spaced conditional member access inside element arguments', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const trivia of ['', ' ', '/* gap */', '\n', '// gap\n']) {
+      const expression = `a?[x?${trivia}.y]`;
+      for (const source of [`var y = ${expression};`, `var y = $"{${expression}:X}";`]) {
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          expect(
+            tree.rootNode
+              .descendantsOfType('conditional_access_expression')
+              .map((node) => node.childForFieldName('condition')?.text),
+            source
+          ).toEqual(['a', 'x']);
+          expect(tree.rootNode.descendantsOfType('element_binding_expression'), source).toHaveLength(1);
+          expect(tree.rootNode.descendantsOfType('member_binding_expression')[0]?.text, source).toBe('.y');
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
