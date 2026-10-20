@@ -1885,3 +1885,61 @@ test('continues suppressed conditional assignments without shortening ordinary c
     parser.delete();
   }
 });
+
+test('preserves conditional accesses across directives and later nullable operands', () => {
+  const parser = new Parser().setLanguage(language);
+  const expressions = [
+    `c ? [
+#if DEBUG
+1
+#endif
+] : []`,
+    `items?[
+#if DEBUG
+0
+#else
+1
+#endif
+]`,
+    `c ? [
+// note
+#region r
+1
+#endregion
+] : []`,
+    `a?[b ?
+#if X
+c
+#else
+d
+#endif
+:e]`,
+    'list?[0] != null ? (int?)list[0] : null',
+    '(x?[1] ? 1 : typeof(T?))',
+    'M(a?[0] ? default(int?) : null)',
+    'M(a?[0] ?? (int?)3)',
+  ];
+  try {
+    for (const expression of expressions) {
+      const source = `class C { void M() { var y = ${expression}; } }
+class Following {}`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text),
+          source
+        ).toEqual(['C', 'Following']);
+        if (expression.includes('?[')) {
+          expect(tree.rootNode.descendantsOfType('conditional_access_expression'), source).toHaveLength(1);
+        } else {
+          expect(tree.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(1);
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

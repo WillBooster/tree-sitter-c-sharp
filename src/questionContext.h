@@ -652,8 +652,10 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
         if (lexer->lookahead == '=') advance(lexer);
         return QUESTION_WALK_CONTINUE;
     }
-    if (walk->role_active && walk->binding && walk->depth == 1 && !walk->cache_type_uncertain && lexer->lookahead != '.') {
+    if (walk->role_active && walk->binding && walk->depth == 1 && walk->groups.size &&
+        *array_back(&walk->groups) == '[' && !walk->cache_type_uncertain && lexer->lookahead != '.') {
         int32_t first = question_skip_separators(lexer);
+        if (first == '#' || first == -2) return QUESTION_WALK_UNKNOWN;
         if (first != '>' && first != ',' && !question_expression_start(lexer, first)) return QUESTION_WALK_INVALID;
     }
     bool later_nullable = false;
@@ -760,9 +762,11 @@ static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
 
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
         int32_t first = question_skip_separators(lexer);
+        if (first == '#' || first == -2) return QUESTION_WALK_UNKNOWN;
         if (first == ',' && !walk->nullable_context && !walk->nullable_only) {
             do { advance(lexer); } while (question_skip_separators(lexer) == ',');
             if (lexer->lookahead != ']') {
+                if (lexer->lookahead == '#' || lexer->lookahead == -2) return QUESTION_WALK_UNKNOWN;
                 walk->known_ternary = question_expression_start(lexer, lexer->lookahead) || question_invalid_binding_has_clause(lexer, walk);
                 return walk->known_ternary ? QUESTION_WALK_UNKNOWN : QUESTION_WALK_INVALID;
             }
@@ -792,7 +796,7 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
 static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *walk) {
     int32_t first = question_skip_separators(lexer);
     walk->is_pending_bracket = false;
-    if (first == -2) return false;
+    if (first == '#' || first == -2) return false;
     if (first < 0 || lexer->eof(lexer)) walk->is_eligible = false;
     else if (first != ',') {
         if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;

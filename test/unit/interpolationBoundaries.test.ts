@@ -301,6 +301,7 @@ test('recovers malformed interpolation holes without swallowing the following cl
         ...["x is T?['], b:?foo", "x is T?['] , b:?foo"].flatMap((hole) =>
           [':X', ':?foo', ''].map((format) => hole + format)
         ),
+        'x is T?[(^+^], b:?foo',
         'x is T?[=]:C:D',
         'x is T?[.]:C:D',
         'a?[0;]:?foo',

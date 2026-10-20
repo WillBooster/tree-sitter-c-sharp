@@ -1284,6 +1284,35 @@ static bool scan_file_directive_kind(TSLexer *lexer) {
     return true;
 }
 
+static bool scan_interpolation_recovery(Scanner *scanner, TSLexer *lexer) {
+    Interpolation *interpolation = array_back(&scanner->interpolation_stack);
+    bool closes_hole = lexer->lookahead == '}';
+    if (closes_hole) {
+        if (!interpolation->open_brace_count) return false;
+        unsigned braces = 0;
+        while (lexer->lookahead == '}' && braces < interpolation->open_brace_count) {
+            advance(lexer);
+            braces++;
+        }
+        if (braces != interpolation->open_brace_count || lexer->lookahead != '"') return false;
+        lexer->mark_end(lexer);
+    }
+    unsigned quotes = 0;
+    while (lexer->lookahead == '"' && quotes < interpolation->quote_count) {
+        advance(lexer);
+        quotes++;
+    }
+    if (!quotes || quotes != interpolation->quote_count || lexer->lookahead == '"') return false;
+    if (closes_hole) {
+        interpolation->open_brace_count = 0;
+        lexer->result_symbol = INTERPOLATION_CLOSE_BRACE;
+    } else {
+        array_pop(&scanner->interpolation_stack);
+        lexer->result_symbol = INTERPOLATION_END_QUOTE;
+    }
+    return true;
+}
+
 static bool scan_recovery(Scanner *scanner, TSLexer *lexer, bool next_file_directive) {
     scanner->question_unknown = true; scanner->question_access_cache = 0;
     clear_question_rank(scanner);
@@ -1292,16 +1321,8 @@ static bool scan_recovery(Scanner *scanner, TSLexer *lexer, bool next_file_direc
         if (is_line_terminator(lexer->lookahead)) line_start = true;
         skip(lexer);
     }
-    if (scanner->interpolation_stack.size && lexer->lookahead == '"') {
-        Interpolation *interpolation = array_back(&scanner->interpolation_stack);
-        unsigned quotes = 0;
-        while (lexer->lookahead == '"') { advance(lexer); quotes++; }
-        if (quotes == interpolation->quote_count) {
-            array_pop(&scanner->interpolation_stack);
-            lexer->result_symbol = INTERPOLATION_END_QUOTE;
-            return true;
-        }
-        return false;
+    if (scanner->interpolation_stack.size && (lexer->lookahead == '"' || lexer->lookahead == '}')) {
+        return scan_interpolation_recovery(scanner, lexer);
     }
     if (!scan_file_directive_prefix(lexer)) return false;
     return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
