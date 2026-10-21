@@ -849,16 +849,10 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     if (valid_symbols[INTERPOLATION_START_QUOTE] && scanner->interpolation_stack.size > 0) {
         Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
 
-        if (is_verbatim(current_interpolation) || is_regular(current_interpolation)) {
-            if (lexer->lookahead == '"') {
-                advance(lexer);
-                current_interpolation->quote_count++;
-            }
-        } else {
-            while (lexer->lookahead == '"') {
-                advance(lexer);
-                current_interpolation->quote_count++;
-            }
+        while (lexer->lookahead == '"') {
+            advance(lexer);
+            current_interpolation->quote_count++;
+            if (is_verbatim(current_interpolation) || is_regular(current_interpolation)) break;
         }
 
         lexer->result_symbol = INTERPOLATION_START_QUOTE;
