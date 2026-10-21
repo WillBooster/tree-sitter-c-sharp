@@ -295,3 +295,45 @@ class Following {}
 ---
 
 (compilation_unit (preproc_define (preproc_arg)) (enum_declaration (identifier) (preproc_if (identifier) (base_list (predefined_type))) (preproc_if (unary_expression (identifier)) (base_list (predefined_type))) (enum_member_declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+================================================================================
+Complementary conditional types after a shared class base colon
+================================================================================
+
+class C :
+#if A
+I
+#elif B
+J
+#endif
+#if !A && !B
+K
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit (class_declaration (identifier) (base_list (preproc_if (identifier) (identifier) (preproc_elif (identifier) (identifier))) (preproc_if (binary_expression (unary_expression (identifier)) (unary_expression (identifier))) (identifier))) (declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+================================================================================
+Complementary conditional types after a shared enum base colon
+================================================================================
+
+#define A
+#define B
+enum C :
+#if A
+byte
+#elif B
+short
+#endif
+#if !A && !B
+long
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit (preproc_define (preproc_arg)) (preproc_define (preproc_arg)) (enum_declaration (identifier) (base_list (preproc_if (identifier) (predefined_type) (preproc_elif (identifier) (predefined_type))) (preproc_if (binary_expression (unary_expression (identifier)) (unary_expression (identifier))) (predefined_type))) (enum_member_declaration_list)) (class_declaration (identifier) (declaration_list)))

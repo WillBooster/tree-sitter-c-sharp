@@ -1643,6 +1643,15 @@
           }
         },
         {
+          "type": "SYMBOL",
+          "name": "_conditional_enum_base_type"
+        }
+      ]
+    },
+    "_conditional_enum_base_type": {
+      "type": "SEQ",
+      "members": [
+        {
           "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
@@ -1650,6 +1659,18 @@
           },
           "named": true,
           "value": "preproc_if"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "_conditional_enum_base_type"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         }
       ]
     },
@@ -1787,6 +1808,15 @@
           ]
         },
         {
+          "type": "SYMBOL",
+          "name": "_conditional_base_list_head"
+        }
+      ]
+    },
+    "_conditional_base_list_head": {
+      "type": "CHOICE",
+      "members": [
+        {
           "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
@@ -1794,6 +1824,24 @@
           },
           "named": true,
           "value": "preproc_if"
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "_conditional_base_list_head"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "preproc_if_in_base_list_type"
+              },
+              "named": true,
+              "value": "preproc_if"
+            }
+          ]
         }
       ]
     },
@@ -22490,6 +22538,18 @@
     ],
     [
       "preproc_else_in_base_list",
+      "preproc_else_in_base_list_suffix"
+    ],
+    [
+      "preproc_if_in_base_list_prefix",
+      "preproc_if_in_base_list_suffix"
+    ],
+    [
+      "preproc_elif_in_base_list_prefix",
+      "preproc_elif_in_base_list_suffix"
+    ],
+    [
+      "preproc_else_in_base_list_prefix",
       "preproc_else_in_base_list_suffix"
     ]
   ],

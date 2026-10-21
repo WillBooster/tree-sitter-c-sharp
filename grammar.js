@@ -233,6 +233,9 @@ module.exports = grammar({
     [sym('preproc_if_in_base_list'), sym('preproc_if_in_base_list_suffix')],
     [sym('preproc_elif_in_base_list'), sym('preproc_elif_in_base_list_suffix')],
     [sym('preproc_else_in_base_list'), sym('preproc_else_in_base_list_suffix')],
+    [sym('preproc_if_in_base_list_prefix'), sym('preproc_if_in_base_list_suffix')],
+    [sym('preproc_elif_in_base_list_prefix'), sym('preproc_elif_in_base_list_suffix')],
+    [sym('preproc_else_in_base_list_prefix'), sym('preproc_else_in_base_list_suffix')],
   ],
 
   externals: () => [
@@ -552,8 +555,10 @@ module.exports = grammar({
 
     _enum_base_list: ($) => seq(':', $._enum_base_type),
 
-    _enum_base_type: ($) =>
-      choice(field('underlying_type', $.type), alias(sym('preproc_if_in_enum_base_type'), sym('preproc_if'))),
+    _enum_base_type: ($) => choice(field('underlying_type', $.type), $._conditional_enum_base_type),
+
+    _conditional_enum_base_type: ($) =>
+      seq(alias(sym('preproc_if_in_enum_base_type'), sym('preproc_if')), optional($._conditional_enum_base_type)),
 
     _base_list: ($) => choice($.base_list, $._conditional_base_list),
 
@@ -572,9 +577,12 @@ module.exports = grammar({
       ),
 
     _base_list_head: ($) =>
+      choice(seq(field('base', $.type), optional($.argument_list)), $._conditional_base_list_head),
+
+    _conditional_base_list_head: ($) =>
       choice(
-        seq(field('base', $.type), optional($.argument_list)),
-        alias(sym('preproc_if_in_base_list_type'), sym('preproc_if'))
+        alias(sym('preproc_if_in_base_list_type'), sym('preproc_if')),
+        seq($._conditional_base_list_head, alias(sym('preproc_if_in_base_list_type'), sym('preproc_if')))
       ),
 
     _base_list_prefix: ($) =>
