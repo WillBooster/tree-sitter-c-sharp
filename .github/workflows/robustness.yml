@@ -6,6 +6,8 @@ permissions:
 jobs:
   paired-intel:
     runs-on: macos-15-intel
+    env:
+      CARGO_BUILD_JOBS: 2
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -13,14 +15,17 @@ jobs:
           fetch-depth: 0
       - uses: jdx/mise-action@v5.2.0
       - run: bun install --frozen-lockfile
-      - name: Build exact base and patched Wasm artifacts
+      - name: Build canonical current main and pragma artifacts
         run: |
           mkdir -p .tmp/paired
-          git worktree add --detach .tmp/paired/base 2eac543053150f05f0d42b26490fc5da7898fe23
-          script/tree-sitter build --wasm --output .tmp/paired/head.wasm
-          script/tree-sitter build --wasm --output .tmp/paired/base.wasm .tmp/paired/base
+          git worktree add --detach .tmp/paired/base b9cda730a594148a4ec0700c6ab3321d08549af2
+          git worktree add --detach .tmp/paired/head 4793c4de4b2ab9d694f677d1286b3e0ebef41017
+          for artifact in base head; do
+            (cd .tmp/paired/$artifact && bun install --frozen-lockfile && script/generate --build-wasm)
+            cp .tmp/paired/$artifact/tree-sitter-c_sharp.wasm .tmp/paired/$artifact.wasm
+          done
           shasum -a 256 .tmp/paired/base.wasm .tmp/paired/head.wasm
-      - name: Compare exact full performance suites and parser preconditioning
+      - name: Compare canonical full performance suites and parser preconditioning
         run: |
           set -o pipefail
           node script/diagnoseFullPerformance.mjs | tee .tmp/paired/full-results.log

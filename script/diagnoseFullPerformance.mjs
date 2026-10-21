@@ -1,13 +1,20 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const root = process.cwd();
+const head = path.resolve(process.argv[2] ?? '.tmp/paired/head');
 const baseline = path.resolve('.tmp/paired/base');
 const sourceFile = 'test/unit/performance.test.ts';
-const source = fs.readFileSync(sourceFile, 'utf8');
+const testFiles = [sourceFile, 'test/unit/interpolationBoundaries.test.ts'];
+const source = fs.readFileSync(path.join(head, sourceFile), 'utf8');
+if (!process.argv.includes('--prepare-only')) {
+  for (const file of testFiles) {
+    assert.equal(fs.readFileSync(path.join(baseline, file), 'utf8'), fs.readFileSync(path.join(head, file), 'utf8'));
+  }
+}
 const signature = 'function parseCpuTime(source: string, expectedErrors = true): number {\n';
 assert.equal(source.split(signature).length, 2);
 let measured = source.replace(signature, signature + '  const diagnosticProcessStart = process.cpuUsage();\n');
@@ -43,28 +50,45 @@ if (process.argv.includes('--prepare-only')) {
   process.exit(0);
 }
 for (const [directory, artifact] of [
-  [root, 'head'],
+  [head, 'head'],
   [baseline, 'base'],
 ]) {
   fs.writeFileSync(path.join(directory, sourceFile), measured);
   fs.copyFileSync(path.resolve(`.tmp/paired/${artifact}.wasm`), path.join(directory, 'tree-sitter-c_sharp.wasm'));
 }
-const install = spawnSync('bun', ['install', '--frozen-lockfile'], { cwd: baseline, stdio: 'inherit' });
-assert.equal(install.status, 0);
+for (const directory of [baseline, head]) {
+  const install = spawnSync('bun', ['install', '--frozen-lockfile'], { cwd: directory, stdio: 'inherit' });
+  assert.equal(install.status, 0);
+}
+const artifacts = {};
+for (const [name, directory] of [
+  ['base', baseline],
+  ['head', head],
+]) {
+  const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: directory, encoding: 'utf8' });
+  assert.equal(revision.status, 0);
+  artifacts[name] = {
+    revision: revision.stdout.trim(),
+    wasmSha256: createHash('sha256')
+      .update(fs.readFileSync(path.join(directory, 'tree-sitter-c_sharp.wasm')))
+      .digest('hex'),
+  };
+}
 const machine = {
   node: process.version,
   cpu: os.cpus()[0],
   arch: process.arch,
   memory: os.totalmem(),
   cpus: os.availableParallelism(),
+  artifacts,
 };
 const results = [];
 for (let cohort = 0; cohort < 2; cohort++) {
   for (const artifact of cohort % 2 ? ['head', 'base'] : ['base', 'head']) {
-    const directory = artifact === 'base' ? baseline : root;
+    const directory = artifact === 'base' ? baseline : head;
     const logfile = path.resolve(`.tmp/paired/full-${cohort}-${artifact}.log`);
     const descriptor = fs.openSync(logfile, 'w');
-    const command = spawnSync('bun', ['wb', 'test', sourceFile], {
+    const command = spawnSync('bun', ['wb', 'test', ...testFiles], {
       cwd: directory,
       stdio: ['ignore', descriptor, descriptor],
     });

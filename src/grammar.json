@@ -7203,6 +7203,10 @@
         },
         {
           "type": "STRING",
+          "value": "required"
+        },
+        {
+          "type": "STRING",
           "value": "scoped"
         },
         {
@@ -17464,6 +17468,10 @@
         {
           "type": "STRING",
           "value": "property"
+        },
+        {
+          "type": "STRING",
+          "value": "required"
         },
         {
           "type": "STRING",
