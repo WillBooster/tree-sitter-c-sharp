@@ -121,18 +121,22 @@ test('highlights nested conditional base types without treating conditions as ty
   const parser = new Parser().setLanguage(language);
   const query = new Query(language, fs.readFileSync('queries/highlights.scm', 'utf8'));
   const tags = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
-  const sources = [1, 4, 16].flatMap((depth) => [
-    `class C\n${nestedBase(': B', ': D', depth)}\n{}\nclass Following {}`,
-    `class C :\n${nestedBase('B', 'D', depth)}\n{}\nclass Following {}`,
-    `class C : E\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
-    `class C :\n${nestedBase('I,', 'J,', depth)}\nK\n{}\nclass Following {}`,
-    `class C : B\n${nestedBase(', I,', ',', depth)}\nJ\n{}\nclass Following {}`,
-    `class C\n${nestedBase(': B', ': D', depth)}\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
-    `class C\n${nestedBase(': B', ': D', depth)}\n, I\n{}\nclass Following {}`,
-    `class C\n#if A\n${nestedBase(': B', ': D', depth)}\n#endif\n#if !A\n: E\n#endif\n{}\nclass Following {}`,
-    `class C :\n#if A\n${nestedBase('B', 'D', depth)}\n#endif\n#if !A\nE\n#endif\n{}\nclass Following {}`,
-    `class C :\n#if A\n${nestedBase('B', 'D', depth)}\n#endif\n#if !A\nE\n#endif\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
-  ]);
+  const sources = [1, 4, 16]
+    .flatMap((depth) => [
+      `class C\n${nestedBase(': B', ': D', depth)}\n{}\nclass Following {}`,
+      `class C :\n${nestedBase('B', 'D', depth)}\n{}\nclass Following {}`,
+      `class C : E\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
+      `class C :\n${nestedBase('I,', 'J,', depth)}\nK\n{}\nclass Following {}`,
+      `class C : B\n${nestedBase(', I,', ',', depth)}\nJ\n{}\nclass Following {}`,
+      `class C\n${nestedBase(': B', ': D', depth)}\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
+      `class C\n${nestedBase(': B', ': D', depth)}\n, I\n{}\nclass Following {}`,
+      `class C\n#if A\n${nestedBase(': B', ': D', depth)}\n#endif\n#if !A\n: E\n#endif\n{}\nclass Following {}`,
+      `class C :\n#if A\n${nestedBase('B', 'D', depth)}\n#endif\n#if !A\nE\n#endif\n{}\nclass Following {}`,
+      `class C :\n#if A\n${nestedBase('B', 'D', depth)}\n#endif\n#if !A\nE\n#endif\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
+    ])
+    .flatMap((source) =>
+      ['class', 'struct', 'interface', 'record', 'record struct'].map((kind) => source.replace(/^class C/, `${kind} C`))
+    );
   let previous: Tree | undefined;
   let source = '';
   try {
@@ -174,7 +178,14 @@ test('highlights nested conditional base types without treating conditions as ty
           captures.filter((capture) => capture.name === 'type' && /^A[0-9]+$/.test(capture.node.text))
         ).toHaveLength(0);
         expect(
-          tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
+          tree.rootNode
+            .descendantsOfType([
+              'class_declaration',
+              'struct_declaration',
+              'interface_declaration',
+              'record_declaration',
+            ])
+            .map((node) => node.childForFieldName('name')?.text)
         ).toEqual(['C', 'Following']);
       } finally {
         fresh.delete();

@@ -11,8 +11,8 @@
 (interface_declaration name: (identifier) @type)
 (class_declaration name: (identifier) @type)
 (enum_declaration name: (identifier) @type)
-(struct_declaration (identifier) @type)
-(record_declaration (identifier) @type)
+(struct_declaration name: (identifier) @type)
+(record_declaration name: (identifier) @type)
 (namespace_declaration name: (identifier) @module)
 
 (generic_name (identifier) @type)
