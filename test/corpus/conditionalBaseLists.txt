@@ -1,0 +1,116 @@
+================================================================================
+Conditional whole base clause with primary arguments
+================================================================================
+
+class C(int x)
+#if A
+: B(x)
+#else
+: D(x)
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit
+  (class_declaration
+    (identifier)
+    (parameter_list
+      (parameter
+        (predefined_type)
+        (identifier)))
+    (preproc_if
+      (identifier)
+      (base_list
+        (identifier)
+        (argument_list
+          (argument
+            (identifier))))
+      (preproc_else
+        (base_list
+          (identifier)
+          (argument_list
+            (argument
+              (identifier))))))
+    (declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list)))
+
+================================================================================
+Conditional type after a shared record base colon
+================================================================================
+
+record C(int x) :
+#if A
+B(x)
+#else
+D(x)
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit
+  (record_declaration
+    (identifier)
+    (parameter_list
+      (parameter
+        (predefined_type)
+        (identifier)))
+    (base_list
+      (preproc_if
+        (identifier)
+        (identifier)
+        (argument_list
+          (argument
+            (identifier)))
+        (preproc_else
+          (identifier)
+          (argument_list
+            (argument
+              (identifier))))))
+    (declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list)))
+
+================================================================================
+Conditional suffix after an interface base
+================================================================================
+
+interface C : I
+#if A
+#if B
+, J
+#else
+, K
+#endif
+#else
+, L
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit
+  (interface_declaration
+    (identifier)
+    (base_list
+      (identifier)
+      (preproc_if
+        (identifier)
+        (preproc_if
+          (identifier)
+          (identifier)
+          (preproc_else
+            (identifier)))
+        (preproc_else
+          (identifier))))
+    (declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list)))

@@ -11,7 +11,7 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
-/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_base_list' | '_base_list_type' | '_base_list_suffix' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
 
 const PREC = {
   GENERIC: 19,
@@ -226,7 +226,6 @@ module.exports = grammar({
     [$.parameter, $.declaration_expression],
     [$.parameter, $.tuple_element],
     [$.event_declaration, $.variable_declarator],
-    [$.base_list],
     [$.using_directive, $.modifier],
     [$.using_directive],
     [$._constructor_declaration_initializer, $._simple_name],
@@ -306,6 +305,9 @@ module.exports = grammar({
   ],
 
   inline: ($) => [
+    $._base_list,
+    $._base_list_type,
+    $._base_list_suffix,
     $._postfix_receiver,
     $._namespace_member_declaration,
     $._object_creation_type,
@@ -412,7 +414,9 @@ module.exports = grammar({
         repeat($.modifier),
         'class',
         field('name', $.identifier),
-        repeat(choice($.type_parameter_list, $.parameter_list, $.base_list)),
+        optional($.type_parameter_list),
+        optional($.parameter_list),
+        optional($._base_list),
         repeat($.type_parameter_constraints_clause)
       ),
 
@@ -425,7 +429,9 @@ module.exports = grammar({
         optional(seq('ref', optional(alias('partial', $.modifier)))),
         'struct',
         field('name', $.identifier),
-        repeat(choice($.type_parameter_list, $.parameter_list, $.base_list)),
+        optional($.type_parameter_list),
+        optional($.parameter_list),
+        optional($._base_list),
         repeat($.type_parameter_constraints_clause)
       ),
 
@@ -436,7 +442,7 @@ module.exports = grammar({
       ),
 
     _enum_declaration_initializer: ($) =>
-      seq(repeat($._attribute_list), repeat($.modifier), 'enum', field('name', $.identifier), optional($.base_list)),
+      seq(repeat($._attribute_list), repeat($.modifier), 'enum', field('name', $.identifier), optional($._base_list)),
 
     enum_member_declaration_list: ($) =>
       seq(
@@ -460,7 +466,7 @@ module.exports = grammar({
         'interface',
         field('name', $.identifier),
         field('type_parameters', optional($.type_parameter_list)),
-        optional($.base_list),
+        optional($._base_list),
         repeat($.type_parameter_constraints_clause)
       ),
 
@@ -487,21 +493,14 @@ module.exports = grammar({
         'record',
         optional(choice('class', 'struct')),
         field('name', $.identifier),
-        repeat(choice($.type_parameter_list, $.parameter_list)),
-        optional(alias($.record_base, $.base_list)),
+        optional($.type_parameter_list),
+        optional($.parameter_list),
+        optional($._base_list),
         repeat($.type_parameter_constraints_clause)
-      ),
-
-    record_base: ($) =>
-      choice(
-        seq(':', commaSep1($._name)),
-        seq(':', $.primary_constructor_base_type, optional(seq(',', commaSep1($._name))))
       ),
 
     _declaration_list_body: ($) =>
       choice(seq(field('body', $.declaration_list), sym('_optional_semi')), statementEnd()),
-
-    primary_constructor_base_type: ($) => seq(field('type', $._name), $.argument_list),
 
     modifier: () =>
       prec.right(
@@ -535,7 +534,18 @@ module.exports = grammar({
 
     type_parameter: ($) => seq(repeat($._attribute_list), optional(choice('in', 'out')), field('name', $.identifier)),
 
-    base_list: ($) => seq(':', commaSep1(seq($.type, optional($.argument_list)))),
+    _base_list: ($) => choice($.base_list, alias(sym('preproc_if_in_base_list'), sym('preproc_if'))),
+
+    base_list: ($) => seq(':', $._base_list_type, repeat($._base_list_suffix)),
+
+    _base_list_type: ($) =>
+      choice(
+        seq(field('type', $.type), optional($.argument_list)),
+        alias(sym('preproc_if_in_base_list_type'), sym('preproc_if'))
+      ),
+
+    _base_list_suffix: ($) =>
+      choice(seq(',', $._base_list_type), alias(sym('preproc_if_in_base_list_suffix'), sym('preproc_if'))),
 
     type_parameter_constraints_clause: ($) => seq('where', $.identifier, ':', commaSep1($.type_parameter_constraint)),
 
@@ -2334,6 +2344,9 @@ module.exports = grammar({
       false,
       true
     ),
+    ...preprocIf('_in_base_list', ($) => $._base_list, 0, false),
+    ...preprocIf('_in_base_list_type', ($) => $._base_list_type, 0, false, true),
+    ...preprocIf('_in_base_list_suffix', ($) => $._base_list_suffix),
     ...preprocIf('', ($) => $.declaration),
     ...preprocIf('_in_top_level', ($) => choice($._top_level_item_no_statement, $.statement)),
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),

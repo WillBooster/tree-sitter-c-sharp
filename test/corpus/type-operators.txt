@@ -721,7 +721,7 @@ public class C : I
     (modifier)
     name: (identifier)
     (base_list
-      (identifier))
+      type: (identifier))
     body: (declaration_list
       (operator_declaration
         (modifier)
@@ -863,7 +863,7 @@ public class C : I<C>
     (modifier)
     name: (identifier)
     (base_list
-      (generic_name
+      type: (generic_name
         (identifier)
         (type_argument_list
           (identifier))))

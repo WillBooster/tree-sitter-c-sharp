@@ -92,7 +92,7 @@ record NoBody;
     (modifier)
     name: (identifier)
     (base_list
-      (identifier))
+      type: (identifier))
     body: (declaration_list))
   (record_declaration
     (attribute_list
@@ -140,13 +140,12 @@ record NoBody;
         type: (predefined_type)
         name: (identifier)))
     (base_list
-      (primary_constructor_base_type
-        type: (identifier)
-        (argument_list
-          (argument
-            (identifier))
-          (argument
-            (identifier))))))
+      type: (identifier)
+      (argument_list
+        (argument
+          (identifier))
+        (argument
+          (identifier)))))
   (record_declaration
     name: (identifier)
     (parameter_list
@@ -160,28 +159,26 @@ record NoBody;
         type: (predefined_type)
         name: (identifier)))
     (base_list
-      (primary_constructor_base_type
-        type: (identifier)
-        (argument_list
-          (argument
-            (identifier))
-          (argument
-            (identifier))))
-      (qualified_name
+      type: (identifier)
+      (argument_list
+        (argument
+          (identifier))
+        (argument
+          (identifier)))
+      type: (qualified_name
         qualifier: (identifier)
         name: (identifier))
-      (identifier)))
+      type: (identifier)))
   (record_declaration
     name: (identifier)
     (parameter_list)
     (base_list
-      (primary_constructor_base_type
-        type: (generic_name
-          (identifier)
-          (type_argument_list
-            (identifier)))
-        (argument_list))
-      (identifier)))
+      type: (generic_name
+        (identifier)
+        (type_argument_list
+          (identifier)))
+      (argument_list)
+      type: (identifier)))
   (record_declaration
     (modifier)
     name: (identifier)

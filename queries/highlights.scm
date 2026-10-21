@@ -27,8 +27,6 @@
 
 (_ type: (identifier) @type)
 
-(base_list (identifier) @type)
-
 (predefined_type) @type.builtin
 
 ;; Enum
