@@ -2663,6 +2663,14 @@
         {
           "type": "declaration",
           "named": true
+        },
+        {
+          "type": "extern_alias_directive",
+          "named": true
+        },
+        {
+          "type": "type_declaration",
+          "named": true
         }
       ]
     }

@@ -11,7 +11,7 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
-/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
 
 const PREC = {
   GENERIC: 19,
@@ -391,7 +391,22 @@ module.exports = grammar({
     _namespace_member_declaration: ($) => choice($.namespace_declaration, $.type_declaration),
 
     namespace_declaration: ($) =>
-      seq('namespace', field('name', $._name), field('body', $.declaration_list), sym('_optional_semi')),
+      seq(
+        'namespace',
+        field('name', $._name),
+        field('body', alias($._namespace_body, $.declaration_list)),
+        sym('_optional_semi')
+      ),
+
+    _namespace_body: ($) => seq('{', repeat($._namespace_body_item), blockEnd()),
+
+    _namespace_body_item: ($) =>
+      choice(
+        $.extern_alias_directive,
+        $.using_directive,
+        $._namespace_member_declaration,
+        alias(sym('preproc_if_in_namespace'), sym('preproc_if'))
+      ),
 
     file_scoped_namespace_declaration: ($) =>
       prec.right(seq('namespace', field('name', $._name), statementEnd(), repeat($._top_level_item_no_statement))),
@@ -2336,6 +2351,7 @@ module.exports = grammar({
       false,
       true
     ),
+    ...preprocIf('_in_namespace', ($) => $._namespace_body_item),
     ...preprocIf('', ($) => $.declaration),
     ...preprocIf('_in_top_level', ($) => choice($._top_level_item_no_statement, $.statement)),
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),

@@ -1,0 +1,21 @@
+================================================================================
+Namespace extern aliases and extern methods
+================================================================================
+
+extern alias Outer;
+namespace N {
+extern alias External;
+#if X
+extern alias Other;
+#else
+extern alias Alternate;
+#endif
+using T = External::Thing;
+class alias {}
+class C { extern alias M(); }
+}
+class Following {}
+
+---
+
+(compilation_unit (extern_alias_directive (identifier)) (namespace_declaration (identifier) (declaration_list (extern_alias_directive (identifier)) (preproc_if (identifier) (extern_alias_directive (identifier)) (preproc_else (extern_alias_directive (identifier)))) (using_directive (identifier) (alias_qualified_name (identifier) (identifier))) (class_declaration (identifier) (declaration_list)) (class_declaration (identifier) (declaration_list (method_declaration (modifier) (identifier) (identifier) (parameter_list)))))) (class_declaration (identifier) (declaration_list)))
