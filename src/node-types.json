@@ -6474,6 +6474,10 @@
           "named": true
         },
         {
+          "type": "preproc_arg",
+          "named": true
+        },
+        {
           "type": "string_literal",
           "named": true
         }
