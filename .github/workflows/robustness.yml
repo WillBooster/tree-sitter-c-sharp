@@ -20,11 +20,11 @@ jobs:
           script/tree-sitter build --wasm --output .tmp/paired/head.wasm
           script/tree-sitter build --wasm --output .tmp/paired/base.wasm .tmp/paired/base
           shasum -a 256 .tmp/paired/base.wasm .tmp/paired/head.wasm
-      - name: Compare alternating base and patched cohorts
-        run: node script/diagnoseInterpolationPerformance.mjs .tmp/paired/base.wasm .tmp/paired/head.wasm | tee .tmp/paired/results.log
+      - name: Compare exact full performance suites and parser preconditioning
+        run: node script/diagnoseFullPerformance.mjs | tee .tmp/paired/full-results.log
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          name: paired-intel-performance
-          path: .tmp/paired/results.*
+          name: paired-intel-full-performance
+          path: .tmp/paired/full-*
           retention-days: 7
