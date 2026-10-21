@@ -393,7 +393,8 @@ module.exports = grammar({
     namespace_declaration: ($) =>
       seq('namespace', field('name', $._name), field('body', $.declaration_list), sym('_optional_semi')),
 
-    file_scoped_namespace_declaration: ($) => seq('namespace', field('name', $._name), statementEnd()),
+    file_scoped_namespace_declaration: ($) =>
+      prec.right(seq('namespace', field('name', $._name), statementEnd(), repeat($._top_level_item_no_statement))),
 
     type_declaration: ($) =>
       choice(
