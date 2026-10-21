@@ -316,6 +316,11 @@ test('recovers malformed interpolation holes without swallowing the following cl
         'x is T?[]:C:D',
       ].map((hole) => `var r = ${wrap(hole)};\nclass Following { int Value => 1; }`);
       if (wrap === interpolate[0]) {
+        for (const prefix of ['$@', '@$']) {
+          for (const newline of ['\n', '\r\n']) {
+            sources.push(`var r = ${prefix}"{x is T?[;{:}${newline}}${newline}class Following { int Value => 1; }`);
+          }
+        }
         sources.push(
           'var r = $"{x is T?[;|{+], b:?foo:X}";\nclass Following { int Value => 1; }',
           'var r = $@"{x is T?[;|{+], b:?foo:X}";\nclass Following { int Value => 1; }'

@@ -1297,7 +1297,7 @@ static bool scan_interpolation_recovery(Scanner *scanner, TSLexer *lexer) {
         }
         if (braces != interpolation->open_brace_count) return false;
         lexer->mark_end(lexer);
-        if (is_regular(interpolation)) {
+        if (is_regular(interpolation) && !is_verbatim(interpolation)) {
             while (is_directive_horizontal(lexer->lookahead)) advance(lexer);
             line_end = is_line_terminator(lexer->lookahead);
         }
