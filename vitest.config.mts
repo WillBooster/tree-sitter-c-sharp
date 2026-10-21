@@ -14,6 +14,8 @@ export default defineConfig({
   test: {
     // tsconfig.json declares the `vitest/globals` types, so the runner must provide those globals.
     globals: true,
+    // Concurrent Wasm compiler pools compete with CPU sampling on small CI runners.
+    maxWorkers: 1,
     projects: [
       {
         test: {
