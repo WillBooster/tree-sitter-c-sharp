@@ -287,6 +287,7 @@ module.exports = grammar({
     sym('_block_end'),
     sym('_ampersand_operator'),
     sym('_interpolation_format_colon'),
+    sym('_pragma_text'),
   ],
 
   extras: ($) => [
@@ -2449,9 +2450,12 @@ module.exports = grammar({
     preproc_pragma: ($) =>
       seq(
         preprocessor('pragma'),
-        choice(
-          seq('warning', choice('disable', 'restore'), commaSep(choice($.identifier, $.integer_literal))),
-          seq('checksum', alias($._preproc_filename, $.string_literal), $.string_literal, $.string_literal)
+        optional(
+          choice(
+            seq('warning', choice('disable', 'restore'), commaSep(choice($.identifier, $.integer_literal))),
+            seq('checksum', alias($._preproc_filename, $.string_literal), $.string_literal, $.string_literal),
+            alias(sym('_pragma_text'), $.preproc_arg)
+          )
         ),
         directiveEnd()
       ),
