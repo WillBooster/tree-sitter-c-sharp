@@ -11,7 +11,7 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
-/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
 
 const PREC = {
   GENERIC: 19,
@@ -308,6 +308,8 @@ module.exports = grammar({
     $._base_list,
     $._base_list_head,
     $._base_list_separator,
+    $._enum_base_clause,
+    $._enum_base_type,
     $._postfix_receiver,
     $._namespace_member_declaration,
     $._object_creation_type,
@@ -442,7 +444,13 @@ module.exports = grammar({
       ),
 
     _enum_declaration_initializer: ($) =>
-      seq(repeat($._attribute_list), repeat($.modifier), 'enum', field('name', $.identifier), optional($._base_list)),
+      seq(
+        repeat($._attribute_list),
+        repeat($.modifier),
+        'enum',
+        field('name', $.identifier),
+        optional($._enum_base_clause)
+      ),
 
     enum_member_declaration_list: ($) =>
       seq(
@@ -533,6 +541,14 @@ module.exports = grammar({
     type_parameter_list: ($) => seq('<', commaSep1($.type_parameter), '>'),
 
     type_parameter: ($) => seq(repeat($._attribute_list), optional(choice('in', 'out')), field('name', $.identifier)),
+
+    _enum_base_clause: ($) =>
+      choice(alias($._enum_base_list, $.base_list), alias(sym('preproc_if_in_enum_base_clause'), sym('preproc_if'))),
+
+    _enum_base_list: ($) => seq(':', $._enum_base_type),
+
+    _enum_base_type: ($) =>
+      choice(field('underlying_type', $.type), alias(sym('preproc_if_in_enum_base_type'), sym('preproc_if'))),
 
     _base_list: ($) => choice($.base_list, alias(sym('preproc_if_in_base_list'), sym('preproc_if'))),
 
@@ -2367,6 +2383,8 @@ module.exports = grammar({
       false,
       true
     ),
+    ...preprocIf('_in_enum_base_clause', ($) => $._enum_base_clause, 0, false),
+    ...preprocIf('_in_enum_base_type', ($) => $._enum_base_type, 0, false, true),
     ...preprocIf('_in_base_list', ($) => $._base_list, 0, false),
     ...preprocIf('_in_base_list_type', ($) => $._base_list_type, 0, false, true),
     ...preprocIf('_in_base_list_prefix', ($) => $._base_list_prefix, 0, false),

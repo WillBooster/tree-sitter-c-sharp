@@ -204,3 +204,37 @@ class Following {}
   (class_declaration
     (identifier)
     (declaration_list)))
+
+================================================================================
+Conditional enum clause with nested underlying type
+================================================================================
+
+enum C
+#if A
+:
+#if B
+byte
+#else
+long
+#endif
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit
+  (enum_declaration
+    (identifier)
+    (preproc_if
+      (identifier)
+      (base_list
+        (preproc_if
+          (identifier)
+          (predefined_type)
+          (preproc_else
+            (predefined_type)))))
+    (enum_member_declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list)))

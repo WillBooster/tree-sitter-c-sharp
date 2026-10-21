@@ -170,6 +170,7 @@ test('tags only actual base types across qualified, generic, and constructor bas
   const query = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
   const sources = [
     ['class C(int x) : A.B<T>(x), I<T> {}', ['A.B<T>', 'I<T>']],
+    ['class C() : object() {}', ['object']],
     ['record C(int x) : A.B<T>(x), I<T> {}', ['A.B<T>', 'I<T>']],
     ['interface C : A.B<T>, I<T> {}', ['A.B<T>', 'I<T>']],
     ['struct C : A.B<T>, I<T> {}', ['A.B<T>', 'I<T>']],
@@ -200,6 +201,48 @@ test('tags only actual base types across qualified, generic, and constructor bas
     }
   } finally {
     query.delete();
+    parser.delete();
+  }
+});
+
+test('does not tag enum underlying types as class references through edits', async () => {
+  await Parser.init();
+  const language = await Language.load('tree-sitter-c_sharp.wasm');
+  const parser = new Parser().setLanguage(language);
+  const tags = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
+  const sources = [
+    ...['byte', 'sbyte', 'short', 'ushort', 'int', 'uint', 'long', 'ulong', 'System.Byte', 'MyByte'].map(
+      (type) => `enum E : ${type} {}`
+    ),
+    ...[1, 4, 16].flatMap((depth) => [
+      `enum E\n${nestedBase(': byte', ': long', depth)}\n{}`,
+      `enum E :\n${nestedBase('byte', 'long', depth)}\n{}`,
+    ]),
+  ];
+  let previous: Tree | undefined;
+  let source = '';
+  try {
+    for (const next of [...sources, sources[0]!]) {
+      if (previous) editTree(previous, source, next);
+      const tree = parser.parse(next, previous)!;
+      previous?.delete();
+      previous = tree;
+      source = next;
+      const fresh = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        expect(
+          tags.captures(tree.rootNode).filter((capture) => capture.name.startsWith('reference.')),
+          source
+        ).toHaveLength(0);
+      } finally {
+        fresh.delete();
+      }
+    }
+  } finally {
+    previous?.delete();
+    tags.delete();
     parser.delete();
   }
 });

@@ -12,7 +12,7 @@ enum NoBody;
   (enum_declaration
     name: (identifier)
     (base_list
-      base: (predefined_type))
+      underlying_type: (predefined_type))
     body: (enum_member_declaration_list
       (enum_member_declaration
         name: (identifier))

@@ -219,3 +219,5 @@
 (file_directive_kind) @keyword.directive
 
 (_ base: (identifier) @type)
+
+(_ underlying_type: (identifier) @type)
