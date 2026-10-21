@@ -53,6 +53,35 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._simple_name, $._expression_simple_name, $._pattern_simple_identifier_name, $._ambiguous_cast_qualified_name],
+    [$._expression_simple_name, $._ambiguous_cast_qualified_name],
+    [$._simple_name, $._expression_simple_name, $._ambiguous_cast_qualified_name],
+    [$.parameter, $._expression_simple_name, $._ambiguous_cast_name],
+    [$.parameter, $._simple_name, $._expression_simple_name, $._ambiguous_cast_name],
+    [$._expression_simple_name, $._ambiguous_cast_name],
+    [$._simple_name, $._expression_simple_name, $._ambiguous_cast_name],
+    [$._simple_name, $.generic_name, $._expression_generic_name, $._pattern_simple_identifier_name],
+    [$._expression_simple_name, $.generic_name, $._expression_generic_name, $._pattern_simple_identifier_name],
+    [
+      $._simple_name,
+      $._expression_simple_name,
+      $.generic_name,
+      $._expression_generic_name,
+      $._pattern_simple_identifier_name,
+    ],
+    [$._expression_simple_name, $._pattern_simple_identifier_name],
+    [$._simple_name, $._expression_simple_name, $._pattern_simple_identifier_name],
+    [$.generic_name, $._expression_generic_name, $._pattern_simple_identifier_name],
+    [$._simple_name, $.generic_name, $._expression_generic_name],
+    [$._expression_simple_name, $._expression_generic_name],
+    [$._simple_name, $._expression_simple_name, $.generic_name, $._expression_generic_name],
+    [$._expression_simple_name, $.subpattern],
+    [$._expression_simple_name, $.parameter],
+    [$._simple_name, $._expression_simple_name, $.parameter],
+
+    [$.type_argument_list, $._expression_type_argument_list],
+    [$._simple_name, $._expression_simple_name],
+    [$.generic_name, $._expression_simple_name, $._expression_generic_name],
     [$.list_pattern],
     [$._conditional_binding_receiver, $._binding_generic_suppression_expression],
     [$._member_conditional_binding_receiver, $._member_binding_generic_suppression_expression],
@@ -314,6 +343,7 @@ module.exports = grammar({
     sym('_interpolation_format_colon'),
     sym('_pragma_boundary'),
     sym('_pragma_text'),
+    sym('_expression_generic_end'),
   ],
 
   extras: ($) => [
@@ -347,6 +377,7 @@ module.exports = grammar({
 
   precedences: ($) => [
     [$._anonymous_object_member_declarator, $._simple_name],
+    [$._anonymous_object_member_declarator, $._expression_simple_name],
     [$.block, $.initializer_expression],
   ],
 
@@ -579,7 +610,8 @@ module.exports = grammar({
         )
       ),
 
-    type_parameter_list: ($) => seq('<', commaSep1($.type_parameter), '>'),
+    type_parameter_list: ($) =>
+      seq('<', commaSep1($.type_parameter), choice('>', alias(sym('_expression_generic_end'), '>'))),
 
     type_parameter: ($) => seq(repeat($._attribute_list), optional(choice('in', 'out')), field('name', $.identifier)),
 
@@ -980,7 +1012,16 @@ module.exports = grammar({
 
     generic_name: ($) => prec.dynamic(1, seq($.identifier, $.type_argument_list)),
 
-    type_argument_list: ($) => seq('<', choice(repeat(','), commaSep1($.type)), '>'),
+    type_argument_list: ($) =>
+      seq('<', choice(repeat(','), commaSep1($.type)), choice('>', alias(sym('_expression_generic_end'), '>'))),
+
+    _expression_simple_name: ($) => choice($.identifier, alias($._expression_generic_name, $.generic_name)),
+
+    _expression_generic_name: ($) =>
+      prec.dynamic(1, seq($.identifier, alias($._expression_type_argument_list, $.type_argument_list))),
+
+    _expression_type_argument_list: ($) =>
+      seq('<', choice(repeat(','), commaSep1($.type)), alias(sym('_expression_generic_end'), '>')),
 
     type: ($) => typeAlternatives($),
 
@@ -1688,11 +1729,11 @@ module.exports = grammar({
       ),
 
     _primary_no_conditional_access_expression: ($) =>
-      primaryAtoms($, { name: $._simple_name, member: $.member_access_expression, collection: true }),
+      primaryAtoms($, { name: $._expression_simple_name, member: $.member_access_expression, collection: true }),
 
     _conditional_access_receiver: ($) =>
       primaryAtoms($, {
-        name: $._simple_name,
+        name: $._expression_simple_name,
         member: $.member_access_expression,
         collection: true,
         element: $.element_access_expression,
@@ -1705,7 +1746,7 @@ module.exports = grammar({
 
     _definite_conditional_access_receiver: ($) =>
       primaryAtoms($, {
-        name: $._simple_name,
+        name: $._expression_simple_name,
         member: $.member_access_expression,
         collection: true,
         element: $.element_access_expression,
@@ -2206,7 +2247,7 @@ module.exports = grammar({
 
     member_access_expression: ($) => memberAccessExpression($, choice($._postfix_receiver, $.predefined_type, $._name)),
 
-    member_binding_expression: ($) => seq('.', field('name', $._simple_name)),
+    member_binding_expression: ($) => seq('.', field('name', $._expression_simple_name)),
 
     object_creation_expression: ($) =>
       prec.right(
@@ -2916,13 +2957,13 @@ function conditionalDirective(command, $, ...content) {
 }
 
 /**
- * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_simple_name'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_expression_simple_name'>} $
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} receiver
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} [name]
  * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} [operator]
  * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
  */
-function memberAccessExpression($, receiver, name = $._simple_name, operator = choice('.', '->')) {
+function memberAccessExpression($, receiver, name = $._expression_simple_name, operator = choice('.', '->')) {
   return prec(PREC.DOT, seq(field('expression', receiver), operator, field('name', name)));
 }
 
