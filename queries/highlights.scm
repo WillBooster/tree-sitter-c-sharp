@@ -215,6 +215,14 @@
   (event_field_declaration (variable_declaration (variable_declarator name: (identifier) @variable.member)))
   (property_declaration name: (identifier) @variable.member)
   (event_declaration name: (identifier) @variable.member)
+  (object_creation_expression
+    initializer: (initializer_expression (assignment_expression left: (identifier) @variable.member)))
+  (implicit_object_creation_expression
+    (initializer_expression (assignment_expression left: (identifier) @variable.member)))
+  (assignment_expression
+    right: (initializer_expression (assignment_expression left: (identifier) @variable.member)))
+  (anonymous_object_creation_expression (identifier) @variable.member . "=")
+  (with_initializer . (identifier) @variable.member)
   (member_access_expression name: (identifier) @variable.member)
   (member_access_expression name: (generic_name (identifier) @variable.member))
   (member_binding_expression name: (identifier) @variable.member)

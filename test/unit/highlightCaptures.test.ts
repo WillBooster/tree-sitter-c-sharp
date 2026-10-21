@@ -99,6 +99,38 @@ test('captures only call names across direct, generic, qualified, conditional an
   });
 });
 
+test('captures initializer member names without coloring collection assignments or index arguments', async () => {
+  const source = `class C { void M() {
+    var a = new C { First = local, Child = { Nested = local, Grandchild = { Deep = local } }, [index] = local };
+    C b = new() { Implicit = local };
+    var c = a with { Changed = local };
+    var d = new { Named = local, local };
+    var collection = new Collection { (local = 1), { key, local = 2 } };
+    var array = new[] { local = 3 };
+  } }`;
+  await withHighlights(async (parser, query) => {
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      expectCaptures(query, tree, source, 'variable.member', [
+        'First',
+        'Child',
+        'Nested',
+        'Grandchild',
+        'Deep',
+        'Implicit',
+        'Changed',
+        'Named',
+      ]);
+      for (const capture of query.captures(tree.rootNode)) {
+        if (['local', 'index', 'key'].includes(capture.node.text)) expect(capture.name).toBe('variable');
+      }
+    } finally {
+      tree.delete();
+    }
+  });
+});
+
 test('updates member and call captures through edits and undo', async () => {
   await withHighlights(async (parser, query) => {
     let previous: Tree | undefined;
@@ -109,6 +141,9 @@ test('updates member and call captures through edits and undo', async () => {
         'target.Call()',
         'target.Generic<Type>()',
         'target?.Conditional<Type>()',
+        'new C { Value = 0 }',
+        'target with { Value = 0 }',
+        'new { Value = 0 }',
         'target.Value',
       ]) {
         const next = `// Ω😀\nclass C { object M() => ${expression}; }`;
