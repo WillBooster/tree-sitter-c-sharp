@@ -19296,6 +19296,10 @@
           "value": "#pragma"
         },
         {
+          "type": "SYMBOL",
+          "name": "_pragma_boundary"
+        },
+        {
           "type": "CHOICE",
           "members": [
             {
@@ -21198,6 +21202,10 @@
     {
       "type": "SYMBOL",
       "name": "_interpolation_format_colon"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_pragma_boundary"
     },
     {
       "type": "SYMBOL",
