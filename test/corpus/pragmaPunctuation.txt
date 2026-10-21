@@ -1,0 +1,37 @@
+================================================================================
+Punctuation pragma and empty pragma retain following calls
+================================================================================
+
+class C { void M() {
+#pragma(push,1)
+N();
+#pragma
+M();
+}}
+class Following {}
+
+---
+
+(compilation_unit
+  (class_declaration
+    (identifier)
+    (declaration_list
+      (method_declaration
+        (predefined_type)
+        (identifier)
+        (parameter_list)
+        (block
+          (preproc_pragma
+            (preproc_arg))
+          (expression_statement
+            (invocation_expression
+              (identifier)
+              (argument_list)))
+          (preproc_pragma)
+          (expression_statement
+            (invocation_expression
+              (identifier)
+              (argument_list)))))))
+  (class_declaration
+    (identifier)
+    (declaration_list)))
