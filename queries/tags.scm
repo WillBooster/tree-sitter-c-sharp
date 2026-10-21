@@ -1,10 +1,8 @@
 (class_declaration name: (identifier) @name) @definition.class
 
-(class_declaration (base_list (_) @name)) @reference.class
+(_ base: (_) @name @reference.class)
 
 (interface_declaration name: (identifier) @name) @definition.interface
-
-(interface_declaration (base_list (_) @name)) @reference.interface
 
 (method_declaration name: (identifier) @name) @definition.method
 

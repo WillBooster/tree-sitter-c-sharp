@@ -11,7 +11,7 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
-/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
 
 const PREC = {
   GENERIC: 19,
@@ -226,11 +226,36 @@ module.exports = grammar({
     [$.parameter, $.declaration_expression],
     [$.parameter, $.tuple_element],
     [$.event_declaration, $.variable_declarator],
-    [$.base_list],
     [$.using_directive, $.modifier],
     [$.using_directive],
     [$._constructor_declaration_initializer, $._simple_name],
     [$.receiver_parameter, $.scoped_type, $._reserved_identifier],
+    [$._base_list_type, $._conditional_base_list_head, $._base_list_prefix],
+    [$._base_list_type, $._base_list_prefix],
+    [$._base_list_separator_path, $._base_list_suffix],
+    [sym('preproc_if_in_base_list'), sym('preproc_if_in_base_list_suffix')],
+    [sym('preproc_elif_in_base_list'), sym('preproc_elif_in_base_list_suffix')],
+    [sym('preproc_else_in_base_list'), sym('preproc_else_in_base_list_suffix')],
+    [sym('preproc_if_in_empty_base'), sym('preproc_if_in_base_list_prefix'), sym('preproc_if_in_base_list_suffix')],
+    [
+      sym('preproc_elif_in_empty_base'),
+      sym('preproc_elif_in_base_list_prefix'),
+      sym('preproc_elif_in_base_list_suffix'),
+    ],
+    [
+      sym('preproc_else_in_empty_base'),
+      sym('preproc_else_in_base_list_prefix'),
+      sym('preproc_else_in_base_list_suffix'),
+    ],
+    [sym('preproc_if_in_empty_base'), sym('preproc_if_in_base_list_prefix')],
+    [sym('preproc_elif_in_empty_base'), sym('preproc_elif_in_base_list_prefix')],
+    [sym('preproc_else_in_empty_base'), sym('preproc_else_in_base_list_prefix')],
+    [sym('preproc_if_in_empty_base'), sym('preproc_if_in_base_list_suffix')],
+    [sym('preproc_elif_in_empty_base'), sym('preproc_elif_in_base_list_suffix')],
+    [sym('preproc_else_in_empty_base'), sym('preproc_else_in_base_list_suffix')],
+    [sym('preproc_if_in_base_list_prefix'), sym('preproc_if_in_base_list_suffix')],
+    [sym('preproc_elif_in_base_list_prefix'), sym('preproc_elif_in_base_list_suffix')],
+    [sym('preproc_else_in_base_list_prefix'), sym('preproc_else_in_base_list_suffix')],
   ],
 
   externals: () => [
@@ -307,6 +332,11 @@ module.exports = grammar({
   ],
 
   inline: ($) => [
+    $._base_list,
+    $._base_list_head,
+    $._base_list_separator,
+    $._enum_base_clause,
+    $._enum_base_type,
     $._postfix_receiver,
     $._namespace_member_declaration,
     $._object_creation_type,
@@ -414,7 +444,9 @@ module.exports = grammar({
         repeat($.modifier),
         'class',
         field('name', $.identifier),
-        repeat(choice($.type_parameter_list, $.parameter_list, $.base_list)),
+        optional($.type_parameter_list),
+        optional($.parameter_list),
+        optional($._base_list),
         repeat($.type_parameter_constraints_clause)
       ),
 
@@ -427,7 +459,9 @@ module.exports = grammar({
         optional(seq('ref', optional(alias('partial', $.modifier)))),
         'struct',
         field('name', $.identifier),
-        repeat(choice($.type_parameter_list, $.parameter_list, $.base_list)),
+        optional($.type_parameter_list),
+        optional($.parameter_list),
+        optional($._base_list),
         repeat($.type_parameter_constraints_clause)
       ),
 
@@ -438,7 +472,13 @@ module.exports = grammar({
       ),
 
     _enum_declaration_initializer: ($) =>
-      seq(repeat($._attribute_list), repeat($.modifier), 'enum', field('name', $.identifier), optional($.base_list)),
+      seq(
+        repeat($._attribute_list),
+        repeat($.modifier),
+        'enum',
+        field('name', $.identifier),
+        optional($._enum_base_clause)
+      ),
 
     enum_member_declaration_list: ($) =>
       seq(
@@ -462,7 +502,7 @@ module.exports = grammar({
         'interface',
         field('name', $.identifier),
         field('type_parameters', optional($.type_parameter_list)),
-        optional($.base_list),
+        optional($._base_list),
         repeat($.type_parameter_constraints_clause)
       ),
 
@@ -489,21 +529,14 @@ module.exports = grammar({
         'record',
         optional(choice('class', 'struct')),
         field('name', $.identifier),
-        repeat(choice($.type_parameter_list, $.parameter_list)),
-        optional(alias($.record_base, $.base_list)),
+        optional($.type_parameter_list),
+        optional($.parameter_list),
+        optional($._base_list),
         repeat($.type_parameter_constraints_clause)
-      ),
-
-    record_base: ($) =>
-      choice(
-        seq(':', commaSep1($._name)),
-        seq(':', $.primary_constructor_base_type, optional(seq(',', commaSep1($._name))))
       ),
 
     _declaration_list_body: ($) =>
       choice(seq(field('body', $.declaration_list), sym('_optional_semi')), statementEnd()),
-
-    primary_constructor_base_type: ($) => seq(field('type', $._name), $.argument_list),
 
     modifier: () =>
       prec.right(
@@ -537,7 +570,88 @@ module.exports = grammar({
 
     type_parameter: ($) => seq(repeat($._attribute_list), optional(choice('in', 'out')), field('name', $.identifier)),
 
-    base_list: ($) => seq(':', commaSep1(seq($.type, optional($.argument_list)))),
+    _enum_base_clause: ($) => choice(alias($._enum_base_list, $.base_list), $._conditional_enum_base_clause),
+
+    _conditional_enum_base_clause: ($) =>
+      seq(alias(sym('preproc_if_in_enum_base_clause'), sym('preproc_if')), optional($._enum_base_clause)),
+
+    _enum_base_list: ($) => seq(':', $._enum_base_type),
+
+    _enum_base_type: ($) =>
+      seq(
+        repeat($._base_list_trivia),
+        choice(field('underlying_type', $.type), $._conditional_enum_base_type),
+        repeat($._base_list_trivia)
+      ),
+
+    _conditional_enum_base_type: ($) =>
+      choice(
+        alias(sym('preproc_if_in_enum_base_type'), sym('preproc_if')),
+        seq(
+          $._conditional_enum_base_type,
+          repeat($._base_list_trivia),
+          alias(sym('preproc_if_in_enum_base_type'), sym('preproc_if'))
+        )
+      ),
+
+    _base_list_trivia: () => alias(sym('preproc_if_in_empty_base'), sym('preproc_if')),
+
+    _base_list: ($) => choice($.base_list, $._conditional_base_list),
+
+    _conditional_base_list: ($) =>
+      seq(
+        alias(sym('preproc_if_in_base_list'), sym('preproc_if')),
+        optional(choice($._base_list_suffix, $._base_list))
+      ),
+
+    base_list: ($) => seq(':', $._base_list_type),
+
+    _base_list_type: ($) =>
+      choice(
+        seq($._base_list_mixed_type, choice($._base_list_type, $._base_list_suffix)),
+        seq(alias(sym('preproc_if_in_base_list_prefix'), sym('preproc_if')), $._base_list_type),
+        seq($._base_list_head, optional($._base_list_suffix))
+      ),
+
+    _base_list_head: ($) =>
+      choice(seq(field('base', $.type), optional($.argument_list)), $._conditional_base_list_head),
+
+    _conditional_base_list_head: ($) =>
+      choice(
+        alias(sym('preproc_if_in_base_list_type'), sym('preproc_if')),
+        seq(
+          $._conditional_base_list_head,
+          repeat($._base_list_trivia),
+          alias(sym('preproc_if_in_base_list_type'), sym('preproc_if'))
+        )
+      ),
+
+    _base_list_mixed_type: () => alias(sym('preproc_if_in_mixed_base_type'), sym('preproc_if')),
+
+    _base_list_mixed_suffix: () => alias(sym('preproc_if_in_mixed_base_suffix'), sym('preproc_if')),
+
+    _base_list_prefix: ($) =>
+      choice(
+        seq($._base_list_mixed_type, choice($._base_list_prefix, $._base_list_separator_path)),
+        seq(alias(sym('preproc_if_in_base_list_prefix'), sym('preproc_if')), optional($._base_list_prefix)),
+        seq($._base_list_head, $._base_list_separator_path)
+      ),
+
+    _base_list_separator: () => choice(',', alias(sym('preproc_if_in_base_list_separator'), sym('preproc_if'))),
+
+    _base_list_separator_path: ($) =>
+      choice(
+        seq($._base_list_mixed_suffix, choice($._base_list_prefix, $._base_list_separator_path)),
+        seq(alias(sym('preproc_if_in_base_list_suffix'), sym('preproc_if')), $._base_list_separator_path),
+        seq($._base_list_separator, optional($._base_list_prefix))
+      ),
+
+    _base_list_suffix: ($) =>
+      choice(
+        seq($._base_list_mixed_suffix, choice($._base_list_type, $._base_list_suffix)),
+        seq(alias(sym('preproc_if_in_base_list_suffix'), sym('preproc_if')), optional($._base_list_suffix)),
+        seq($._base_list_separator, $._base_list_type)
+      ),
 
     type_parameter_constraints_clause: ($) => seq('where', $.identifier, ':', commaSep1($.type_parameter_constraint)),
 
@@ -2336,6 +2450,36 @@ module.exports = grammar({
       false,
       true
     ),
+    ...preprocIfWithMixedContent(
+      '_in_mixed_base_type',
+      ($) => $._base_list_type,
+      ($) => $._base_list_prefix,
+      ($) =>
+        choice(
+          $._base_list_mixed_type,
+          seq($._base_list_prefix, $._base_list_mixed_type),
+          seq($._base_list_type, $._base_list_mixed_suffix)
+        )
+    ),
+    ...preprocIfWithMixedContent(
+      '_in_mixed_base_suffix',
+      ($) => $._base_list_suffix,
+      ($) => $._base_list_separator_path,
+      ($) =>
+        choice(
+          $._base_list_mixed_suffix,
+          seq($._base_list_suffix, $._base_list_mixed_suffix),
+          seq($._base_list_separator_path, $._base_list_mixed_type)
+        )
+    ),
+    ...preprocIf('_in_empty_base', ($) => $._base_list_trivia),
+    ...preprocIf('_in_enum_base_clause', ($) => $._enum_base_clause, 0, false),
+    ...preprocIfWithContent('_in_enum_base_type', ($) => $._enum_base_type),
+    ...preprocIf('_in_base_list', ($) => $._base_list, 0, false),
+    ...preprocIfWithContent('_in_base_list_type', ($) => $._base_list_type),
+    ...preprocIf('_in_base_list_prefix', ($) => $._base_list_prefix, 0, false),
+    ...preprocIf('_in_base_list_separator', ($) => $._base_list_separator_path, 0, false, true),
+    ...preprocIf('_in_base_list_suffix', ($) => $._base_list_suffix, 0, false),
     ...preprocIf('', ($) => $.declaration),
     ...preprocIf('_in_top_level', ($) => choice($._top_level_item_no_statement, $.statement)),
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),
@@ -2613,6 +2757,87 @@ function preprocessor(command) {
 }
 
 /**
+ * @param {string} suffix
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>} complete
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>} prefix
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>} mixed
+ * @returns {Record<string, import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>>}
+ */
+function preprocIfWithMixedContent(suffix, complete, prefix, mixed) {
+  const contents = [undefined, complete, prefix, mixed];
+  /** @param {number} mask */
+  function alternativeBlock(mask) {
+    return choice(
+      alias(sym('preproc_else' + suffix + mask), sym('preproc_else')),
+      alias(sym('preproc_elif' + suffix + mask), sym('preproc_elif'))
+    );
+  }
+  /**
+   * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<PreprocContentRule>} $
+   * @param {number} mask
+   */
+  function contentOrAlternative($, mask) {
+    return choice(
+      ...contents.map((content, provided) => {
+        const remaining = mask & ~provided;
+        const alternative = field(
+          'alternative',
+          remaining ? alternativeBlock(remaining) : optional(alternativeBlock(0))
+        );
+        return content ? seq(content($), alternative) : alternative;
+      })
+    );
+  }
+  /** @type {Record<string, import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>>} */
+  const rules = {
+    ['preproc_if' + suffix]: ($) => conditionalDirective('if', $, contentOrAlternative($, 3), preprocessor('endif')),
+  };
+  for (const mask of [0, 1, 2, 3]) {
+    rules['preproc_elif' + suffix + mask] = ($) => conditionalDirective('elif', $, contentOrAlternative($, mask));
+    rules['preproc_else' + suffix + mask] = ($) =>
+      seq(
+        preprocessor('else'),
+        choice(
+          ...contents.flatMap((content, provided) => (content && (provided & mask) === mask ? [content($)] : [])),
+          ...(mask === 0 ? [optional($._base_list_trivia)] : [])
+        )
+      );
+  }
+  return rules;
+}
+
+/**
+ * @param {string} suffix
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>} content
+ * @returns {Record<string, import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>>}
+ */
+function preprocIfWithContent(suffix, content) {
+  /** @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<PreprocContentRule>} $ */
+  function contentOrAlternative($) {
+    return choice(
+      seq(content($), field('alternative', optional(alternativeBlock(false)))),
+      seq(repeat($._base_list_trivia), field('alternative', alternativeBlock(true)))
+    );
+  }
+
+  /** @param {boolean} required */
+  function alternativeBlock(required) {
+    const alternativeSuffix = suffix + (required ? '_with_content' : '');
+    return choice(
+      alias(sym('preproc_else' + alternativeSuffix), sym('preproc_else')),
+      alias(sym('preproc_elif' + alternativeSuffix), sym('preproc_elif'))
+    );
+  }
+
+  return {
+    ...preprocIf(suffix, ($) => choice(content($), repeat1($._base_list_trivia)), 0, false),
+    ['preproc_if' + suffix]: ($) => conditionalDirective('if', $, contentOrAlternative($), preprocessor('endif')),
+    ['preproc_else' + suffix + '_with_content']: ($) => seq(preprocessor('else'), content($)),
+    ['preproc_elif' + suffix + '_with_content']: ($) => conditionalDirective('elif', $, contentOrAlternative($)),
+  };
+}
+
+/**
  *
  * @param {string} suffix
  *
@@ -2648,10 +2873,9 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
     ['preproc_if' + suffix]: ($) =>
       prec(
         precedence,
-        seq(
-          preprocessor('if'),
-          field('condition', $._preproc_expression),
-          directiveNewLine(),
+        conditionalDirective(
+          'if',
+          $,
           contentRule($),
           field('alternative', optional(alternativeBlock())),
           preprocessor('endif')
@@ -2663,15 +2887,18 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
     ['preproc_elif' + suffix]: ($) =>
       prec(
         precedence,
-        seq(
-          preprocessor('elif'),
-          field('condition', $._preproc_expression),
-          directiveNewLine(),
-          contentRule($),
-          field('alternative', optional(alternativeBlock()))
-        )
+        conditionalDirective('elif', $, contentRule($), field('alternative', optional(alternativeBlock())))
       ),
   };
+}
+
+/**
+ * @param {'if' | 'elif'} command
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<PreprocContentRule>} $
+ * @param {...import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} content
+ */
+function conditionalDirective(command, $, ...content) {
+  return seq(preprocessor(command), field('condition', $._preproc_expression), directiveNewLine(), ...content);
 }
 
 /**
