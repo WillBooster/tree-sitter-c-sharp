@@ -58,6 +58,7 @@ enum TokenType {
     BLOCK_END,
     AMPERSAND_OPERATOR,
     INTERPOLATION_FORMAT_COLON,
+    PRAGMA_TEXT,
 };
 
 typedef enum {
@@ -532,12 +533,12 @@ static bool scan_file_directive_prefix(TSLexer *lexer) {
     return true;
 }
 
-static bool scan_file_directive_preproc_arg(TSLexer *lexer, bool recovery) {
+static bool scan_preproc_arg(TSLexer *lexer, bool opaque, enum TokenType symbol) {
     lexer->mark_end(lexer);
     while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
         int32_t c = lexer->lookahead;
         advance(lexer);
-        if (!recovery && c == '/') {
+        if (!opaque && c == '/') {
             if (lexer->lookahead == '*') break;
             if (lexer->eof(lexer) || is_line_terminator(lexer->lookahead)) {
                 lexer->mark_end(lexer);
@@ -547,12 +548,13 @@ static bool scan_file_directive_preproc_arg(TSLexer *lexer, bool recovery) {
         }
         lexer->mark_end(lexer);
     }
-    lexer->result_symbol = FILE_DIRECTIVE_PREPROC_ARG;
+    lexer->result_symbol = symbol;
     return true;
 }
 
 static bool is_directive_horizontal(int32_t c);
 static bool scan_file_directive_kind(TSLexer *lexer);
+static bool scan_pragma_text(TSLexer *lexer);
 
 typedef enum {
     QUESTION_NOT_STARTED,
@@ -581,10 +583,15 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     uint8_t quote_count = 0;
     bool did_advance = false;
 
-    bool recovery = valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START];
     bool next_file_directive = scanner->next_file_directive;
     scanner->next_file_directive = false;
-    if (recovery) return scan_recovery(scanner, lexer, next_file_directive);
+    if (valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START])
+        return scan_recovery(scanner, lexer, next_file_directive);
+
+    if (valid_symbols[PRAGMA_TEXT] && is_directive_horizontal(lexer->lookahead)) {
+        while (is_directive_horizontal(lexer->lookahead)) skip(lexer);
+        if (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) return scan_pragma_text(lexer);
+    }
 
     if (valid_symbols[INTERPOLATION_FORMAT_COLON] && scan_interpolation_format_colon(lexer)) return true;
 
@@ -685,7 +692,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     if (valid_symbols[FILE_DIRECTIVE_PREPROC_ARG]) {
         while (lexer->lookahead == ' ' || lexer->lookahead == '\t' || lexer->lookahead == '\v' || lexer->lookahead == '\f') skip(lexer);
         while (is_space_but_line_feed(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) advance(lexer);
-        if (lexer->lookahead == '#') return scan_file_directive_prefix(lexer) && scan_file_directive_preproc_arg(lexer, false);
+        if (lexer->lookahead == '#') return scan_file_directive_prefix(lexer) && scan_preproc_arg(lexer, false, FILE_DIRECTIVE_PREPROC_ARG);
     }
     if (valid_symbols[DIRECTIVE_NEWLINE] || valid_symbols[FILE_DIRECTIVE_NEWLINE]) {
         while (is_directive_horizontal(lexer->lookahead)) skip(lexer);
@@ -1260,6 +1267,13 @@ static bool is_directive_horizontal(int32_t c) {
         (c >= 0x2000 && c <= 0x200A) || c == 0x202F || c == 0x205F || c == 0x3000 || c == 0xFEFF;
 }
 
+static bool scan_pragma_text(TSLexer *lexer) {
+    char name[8];
+    size_t length = consume_identifier_into(lexer, name, sizeof(name));
+    if (lexer->lookahead != '\\' && (buf_equals(name, length, "warning") || buf_equals(name, length, "checksum"))) return false;
+    return scan_preproc_arg(lexer, true, PRAGMA_TEXT);
+}
+
 static bool scan_file_directive_kind(TSLexer *lexer) {
     char kind[9] = {0};
     unsigned length = 0;
@@ -1325,5 +1339,5 @@ static bool scan_recovery(Scanner *scanner, TSLexer *lexer, bool next_file_direc
         return scan_interpolation_recovery(scanner, lexer);
     }
     if (!scan_file_directive_prefix(lexer)) return false;
-    return line_start ? scan_file_directive_kind(lexer) : scan_file_directive_preproc_arg(lexer, true);
+    return line_start ? scan_file_directive_kind(lexer) : scan_preproc_arg(lexer, true, FILE_DIRECTIVE_PREPROC_ARG);
 }
