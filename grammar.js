@@ -3020,6 +3020,7 @@ function reservedIdentifiers() {
     'param',
     'partial',
     'property',
+    'required',
     'scoped',
     'select',
     'type',
