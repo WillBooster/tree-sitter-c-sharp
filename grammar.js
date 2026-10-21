@@ -357,6 +357,7 @@ module.exports = grammar({
     sym('_pragma_boundary'),
     sym('_pragma_text'),
     sym('_expression_generic_end'),
+    sym('_definite_expression_generic_end'),
   ],
 
   extras: ($) => [
@@ -629,7 +630,11 @@ module.exports = grammar({
       ),
 
     type_parameter_list: ($) =>
-      seq('<', commaSep1($.type_parameter), choice('>', alias(sym('_expression_generic_end'), '>'))),
+      seq(
+        '<',
+        commaSep1($.type_parameter),
+        choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
+      ),
 
     type_parameter: ($) => seq(repeat($._attribute_list), optional(choice('in', 'out')), field('name', $.identifier)),
 
@@ -1031,7 +1036,11 @@ module.exports = grammar({
     generic_name: ($) => prec.dynamic(1, seq($.identifier, $.type_argument_list)),
 
     type_argument_list: ($) =>
-      seq('<', choice(repeat(','), commaSep1($.type)), choice('>', alias(sym('_expression_generic_end'), '>'))),
+      seq(
+        '<',
+        choice(repeat(','), commaSep1($.type)),
+        choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
+      ),
 
     _expression_simple_name: ($) => choice($.identifier, alias($._expression_generic_name, $.generic_name)),
 
@@ -1043,7 +1052,7 @@ module.exports = grammar({
         '<',
         choice(
           seq(choice(repeat(','), commaSep1($.type)), alias(sym('_expression_generic_end'), '>')),
-          seq(repeat(','), '>'),
+          seq(repeat(','), alias(sym('_definite_expression_generic_end'), '>')),
           seq(
             repeat(seq(alias($._other_expression_type_argument, $.type), ',')),
             choice(
@@ -1051,7 +1060,7 @@ module.exports = grammar({
               seq(alias($._ambiguous_expression_type_argument, $.type), ',', $.type)
             ),
             repeat(seq(',', $.type)),
-            '>'
+            alias(sym('_definite_expression_generic_end'), '>')
           )
         )
       ),
@@ -1098,13 +1107,13 @@ module.exports = grammar({
       ),
 
     _ambiguous_expression_generic_name: ($) =>
-      seq($.identifier, alias($._ambiguous_expression_arguments, $.type_argument_list)),
+      prec.dynamic(1, seq($.identifier, alias($._ambiguous_expression_arguments, $.type_argument_list))),
 
     _ambiguous_expression_arguments: ($) =>
       seq(
         '<',
         commaSep1(alias($._nongeneric_expression_type_argument, $.type)),
-        choice('>', alias(sym('_expression_generic_end'), '>'))
+        choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
       ),
 
     _ambiguous_expression_qualified_name: ($) =>
@@ -1131,7 +1140,7 @@ module.exports = grammar({
     _nongeneric_expression_qualified_name: ($) => seq(field('qualifier', $._name), '.', field('name', $.identifier)),
 
     _method_expression_generic_name: ($) =>
-      seq($.identifier, alias($._method_expression_arguments, $.type_argument_list)),
+      prec.dynamic(1, seq($.identifier, alias($._method_expression_arguments, $.type_argument_list))),
 
     _method_expression_arguments: ($) =>
       seq(
@@ -1148,7 +1157,7 @@ module.exports = grammar({
             repeat(seq(',', $.type))
           )
         ),
-        choice('>', alias(sym('_expression_generic_end'), '>'))
+        choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
       ),
 
     _method_expression_qualified_name: ($) =>

@@ -61,6 +61,7 @@ enum TokenType {
     PRAGMA_BOUNDARY,
     PRAGMA_TEXT,
     EXPRESSION_GENERIC_END,
+    DEFINITE_EXPRESSION_GENERIC_END,
 };
 
 typedef enum {

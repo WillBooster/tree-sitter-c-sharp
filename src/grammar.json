@@ -1618,6 +1618,15 @@
               },
               "named": false,
               "value": ">"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_definite_expression_generic_end"
+              },
+              "named": false,
+              "value": ">"
             }
           ]
         }
@@ -4767,6 +4776,15 @@
               },
               "named": false,
               "value": ">"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_definite_expression_generic_end"
+              },
+              "named": false,
+              "value": ">"
             }
           ]
         }
@@ -4884,7 +4902,12 @@
                   }
                 },
                 {
-                  "type": "STRING",
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_definite_expression_generic_end"
+                  },
+                  "named": false,
                   "value": ">"
                 }
               ]
@@ -4966,7 +4989,12 @@
                   }
                 },
                 {
-                  "type": "STRING",
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_definite_expression_generic_end"
+                  },
+                  "named": false,
                   "value": ">"
                 }
               ]
@@ -5111,22 +5139,26 @@
       ]
     },
     "_ambiguous_expression_generic_name": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "identifier"
-        },
-        {
-          "type": "ALIAS",
-          "content": {
+      "type": "PREC_DYNAMIC",
+      "value": 1,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
             "type": "SYMBOL",
-            "name": "_ambiguous_expression_arguments"
+            "name": "identifier"
           },
-          "named": true,
-          "value": "type_argument_list"
-        }
-      ]
+          {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_ambiguous_expression_arguments"
+            },
+            "named": true,
+            "value": "type_argument_list"
+          }
+        ]
+      }
     },
     "_ambiguous_expression_arguments": {
       "type": "SEQ",
@@ -5182,6 +5214,15 @@
               "content": {
                 "type": "SYMBOL",
                 "name": "_expression_generic_end"
+              },
+              "named": false,
+              "value": ">"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_definite_expression_generic_end"
               },
               "named": false,
               "value": ">"
@@ -5317,22 +5358,26 @@
       ]
     },
     "_method_expression_generic_name": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "identifier"
-        },
-        {
-          "type": "ALIAS",
-          "content": {
+      "type": "PREC_DYNAMIC",
+      "value": 1,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
             "type": "SYMBOL",
-            "name": "_method_expression_arguments"
+            "name": "identifier"
           },
-          "named": true,
-          "value": "type_argument_list"
-        }
-      ]
+          {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_method_expression_arguments"
+            },
+            "named": true,
+            "value": "type_argument_list"
+          }
+        ]
+      }
     },
     "_method_expression_arguments": {
       "type": "SEQ",
@@ -5439,6 +5484,15 @@
               "content": {
                 "type": "SYMBOL",
                 "name": "_expression_generic_end"
+              },
+              "named": false,
+              "value": ">"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_definite_expression_generic_end"
               },
               "named": false,
               "value": ">"
@@ -27476,6 +27530,10 @@
     {
       "type": "SYMBOL",
       "name": "_expression_generic_end"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_definite_expression_generic_end"
     }
   ],
   "inline": [
