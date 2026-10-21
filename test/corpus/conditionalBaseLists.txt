@@ -238,3 +238,60 @@ class Following {}
   (class_declaration
     (identifier)
     (declaration_list)))
+
+================================================================================
+Whole conditional clause followed by a conditional suffix
+================================================================================
+
+class C
+#if A
+: I
+#else
+: J
+#endif
+#if B
+, K
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit (class_declaration (identifier) (preproc_if (identifier) (base_list (identifier)) (preproc_else (base_list (identifier)))) (preproc_if (identifier) (identifier)) (declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+================================================================================
+Complementary whole conditional clauses
+================================================================================
+
+class C
+#if A
+: I
+#endif
+#if !A
+: J
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit (class_declaration (identifier) (preproc_if (identifier) (base_list (identifier))) (preproc_if (unary_expression (identifier)) (base_list (identifier))) (declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+================================================================================
+Complementary enum underlying clauses
+================================================================================
+
+#define A
+enum C
+#if A
+: byte
+#endif
+#if !A
+: long
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit (preproc_define (preproc_arg)) (enum_declaration (identifier) (preproc_if (identifier) (base_list (predefined_type))) (preproc_if (unary_expression (identifier)) (base_list (predefined_type))) (enum_member_declaration_list)) (class_declaration (identifier) (declaration_list)))

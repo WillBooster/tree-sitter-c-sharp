@@ -46,6 +46,19 @@ for (const kind of ['class', 'struct', 'interface', 'record']) {
   }
 }
 
+for (const kind of ['class', 'struct', 'interface', 'record', 'record struct']) {
+  for (const defines of ['', '#define A\n', '#define B\n', '#define A\n#define B\n']) {
+    cases.push(
+      `${defines}${kind} C\n#if A\n: I\n#else\n: J\n#endif\n#if B\n, K\n#endif\n{}\nclass Following {}`,
+      `${defines}${kind} C\n#if A\n: I\n#else\n: J\n#endif\n, K\n{}\nclass Following {}`,
+      `${defines}${kind} C\n#if A\n: I\n#endif\n#if !A\n: J\n#endif\n{}\nclass Following {}`
+    );
+  }
+}
+for (const defines of ['', '#define A\n']) {
+  cases.push(`${defines}enum C\n#if A\n: byte\n#endif\n#if !A\n: long\n#endif\n{}\nclass Following {}`);
+}
+
 test('retains conditional base lists and declaration bodies through edits', async () => {
   await Parser.init();
   const language = await Language.load('tree-sitter-c_sharp.wasm');
@@ -107,6 +120,9 @@ test('highlights nested conditional base types without treating conditions as ty
     `class C : E\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
     `class C :\n${nestedBase('I,', 'J,', depth)}\nK\n{}\nclass Following {}`,
     `class C : B\n${nestedBase(', I,', ',', depth)}\nJ\n{}\nclass Following {}`,
+    `class C\n${nestedBase(': B', ': D', depth)}\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
+    `class C\n${nestedBase(': B', ': D', depth)}\n, I\n{}\nclass Following {}`,
+    `class C\n#if A\n${nestedBase(': B', ': D', depth)}\n#endif\n#if !A\n: E\n#endif\n{}\nclass Following {}`,
   ]);
   let previous: Tree | undefined;
   let source = '';
@@ -175,6 +191,10 @@ test('tags only actual base types across qualified, generic, and constructor bas
     ['interface C : A.B<T>, I<T> {}', ['A.B<T>', 'I<T>']],
     ['struct C : A.B<T>, I<T> {}', ['A.B<T>', 'I<T>']],
     ['class C :\n#if A\nA.B<T>\n#else\nI<T>\n#endif\n{}', ['A.B<T>', 'I<T>']],
+    [
+      'class C(int x)\n#if A\n: A.B<T>(x)\n#else\n: Other<T>(x)\n#endif\n#if X\n, I<T>\n#endif\n{}',
+      ['A.B<T>', 'Other<T>', 'I<T>'],
+    ],
   ] as const;
   try {
     for (const [source, names] of sources) {
@@ -217,6 +237,7 @@ test('does not tag enum underlying types as class references through edits', asy
     ...[1, 4, 16].flatMap((depth) => [
       `enum E\n${nestedBase(': byte', ': long', depth)}\n{}`,
       `enum E :\n${nestedBase('byte', 'long', depth)}\n{}`,
+      `enum E\n#if A\n${nestedBase(': byte', ': long', depth)}\n#endif\n#if !A\n: int\n#endif\n{}`,
     ]),
   ];
   let previous: Tree | undefined;

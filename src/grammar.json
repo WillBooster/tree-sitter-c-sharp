@@ -1587,6 +1587,15 @@
           "value": "base_list"
         },
         {
+          "type": "SYMBOL",
+          "name": "_conditional_enum_base_clause"
+        }
+      ]
+    },
+    "_conditional_enum_base_clause": {
+      "type": "SEQ",
+      "members": [
+        {
           "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
@@ -1594,6 +1603,18 @@
           },
           "named": true,
           "value": "preproc_if"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "_enum_base_clause"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         }
       ]
     },
@@ -1640,6 +1661,15 @@
           "name": "base_list"
         },
         {
+          "type": "SYMBOL",
+          "name": "_conditional_base_list"
+        }
+      ]
+    },
+    "_conditional_base_list": {
+      "type": "SEQ",
+      "members": [
+        {
           "type": "ALIAS",
           "content": {
             "type": "SYMBOL",
@@ -1647,6 +1677,27 @@
           },
           "named": true,
           "value": "preproc_if"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "_base_list_suffix"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_base_list"
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         }
       ]
     },
@@ -22428,6 +22479,18 @@
       "receiver_parameter",
       "scoped_type",
       "_reserved_identifier"
+    ],
+    [
+      "preproc_if_in_base_list",
+      "preproc_if_in_base_list_suffix"
+    ],
+    [
+      "preproc_elif_in_base_list",
+      "preproc_elif_in_base_list_suffix"
+    ],
+    [
+      "preproc_else_in_base_list",
+      "preproc_else_in_base_list_suffix"
     ]
   ],
   "precedences": [

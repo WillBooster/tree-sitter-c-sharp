@@ -1969,6 +1969,16 @@
     "type": "class_declaration",
     "named": true,
     "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "type",
+            "named": true
+          }
+        ]
+      },
       "body": {
         "multiple": false,
         "required": false,
@@ -1994,6 +2004,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "argument_list",
+          "named": true
+        },
         {
           "type": "attribute_list",
           "named": true
@@ -4190,6 +4204,16 @@
     "type": "interface_declaration",
     "named": true,
     "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "type",
+            "named": true
+          }
+        ]
+      },
       "body": {
         "multiple": false,
         "required": false,
@@ -4225,6 +4249,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "argument_list",
+          "named": true
+        },
         {
           "type": "attribute_list",
           "named": true
@@ -6905,6 +6933,16 @@
     "type": "record_declaration",
     "named": true,
     "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "type",
+            "named": true
+          }
+        ]
+      },
       "body": {
         "multiple": false,
         "required": false,
@@ -6930,6 +6968,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "argument_list",
+          "named": true
+        },
         {
           "type": "attribute_list",
           "named": true
@@ -7301,6 +7343,16 @@
     "type": "struct_declaration",
     "named": true,
     "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "type",
+            "named": true
+          }
+        ]
+      },
       "body": {
         "multiple": false,
         "required": false,
@@ -7326,6 +7378,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "argument_list",
+          "named": true
+        },
         {
           "type": "attribute_list",
           "named": true
