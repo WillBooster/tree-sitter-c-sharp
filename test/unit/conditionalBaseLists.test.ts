@@ -104,6 +104,25 @@ for (const kind of ['class', 'struct', 'interface', 'record', 'record struct']) 
     cases.push(`${kind} C :\n${clauses}\n{}\nclass Following {}`);
 }
 
+for (const kind of ['class', 'struct', 'interface', 'record', 'record struct']) {
+  for (const source of [
+    'class C :\n#if A\nH,\n#if B\nI\n#else\nJ,\n#endif\n#else\nK\n#endif\n#if !A || B\n,\n#endif\nL\n{}\nclass Following {}',
+    'class C :\nH\n#if A\n, I\n#if B\n, J\n#else\n, K,\n#endif\n#else\n, M\n#endif\n#if !A || B\n,\n#endif\nL\n{}\nclass Following {}',
+    'class C :\n#if A\nI\n#if B\n, J\n#else\n, K,\n#endif\n#else\nM\n#endif\n#if !A || B\n,\n#endif\nL\n{}\nclass Following {}',
+    'class C :\nH\n#if A\n,\n#if B\nI\n#else\nJ,\n#endif\n#else\n, M\n#endif\n#if !A || B\n,\n#endif\nL\n{}\nclass Following {}',
+  ])
+    cases.push(source.replace(/^class C/, `${kind} C`));
+}
+
+cases.push(
+  'enum C :\nbyte\n#if X\n#if Y\n#endif\n#if Z\n#endif\n#endif\n{}\nclass Following {}',
+  'enum C :\nbyte\n#if X\n#if Y\n#endif\n#if Z\n#endif\n#elif A\n#if Y\n#endif\n#if Z\n#endif\n#else\n#if Y\n#endif\n#if Z\n#endif\n#endif\n{}\nclass Following {}',
+  'enum C :\n#if A\nbyte\n#else\n#if X\n#endif\n#endif\n#if !A\nint\n#endif\n{}\nclass Following {}',
+  'enum C :\n#if A\nbyte\n#elif X\n#if Y\n#endif\n#endif\n#if !A\nint\n#endif\n{}\nclass Following {}',
+  'enum C :\n#if A\n#if X\n#endif\n#else\nbyte\n#endif\n#if A\nint\n#endif\n{}\nclass Following {}',
+  'enum C :\n#if A\n#if X\n#endif\n#if Y\n#endif\n#else\nbyte\n#endif\n#if A\nint\n#endif\n{}\nclass Following {}'
+);
+
 test('retains conditional base lists and declaration bodies through edits', async () => {
   await Parser.init();
   const language = await Language.load('tree-sitter-c_sharp.wasm');
@@ -163,6 +182,8 @@ test('rejects base clauses with no physical type while retaining following decla
       '#if A\n#elif B\n#else\n#endif',
       '#if A\n#if B\n#else\n#endif\n#else\n#endif',
       '#if A\n#endif\n#if !A\n#endif',
+      '#if A\n#if X\n#endif\n#if Y\n#endif\n#else\n#endif',
+      '#if A\n#if X\n#endif\n#else\n#if Y\n#endif\n#if Z\n#endif\n#endif',
     ].map((clauses) => `${kind} C :\n${clauses}\n{}\nclass Following {}`)
   );
   let previous: Tree | undefined;
@@ -203,6 +224,9 @@ test('highlights nested conditional base types without treating conditions as ty
       `class C\n${nestedBase(': B', ': D', depth)}\n{}\nclass Following {}`,
       `class C :\n${nestedBase('B', 'D', depth)}\n{}\nclass Following {}`,
       `class C : E\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
+      `class C :\n#if X\nH,\n${nestedBase('I', 'J,', depth)}\n#else\nK\n#endif\n#if !X || (${Array.from({ length: depth }, (_, index) => `A${index}`).join(' && ')})\n,\n#endif\nL\n{}\nclass Following {}`,
+      `class C : H\n#if X\n, I\n${nestedBase(', J', ', K,', depth)}\n#else\n, L\n#endif\n#if !X || (${Array.from({ length: depth }, (_, index) => `A${index}`).join(' && ')})\n,\n#endif\nB\n{}\nclass Following {}`,
+
       `class C :\n${nestedBase('I', 'J,', depth)}\n#if ${Array.from({ length: depth }, (_, index) => `A${index}`).join(' && ')}\n,\n#endif\nB\n{}\nclass Following {}`,
       `class C :\n${nestedBase('I,', 'J,', depth)}\nK\n{}\nclass Following {}`,
       `class C : B\n${nestedBase(', I,', ',', depth)}\nJ\n{}\nclass Following {}`,
@@ -233,7 +257,7 @@ test('highlights nested conditional base types without treating conditions as ty
         expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
         const captures = query.captures(tree.rootNode);
         const references = tags.captures(tree.rootNode).filter((capture) => capture.name === 'reference.class');
-        for (const match of source.matchAll(/\b(?:B|D|E|I|J|K)\b/g)) {
+        for (const match of source.matchAll(/\b(?:B|D|E|H|I|J|K|L)\b/g)) {
           expect(
             captures.filter(
               (capture) =>
@@ -252,7 +276,7 @@ test('highlights nested conditional base types without treating conditions as ty
           ).toHaveLength(1);
         }
         expect(
-          references.every((capture) => /^(?:B|D|E|I|J|K)$/.test(capture.node.text)),
+          references.every((capture) => /^(?:B|D|E|H|I|J|K|L)$/.test(capture.node.text)),
           source
         ).toBe(true);
         expect(

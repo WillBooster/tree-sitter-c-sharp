@@ -230,6 +230,9 @@ module.exports = grammar({
     [$.using_directive],
     [$._constructor_declaration_initializer, $._simple_name],
     [$.receiver_parameter, $.scoped_type, $._reserved_identifier],
+    [$._base_list_type, $._conditional_base_list_head, $._base_list_prefix],
+    [$._base_list_type, $._base_list_prefix],
+    [$._base_list_separator_path, $._base_list_suffix],
     [sym('preproc_if_in_base_list'), sym('preproc_if_in_base_list_suffix')],
     [sym('preproc_elif_in_base_list'), sym('preproc_elif_in_base_list_suffix')],
     [sym('preproc_else_in_base_list'), sym('preproc_else_in_base_list_suffix')],
@@ -2451,15 +2454,25 @@ module.exports = grammar({
       '_in_mixed_base_type',
       ($) => $._base_list_type,
       ($) => $._base_list_prefix,
-      ($) => $._base_list_mixed_type
+      ($) =>
+        choice(
+          $._base_list_mixed_type,
+          seq($._base_list_prefix, $._base_list_mixed_type),
+          seq($._base_list_type, $._base_list_mixed_suffix)
+        )
     ),
     ...preprocIfWithMixedContent(
       '_in_mixed_base_suffix',
       ($) => $._base_list_suffix,
       ($) => $._base_list_separator_path,
-      ($) => $._base_list_mixed_suffix
+      ($) =>
+        choice(
+          $._base_list_mixed_suffix,
+          seq($._base_list_suffix, $._base_list_mixed_suffix),
+          seq($._base_list_separator_path, $._base_list_mixed_type)
+        )
     ),
-    ...preprocIf('_in_empty_base', ($) => $._base_list_trivia, 0, false),
+    ...preprocIf('_in_empty_base', ($) => $._base_list_trivia),
     ...preprocIf('_in_enum_base_clause', ($) => $._enum_base_clause, 0, false),
     ...preprocIfWithContent('_in_enum_base_type', ($) => $._enum_base_type),
     ...preprocIf('_in_base_list', ($) => $._base_list, 0, false),
@@ -2777,23 +2790,10 @@ function preprocIfWithMixedContent(suffix, complete, prefix, mixed) {
   }
   /** @type {Record<string, import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>>} */
   const rules = {
-    ['preproc_if' + suffix]: ($) =>
-      seq(
-        preprocessor('if'),
-        field('condition', $._preproc_expression),
-        directiveNewLine(),
-        contentOrAlternative($, 3),
-        preprocessor('endif')
-      ),
+    ['preproc_if' + suffix]: ($) => conditionalDirective('if', $, contentOrAlternative($, 3), preprocessor('endif')),
   };
   for (const mask of [0, 1, 2, 3]) {
-    rules['preproc_elif' + suffix + mask] = ($) =>
-      seq(
-        preprocessor('elif'),
-        field('condition', $._preproc_expression),
-        directiveNewLine(),
-        contentOrAlternative($, mask)
-      );
+    rules['preproc_elif' + suffix + mask] = ($) => conditionalDirective('elif', $, contentOrAlternative($, mask));
     rules['preproc_else' + suffix + mask] = ($) =>
       seq(
         preprocessor('else'),
@@ -2816,7 +2816,7 @@ function preprocIfWithContent(suffix, content) {
   function contentOrAlternative($) {
     return choice(
       seq(content($), field('alternative', optional(alternativeBlock(false)))),
-      field('alternative', alternativeBlock(true))
+      seq(repeat($._base_list_trivia), field('alternative', alternativeBlock(true)))
     );
   }
 
@@ -2830,18 +2830,10 @@ function preprocIfWithContent(suffix, content) {
   }
 
   return {
-    ...preprocIf(suffix, content, 0, false),
-    ['preproc_if' + suffix]: ($) =>
-      seq(
-        preprocessor('if'),
-        field('condition', $._preproc_expression),
-        directiveNewLine(),
-        contentOrAlternative($),
-        preprocessor('endif')
-      ),
+    ...preprocIf(suffix, ($) => choice(content($), repeat1($._base_list_trivia)), 0, false),
+    ['preproc_if' + suffix]: ($) => conditionalDirective('if', $, contentOrAlternative($), preprocessor('endif')),
     ['preproc_else' + suffix + '_with_content']: ($) => seq(preprocessor('else'), content($)),
-    ['preproc_elif' + suffix + '_with_content']: ($) =>
-      seq(preprocessor('elif'), field('condition', $._preproc_expression), directiveNewLine(), contentOrAlternative($)),
+    ['preproc_elif' + suffix + '_with_content']: ($) => conditionalDirective('elif', $, contentOrAlternative($)),
   };
 }
 
@@ -2881,10 +2873,9 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
     ['preproc_if' + suffix]: ($) =>
       prec(
         precedence,
-        seq(
-          preprocessor('if'),
-          field('condition', $._preproc_expression),
-          directiveNewLine(),
+        conditionalDirective(
+          'if',
+          $,
           contentRule($),
           field('alternative', optional(alternativeBlock())),
           preprocessor('endif')
@@ -2896,15 +2887,18 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
     ['preproc_elif' + suffix]: ($) =>
       prec(
         precedence,
-        seq(
-          preprocessor('elif'),
-          field('condition', $._preproc_expression),
-          directiveNewLine(),
-          contentRule($),
-          field('alternative', optional(alternativeBlock()))
-        )
+        conditionalDirective('elif', $, contentRule($), field('alternative', optional(alternativeBlock())))
       ),
   };
+}
+
+/**
+ * @param {'if' | 'elif'} command
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<PreprocContentRule>} $
+ * @param {...import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} content
+ */
+function conditionalDirective(command, $, ...content) {
+  return seq(preprocessor(command), field('condition', $._preproc_expression), directiveNewLine(), ...content);
 }
 
 /**

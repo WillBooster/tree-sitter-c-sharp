@@ -484,3 +484,79 @@ class Following {}
 ---
 
 (compilation_unit (enum_declaration (identifier) (base_list (preproc_if (identifier)) (preproc_if (identifier) (predefined_type)) (preproc_if (identifier) (preproc_if (identifier)) (preproc_else)) (preproc_if (unary_expression (identifier)) (predefined_type)) (preproc_if (identifier))) (enum_member_declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+================================================================================
+Mixed conditional branch tail after a type prefix
+================================================================================
+
+class C :
+#if A
+H,
+#if B
+I
+#else
+J,
+#endif
+#else
+K
+#endif
+#if !A || B
+,
+#endif
+L
+{}
+class Following {}
+
+---
+
+(compilation_unit (class_declaration (identifier) (base_list (preproc_if (identifier) (identifier) (preproc_if (identifier) (identifier) (preproc_else (identifier))) (preproc_else (identifier))) (preproc_if (binary_expression (unary_expression (identifier)) (identifier))) (identifier)) (declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+================================================================================
+Mixed conditional branch tail after an interface suffix
+================================================================================
+
+class C :
+H
+#if A
+, I
+#if B
+, J
+#else
+, K,
+#endif
+#else
+, M
+#endif
+#if !A || B
+,
+#endif
+L
+{}
+class Following {}
+
+---
+
+(compilation_unit (class_declaration (identifier) (base_list (identifier) (preproc_if (identifier) (identifier) (preproc_if (identifier) (identifier) (preproc_else (identifier))) (preproc_else (identifier))) (preproc_if (binary_expression (unary_expression (identifier)) (identifier))) (identifier)) (declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+================================================================================
+Enum empty-only alternative with sibling conditional trivia
+================================================================================
+
+enum C :
+#if A
+#if X
+#endif
+#if Y
+#endif
+#else
+byte
+#endif
+#if A
+int
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit (enum_declaration (identifier) (base_list (preproc_if (identifier) (preproc_if (identifier)) (preproc_if (identifier)) (preproc_else (predefined_type))) (preproc_if (identifier) (predefined_type))) (enum_member_declaration_list)) (class_declaration (identifier) (declaration_list)))
