@@ -26633,15 +26633,6 @@
       "_range_cast_type"
     ],
     [
-      "_definite_cast_name",
-      "_range_cast_type"
-    ],
-    [
-      "_name",
-      "_definite_cast_name",
-      "_range_cast_type"
-    ],
-    [
       "array_rank_specifier",
       "_omitted_array_rank_specifier"
     ],
@@ -26653,15 +26644,6 @@
     [
       "_pattern_parenthesized_expression",
       "constant_pattern"
-    ],
-    [
-      "_simple_name",
-      "_pattern_simple_identifier_name",
-      "_ambiguous_cast_qualified_name"
-    ],
-    [
-      "_simple_name",
-      "_ambiguous_cast_qualified_name"
     ],
     [
       "_simple_name",
@@ -26682,15 +26664,6 @@
     [
       "type",
       "_definite_cast_type"
-    ],
-    [
-      "parameter",
-      "_simple_name",
-      "_ambiguous_cast_name"
-    ],
-    [
-      "_simple_name",
-      "_ambiguous_cast_name"
     ],
     [
       "_simple_name",
@@ -26794,20 +26767,7 @@
     ],
     [
       "_simple_name",
-      "generic_name",
       "_pattern_simple_identifier_name"
-    ],
-    [
-      "_simple_name",
-      "_pattern_simple_identifier_name"
-    ],
-    [
-      "generic_name",
-      "_pattern_simple_identifier_name"
-    ],
-    [
-      "_pattern_non_name_member_access_expression",
-      "member_access_expression"
     ],
     [
       "_pattern_unary_expression",
@@ -27002,10 +26962,6 @@
       "type_parameter"
     ],
     [
-      "_simple_name",
-      "subpattern"
-    ],
-    [
       "tuple_element",
       "type_pattern"
     ],
@@ -27054,10 +27010,6 @@
     [
       "type",
       "_pointer_base_type"
-    ],
-    [
-      "qualified_name",
-      "member_access_expression"
     ],
     [
       "qualified_name",
