@@ -94,7 +94,7 @@ fuzzed with. Use runtime 7.0.18 or later within major version 7:
 ```toml
 [dependencies]
 tree-sitter = { package = "willbooster-tree-sitter", version = "7.0.18" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "7" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "8" }
 ```
 
 ```rust

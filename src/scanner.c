@@ -849,16 +849,10 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     if (valid_symbols[INTERPOLATION_START_QUOTE] && scanner->interpolation_stack.size > 0) {
         Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
 
-        if (is_verbatim(current_interpolation) || is_regular(current_interpolation)) {
-            if (lexer->lookahead == '"') {
-                advance(lexer);
-                current_interpolation->quote_count++;
-            }
-        } else {
-            while (lexer->lookahead == '"') {
-                advance(lexer);
-                current_interpolation->quote_count++;
-            }
+        while (lexer->lookahead == '"') {
+            advance(lexer);
+            current_interpolation->quote_count++;
+            if (is_verbatim(current_interpolation) || is_regular(current_interpolation)) break;
         }
 
         lexer->result_symbol = INTERPOLATION_START_QUOTE;
@@ -901,6 +895,12 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             advance(lexer);
             brace_advanced++;
             if (is_raw(current_interpolation) && !did_advance && brace_advanced == 1) lexer->mark_end(lexer);
+        }
+
+        if (!is_raw(current_interpolation) && brace_advanced == 1 && lexer->lookahead == '{') {
+            advance(lexer);
+            brace_advanced = 0;
+            did_advance = true;
         }
 
         if (is_raw(current_interpolation) && brace_advanced == current_interpolation->dollar_count && lexer->lookahead == '{') {
@@ -982,7 +982,6 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
                 }
             }
 
-            // then verbatim, since it could be verbatim + raw, but run the raw branch first
             else if (is_verbatim(current_interpolation)) {
                 if (lexer->lookahead == '"') {
                     lexer->mark_end(lexer);
@@ -1025,8 +1024,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
                     }
 
                     if (brace_advanced == current_interpolation->open_brace_count &&
-                        (brace_advanced == 0 || lexer->lookahead != '{')) { // if we're in a brace we're not allowed to
-                                                                            // collect more than the open_brace_count
+                        (brace_advanced == 0 || lexer->lookahead != '{')) {
                         return did_advance;
                     }
                 }
