@@ -56,7 +56,7 @@ void After() {}
         expect(
           highlights
             .captures(tree.rootNode)
-            .filter(({ name }) => name === 'function')
+            .filter(({ name }) => name === 'function.method')
             .map(({ node }) => node.text)
         ).toEqual(['M', 'M', 'M', 'After']);
         expect(tags.captures(tree.rootNode).filter(({ name }) => name === 'definition.method')).toHaveLength(4);
