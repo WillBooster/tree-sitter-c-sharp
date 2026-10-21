@@ -7,7 +7,7 @@ typedef enum { RANK_BODY_BRACKET, RANK_BODY_EXPRESSION, RANK_BODY_QUESTION_FREE,
 typedef struct {
     RankGroups groups;
     RankBodyMode mode;
-    unsigned quotes, dollars, format_braces;
+    unsigned quotes, dollars, format_braces, identifiers;
     bool string, verbatim, content, access, colon, question;
 } RankLiteralFrame;
 typedef Array(RankLiteralFrame) RankLiteralFrames;
@@ -18,6 +18,7 @@ static bool rank_skip_interpolated(TSLexer *, bool, RankBodyMode, unsigned, bool
 static bool rank_read_frames(TSLexer *, RankLiteralFrames *, bool *, unsigned, bool *);
 static void rank_push_code(RankLiteralFrames *, char, RankBodyMode, unsigned);
 static RankReadStep rank_read_code_step(TSLexer *, RankLiteralFrames *);
+static RankReadStep rank_read_code_identifier(TSLexer *, RankLiteralFrame *);
 static RankReadStep rank_read_string_step(TSLexer *, RankLiteralFrames *);
 static RankReadStep rank_read_raw_string_step(TSLexer *, RankLiteralFrames *);
 static RankReadStep rank_push_literal(TSLexer *, RankLiteralFrames *, int32_t, RankBodyMode);
@@ -80,6 +81,8 @@ static RankReadStep rank_read_code_step(TSLexer *lexer, RankLiteralFrames *frame
     RankLiteralFrame *frame = array_back(frames);
     int32_t c = question_skip_separators(lexer);
     if (c == -2 || c == '#' || lexer->eof(lexer)) return RANK_READ_UNKNOWN;
+    bool identifier_start = is_id_start(c) || c == '\\';
+    if (!identifier_start) frame->identifiers = 0;
     if (c == -1) { frame->content = true; return RANK_READ_MORE; }
     if (c == ')' || c == ']' || c == '}') {
         RankReadStep step = rank_close_delimited(lexer, &frame->groups, c, frame->format_braces);
@@ -87,6 +90,7 @@ static RankReadStep rank_read_code_step(TSLexer *lexer, RankLiteralFrames *frame
         return step;
     }
     frame->content = true;
+    if (identifier_start) return rank_read_code_identifier(lexer, frame);
     if (c == ':' && frame->groups.size == 1 && frame->format_braces) {
         advance(lexer);
         return rank_read_format(lexer, frame->format_braces) ? RANK_READ_DONE : RANK_READ_UNKNOWN;
@@ -107,6 +111,16 @@ static RankReadStep rank_read_code_step(TSLexer *lexer, RankLiteralFrames *frame
     if (c == '(' || c == '[' || c == '{') array_push(&frame->groups, (char)c);
     advance(lexer);
     return RANK_READ_MORE;
+}
+
+static RankReadStep rank_read_code_identifier(TSLexer *lexer, RankLiteralFrame *frame) {
+    QuestionIdentifier identifier;
+    if (!question_identifier(lexer, false, &identifier)) return RANK_READ_UNKNOWN;
+    if (!identifier.keyword || (identifier.length < sizeof(identifier.word) && is_syntax_word(identifier.word))) {
+        frame->identifiers = 0;
+        return RANK_READ_MORE;
+    }
+    return ++frame->identifiers == 3 ? RANK_READ_UNKNOWN : RANK_READ_MORE;
 }
 
 static RankReadStep rank_read_string_step(TSLexer *lexer, RankLiteralFrames *frames) {
