@@ -114,3 +114,93 @@ class Following {}
   (class_declaration
     (identifier)
     (declaration_list)))
+
+================================================================================
+Conditional prefix with trailing comma
+================================================================================
+
+interface C :
+#if A
+I, J,
+#endif
+K
+{}
+class Following {}
+
+---
+
+(compilation_unit
+  (interface_declaration
+    (identifier)
+    (base_list
+      (preproc_if
+        (identifier)
+        (identifier)
+        (identifier))
+      (identifier))
+    (declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list)))
+
+================================================================================
+Conditional separator with comma-only alternative
+================================================================================
+
+class C : B
+#if A
+, I,
+#else
+,
+#endif
+J
+{}
+class Following {}
+
+---
+
+(compilation_unit
+  (class_declaration
+    (identifier)
+    (base_list
+      (identifier)
+      (preproc_if
+        (identifier)
+        (identifier)
+        (preproc_else))
+      (identifier))
+    (declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list)))
+
+================================================================================
+Conditional type with multiple bases
+================================================================================
+
+record C :
+#if A
+B, I
+#else
+D, J
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit
+  (record_declaration
+    (identifier)
+    (base_list
+      (preproc_if
+        (identifier)
+        (identifier)
+        (identifier)
+        (preproc_else
+          (identifier)
+          (identifier))))
+    (declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list)))

@@ -32,6 +32,20 @@ cases.push(
   'class C : B,\n#if A\nI\n#else\nJ\n#endif\n{}\nclass Following {}'
 );
 
+for (const kind of ['class', 'struct', 'interface', 'record']) {
+  for (const defines of ['', '#define A\n', '#define B\n', '#define A\n#define B\n']) {
+    for (const base of [
+      ':\n#if A\nI,\n#endif\nJ',
+      ':\n#if A\nI, J,\n#endif\nK',
+      ':\n#if A\nB, I\n#else\nB\n#endif',
+      ': B\n#if A\n, I,\n#else\n,\n#endif\nJ',
+      ':\n#if A\n#if B\nI,\n#endif\n#endif\nJ',
+      ':\n#if A\nI,\n#else\nJ,\n#endif\nK',
+    ])
+      cases.push(`${defines}${kind} C ${base}\n{}\nclass Following {}`);
+  }
+}
+
 test('retains conditional base lists and declaration bodies through edits', async () => {
   await Parser.init();
   const language = await Language.load('tree-sitter-c_sharp.wasm');
@@ -86,10 +100,13 @@ test('highlights nested conditional base types without treating conditions as ty
   const language = await Language.load('tree-sitter-c_sharp.wasm');
   const parser = new Parser().setLanguage(language);
   const query = new Query(language, fs.readFileSync('queries/highlights.scm', 'utf8'));
+  const tags = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
   const sources = [1, 4, 16].flatMap((depth) => [
     `class C\n${nestedBase(': B', ': D', depth)}\n{}\nclass Following {}`,
     `class C :\n${nestedBase('B', 'D', depth)}\n{}\nclass Following {}`,
     `class C : E\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
+    `class C :\n${nestedBase('I,', 'J,', depth)}\nK\n{}\nclass Following {}`,
+    `class C : B\n${nestedBase(', I,', ',', depth)}\nJ\n{}\nclass Following {}`,
   ]);
   let previous: Tree | undefined;
   let source = '';
@@ -105,7 +122,8 @@ test('highlights nested conditional base types without treating conditions as ty
         expect(tree.rootNode.hasError, source).toBe(false);
         expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
         const captures = query.captures(tree.rootNode);
-        for (const match of source.matchAll(/\b(?:B|D|E|I|J)\b/g)) {
+        const references = tags.captures(tree.rootNode).filter((capture) => capture.name === 'reference.class');
+        for (const match of source.matchAll(/\b(?:B|D|E|I|J|K)\b/g)) {
           expect(
             captures.filter(
               (capture) =>
@@ -115,7 +133,18 @@ test('highlights nested conditional base types without treating conditions as ty
             ),
             source
           ).toHaveLength(1);
+          expect(
+            references.filter(
+              (capture) =>
+                capture.node.startIndex === match.index && capture.node.endIndex === match.index + match[0].length
+            ),
+            source
+          ).toHaveLength(1);
         }
+        expect(
+          references.every((capture) => /^(?:B|D|E|I|J|K)$/.test(capture.node.text)),
+          source
+        ).toBe(true);
         expect(
           captures.filter((capture) => capture.name === 'type' && /^A[0-9]+$/.test(capture.node.text))
         ).toHaveLength(0);
@@ -128,6 +157,48 @@ test('highlights nested conditional base types without treating conditions as ty
     }
   } finally {
     previous?.delete();
+    query.delete();
+    tags.delete();
+    parser.delete();
+  }
+});
+
+test('tags only actual base types across qualified, generic, and constructor bases', async () => {
+  await Parser.init();
+  const language = await Language.load('tree-sitter-c_sharp.wasm');
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
+  const sources = [
+    ['class C(int x) : A.B<T>(x), I<T> {}', ['A.B<T>', 'I<T>']],
+    ['record C(int x) : A.B<T>(x), I<T> {}', ['A.B<T>', 'I<T>']],
+    ['interface C : A.B<T>, I<T> {}', ['A.B<T>', 'I<T>']],
+    ['struct C : A.B<T>, I<T> {}', ['A.B<T>', 'I<T>']],
+    ['class C :\n#if A\nA.B<T>\n#else\nI<T>\n#endif\n{}', ['A.B<T>', 'I<T>']],
+  ] as const;
+  try {
+    for (const [source, names] of sources) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const matches = query
+          .matches(tree.rootNode)
+          .filter((match) => match.captures.some((capture) => capture.name === 'reference.class'));
+        expect(
+          matches.map((match) =>
+            match.captures.map((capture) => [capture.name, capture.node.startIndex, capture.node.endIndex])
+          ),
+          source
+        ).toEqual(
+          names.map((name) => [
+            ['name', source.indexOf(name), source.indexOf(name) + name.length],
+            ['reference.class', source.indexOf(name), source.indexOf(name) + name.length],
+          ])
+        );
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
     query.delete();
     parser.delete();
   }

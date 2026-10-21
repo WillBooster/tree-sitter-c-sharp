@@ -141,7 +141,7 @@ class Foo: IFoo {
   (class_declaration
     name: (identifier)
     (base_list
-      type: (identifier))
+      base: (identifier))
     body: (declaration_list
       (property_declaration
         type: (predefined_type)

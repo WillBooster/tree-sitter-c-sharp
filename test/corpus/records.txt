@@ -92,7 +92,7 @@ record NoBody;
     (modifier)
     name: (identifier)
     (base_list
-      type: (identifier))
+      base: (identifier))
     body: (declaration_list))
   (record_declaration
     (attribute_list
@@ -140,7 +140,7 @@ record NoBody;
         type: (predefined_type)
         name: (identifier)))
     (base_list
-      type: (identifier)
+      base: (identifier)
       (argument_list
         (argument
           (identifier))
@@ -159,26 +159,26 @@ record NoBody;
         type: (predefined_type)
         name: (identifier)))
     (base_list
-      type: (identifier)
+      base: (identifier)
       (argument_list
         (argument
           (identifier))
         (argument
           (identifier)))
-      type: (qualified_name
+      base: (qualified_name
         qualifier: (identifier)
         name: (identifier))
-      type: (identifier)))
+      base: (identifier)))
   (record_declaration
     name: (identifier)
     (parameter_list)
     (base_list
-      type: (generic_name
+      base: (generic_name
         (identifier)
         (type_argument_list
           (identifier)))
       (argument_list)
-      type: (identifier)))
+      base: (identifier)))
   (record_declaration
     (modifier)
     name: (identifier)

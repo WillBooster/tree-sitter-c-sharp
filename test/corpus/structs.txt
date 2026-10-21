@@ -44,7 +44,7 @@ private struct NoBodyWithPrimary(int g);
     (modifier)
     name: (identifier)
     (base_list
-      type: (identifier))
+      base: (identifier))
     body: (declaration_list))
   (struct_declaration
     (modifier)

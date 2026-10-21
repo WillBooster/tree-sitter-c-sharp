@@ -217,3 +217,5 @@
 (file_directive_value) @string
 
 (file_directive_kind) @keyword.directive
+
+(_ base: (identifier) @type)

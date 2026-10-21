@@ -1428,7 +1428,7 @@
     "type": "base_list",
     "named": true,
     "fields": {
-      "type": {
+      "base": {
         "multiple": true,
         "required": false,
         "types": [
@@ -6123,6 +6123,16 @@
           }
         ]
       },
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "type",
+            "named": true
+          }
+        ]
+      },
       "condition": {
         "multiple": false,
         "required": true,
@@ -6153,16 +6163,6 @@
           },
           {
             "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "type": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "type",
             "named": true
           }
         ]
@@ -6227,7 +6227,7 @@
     "type": "preproc_else",
     "named": true,
     "fields": {
-      "type": {
+      "base": {
         "multiple": true,
         "required": false,
         "types": [
@@ -6344,6 +6344,16 @@
           }
         ]
       },
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "type",
+            "named": true
+          }
+        ]
+      },
       "condition": {
         "multiple": false,
         "required": true,
@@ -6374,16 +6384,6 @@
           },
           {
             "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "type": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "type",
             "named": true
           }
         ]
