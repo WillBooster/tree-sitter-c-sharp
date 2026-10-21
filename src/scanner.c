@@ -58,6 +58,7 @@ enum TokenType {
     BLOCK_END,
     AMPERSAND_OPERATOR,
     INTERPOLATION_FORMAT_COLON,
+    PRAGMA_BOUNDARY,
     PRAGMA_TEXT,
 };
 
@@ -554,6 +555,7 @@ static bool scan_preproc_arg(TSLexer *lexer, bool opaque, enum TokenType symbol)
 
 static bool is_directive_horizontal(int32_t c);
 static bool scan_file_directive_kind(TSLexer *lexer);
+static bool scan_pragma_boundary(TSLexer *lexer);
 static bool scan_pragma_text(TSLexer *lexer);
 
 typedef enum {
@@ -588,7 +590,8 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     if (valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START])
         return scan_recovery(scanner, lexer, next_file_directive);
 
-    if (valid_symbols[PRAGMA_TEXT] && is_directive_horizontal(lexer->lookahead)) {
+    if (valid_symbols[PRAGMA_BOUNDARY]) return scan_pragma_boundary(lexer);
+    if (valid_symbols[PRAGMA_TEXT]) {
         while (is_directive_horizontal(lexer->lookahead)) skip(lexer);
         if (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) return scan_pragma_text(lexer);
     }
@@ -1261,10 +1264,27 @@ static bool is_directive_horizontal(int32_t c) {
         (c >= 0x2000 && c <= 0x200A) || c == 0x202F || c == 0x205F || c == 0x3000 || c == 0xFEFF;
 }
 
+static bool scan_pragma_boundary(TSLexer *lexer) {
+    if (is_directive_identifier_continue(lexer->lookahead)) return false;
+    lexer->mark_end(lexer);
+    if (lexer->lookahead == '\\') {
+        advance(lexer);
+        if (lexer->lookahead == 'u' || lexer->lookahead == 'U') return false;
+    }
+    lexer->result_symbol = PRAGMA_BOUNDARY;
+    return true;
+}
+
 static bool scan_pragma_text(TSLexer *lexer) {
     char name[8];
-    size_t length = consume_identifier_into(lexer, name, sizeof(name));
-    if (lexer->lookahead != '\\' && (buf_equals(name, length, "warning") || buf_equals(name, length, "checksum"))) return false;
+    size_t length = 0;
+    while (length < sizeof(name) && lexer->lookahead >= 'a' && lexer->lookahead <= 'z') {
+        name[length++] = (char)lexer->lookahead;
+        advance(lexer);
+    }
+    if (!is_directive_identifier_continue(lexer->lookahead) && !is_id_continue(lexer->lookahead) &&
+        lexer->lookahead != '\\' &&
+        (buf_equals(name, length, "warning") || buf_equals(name, length, "checksum"))) return false;
     return scan_preproc_arg(lexer, true, PRAGMA_TEXT);
 }
 
