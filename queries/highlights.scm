@@ -2,8 +2,8 @@
 
 ;; Methods
 
-(method_declaration name: (identifier) @function)
-(method_signature name: (identifier) @function)
+(method_declaration name: (identifier) @function.method)
+(method_signature name: (identifier) @function.method)
 (local_function_statement name: (identifier) @function)
 
 ;; Types
@@ -208,9 +208,30 @@
 
 (type_parameter_constraints_clause (identifier) @property.definition)
 
-;; Method calls
+;; Members
 
-(invocation_expression (member_access_expression name: (identifier) @function))
+[
+  (field_declaration (variable_declaration (variable_declarator name: (identifier) @variable.member)))
+  (event_field_declaration (variable_declaration (variable_declarator name: (identifier) @variable.member)))
+  (property_declaration name: (identifier) @variable.member)
+  (event_declaration name: (identifier) @variable.member)
+  (member_access_expression name: (identifier) @variable.member)
+  (member_access_expression name: (generic_name (identifier) @variable.member))
+  (member_binding_expression name: (identifier) @variable.member)
+  (member_binding_expression name: (generic_name (identifier) @variable.member))
+]
+
+;; Calls
+
+(invocation_expression
+  function: [
+    (identifier) @function.call
+    (generic_name (identifier) @function.call)
+    (member_access_expression name: (identifier) @function.method.call)
+    (member_access_expression name: (generic_name (identifier) @function.method.call))
+    (member_binding_expression name: (identifier) @function.method.call)
+    (member_binding_expression name: (generic_name (identifier) @function.method.call))
+  ])
 
 ["#:sdk" "#:package" "#:property" "#:project" "#:ref" "#:include" "#:exclude"] @keyword.directive
 (file_directive_name) @property
