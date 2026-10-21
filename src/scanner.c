@@ -824,20 +824,16 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
             lexer->mark_end(lexer);
             advance(lexer);
+            interpolation.string_type |= REGULAR;
 
             if (lexer->lookahead == '"' && !is_verbatim) {
                 advance(lexer);
                 if (lexer->lookahead == '"') {
                     lexer->result_symbol = INTERPOLATION_RAW_START;
-                    interpolation.string_type |= RAW;
-                    array_push(&scanner->interpolation_stack, interpolation);
+                    interpolation.string_type = RAW;
                 }
-                // If we find 1 or 3 quotes, we push an interpolation.
-                // If there's only two quotes, that's just an empty string
-            } else {
-                interpolation.string_type |= REGULAR;
-                array_push(&scanner->interpolation_stack, interpolation);
             }
+            array_push(&scanner->interpolation_stack, interpolation);
 
             return true;
         }
