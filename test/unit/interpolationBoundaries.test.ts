@@ -270,6 +270,10 @@ test('recovers malformed interpolation holes without swallowing the following cl
     for (const wrap of interpolate) {
       const sources = [
         'a?[0]:X',
+        'x is T?[.),]:X',
+        'x is T?[;{:-1',
+        'a?[,,$"y"]',
+        'a?[;{]:',
         'T?[]:-1',
         ...['!!}', '!! }', '!!,}', '!!}}', '!}'].map((index) => `x is T?[${index}:-1`),
         'x is T?[!!}:-1}',
@@ -312,15 +316,23 @@ test('recovers malformed interpolation holes without swallowing the following cl
         'x is T?[]:C:D',
       ].map((hole) => `var r = ${wrap(hole)};\nclass Following { int Value => 1; }`);
       if (wrap === interpolate[0]) {
+        for (const prefix of ['$@', '@$']) {
+          for (const newline of ['\n', '\r\n']) {
+            sources.push(`var r = ${prefix}"{x is T?[;{:}${newline}}${newline}class Following { int Value => 1; }`);
+          }
+        }
         sources.push(
           'var r = $"{x is T?[;|{+], b:?foo:X}";\nclass Following { int Value => 1; }',
           'var r = $@"{x is T?[;|{+], b:?foo:X}";\nclass Following { int Value => 1; }'
         );
         for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
           for (const format of ['', ' ', String.raw`\t`]) {
-            sources.push(
-              `var r = $"{f($"{a?[0]}")?[0]:${format}${newline}?foo}${newline}class Following { int Value => 1; }`
-            );
+            for (const trailing of ['', ' ', '\t', '\u00A0']) {
+              sources.push(
+                `var r = $"{f($"{a?[0]}")?[0]:${format}${newline}?foo}${trailing}${newline}class Following { int Value => 1; }`,
+                `var r = $"{a?[0]:${format}${newline}?foo}${trailing}${newline}";${newline}class Following { int Value => 1; }`
+              );
+            }
           }
           for (const expression of ['a?[0]', 'f($"{a?[0]}")?[0]', 'f(() => { return a?[0]; })?[0]']) {
             sources.push(`var r = $"{${expression}:x${newline}?foo}";\nclass Following { int Value => 1; }`);

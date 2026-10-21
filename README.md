@@ -29,22 +29,19 @@ Known gaps:
 
 - `var` and `await` cannot be used as identifiers everywhere they are valid
 
-## Upgrading to version 6
+## Syntax trees
 
-Type tests use `is_pattern_expression`; `is_expression` is no longer emitted. The `lvalue_expression` and
-`non_lvalue_expression` supertypes have been replaced by the shared expression grammar. Update queries to use
-`expression` and the concrete expression nodes. Constant patterns can contain a direct `conditional_access_expression`
-child. Conditional access includes its complete dependent chain and, for conditional assignment, the assignment in its
-`consequence` field. Tuple-shaped patterns such as `x is (1, 2)` use `recursive_pattern` with a
-`positional_pattern_clause` instead of `constant_pattern` with a `tuple_expression`.
-The contextual type names `nint` and `nuint` use `identifier` nodes instead of `predefined_type`.
+Type tests use `is_pattern_expression`. Queries can use `expression` and its concrete expression nodes.
+Constant patterns can contain a direct `conditional_access_expression` child.
+Conditional access includes its complete dependent chain and, for conditional assignment, the assignment in its `consequence` field.
+Tuple-shaped patterns such as `x is (1, 2)` use `recursive_pattern` with a `positional_pattern_clause`.
+The contextual type names `nint` and `nuint` use `identifier` nodes.
 
 ## Usage
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
-browsers, and Cloudflare Workers. The parser carries the ABI number of WillBooster/tree-sitter, so it loads only with
-that runtime. Use version 2.0.24 or later; upstream's runtime rejects it. Install the runtime alongside the grammar when using
+browsers, and Cloudflare Workers. The parser uses WillBooster ABI 6 and loads only with that runtime. Use version 7.0.18 or later within major version 7; upstream's runtime rejects it. Install the runtime alongside the grammar when using
 the Wasm parser; it remains an optional peer for consumers that only use the grammar source or queries.
 
 In Node.js and Bun, load it from the package:
@@ -92,12 +89,12 @@ Their external tokens and serialized scanner state must match.
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
-fuzzed with. Use runtime 2.0.24 or later:
+fuzzed with. Use runtime 7.0.18 or later within major version 7:
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "2.0.24" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "6" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "7.0.18" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "8" }
 ```
 
 ```rust
@@ -110,61 +107,16 @@ parser.set_language(&tree_sitter_c_sharp::LANGUAGE.into())?;
 ```sh
 mise install
 bun install --frozen-lockfile
+bun playwright install chromium
 bun run build/ci
+bun run verify
 bun run test
-script/parse-examples
 cargo test
 ```
 
-`script/tree-sitter` (also `bun run tree-sitter`) runs the tree-sitter CLI of WillBooster/tree-sitter at the runtime
-version locked in `Cargo.lock`, so the parser is generated, built, tested, and fuzzed with the generator and the
-runtime this package ships. The first run downloads that CLI from its GitHub Release into `.tmp/`, or builds it with
-`cargo` (with the `cmake` that `mise.toml` pins) when the download fails or the release has no binary that runs here.
+- [Parser generation and validation](docs/development.md): read before changing grammar inputs, runtime versions, examples, or reproducing an incremental parsing failure.
 
-`bun run generate` records a fresh generation profile from the applicable `test/corpus` cases and Git-tracked
-files in `examples/`, then generates compact parser tables. The parser also embeds metadata from `tree-sitter.json`. After changing a grammar, scanner source,
-`tree-sitter.json`, a corpus case, or a tracked example,
-regenerate and commit `src/`. Stage added or removed examples with `git add -A examples` before generation so the profile uses the intended file list.
-Profiles in `.tmp/generation-profiles/` are temporary and must not be committed. `bun run build-wasm`, `bun run build/ci`,
-and the release build regenerate the parsers before compiling them.
-
-The tracked `examples/JsonWriter.cs` and `examples/JsonSerializerInternalWriter.cs` are verbatim MIT-licensed
-snapshots from Newtonsoft.Json commit `52fa3aef1f2cadcd3a3f874251eddc98d3efbbaa`, under `Src/Newtonsoft.Json/`
-and its `Serialization/` directory respectively. Refresh these training inputs independently of the clone pins in
-`script/parse-examples` so changing a test checkout does not change profile training.
-
-`bun run test` runs:
-
-- the corpus in `test/corpus`, with the native build and with the Wasm build (the first run downloads the WASI SDK);
-- an incremental-parsing check (`test/unit/incremental.test.ts`): `script/fuzz-corpus` runs `tree-sitter fuzz`, which
-  edits each corpus case at random, reparses it, undoes the edits, and reparses again. `TREE_SITTER_SEED`,
-  `TREE_SITTER_ITERATIONS`, and `TREE_SITTER_EDITS` run other or more edits;
-- a check that the C# files under `examples/` that fail to parse are exactly those listed in
-  `script/known-failures.txt`. Inputs include Git-tracked generation examples and pinned clones. The first run fetches the pinned repositories listed in
-  `script/parse-examples`. After adding, removing, or changing an example, changing the grammar, or moving a pin,
-  run `script/parse-examples` and review the failure-list diff before committing;
-- a performance check (`test/unit/performance.test.ts`) that recovering from an error on each line takes linear time
-  (ten times the lines take about ten times the CPU time, under a ceiling), since consumers parse files while they are
-  being edited. It loads the Wasm build through @willbooster/web-tree-sitter, which `bun run build/ci` rebuilds after
-  regenerating the parser;
-- a check that `package.json` and `Cargo.lock` test the same runtime version (`test/unit/runtimeVersion.test.ts`);
-- checks that the Wasm build parses C# with @willbooster/web-tree-sitter in Chromium (`test/unit/browser.test.ts`,
-  which needs Chromium installed once by `bunx playwright install chromium`) and in Cloudflare Workers with and without
-  `nodejs_compat` (`test/unit/workers.test.ts`).
-
-The tests and `script/parse-examples` compile the parser into `.tmp/tree-sitter-lib` rather than the CLI's cache shared
-by every checkout; `script/fuzz-corpus` builds a per-run parser in `.tmp/fuzz` and deletes it afterwards. `mise.toml`
-sets `TREE_SITTER_LIBDIR` to `.tmp/tree-sitter-lib` as well, so other `tree-sitter` commands run in the checkout use
-this checkout's parser too.
-
-`cargo test` also replays edits that `tree-sitter fuzz` found to break incremental parsing on runtimes without the
-fixes of willbooster-tree-sitter.
-
-CI also runs these tests on Linux arm64 and macOS, where the Rust binding compiles the parser natively, and fuzzes the
-parser with libFuzzer and sanitizers on the willbooster-tree-sitter runtime locked in `Cargo.lock`
-(`.github/workflows/robustness.yml`).
-
-### References
+## References
 
 - [C# language specification](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/readme)
 - [Official C# 8 Draft Language Spec](https://github.com/dotnet/csharpstandard/tree/draft-v8/standard) provides

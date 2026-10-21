@@ -1295,6 +1295,7 @@ static bool scan_file_directive_kind(TSLexer *lexer) {
 static bool scan_interpolation_recovery(Scanner *scanner, TSLexer *lexer) {
     Interpolation *interpolation = array_back(&scanner->interpolation_stack);
     bool closes_hole = lexer->lookahead == '}';
+    bool line_end = false;
     if (closes_hole) {
         if (!interpolation->open_brace_count) return false;
         unsigned braces = 0;
@@ -1302,15 +1303,19 @@ static bool scan_interpolation_recovery(Scanner *scanner, TSLexer *lexer) {
             advance(lexer);
             braces++;
         }
-        if (braces != interpolation->open_brace_count || lexer->lookahead != '"') return false;
+        if (braces != interpolation->open_brace_count) return false;
         lexer->mark_end(lexer);
+        if (is_regular(interpolation) && !is_verbatim(interpolation)) {
+            while (is_directive_horizontal(lexer->lookahead)) advance(lexer);
+            line_end = is_line_terminator(lexer->lookahead);
+        }
     }
     unsigned quotes = 0;
     while (lexer->lookahead == '"' && quotes < interpolation->quote_count) {
         advance(lexer);
         quotes++;
     }
-    if (!quotes || quotes != interpolation->quote_count || lexer->lookahead == '"') return false;
+    if (!line_end && (!quotes || quotes != interpolation->quote_count || lexer->lookahead == '"')) return false;
     if (closes_hole) {
         interpolation->open_brace_count = 0;
         lexer->result_symbol = INTERPOLATION_CLOSE_BRACE;
