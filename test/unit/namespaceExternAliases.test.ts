@@ -106,3 +106,65 @@ test('preserves extern methods whose return type is named alias', async () => {
     parser.delete();
   }
 });
+
+test('preserves declaration supertype queries for namespace members', async () => {
+  await Parser.init();
+  const language = await Language.load('tree-sitter-c_sharp.wasm');
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(declaration_list (declaration) @member)');
+  const tree = parser.parse('namespace N { using A; namespace M {} class C { class D {} } }')!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(query.captures(tree.rootNode).map((capture) => capture.node.text)).toEqual([
+      'using A;',
+      'namespace M {}',
+      'class C { class D {} }',
+      'class D {}',
+    ]);
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('retains namespace scope while editing a misplaced member', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
+  let previous: Tree | undefined;
+  let source = '';
+  try {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
+      for (const member of ['int x;', 'void M() {}', 'int x;']) {
+        const next = ['namespace N {', 'class A {}', member, 'class B {}', '}', 'class Following {}'].join(newline);
+        if (previous) editTree(previous, source, next);
+        const tree = parser.parse(next, previous)!;
+        previous?.delete();
+        previous = tree;
+        source = next;
+        const fresh = parser.parse(source)!;
+        try {
+          expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+          const namespaces = tree.rootNode.descendantsOfType('namespace_declaration');
+          expect(namespaces, source).toHaveLength(1);
+          expect(namespaces[0]!.childForFieldName('name')?.text, source).toBe('N');
+          expect(
+            namespaces[0]!.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text),
+            source
+          ).toEqual(['A', 'B']);
+          expect(
+            tree.rootNode.namedChildren
+              .filter((node) => node.type === 'class_declaration')
+              .map((node) => node.childForFieldName('name')?.text),
+            source
+          ).toEqual(['Following']);
+        } finally {
+          fresh.delete();
+        }
+      }
+    }
+  } finally {
+    previous?.delete();
+    parser.delete();
+  }
+});

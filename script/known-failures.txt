@@ -13,7 +13,6 @@ examples/Newtonsoft.Json/Src/Newtonsoft.Json/Converters/JavaScriptDateTimeConver
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Converters/UnixDateTimeConverter.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Converters/XmlNodeConverter.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonConvert.cs
-examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonReader.Async.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonReader.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonTextReader.Async.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonTextReader.cs
@@ -23,8 +22,6 @@ examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonWriter.Async.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonWriter.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/IJEnumerable.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/JArray.cs
-examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/JContainer.cs
-examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/JObject.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/JToken.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/JValue.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/JsonPath/FieldMultipleFilter.cs
@@ -52,7 +49,6 @@ examples/nunit/src/NUnitFramework/framework/Internal/ExceptionHelper.cs
 examples/nunit/src/NUnitFramework/framework/Internal/OSPlatform.cs
 examples/nunit/src/NUnitFramework/framework/Internal/OverloadResolutionPriorityAttribute.cs
 examples/nunit/src/NUnitFramework/framework/Internal/Reflect.cs
-examples/nunit/src/NUnitFramework/framework/Internal/TestExecutionContext.cs
 examples/nunit/src/NUnitFramework/nunitlite.tests/MakeRunSettingsTests.cs
 examples/nunit/src/NUnitFramework/testdata/TestCaseAttributeFixture.cs
 examples/nunit/src/NUnitFramework/tests/Api/TestAssemblyRunnerTests.cs

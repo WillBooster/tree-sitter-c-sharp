@@ -11,8 +11,8 @@
 (interface_declaration name: (identifier) @type)
 (class_declaration name: (identifier) @type)
 (enum_declaration name: (identifier) @type)
-(struct_declaration (identifier) @type)
-(record_declaration (identifier) @type)
+(struct_declaration name: (identifier) @type)
+(record_declaration name: (identifier) @type)
 (namespace_declaration name: (identifier) @module)
 
 (generic_name (identifier) @type)
@@ -26,8 +26,6 @@
 (destructor_declaration name: (identifier) @constructor)
 
 (_ type: (identifier) @type)
-
-(base_list (identifier) @type)
 
 (predefined_type) @type.builtin
 
@@ -219,3 +217,7 @@
 (file_directive_value) @string
 
 (file_directive_kind) @keyword.directive
+
+(_ base: (identifier) @type)
+
+(_ underlying_type: (identifier) @type)
