@@ -14,6 +14,8 @@ export default defineConfig({
   test: {
     // tsconfig.json declares the `vitest/globals` types, so the runner must provide those globals.
     globals: true,
+    // Concurrent Wasm compiler pools compete with CPU sampling on small CI runners.
+    maxWorkers: 1,
     projects: [
       {
         test: {
@@ -42,6 +44,8 @@ export default defineConfig({
         test: {
           name: 'performance',
           include: PerformanceTests,
+          // Keep compiler tier changes and lazy compilation outside the CPU samples.
+          execArgv: ['--no-liftoff', '--no-wasm-lazy-compilation'],
           sequence: { groupOrder: 1 },
         },
       },
