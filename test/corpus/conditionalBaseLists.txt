@@ -337,3 +337,77 @@ class Following {}
 ---
 
 (compilation_unit (preproc_define (preproc_arg)) (preproc_define (preproc_arg)) (enum_declaration (identifier) (base_list (preproc_if (identifier) (predefined_type) (preproc_elif (identifier) (predefined_type))) (preproc_if (binary_expression (unary_expression (identifier)) (unary_expression (identifier))) (predefined_type))) (enum_member_declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+==================
+Inheritance complementary types with empty alternatives
+==================
+
+class C :
+#if A
+I
+#elif B
+#else
+#endif
+#if !A
+J
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit
+  (class_declaration
+    (identifier)
+    (base_list
+      (preproc_if
+        (identifier)
+        (identifier)
+        (preproc_elif
+          (identifier)
+          (preproc_else)))
+      (preproc_if
+        (unary_expression
+          (identifier))
+        (identifier)))
+    (declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list)))
+
+==================
+Enum complementary types with empty alternatives
+==================
+
+enum C :
+#if A
+byte
+#elif B
+#else
+#endif
+#if !A
+int
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit
+  (enum_declaration
+    (identifier)
+    (base_list
+      (preproc_if
+        (identifier)
+        (predefined_type)
+        (preproc_elif
+          (identifier)
+          (preproc_else)))
+      (preproc_if
+        (unary_expression
+          (identifier))
+        (predefined_type)))
+    (enum_member_declaration_list))
+  (class_declaration
+    (identifier)
+    (declaration_list)))

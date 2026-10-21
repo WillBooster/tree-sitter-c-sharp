@@ -2404,9 +2404,9 @@ module.exports = grammar({
       true
     ),
     ...preprocIf('_in_enum_base_clause', ($) => $._enum_base_clause, 0, false),
-    ...preprocIf('_in_enum_base_type', ($) => $._enum_base_type, 0, false, true),
+    ...preprocIfWithContent('_in_enum_base_type', ($) => $._enum_base_type),
     ...preprocIf('_in_base_list', ($) => $._base_list, 0, false),
-    ...preprocIf('_in_base_list_type', ($) => $._base_list_type, 0, false, true),
+    ...preprocIfWithContent('_in_base_list_type', ($) => $._base_list_type),
     ...preprocIf('_in_base_list_prefix', ($) => $._base_list_prefix, 0, false),
     ...preprocIf('_in_base_list_separator', ($) => $._base_list_separator_path, 0, false, true),
     ...preprocIf('_in_base_list_suffix', ($) => $._base_list_suffix, 0, false),
@@ -2684,6 +2684,45 @@ function directiveNewLine() {
  */
 function preprocessor(command) {
   return alias(new RegExp('#[ \t]*' + command), '#' + command);
+}
+
+/**
+ * @param {string} suffix
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>} content
+ * @returns {Record<string, import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>>}
+ */
+function preprocIfWithContent(suffix, content) {
+  /** @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<PreprocContentRule>} $ */
+  function contentOrAlternative($) {
+    return choice(
+      seq(content($), field('alternative', optional(alternativeBlock(false)))),
+      field('alternative', alternativeBlock(true))
+    );
+  }
+
+  /** @param {boolean} required */
+  function alternativeBlock(required) {
+    const alternativeSuffix = suffix + (required ? '_with_content' : '');
+    return choice(
+      alias(sym('preproc_else' + alternativeSuffix), sym('preproc_else')),
+      alias(sym('preproc_elif' + alternativeSuffix), sym('preproc_elif'))
+    );
+  }
+
+  return {
+    ...preprocIf(suffix, content, 0, false),
+    ['preproc_if' + suffix]: ($) =>
+      seq(
+        preprocessor('if'),
+        field('condition', $._preproc_expression),
+        directiveNewLine(),
+        contentOrAlternative($),
+        preprocessor('endif')
+      ),
+    ['preproc_else' + suffix + '_with_content']: ($) => seq(preprocessor('else'), content($)),
+    ['preproc_elif' + suffix + '_with_content']: ($) =>
+      seq(preprocessor('elif'), field('condition', $._preproc_expression), directiveNewLine(), contentOrAlternative($)),
+  };
 }
 
 /**

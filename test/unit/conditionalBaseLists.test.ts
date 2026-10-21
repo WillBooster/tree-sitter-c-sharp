@@ -66,6 +66,23 @@ for (const defines of ['', '#define A\n', '#define B\n', '#define A\n#define B\n
   );
 }
 
+for (const kind of ['class', 'struct', 'interface', 'record', 'record struct', 'enum']) {
+  const [first, second] = kind === 'enum' ? ['byte', 'int'] : ['I', 'J'];
+  for (const defines of ['', '#define A\n', '#define B\n', '#define A\n#define B\n']) {
+    for (const alternative of ['#else\n', '#elif B\n', '#elif B\n#else\n']) {
+      cases.push(
+        `${defines}${kind} C :\n#if A\n${first}\n${alternative}#endif\n#if !A\n${second}\n#endif\n{}\nclass Following {}`
+      );
+    }
+    for (const clauses of [
+      `#if A\n#else\n${first}\n#endif\n#if A\n${second}\n#endif`,
+      `#if B\n#elif A\n${first}\n#else\n#endif\n#if B || !A\n${second}\n#endif`,
+      `#if A\n#elif B\n#else\n${first}\n#endif\n#if A || B\n${second}\n#endif`,
+    ])
+      cases.push(`${defines}${kind} C :\n${clauses}\n{}\nclass Following {}`);
+  }
+}
+
 test('retains conditional base lists and declaration bodies through edits', async () => {
   await Parser.init();
   const language = await Language.load('tree-sitter-c_sharp.wasm');
@@ -115,6 +132,45 @@ test('retains conditional base lists and declaration bodies through edits', asyn
   }
 });
 
+test('rejects base clauses with no physical type while retaining following declarations through edits', async () => {
+  await Parser.init();
+  const language = await Language.load('tree-sitter-c_sharp.wasm');
+  const parser = new Parser().setLanguage(language);
+  const sources = ['class', 'struct', 'interface', 'record', 'record struct', 'enum'].flatMap((kind) =>
+    [
+      '#if A\n#else\n#endif',
+      '#if A\n#elif B\n#else\n#endif',
+      '#if A\n#if B\n#else\n#endif\n#else\n#endif',
+      '#if A\n#endif\n#if !A\n#endif',
+    ].map((clauses) => `${kind} C :\n${clauses}\n{}\nclass Following {}`)
+  );
+  let previous: Tree | undefined;
+  let source = '';
+  try {
+    for (const next of [...sources, sources[0]!]) {
+      if (previous) editTree(previous, source, next);
+      const tree = parser.parse(next, previous)!;
+      previous?.delete();
+      previous = tree;
+      source = next;
+      const fresh = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(true);
+        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        const following = tree.rootNode
+          .descendantsOfType('class_declaration')
+          .find((node) => node.childForFieldName('name')?.text === 'Following');
+        expect(following?.childForFieldName('body')?.text, source).toBe('{}');
+      } finally {
+        fresh.delete();
+      }
+    }
+  } finally {
+    previous?.delete();
+    parser.delete();
+  }
+});
+
 test('highlights nested conditional base types without treating conditions as types', async () => {
   await Parser.init();
   const language = await Language.load('tree-sitter-c_sharp.wasm');
@@ -130,6 +186,9 @@ test('highlights nested conditional base types without treating conditions as ty
       `class C : B\n${nestedBase(', I,', ',', depth)}\nJ\n{}\nclass Following {}`,
       `class C\n${nestedBase(': B', ': D', depth)}\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
       `class C\n${nestedBase(': B', ': D', depth)}\n, I\n{}\nclass Following {}`,
+      `class C :\n${nestedBase('B', '', depth)}\n#if !A0\nD\n#endif\n, I\n{}\nclass Following {}`,
+      `class C :\n#if A0\nB\n#elif A1\n#else\n#endif\n#if !A0\nD\n#endif\n{}\nclass Following {}`,
+      `class C :\n#if A0\n#elif A1\nB\n#else\n#endif\n#if A0 || !A1\nD\n#endif\n{}\nclass Following {}`,
       `class C\n#if A\n${nestedBase(': B', ': D', depth)}\n#endif\n#if !A\n: E\n#endif\n{}\nclass Following {}`,
       `class C :\n#if A\n${nestedBase('B', 'D', depth)}\n#endif\n#if !A\nE\n#endif\n{}\nclass Following {}`,
       `class C :\n#if A\n${nestedBase('B', 'D', depth)}\n#endif\n#if !A\nE\n#endif\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
