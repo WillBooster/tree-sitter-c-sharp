@@ -41,7 +41,7 @@ The contextual type names `nint` and `nuint` use `identifier` nodes.
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
-browsers, and Cloudflare Workers. The parser uses WillBooster ABI 6 and loads only with that runtime. Use version 7.0.20 or later within major version 7; upstream's runtime rejects it. Install the runtime alongside the grammar when using
+browsers, and Cloudflare Workers. The parser uses WillBooster ABI 7 and loads only with that runtime. Use version 9.0.0 or later within major version 9; upstream's runtime rejects it. Install the runtime alongside the grammar when using
 the Wasm parser; it remains an optional peer for consumers that only use the grammar source or queries.
 
 In Node.js and Bun, load it from the package:
@@ -89,12 +89,12 @@ Their external tokens and serialized scanner state must match.
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
-fuzzed with. Use runtime 7.0.20 or later within major version 7:
+fuzzed with. Use runtime 9.0.0 or later within major version 9:
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "7.0.20" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "8" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "9.0.0" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "11" }
 ```
 
 ```rust

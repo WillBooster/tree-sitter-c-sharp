@@ -6,7 +6,7 @@ Use `script/tree-sitter` for CLI commands so generation and native parsing match
 Keep the Web runtime in `package.json` at the same version; `test/unit/runtimeVersion.test.ts` checks this contract.
 The first CLI invocation downloads a matching release binary or builds it with Cargo; the source build needs the CMake pinned in `mise.toml`.
 
-After changing the grammar, scanner, `tree-sitter.json`, a corpus case, or a tracked example, run `bun run build/ci` and commit the generated `src/` files.
+After changing the runtime version, grammar, scanner, `tree-sitter.json`, a corpus case, or a tracked example, run `bun run build/ci` and commit the generated `src/` files.
 Stage added or removed examples with `git add -A examples` before generation: `script/generate` trains only on the Git-tracked example list.
 See `script/generate` for profile inputs and temporary output paths.
 
