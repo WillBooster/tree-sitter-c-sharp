@@ -376,7 +376,16 @@ test('preserves outer conditional ownership across nested interpolation and lamb
     'f(() => a?[0])?[0]',
     'f(() => { return a?[0]; })?[0]',
     ...interpolate.flatMap((inner) =>
-      ['a?[0]', 'x as int?', 'x as int?:?foo', 'f(() => { return a?[0]; })?[0]'].map((hole) => `f(${inner(hole)})?[0]`)
+      [
+        'a?[0]',
+        'x as int?',
+        'x as int?:?foo',
+        'f(() => { return a?[0]; })?[0]',
+        'f(() => { T var = value; return var; })',
+        'f(() => { (T first, U second) tuple = value; return tuple; })',
+        'from T item in items select item',
+        'x is var item',
+      ].map((hole) => `f(${inner(hole)})?[0]`)
     ),
   ].flatMap((consequence) => [consequence, consequence + '?[0]'.repeat(15)]);
   try {
