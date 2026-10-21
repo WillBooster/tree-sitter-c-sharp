@@ -3,8 +3,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 assert.equal(process.argv.length, 4, 'Usage: generateIdentifierCharacters.mjs <parser.c> <header>');
 assert.equal(process.versions.unicode, '17.0', 'Recheck the C# directive categories when Node Unicode data changes');
-// .NET 10 uses Unicode 16 UTF-16 categories. These BMP additions in Node's Unicode 17 data remain punctuation
-// to its C# lexer: https://www.unicode.org/Public/17.0.0/ucd/DerivedAge.txt.
+// .NET 10 uses Unicode 16 UTF-16 categories. These BMP additions in Node's Unicode 17 data are unassigned
+// in Unicode 16, so its C# lexer excludes them from identifiers: https://www.unicode.org/Public/17.0.0/ucd/DerivedAge.txt.
 const unicode17BmpIdentifierAdditions = [
   [0x08_8F, 0x08_8F],
   [0x0C_5C, 0x0C_5C],
