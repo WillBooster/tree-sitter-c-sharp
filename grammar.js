@@ -287,6 +287,7 @@ module.exports = grammar({
     sym('_block_end'),
     sym('_ampersand_operator'),
     sym('_interpolation_format_colon'),
+    sym('_pragma_boundary'),
     sym('_pragma_text'),
   ],
 
@@ -2451,6 +2452,7 @@ module.exports = grammar({
     preproc_pragma: ($) =>
       seq(
         preprocessor('pragma'),
+        sym('_pragma_boundary'),
         optional(
           choice(
             seq('warning', choice('disable', 'restore'), commaSep(choice($.identifier, $.integer_literal))),
