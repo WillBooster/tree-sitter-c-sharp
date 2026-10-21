@@ -411,3 +411,76 @@ class Following {}
   (class_declaration
     (identifier)
     (declaration_list)))
+
+================================================================================
+Mixed conditional inheritance branch exits
+================================================================================
+
+class C :
+#if A
+I
+#else
+J,
+#endif
+#if A
+,
+#endif
+K
+{}
+class Following {}
+
+---
+
+(compilation_unit (class_declaration (identifier) (base_list (preproc_if (identifier) (identifier) (preproc_else (identifier))) (preproc_if (identifier)) (identifier)) (declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+================================================================================
+Nested mixed conditional inheritance suffix
+================================================================================
+
+class C : H
+#if A
+#if B
+, I
+#else
+, J,
+#endif
+#else
+, K,
+#endif
+#if A && B
+,
+#endif
+L
+{}
+class Following {}
+
+---
+
+(compilation_unit (class_declaration (identifier) (base_list (identifier) (preproc_if (identifier) (preproc_if (identifier) (identifier) (preproc_else (identifier))) (preproc_else (identifier))) (preproc_if (binary_expression (identifier) (identifier))) (identifier)) (declaration_list)) (class_declaration (identifier) (declaration_list)))
+
+================================================================================
+Empty conditionals around complementary enum types
+================================================================================
+
+enum C :
+#if X
+#endif
+#if A
+byte
+#endif
+#if X
+#if Y
+#endif
+#else
+#endif
+#if !A
+int
+#endif
+#if X
+#endif
+{}
+class Following {}
+
+---
+
+(compilation_unit (enum_declaration (identifier) (base_list (preproc_if (identifier)) (preproc_if (identifier) (predefined_type)) (preproc_if (identifier) (preproc_if (identifier)) (preproc_else)) (preproc_if (unary_expression (identifier)) (predefined_type)) (preproc_if (identifier))) (enum_member_declaration_list)) (class_declaration (identifier) (declaration_list)))

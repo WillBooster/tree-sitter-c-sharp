@@ -3672,6 +3672,40 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "extern_alias_directive",
+          "named": true
+        },
+        {
+          "type": "file_scoped_namespace_declaration",
+          "named": true
+        },
+        {
+          "type": "global_attribute",
+          "named": true
+        },
+        {
+          "type": "namespace_declaration",
+          "named": true
+        },
+        {
+          "type": "preproc_if",
+          "named": true
+        },
+        {
+          "type": "type_declaration",
+          "named": true
+        },
+        {
+          "type": "using_directive",
+          "named": true
+        }
+      ]
     }
   },
   {

@@ -83,6 +83,27 @@ for (const kind of ['class', 'struct', 'interface', 'record', 'record struct', '
   }
 }
 
+for (const kind of ['class', 'struct', 'interface', 'record', 'record struct', 'enum']) {
+  const [first, second] = kind === 'enum' ? ['byte', 'int'] : ['I', 'J'];
+  for (const empty of ['#if X\n#endif', '#if X\n#if Y\n#else\n#endif\n#else\n#endif']) {
+    for (const clauses of [
+      `${empty}\n#if A\n${first}\n#else\n${second}\n#endif`,
+      `#if A\n${first}\n#endif\n${empty}\n#if !A\n${second}\n#endif`,
+      `#if A\n${first}\n#else\n${second}\n#endif\n${empty}`,
+    ])
+      cases.push(`${kind} C :\n${clauses}\n{}\nclass Following {}`);
+  }
+}
+for (const kind of ['class', 'struct', 'interface', 'record', 'record struct']) {
+  for (const clauses of [
+    '#if A\nI\n#else\nJ,\n#endif\n#if A\n,\n#endif\nK',
+    '#if A\nI\n#elif B\nJ,\n#else\nK\n#endif\n#if A || !B\n,\n#endif\nL',
+    '#if A\n#if B\nI\n#else\nJ,\n#endif\n#else\nK,\n#endif\n#if A && B\n,\n#endif\nL',
+    'H\n#if A\n, I\n#else\n, J,\n#endif\n#if A\n,\n#endif\nK',
+  ])
+    cases.push(`${kind} C :\n${clauses}\n{}\nclass Following {}`);
+}
+
 test('retains conditional base lists and declaration bodies through edits', async () => {
   await Parser.init();
   const language = await Language.load('tree-sitter-c_sharp.wasm');
@@ -182,6 +203,7 @@ test('highlights nested conditional base types without treating conditions as ty
       `class C\n${nestedBase(': B', ': D', depth)}\n{}\nclass Following {}`,
       `class C :\n${nestedBase('B', 'D', depth)}\n{}\nclass Following {}`,
       `class C : E\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
+      `class C :\n${nestedBase('I', 'J,', depth)}\n#if ${Array.from({ length: depth }, (_, index) => `A${index}`).join(' && ')}\n,\n#endif\nB\n{}\nclass Following {}`,
       `class C :\n${nestedBase('I,', 'J,', depth)}\nK\n{}\nclass Following {}`,
       `class C : B\n${nestedBase(', I,', ',', depth)}\nJ\n{}\nclass Following {}`,
       `class C\n${nestedBase(': B', ': D', depth)}\n${nestedBase(', I', ', J', depth)}\n{}\nclass Following {}`,
