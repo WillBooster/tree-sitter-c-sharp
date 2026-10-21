@@ -42,6 +42,8 @@ export default defineConfig({
         test: {
           name: 'performance',
           include: PerformanceTests,
+          // Keep compiler tier changes and lazy compilation outside the CPU samples.
+          execArgv: ['--no-liftoff', '--no-wasm-lazy-compilation'],
           sequence: { groupOrder: 1 },
         },
       },
