@@ -45,6 +45,7 @@ test('distinguishes generic-shaped relational and shift expressions by their fol
 test('preserves generic method headers, method groups, intrinsic operands, and ordinary type roles', () => {
   for (const source of [
     'class C { T F<T>(T value)=>value; int M()=>F<int>(1); }',
+    'class A { public class B{} } class C { public class D{} static void F<T,U>(){} void M(){F<A.B,C.D>();C.F<A.B,C.D>();} }',
     'class C { static T F<T>(T value)=>value; object M(){var function=F<int>;return function;} }',
     'class C { string M()=>nameof(System.Collections.Generic.List<int>); }',
     'class C { int M()=>default(System.Func<int>)!(); }',
@@ -64,12 +65,82 @@ test('preserves generic method headers, method groups, intrinsic operands, and o
   }
 });
 
+test('retains definite generic method groups before suppression and coalescing', () => {
+  for (const argument of ['int', 'T[]', 'T[,]', 'T?', 'int?']) {
+    for (const expression of [`F<${argument}>!`, `F<${argument}> ?? G<${argument}>`]) {
+      const source = `class C<T> { static void F<U>(){} object M()=>${expression}; }`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const generics = tree.rootNode.descendantsOfType('generic_name');
+        expect(
+          generics.map((node) => node.text),
+          source
+        ).toEqual(expression.includes('??') ? [`F<${argument}>`, `G<${argument}>`] : [`F<${argument}>`]);
+        expect(generics[0]?.namedChildren[1]?.type, source).toBe('type_argument_list');
+        if (expression.includes('??')) {
+          const binary = tree.rootNode.descendantsOfType('binary_expression')[0]!;
+          expect(binary.childForFieldName('left')?.text, source).toBe(`F<${argument}>`);
+          expect(binary.childForFieldName('operator')?.text, source).toBe('??');
+        } else {
+          expect(tree.rootNode.descendantsOfType('postfix_unary_expression')[0]?.text, source).toBe(expression);
+        }
+      } finally {
+        tree.delete();
+      }
+    }
+  }
+});
+
+test('distinguishes nested generic arguments from comma-separated relational arguments', () => {
+  for (const [expression, argumentCount, generic] of [
+    ['F<G<T>,U>+B', 1, 'F<G<T>,U>'],
+    ['F<G<int>,U>+B', 2, 'G<int>'],
+    ['F<G<G<int>>,U>+B', 2, 'G<G<int>>'],
+    ['F<A.G<T>,U>+B', 1, 'F<A.G<T>,U>'],
+    ['F<global::A>+B', 1, undefined],
+    ['F<global::G<T>,U>+B', 2, 'G<T>'],
+    ['F<global::N.C.Value>+B', 1, undefined],
+  ] as const) {
+    const source = `class C { void M()=>Use(${expression}); }`;
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(false);
+      expect(tree.rootNode.descendantsOfType('argument_list')[0]?.namedChildCount, source).toBe(argumentCount);
+      expect(tree.rootNode.descendantsOfType('generic_name')[0]?.text, source).toBe(generic);
+    } finally {
+      tree.delete();
+    }
+  }
+  for (const expression of ['F<T>!', 'F<T> ?? fallback']) {
+    const tree = parser.parse(`class C { object M()=>${expression}; }`)!;
+    try {
+      expect(tree.rootNode.hasError, expression).toBe(true);
+    } finally {
+      tree.delete();
+    }
+  }
+});
+
 test('preserves callable and operator ranges while editing and undoing generic-shaped expressions', () => {
-  const query = new Query(language, '(generic_name) @generic\n(binary_expression operator: _ @operator)');
+  const query = new Query(
+    language,
+    '(generic_name) @generic\n(binary_expression operator: _ @operator)\n(type_argument_list (type) @argumentType)'
+  );
   let previous: Tree | undefined;
   let old = '';
   try {
-    for (const expression of ['A<X>>B', 'F<int>(B)', 'A<X>+B', 'F<int>(B)', 'A<X>>B']) {
+    for (const [expression, expectedGenerics, expectedArgumentTypes] of [
+      ['A<X>>B', [], []],
+      ['F<int>(B)', ['F<int>'], ['int']],
+      ['F<int>!', ['F<int>'], ['int']],
+      ['F<T[]> ?? G<T[]>', ['F<T[]>', 'G<T[]>'], ['T[]', 'T[]']],
+      ['F<global::N.C.Value>+B', [], []],
+      ['global::A<X>+B', ['A<X>'], ['X']],
+      ['A<X>+B', [], []],
+      ['F<int>(B)', ['F<int>'], ['int']],
+      ['A<X>>B', [], []],
+    ] as const) {
       const source = `/* 😀 */ class C { T F<T>(T value)=>value; dynamic M(dynamic A,dynamic X,dynamic B)=>${expression}; } class Following {}`;
       if (previous) editTree(previous, old, source);
       const tree = parser.parse(source, previous)!;
@@ -87,7 +158,14 @@ test('preserves callable and operator ranges while editing and undoing generic-s
         expect(
           generic.map((capture) => capture.node.text),
           source
-        ).toEqual(expression.startsWith('F') ? ['F<int>'] : []);
+        ).toEqual(expectedGenerics);
+        expect(
+          query
+            .captures(tree.rootNode)
+            .filter((capture) => capture.name === 'argumentType')
+            .map((capture) => capture.node.text),
+          source
+        ).toEqual(expectedArgumentTypes);
         for (const { node } of query.captures(tree.rootNode)) {
           expect(source.slice(node.startIndex, node.endIndex), source).toBe(node.text);
           expect(node.startIndex, source).toBeGreaterThanOrEqual(source.indexOf(expression));

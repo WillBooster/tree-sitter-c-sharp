@@ -80,6 +80,19 @@ module.exports = grammar({
     [$._simple_name, $._expression_simple_name, $.parameter],
 
     [$.type_argument_list, $._expression_type_argument_list],
+    [$._definite_expression_argument_type, $.type],
+    [$._definite_expression_pointer_type, $._pointer_base_type],
+    [$._name, $._nongeneric_expression_argument_type],
+    [$._name, $._other_expression_pointer_type],
+    [$._nongeneric_expression_argument_type, $.type],
+    [$._other_expression_pointer_type, $._pointer_base_type],
+    [$._simple_name, $._nongeneric_expression_argument_type],
+    [$._simple_name, $._nongeneric_expression_qualified_name],
+    [$._simple_name, $._other_expression_pointer_type],
+    [$.type_argument_list, $._method_expression_arguments],
+    [$._ambiguous_expression_arguments, $._method_expression_arguments],
+    [$._primary_no_conditional_access_expression, $._range_cast_type, $._definite_cast_name],
+    [$._name, $._primary_no_conditional_access_expression, $._range_cast_type, $._definite_cast_name],
     [$._simple_name, $._expression_simple_name],
     [$.generic_name, $._expression_simple_name, $._expression_generic_name],
     [$.list_pattern],
@@ -392,6 +405,11 @@ module.exports = grammar({
     $._ambiguous_cast_type,
     $._definite_cast_type,
     $._range_cast_type,
+    $._definite_expression_type_argument,
+    $._ambiguous_expression_type_argument,
+    $._other_expression_type_argument,
+    $._nongeneric_expression_type_argument,
+    $._method_expression_type_argument,
     $._is_pattern,
     $._nonconstant_pattern,
   ],
@@ -1021,7 +1039,136 @@ module.exports = grammar({
       prec.dynamic(1, seq($.identifier, alias($._expression_type_argument_list, $.type_argument_list))),
 
     _expression_type_argument_list: ($) =>
-      seq('<', choice(repeat(','), commaSep1($.type)), alias(sym('_expression_generic_end'), '>')),
+      seq(
+        '<',
+        choice(
+          seq(choice(repeat(','), commaSep1($.type)), alias(sym('_expression_generic_end'), '>')),
+          seq(repeat(','), '>'),
+          seq(
+            repeat(seq(alias($._other_expression_type_argument, $.type), ',')),
+            choice(
+              alias($._definite_expression_type_argument, $.type),
+              seq(alias($._ambiguous_expression_type_argument, $.type), ',', $.type)
+            ),
+            repeat(seq(',', $.type)),
+            '>'
+          )
+        )
+      ),
+
+    _definite_expression_type_argument: ($) => $._definite_expression_argument_type,
+
+    _ambiguous_expression_type_argument: ($) => $._ambiguous_expression_argument_type,
+
+    _other_expression_type_argument: ($) => $._other_expression_argument_type,
+
+    _nongeneric_expression_type_argument: ($) => $._nongeneric_expression_argument_type,
+
+    _method_expression_type_argument: ($) => $._method_expression_argument_type,
+
+    _definite_expression_argument_type: ($) =>
+      choice(
+        $.predefined_type,
+        $.nullable_type,
+        $.function_pointer_type,
+        alias($._omitted_cast_array_type, $.array_type),
+        alias($._definite_expression_pointer_type, $.pointer_type)
+      ),
+
+    _definite_expression_pointer_type: ($) =>
+      seq(
+        field(
+          'type',
+          choice(
+            $.predefined_type,
+            $.nullable_type,
+            $.function_pointer_type,
+            alias($._definite_expression_pointer_type, $.pointer_type),
+            alias($._method_expression_generic_name, $.generic_name),
+            alias($._method_expression_qualified_name, $.qualified_name)
+          )
+        ),
+        '*'
+      ),
+
+    _ambiguous_expression_argument_type: ($) =>
+      choice(
+        alias($._ambiguous_expression_generic_name, $.generic_name),
+        alias($._ambiguous_expression_qualified_name, $.qualified_name)
+      ),
+
+    _ambiguous_expression_generic_name: ($) =>
+      seq($.identifier, alias($._ambiguous_expression_arguments, $.type_argument_list)),
+
+    _ambiguous_expression_arguments: ($) =>
+      seq(
+        '<',
+        commaSep1(alias($._nongeneric_expression_type_argument, $.type)),
+        choice('>', alias(sym('_expression_generic_end'), '>'))
+      ),
+
+    _ambiguous_expression_qualified_name: ($) =>
+      seq(field('qualifier', $._name), '.', field('name', alias($._ambiguous_expression_generic_name, $.generic_name))),
+
+    _other_expression_argument_type: ($) =>
+      choice($._nongeneric_expression_argument_type, $._method_expression_argument_type),
+
+    _nongeneric_expression_argument_type: ($) =>
+      choice(
+        $.identifier,
+        alias($._nongeneric_expression_qualified_name, $.qualified_name),
+        $.alias_qualified_name,
+        $.tuple_type,
+        alias($._other_expression_pointer_type, $.pointer_type)
+      ),
+
+    _method_expression_argument_type: ($) =>
+      choice(
+        alias($._method_expression_generic_name, $.generic_name),
+        alias($._method_expression_qualified_name, $.qualified_name)
+      ),
+
+    _nongeneric_expression_qualified_name: ($) => seq(field('qualifier', $._name), '.', field('name', $.identifier)),
+
+    _method_expression_generic_name: ($) =>
+      seq($.identifier, alias($._method_expression_arguments, $.type_argument_list)),
+
+    _method_expression_arguments: ($) =>
+      seq(
+        '<',
+        choice(
+          repeat(','),
+          seq(
+            repeat(seq(alias($._nongeneric_expression_type_argument, $.type), ',')),
+            choice(
+              alias($._definite_expression_type_argument, $.type),
+              alias($._ambiguous_expression_type_argument, $.type),
+              alias($._method_expression_type_argument, $.type)
+            ),
+            repeat(seq(',', $.type))
+          )
+        ),
+        choice('>', alias(sym('_expression_generic_end'), '>'))
+      ),
+
+    _method_expression_qualified_name: ($) =>
+      seq(field('qualifier', $._name), '.', field('name', alias($._method_expression_generic_name, $.generic_name))),
+
+    _other_expression_pointer_type: ($) =>
+      seq(
+        field(
+          'type',
+          choice(
+            $.identifier,
+            alias($._nongeneric_expression_qualified_name, $.qualified_name),
+            $.alias_qualified_name,
+            $.tuple_type,
+            $._ambiguous_expression_argument_type,
+            alias($._other_expression_pointer_type, $.pointer_type)
+          )
+        ),
+        '*'
+      ),
 
     type: ($) => typeAlternatives($),
 
@@ -1729,11 +1876,15 @@ module.exports = grammar({
       ),
 
     _primary_no_conditional_access_expression: ($) =>
-      primaryAtoms($, { name: $._expression_simple_name, member: $.member_access_expression, collection: true }),
+      primaryAtoms($, {
+        name: choice($._expression_simple_name, $.alias_qualified_name),
+        member: $.member_access_expression,
+        collection: true,
+      }),
 
     _conditional_access_receiver: ($) =>
       primaryAtoms($, {
-        name: $._expression_simple_name,
+        name: choice($._expression_simple_name, $.alias_qualified_name),
         member: $.member_access_expression,
         collection: true,
         element: $.element_access_expression,
@@ -1746,7 +1897,7 @@ module.exports = grammar({
 
     _definite_conditional_access_receiver: ($) =>
       primaryAtoms($, {
-        name: $._expression_simple_name,
+        name: choice($._expression_simple_name, $.alias_qualified_name),
         member: $.member_access_expression,
         collection: true,
         element: $.element_access_expression,
