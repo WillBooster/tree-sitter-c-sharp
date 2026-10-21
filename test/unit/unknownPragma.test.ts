@@ -79,6 +79,10 @@ test('keeps pragma keyword boundaries distinct through Unicode and punctuation e
       try {
         for (const [body, valid] of [
           ['@custom', true],
+          [' warning\u{10400}', true],
+          [' checksum\u{10400}', true],
+          [' warning\u{10400}/*tail', true],
+          [' checksum\u{10428} tail', true],
           ['custom', false],
           ['\u00ADcustom', false],
           ['\u200Ccustom', false],

@@ -1282,7 +1282,8 @@ static bool scan_pragma_text(TSLexer *lexer) {
         name[length++] = (char)lexer->lookahead;
         advance(lexer);
     }
-    if (!is_directive_identifier_continue(lexer->lookahead) && lexer->lookahead != '\\' &&
+    if (!is_directive_identifier_continue(lexer->lookahead) && !is_id_continue(lexer->lookahead) &&
+        lexer->lookahead != '\\' &&
         (buf_equals(name, length, "warning") || buf_equals(name, length, "checksum"))) return false;
     return scan_preproc_arg(lexer, true, PRAGMA_TEXT);
 }
