@@ -207,16 +207,7 @@ test('retains declarations around incomplete raw interpolation formats through e
   await Parser.init();
   const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
   try {
-    for (const literal of [
-      '$"""a{{1:}"""',
-      '$$"""a{{{1:X}"""',
-      '$$"""}}{{{1:X}"""',
-      '$$"""ab{{{1:X}"""',
-      '$$"""{{1:X}{2:Y}"',
-      '$$"""a{{1:X}{2:Y}"',
-      '$$"""a{{1:X} {2:Y}"',
-      '$$"""{{1:X} {2:Y}"',
-    ]) {
+    for (const literal of ['$"""a{{1:}"""', '$$"""a{{{1:X}"""', '$$"""}}{{{1:X}"""', '$$"""ab{{{1:X}"""']) {
       const source = `class C { string value = ${literal}; }`;
       const tree = parser.parse(source)!;
       try {
@@ -259,6 +250,55 @@ test('retains declarations around incomplete raw interpolation formats through e
         expect(current.rootNode.descendantsOfType('interpolation_format_clause'), literal).toHaveLength(
           literal.includes(':X') ? 1 : 0
         );
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('retains following classes after unterminated raw interpolation formats through edits', async () => {
+  await Parser.init();
+  const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
+  try {
+    for (const literal of ['$$"""{{1:X}{2:Y}"', '$$"""a{{1:X}{2:Y}"', '$$"""a{{1:X} {2:Y}"', '$$"""{{1:X} {2:Y}"']) {
+      const source = `class C { string value = ${literal}; }\nclass Following { int After; }`;
+      const tree = parser.parse(source)!;
+      try {
+        check(tree);
+        const index = source.indexOf('1');
+        const next = source.slice(0, index) + '3' + source.slice(index + 1);
+        tree.edit(
+          new Edit({
+            startIndex: index,
+            oldEndIndex: index + 1,
+            newEndIndex: index + 1,
+            startPosition: pointAt(source, index),
+            oldEndPosition: pointAt(source, index + 1),
+            newEndPosition: pointAt(next, index + 1),
+          })
+        );
+        const incremental = parser.parse(next, tree)!;
+        const fresh = parser.parse(next)!;
+        try {
+          check(incremental);
+          expect(syntaxSnapshot(incremental.rootNode)).toEqual(syntaxSnapshot(fresh.rootNode));
+        } finally {
+          incremental.delete();
+          fresh.delete();
+        }
+      } finally {
+        tree.delete();
+      }
+
+      function check(current: Tree): void {
+        expect(current.rootNode.hasError, literal).toBe(true);
+        const following = current.rootNode.namedChildren.find(
+          (node) => node.type === 'class_declaration' && node.childForFieldName('name')?.text === 'Following'
+        );
+        expect(following?.hasError, literal).toBe(false);
+        expect(following?.text, literal).toBe('class Following { int After; }');
+        expect(following!.descendantsOfType('field_declaration').map((node) => node.text)).toEqual(['int After;']);
       }
     }
   } finally {

@@ -270,6 +270,10 @@ test('recovers malformed interpolation holes without swallowing the following cl
     for (const wrap of interpolate) {
       const sources = [
         'a?[0]:X',
+        'x is T?[.),]:X',
+        'x is T?[;{:-1',
+        'a?[,,$"y"]',
+        'a?[;{]:',
         'T?[]:-1',
         ...['!!}', '!! }', '!!,}', '!!}}', '!}'].map((index) => `x is T?[${index}:-1`),
         'x is T?[!!}:-1}',
