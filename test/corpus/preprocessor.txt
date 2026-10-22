@@ -412,3 +412,88 @@ class Following {}
   (class_declaration
     name: (identifier)
     body: (declaration_list)))
+
+================================================================================
+Else branches inside conditional directives
+================================================================================
+
+void M() {
+  if (a) A();
+#if X
+  else if (b) B();
+#else
+  else if (c) C();
+#endif
+  else D();
+#if Y
+  if (e) E();
+  else
+#endif
+  {
+    F();
+  }
+  if (g) G();
+#if Z
+  H();
+#endif
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_function_statement
+      type: (predefined_type)
+      name: (identifier)
+      parameters: (parameter_list)
+      body: (block
+        (if_statement
+          condition: (identifier)
+          consequence: (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list)))
+          (preproc_if
+            condition: (identifier)
+            (if_statement
+              condition: (identifier)
+              consequence: (expression_statement
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list))))
+            alternative: (preproc_else
+              (if_statement
+                condition: (identifier)
+                consequence: (expression_statement
+                  (invocation_expression
+                    function: (identifier)
+                    arguments: (argument_list))))))
+          alternative: (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list))))
+        (preproc_if
+          condition: (identifier)
+          (if_statement
+            condition: (identifier)
+            consequence: (expression_statement
+              (invocation_expression
+                function: (identifier)
+                arguments: (argument_list)))))
+        (block
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list))))
+        (if_statement
+          condition: (identifier)
+          consequence: (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list))))
+        (preproc_if
+          condition: (identifier)
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list))))))))
