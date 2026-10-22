@@ -928,6 +928,7 @@ Top-level deconstruction
 var (a, b) = (1, 2);
 for (var (i, j) = (0, 0); i < j; i++) {}
 var(a, b);
+var(a) = (1);
 
 --------------------------------------------------------------------------------
 
@@ -972,7 +973,17 @@ var(a, b);
           (argument
             (identifier))
           (argument
-            (identifier)))))))
+            (identifier))))))
+  (global_statement
+    (expression_statement
+      (assignment_expression
+        left: (invocation_expression
+          function: (identifier)
+          arguments: (argument_list
+            (argument
+              (identifier))))
+        right: (parenthesized_expression
+          (integer_literal))))))
 
 ================================================================================
 Function with contextually reserved identifiers

@@ -4451,8 +4451,13 @@
         "type": "SEQ",
         "members": [
           {
-            "type": "SYMBOL",
-            "name": "tuple_pattern"
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_deconstruction_tuple_pattern"
+            },
+            "named": true,
+            "value": "tuple_pattern"
           },
           {
             "type": "STRING",
@@ -4464,6 +4469,78 @@
           }
         ]
       }
+    },
+    "_deconstruction_tuple_pattern": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "FIELD",
+                  "name": "name",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "identifier"
+                  }
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "discard"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "tuple_pattern"
+                }
+              ]
+            },
+            {
+              "type": "REPEAT1",
+              "content": {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "STRING",
+                    "value": ","
+                  },
+                  {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "FIELD",
+                        "name": "name",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "identifier"
+                        }
+                      },
+                      {
+                        "type": "SYMBOL",
+                        "name": "discard"
+                      },
+                      {
+                        "type": "SYMBOL",
+                        "name": "tuple_pattern"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "STRING",
+          "value": ")"
+        }
+      ]
     },
     "using_variable_declaration": {
       "type": "SEQ",

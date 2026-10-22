@@ -1004,7 +1004,11 @@ module.exports = grammar({
         seq(field('type', $.implicit_type), alias($._deconstruction_declarator, $.variable_declarator))
       ),
 
-    _deconstruction_declarator: ($) => prec.dynamic(1, seq($.tuple_pattern, '=', $.expression)),
+    _deconstruction_declarator: ($) =>
+      prec.dynamic(1, seq(alias($._deconstruction_tuple_pattern, $.tuple_pattern), '=', $.expression)),
+
+    _deconstruction_tuple_pattern: ($) =>
+      seq('(', commaSep2(choice(field('name', $.identifier), $.discard, $.tuple_pattern)), ')'),
 
     using_variable_declaration: ($) =>
       seq(field('type', $.type), commaSep1(alias($.using_variable_declarator, $.variable_declarator))),
