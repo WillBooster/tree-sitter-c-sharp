@@ -701,3 +701,60 @@ var r = x switch {
             (switch_expression_arm
               (discard)
               (integer_literal))))))))
+
+================================================================================
+Nested list directives and expression continuations
+================================================================================
+
+var a = new[] {
+  1,
+#if X
+  2,
+#if Y
+  3,
+#endif
+  4,
+#endif
+  5
+};
+M(
+#if X
+  a
+#else
+  b
+#endif
+  + c);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (implicit_array_creation_expression
+            (initializer_expression
+              (integer_literal)
+              (preproc_if
+                condition: (identifier)
+                (integer_literal)
+                (preproc_if
+                  condition: (identifier)
+                  (integer_literal))
+                (integer_literal))
+              (integer_literal)))))))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (argument
+            (binary_expression
+              left: (preproc_if
+                condition: (identifier)
+                (identifier)
+                alternative: (preproc_else
+                  (identifier)))
+              right: (identifier))))))))

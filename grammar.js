@@ -11,7 +11,7 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
-/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | '_dangling_else_if_statement' | '_object_initializer_element' | 'argument' | 'attribute_list' | 'collection_element' | 'declaration' | 'enum_member_declaration' | 'expression' | 'if_statement' | 'method_signature' | 'statement' | 'switch_expression_arm'} PreprocContentRule */
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | '_dangling_else_if_statement' | '_object_initializer_element' | '_object_member_initializers' | 'argument' | 'attribute_list' | 'collection_element' | 'declaration' | 'enum_member_declaration' | 'expression' | 'if_statement' | 'method_signature' | 'statement' | 'switch_expression_arm'} PreprocContentRule */
 
 const PREC = {
   GENERIC: 19,
@@ -2536,11 +2536,12 @@ module.exports = grammar({
     _object_initializer_expression: ($) =>
       seq('{', conditionalList($._object_initializer_element, 'preproc_if_in_object_initializer'), '}'),
 
-    _object_initializer_element: ($) =>
+    _object_initializer_element: ($) => choice($._object_member_initializers, $.expression),
+
+    _object_member_initializers: ($) =>
       choice(
         alias($._object_index_initializer, $.assignment_expression),
-        alias($._object_member_initializer, $.assignment_expression),
-        $.expression
+        alias($._object_member_initializer, $.assignment_expression)
       ),
 
     _object_initializer_value: ($) =>
@@ -2717,11 +2718,37 @@ module.exports = grammar({
     ...preprocIf('_in_if_alternative', ($) => seq(optional('else'), conditionalStatements($)), 0, false),
 
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),
-    ...preprocIf('_in_initializer', ($) => conditionalListContent($.expression), 0, false),
-    ...preprocIf('_in_object_initializer', ($) => conditionalListContent($._object_initializer_element), 0, false),
-    ...preprocIf('_in_collection', ($) => conditionalListContent($.collection_element), 0, false),
-    ...preprocIf('_in_argument_list', ($) => conditionalListContent($.argument), 0, false),
-    ...preprocIf('_in_switch_expression', ($) => conditionalListContent($.switch_expression_arm), 0, false),
+    ...preprocIf('_in_initializer', ($) => conditionalListContent($.expression, 'preproc_if_in_initializer'), 0, false),
+    ...preprocIf(
+      '_in_object_initializer',
+      ($) =>
+        conditionalListContent(
+          $._object_initializer_element,
+          'preproc_if_in_object_initializer',
+          $._object_member_initializers
+        ),
+      0,
+      false
+    ),
+    ...preprocIf(
+      '_in_collection',
+      ($) => conditionalListContent($.collection_element, 'preproc_if_in_collection'),
+      0,
+      false
+    ),
+    ...preprocIf(
+      '_in_argument_list',
+      ($) => conditionalListContent($.argument, 'preproc_if_in_argument_list'),
+      0,
+      false
+    ),
+    ...preprocIf(
+      '_in_switch_expression',
+      ($) =>
+        conditionalListContent($.switch_expression_arm, 'preproc_if_in_switch_expression', $.switch_expression_arm),
+      0,
+      false
+    ),
     ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
     ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
 
@@ -3348,8 +3375,8 @@ function nullableQuestion() {
  * @param {boolean} trailingComma
  */
 function conditionalList(element, directive, trailingComma = true) {
+  const items = repeat(conditionalListItem(element, directive));
   const conditional = alias(sym(directive), sym('preproc_if'));
-  const items = repeat(choice(seq(element, ','), seq(optional(element), conditional, optional(','))));
   return trailingComma
     ? seq(items, optional(element))
     : optional(seq(items, choice(element, seq(optional(element), conditional))));
@@ -3357,9 +3384,28 @@ function conditionalList(element, directive, trailingComma = true) {
 
 /**
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} element
+ * @param {string} directive
  */
-function conditionalListContent(element) {
-  return seq(optional(','), commaSep1(element), optional(','));
+function conditionalListItem(element, directive) {
+  return choice(seq(element, ','), seq(optional(element), alias(sym(directive), sym('preproc_if')), optional(',')));
+}
+
+/**
+ * The elements of a conditional branch, which may start with the comma after the preceding element and contain nested
+ * conditional groups. A single expression without commas is left to the expression-level directive, which lets an
+ * operator after the directive continue it.
+ *
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} element
+ * @param {string} directive
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} [single] a single element without commas that cannot be an
+ * expression
+ */
+function conditionalListContent(element, directive, single) {
+  return choice(
+    seq(',', conditionalList(element, directive)),
+    seq(repeat1(conditionalListItem(element, directive)), optional(element)),
+    ...(single ? [single] : [])
+  );
 }
 
 /**
