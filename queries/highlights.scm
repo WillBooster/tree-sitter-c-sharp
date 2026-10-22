@@ -133,6 +133,7 @@
 [
   "add"
   "alias"
+  "allows"
   "as"
   "base"
   "break"
