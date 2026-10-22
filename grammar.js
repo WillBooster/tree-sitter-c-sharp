@@ -143,7 +143,6 @@ module.exports = grammar({
     [$._simple_name, $._definite_cast_name],
     [$._name, $._definite_cast_name],
     [$._object_initializer_expression, $.initializer_expression],
-    [$._argument_value, $.ref_expression],
     [$._object_initializer_element, $.initializer_expression],
     [$._object_initializer_element, sym('preproc_elif_in_initializer')],
     [sym('preproc_elif_in_initializer'), sym('preproc_elif_in_object_initializer')],
@@ -994,28 +993,18 @@ module.exports = grammar({
 
     tuple_pattern: ($) => seq('(', commaSep1(choice(field('name', $.identifier), $.discard, $.tuple_pattern)), ')'),
 
-    argument: ($) =>
-      prec(
-        1,
-        seq(
-          optional(seq(field('name', $.identifier), ':')),
-          choice(seq(optional(choice('ref', 'out', 'in')), $.expression), seq('out', $.declaration_expression))
-        )
-      ),
+    argument: ($) => prec(1, seq(optional(seq(field('name', $.identifier), ':')), argumentValue($))),
 
     // An argument that a directive branch cannot hold as a bare expression.
     _modified_argument: ($) =>
       prec(
         1,
         choice(
-          seq(field('name', $.identifier), ':', $._argument_value),
+          seq(field('name', $.identifier), ':', argumentValue($)),
           seq(choice('ref', 'out', 'in'), $.expression),
           seq('out', $.declaration_expression)
         )
       ),
-
-    _argument_value: ($) =>
-      choice(seq(optional(choice('ref', 'out', 'in')), $.expression), seq('out', $.declaration_expression)),
 
     block: ($) => seq('{', repeat($.statement), blockEnd()),
 
@@ -3163,6 +3152,13 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         conditionalDirective('elif', $, contentRule($), field('alternative', optional(alternativeBlock())))
       ),
   };
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'declaration_expression' | 'expression'>} $
+ */
+function argumentValue($) {
+  return choice(seq(optional(choice('ref', 'out', 'in')), $.expression), seq('out', $.declaration_expression));
 }
 
 /**
