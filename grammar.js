@@ -11,7 +11,7 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
-/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'method_signature' | 'statement'} PreprocContentRule */
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | '_dangling_else_if_statement' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'if_statement' | 'method_signature' | 'statement'} PreprocContentRule */
 
 const PREC = {
   GENERIC: 19,
@@ -348,6 +348,7 @@ module.exports = grammar({
     sym('_pragma_text'),
     sym('_expression_generic_end'),
     sym('_definite_expression_generic_end'),
+    sym('_if_alternative_directive'),
   ],
 
   extras: ($) => [
@@ -1456,13 +1457,21 @@ module.exports = grammar({
     if_statement: ($) =>
       prec.right(
         seq(
-          'if',
-          '(',
-          field('condition', $.expression),
-          ')',
-          field('consequence', $.statement),
+          $._if_statement_head,
+          repeat(seq(sym('_if_alternative_directive'), alias(sym('preproc_if_in_if_alternative'), sym('preproc_if')))),
           optional(seq('else', field('alternative', $.statement)))
         )
+      ),
+
+    _if_statement_head: ($) => seq('if', '(', field('condition', $.expression), ')', field('consequence', $.statement)),
+
+    // An `else` directly before a conditional directive takes the statement after the directive as its body, which a
+    // tree cannot attach across the directive boundary.
+    _dangling_else_if_statement: ($) =>
+      seq(
+        $._if_statement_head,
+        'else',
+        optional(field('alternative', alias($._dangling_else_if_statement, $.if_statement)))
       ),
 
     while_statement: ($) => seq('while', '(', field('condition', $.expression), ')', field('body', $.statement)),
@@ -2699,7 +2708,9 @@ module.exports = grammar({
     ...preprocIf('_in_base_list_separator', ($) => $._base_list_separator_path, 0, false, true),
     ...preprocIf('_in_base_list_suffix', ($) => $._base_list_suffix, 0, false),
     ...preprocIf('', ($) => $.declaration),
-    ...preprocIf('_in_top_level', ($) => choice($._top_level_item_no_statement, $.statement)),
+    ...preprocIf('_in_top_level', ($) => conditionalStatements($), 0, false, true),
+    ...preprocIf('_in_if_alternative', ($) => seq(optional('else'), conditionalStatements($)), 0, false),
+
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),
     ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
     ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
@@ -3108,6 +3119,18 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         conditionalDirective('elif', $, contentRule($), field('alternative', optional(alternativeBlock())))
       ),
   };
+}
+
+/**
+ * Statements of a conditional branch, where the last may be an if statement whose `else` body follows the directive.
+ *
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<PreprocContentRule>} $
+ */
+function conditionalStatements($) {
+  return seq(
+    repeat(choice($._top_level_item_no_statement, $.statement)),
+    optional(alias($._dangling_else_if_statement, $.if_statement))
+  );
 }
 
 /**

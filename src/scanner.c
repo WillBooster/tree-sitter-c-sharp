@@ -62,6 +62,7 @@ enum TokenType {
     PRAGMA_TEXT,
     EXPRESSION_GENERIC_END,
     DEFINITE_EXPRESSION_GENERIC_END,
+    IF_ALTERNATIVE_DIRECTIVE,
 };
 
 typedef enum {
@@ -567,6 +568,7 @@ typedef enum {
 } QuestionScanResult;
 
 #include "genericExpressions.h"
+#include "ifAlternativeDirective.h"
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable);
@@ -596,6 +598,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
     QuestionScanResult generic_end = scan_expression_generic_end(lexer, valid_symbols);
     if (generic_end != QUESTION_NOT_STARTED) return generic_end == QUESTION_MATCHED;
+
+    QuestionScanResult if_alternative = scan_if_alternative_directive(lexer, valid_symbols);
+    if (if_alternative != QUESTION_NOT_STARTED) return if_alternative == QUESTION_MATCHED;
 
     if (valid_symbols[PRAGMA_BOUNDARY]) return scan_pragma_boundary(lexer);
     if (valid_symbols[PRAGMA_TEXT]) {

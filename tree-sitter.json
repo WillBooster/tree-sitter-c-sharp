@@ -13,6 +13,7 @@
       "external-files": [
         "src/genericExpressions.h",
         "src/identifierCharacters.h",
+        "src/ifAlternativeDirective.h",
         "src/nullableRank.h",
         "src/nullableTypes.h",
         "src/questionContext.h",

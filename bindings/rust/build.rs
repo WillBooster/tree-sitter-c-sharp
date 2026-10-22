@@ -29,6 +29,7 @@ fn main() {
 
     println!("cargo:rerun-if-changed=src/genericExpressions.h");
     println!("cargo:rerun-if-changed=src/identifierCharacters.h");
+    println!("cargo:rerun-if-changed=src/ifAlternativeDirective.h");
     println!("cargo:rerun-if-changed=src/nullableRank.h");
     println!("cargo:rerun-if-changed=src/nullableTypes.h");
     println!("cargo:rerun-if-changed=src/questionContext.h");
