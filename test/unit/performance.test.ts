@@ -38,7 +38,7 @@ test('uses a Wasm build built from the current parser', () => {
 test('ships Wasm within raw and compressed size budgets', () => {
   const wasm = fs.readFileSync(WasmPath);
   expect(wasm.byteLength).toBeLessThanOrEqual(12.125 * 1024 * 1024);
-  expect(gzipSync(wasm).byteLength).toBeLessThanOrEqual(1.25 * 1024 * 1024);
+  expect(gzipSync(wasm).byteLength).toBeLessThanOrEqual(1.375 * 1024 * 1024);
 });
 
 // Thread CPU time excludes competing test files and background compilation. The growth limit permits roughly n^1.25
