@@ -29,3 +29,14 @@ test('keeps calls with parenthesized arguments as expression statements', () => 
     }
   }
 });
+
+test('reports a trailing comma in argument lists', () => {
+  for (const call of ['Foo(a, b,);', 'new C(a,);', 'Foo(\n#if X\na\n#endif\n, b,);']) {
+    const tree = parser.parse(`class C { void M() { ${call} } }`)!;
+    try {
+      expect(tree.rootNode.hasError, call).toBe(true);
+    } finally {
+      tree.delete();
+    }
+  }
+});

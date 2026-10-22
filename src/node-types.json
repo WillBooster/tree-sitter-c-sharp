@@ -808,6 +808,10 @@
         {
           "type": "argument",
           "named": true
+        },
+        {
+          "type": "preproc_if",
+          "named": true
         }
       ]
     }
@@ -2088,6 +2092,10 @@
       "types": [
         {
           "type": "collection_element",
+          "named": true
+        },
+        {
+          "type": "preproc_if",
           "named": true
         }
       ]
@@ -6305,6 +6313,10 @@
       "required": false,
       "types": [
         {
+          "type": "argument",
+          "named": true
+        },
+        {
           "type": "argument_list",
           "named": true
         },
@@ -6314,6 +6326,10 @@
         },
         {
           "type": "base_list",
+          "named": true
+        },
+        {
+          "type": "collection_element",
           "named": true
         },
         {
@@ -6346,6 +6362,10 @@
         },
         {
           "type": "statement",
+          "named": true
+        },
+        {
+          "type": "switch_expression_arm",
           "named": true
         },
         {
@@ -6385,6 +6405,10 @@
       "required": false,
       "types": [
         {
+          "type": "argument",
+          "named": true
+        },
+        {
           "type": "argument_list",
           "named": true
         },
@@ -6394,6 +6418,10 @@
         },
         {
           "type": "base_list",
+          "named": true
+        },
+        {
+          "type": "collection_element",
           "named": true
         },
         {
@@ -6426,6 +6454,10 @@
         },
         {
           "type": "statement",
+          "named": true
+        },
+        {
+          "type": "switch_expression_arm",
           "named": true
         },
         {
@@ -6546,11 +6578,19 @@
       "required": false,
       "types": [
         {
+          "type": "argument",
+          "named": true
+        },
+        {
           "type": "argument_list",
           "named": true
         },
         {
           "type": "base_list",
+          "named": true
+        },
+        {
+          "type": "collection_element",
           "named": true
         },
         {
@@ -6583,6 +6623,10 @@
         },
         {
           "type": "statement",
+          "named": true
+        },
+        {
+          "type": "switch_expression_arm",
           "named": true
         },
         {

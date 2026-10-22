@@ -502,3 +502,415 @@ void M() {
             (invocation_expression
               function: (identifier)
               arguments: (argument_list))))))))
+
+================================================================================
+Initializer and collection elements inside conditional directives
+================================================================================
+
+var a = new[] {
+  1,
+#if X
+  2,
+#endif
+  3
+};
+var b = new List<int> {
+  1
+#if X
+  , 2
+#endif
+};
+var c = new Dictionary<Type, int> {
+  [typeof(int)] = 1,
+#if X
+  [typeof(long)] = 2,
+#else
+  { typeof(short), 3 },
+#endif
+};
+int[] d = [
+  1,
+#if X
+  .. e,
+#endif
+];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (implicit_array_creation_expression
+            (initializer_expression
+              (integer_literal)
+              (preproc_if
+                condition: (identifier)
+                (integer_literal))
+              (integer_literal)))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (object_creation_expression
+            type: (generic_name
+              (identifier)
+              (type_argument_list
+                (predefined_type)))
+            initializer: (initializer_expression
+              (integer_literal)
+              (preproc_if
+                condition: (identifier)
+                (integer_literal))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (object_creation_expression
+            type: (generic_name
+              (identifier)
+              (type_argument_list
+                (identifier)
+                (predefined_type)))
+            initializer: (initializer_expression
+              (assignment_expression
+                left: (element_binding_expression
+                  (argument
+                    (typeof_expression
+                      type: (predefined_type))))
+                right: (integer_literal))
+              (preproc_if
+                condition: (identifier)
+                (assignment_expression
+                  left: (element_binding_expression
+                    (argument
+                      (typeof_expression
+                        type: (predefined_type))))
+                  right: (integer_literal))
+                alternative: (preproc_else
+                  (initializer_expression
+                    (typeof_expression
+                      type: (predefined_type))
+                    (integer_literal))))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (array_type
+          type: (predefined_type)
+          rank: (array_rank_specifier))
+        (variable_declarator
+          name: (identifier)
+          (collection_expression
+            (collection_element
+              (expression_element
+                (integer_literal)))
+            (preproc_if
+              condition: (identifier)
+              (collection_element
+                (spread_element
+                  (identifier))))))))))
+
+================================================================================
+Arguments inside conditional directives
+================================================================================
+
+M(a,
+#if X
+  b,
+#endif
+  c);
+var o = new J(
+  a
+#if X
+  , b
+#endif
+);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (argument
+            (identifier))
+          (preproc_if
+            condition: (identifier)
+            (argument
+              (identifier)))
+          (argument
+            (identifier))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (object_creation_expression
+            type: (identifier)
+            arguments: (argument_list
+              (argument
+                (identifier))
+              (preproc_if
+                condition: (identifier)
+                (argument
+                  (identifier))))))))))
+
+================================================================================
+Switch expression arms inside conditional directives
+================================================================================
+
+var r = x switch {
+  1 => 2,
+#if X
+  3 => 4,
+#endif
+  _ => 0
+};
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (switch_expression
+            (identifier)
+            (switch_expression_arm
+              (constant_pattern
+                (integer_literal))
+              (integer_literal))
+            (preproc_if
+              condition: (identifier)
+              (switch_expression_arm
+                (constant_pattern
+                  (integer_literal))
+                (integer_literal)))
+            (switch_expression_arm
+              (discard)
+              (integer_literal))))))))
+
+================================================================================
+Nested list directives and expression continuations
+================================================================================
+
+var a = new[] {
+  1,
+#if X
+  2,
+#if Y
+  3,
+#endif
+  4,
+#endif
+  5
+};
+M(
+#if X
+  a
+#else
+  b
+#endif
+  + c);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          name: (identifier)
+          (implicit_array_creation_expression
+            (initializer_expression
+              (integer_literal)
+              (preproc_if
+                condition: (identifier)
+                (integer_literal)
+                (preproc_if
+                  condition: (identifier)
+                  (integer_literal))
+                (integer_literal))
+              (integer_literal)))))))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (argument
+            (binary_expression
+              left: (preproc_if
+                condition: (identifier)
+                (identifier)
+                alternative: (preproc_else
+                  (identifier)))
+              right: (identifier))))))))
+
+================================================================================
+Modified and named arguments inside conditional directives
+================================================================================
+
+M(a,
+#if X
+  out var b
+#elif Y
+  name: b
+#else
+  ref b
+#endif
+);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (argument
+            (identifier))
+          (preproc_if
+            condition: (identifier)
+            (argument
+              (declaration_expression
+                type: (implicit_type)
+                name: (identifier)))
+            alternative: (preproc_elif
+              condition: (identifier)
+              (argument
+                name: (identifier)
+                (identifier))
+              alternative: (preproc_else
+                (argument
+                  (identifier))))))))))
+
+================================================================================
+Single elements in alternative list branches
+================================================================================
+
+M(
+#if X
+ a, b
+#else
+ c
+#endif
+);
+P(
+#if X
+ name: a
+#else
+ name: b
+#endif
+);
+int[] xs = [
+#if X
+ .. ys
+#else
+ .. zs
+#endif
+];
+M(
+#if X
+ ref a
+#else
+ c
+#endif
+);
+M(
+#if X
+ out var a
+#elif Y
+ c
+#endif
+);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (preproc_if
+            condition: (identifier)
+            (argument
+              (identifier))
+            (argument
+              (identifier))
+            alternative: (preproc_else
+              (argument
+                (identifier))))))))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (preproc_if
+            condition: (identifier)
+            (argument
+              name: (identifier)
+              (identifier))
+            alternative: (preproc_else
+              (argument
+                name: (identifier)
+                (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (array_type
+          type: (predefined_type)
+          rank: (array_rank_specifier))
+        (variable_declarator
+          name: (identifier)
+          (collection_expression
+            (preproc_if
+              condition: (identifier)
+              (collection_element
+                (spread_element
+                  (identifier)))
+              alternative: (preproc_else
+                (collection_element
+                  (spread_element
+                    (identifier))))))))))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (preproc_if
+            condition: (identifier)
+            (argument
+              (identifier))
+            alternative: (preproc_else
+              (argument
+                (identifier))))))))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (preproc_if
+            condition: (identifier)
+            (argument
+              (declaration_expression
+                type: (implicit_type)
+                name: (identifier)))
+            alternative: (preproc_elif
+              condition: (identifier)
+              (argument
+                (identifier)))))))))
