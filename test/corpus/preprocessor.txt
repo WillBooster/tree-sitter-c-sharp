@@ -758,3 +758,42 @@ M(
                 alternative: (preproc_else
                   (identifier)))
               right: (identifier))))))))
+
+================================================================================
+Modified and named arguments inside conditional directives
+================================================================================
+
+M(a,
+#if X
+  out var b
+#elif Y
+  name: b
+#else
+  ref b
+#endif
+);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (argument
+            (identifier))
+          (preproc_if
+            condition: (identifier)
+            (argument
+              (declaration_expression
+                type: (implicit_type)
+                name: (identifier)))
+            alternative: (preproc_elif
+              condition: (identifier)
+              (argument
+                name: (identifier)
+                (identifier))
+              alternative: (preproc_else
+                (argument
+                  (identifier))))))))))

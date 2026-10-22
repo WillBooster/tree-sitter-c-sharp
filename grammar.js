@@ -11,7 +11,7 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
-/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | '_dangling_else_if_statement' | '_object_initializer_element' | '_object_member_initializers' | 'argument' | 'attribute_list' | 'collection_element' | 'declaration' | 'enum_member_declaration' | 'expression' | 'if_statement' | 'method_signature' | 'statement' | 'switch_expression_arm'} PreprocContentRule */
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | '_dangling_else_if_statement' | '_object_initializer_element' | '_modified_argument' | '_object_member_initializers' | 'argument' | 'attribute_list' | 'collection_element' | 'declaration' | 'enum_member_declaration' | 'expression' | 'if_statement' | 'method_signature' | 'statement' | 'switch_expression_arm'} PreprocContentRule */
 
 const PREC = {
   GENERIC: 19,
@@ -143,6 +143,7 @@ module.exports = grammar({
     [$._simple_name, $._definite_cast_name],
     [$._name, $._definite_cast_name],
     [$._object_initializer_expression, $.initializer_expression],
+    [$._argument_value, $.ref_expression],
     [$._object_initializer_element, $.initializer_expression],
     [$._object_initializer_element, sym('preproc_elif_in_initializer')],
     [sym('preproc_elif_in_initializer'), sym('preproc_elif_in_object_initializer')],
@@ -1001,6 +1002,20 @@ module.exports = grammar({
           choice(seq(optional(choice('ref', 'out', 'in')), $.expression), seq('out', $.declaration_expression))
         )
       ),
+
+    // An argument that a directive branch cannot hold as a bare expression.
+    _modified_argument: ($) =>
+      prec(
+        1,
+        choice(
+          seq(field('name', $.identifier), ':', $._argument_value),
+          seq(choice('ref', 'out', 'in'), $.expression),
+          seq('out', $.declaration_expression)
+        )
+      ),
+
+    _argument_value: ($) =>
+      choice(seq(optional(choice('ref', 'out', 'in')), $.expression), seq('out', $.declaration_expression)),
 
     block: ($) => seq('{', repeat($.statement), blockEnd()),
 
@@ -2738,7 +2753,7 @@ module.exports = grammar({
     ),
     ...preprocIf(
       '_in_argument_list',
-      ($) => conditionalListContent($.argument, 'preproc_if_in_argument_list'),
+      ($) => conditionalListContent($.argument, 'preproc_if_in_argument_list', alias($._modified_argument, $.argument)),
       0,
       false
     ),
