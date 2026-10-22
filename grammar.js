@@ -11,7 +11,7 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
-/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | '_dangling_else_if_statement' | 'attribute_list' | 'declaration' | 'enum_member_declaration' | 'expression' | 'if_statement' | 'method_signature' | 'statement'} PreprocContentRule */
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | '_dangling_else_if_statement' | '_object_initializer_element' | 'argument' | 'attribute_list' | 'collection_element' | 'declaration' | 'enum_member_declaration' | 'expression' | 'if_statement' | 'method_signature' | 'statement' | 'switch_expression_arm'} PreprocContentRule */
 
 const PREC = {
   GENERIC: 19,
@@ -143,6 +143,16 @@ module.exports = grammar({
     [$._simple_name, $._definite_cast_name],
     [$._name, $._definite_cast_name],
     [$._object_initializer_expression, $.initializer_expression],
+    [$._object_initializer_element, $.initializer_expression],
+    [$._object_initializer_element, sym('preproc_elif_in_initializer')],
+    [sym('preproc_elif_in_initializer'), sym('preproc_elif_in_object_initializer')],
+    [$._object_initializer_element, sym('preproc_else_in_initializer')],
+    [$._object_initializer_element, sym('preproc_if_in_initializer')],
+    [sym('preproc_else_in_initializer'), sym('preproc_else_in_object_initializer')],
+    [sym('preproc_if_in_initializer'), sym('preproc_if_in_object_initializer')],
+    [sym('preproc_elif_in_top_level'), sym('preproc_elif_in_initializer')],
+    [sym('preproc_else_in_top_level'), sym('preproc_else_in_initializer')],
+    [sym('preproc_if_in_top_level'), sym('preproc_if_in_initializer')],
     [
       $._pattern_primary_expression,
       $._primary_no_conditional_access_expression,
@@ -979,7 +989,7 @@ module.exports = grammar({
 
     constructor_initializer: ($) => seq(':', choice('base', 'this'), $.argument_list),
 
-    argument_list: ($) => seq('(', commaSep($.argument), ')'),
+    argument_list: ($) => seq('(', conditionalList($.argument, 'preproc_if_in_argument_list'), ')'),
 
     tuple_pattern: ($) => seq('(', commaSep1(choice(field('name', $.identifier), $.discard, $.tuple_pattern)), ')'),
 
@@ -2323,8 +2333,7 @@ module.exports = grammar({
     _switch_expression_body: ($) =>
       seq(
         '{',
-        commaSep($.switch_expression_arm),
-        optional(','),
+        conditionalList($.switch_expression_arm, 'preproc_if_in_switch_expression'),
         choice('}', alias(sym('_nonprimary_expression_end'), '}'))
       ),
 
@@ -2516,7 +2525,7 @@ module.exports = grammar({
 
     implicit_stackalloc_expression: ($) => seq('stackalloc', '[', ']', $.initializer_expression),
 
-    collection_expression: ($) => seq('[', optional(seq(commaSep1($.collection_element), optional(','))), ']'),
+    collection_expression: ($) => seq('[', conditionalList($.collection_element, 'preproc_if_in_collection'), ']'),
 
     collection_element: ($) => choice($.expression_element, $.spread_element),
 
@@ -2525,17 +2534,13 @@ module.exports = grammar({
     spread_element: ($) => prec.dynamic(1, prec(PREC.RANGE, seq('..', $.expression))),
 
     _object_initializer_expression: ($) =>
-      seq(
-        '{',
-        commaSep(
-          choice(
-            alias($._object_index_initializer, $.assignment_expression),
-            alias($._object_member_initializer, $.assignment_expression),
-            $.expression
-          )
-        ),
-        optional(','),
-        '}'
+      seq('{', conditionalList($._object_initializer_element, 'preproc_if_in_object_initializer'), '}'),
+
+    _object_initializer_element: ($) =>
+      choice(
+        alias($._object_index_initializer, $.assignment_expression),
+        alias($._object_member_initializer, $.assignment_expression),
+        $.expression
       ),
 
     _object_initializer_value: ($) =>
@@ -2553,7 +2558,7 @@ module.exports = grammar({
 
     _object_member_initializer: ($) => assignmentExpression($, $.identifier, '=', $._object_initializer_value),
 
-    initializer_expression: ($) => seq('{', commaSep($.expression), optional(','), '}'),
+    initializer_expression: ($) => seq('{', conditionalList($.expression, 'preproc_if_in_initializer'), '}'),
 
     declaration_expression: ($) => prec.dynamic(1, seq(field('type', $.type), field('name', $.identifier))),
 
@@ -2712,6 +2717,11 @@ module.exports = grammar({
     ...preprocIf('_in_if_alternative', ($) => seq(optional('else'), conditionalStatements($)), 0, false),
 
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),
+    ...preprocIf('_in_initializer', ($) => conditionalListContent($.expression), 0, false),
+    ...preprocIf('_in_object_initializer', ($) => conditionalListContent($._object_initializer_element), 0, false),
+    ...preprocIf('_in_collection', ($) => conditionalListContent($.collection_element), 0, false),
+    ...preprocIf('_in_argument_list', ($) => conditionalListContent($.argument), 0, false),
+    ...preprocIf('_in_switch_expression', ($) => conditionalListContent($.switch_expression_arm), 0, false),
     ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
     ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
 
@@ -3327,6 +3337,28 @@ function ternaryQuestion() {
 
 function nullableQuestion() {
   return choice(alias(sym('_question_nullable'), '?'), alias(sym('_question_unknown'), '?'));
+}
+
+/**
+ * Comma-separated elements with an optional trailing comma, where conditional directives may enclose whole elements
+ * together with their commas.
+ *
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} element
+ * @param {string} directive
+ */
+function conditionalList(element, directive) {
+  const conditional = alias(sym(directive), sym('preproc_if'));
+  return seq(
+    repeat(choice(seq(element, ','), seq(element, conditional, optional(',')), seq(conditional, optional(',')))),
+    optional(element)
+  );
+}
+
+/**
+ * @param {import('@willbooster/web-tree-sitter/dsl').Rule} element
+ */
+function conditionalListContent(element) {
+  return seq(optional(','), commaSep1(element), optional(','));
 }
 
 /**
