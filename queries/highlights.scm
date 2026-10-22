@@ -124,6 +124,8 @@
 
 ;; Keywords
 
+(type_parameter_constraint "allows" @keyword)
+
 [
   (modifier)
   "this"
@@ -133,7 +135,6 @@
 [
   "add"
   "alias"
-  "allows"
   "as"
   "base"
   "break"
