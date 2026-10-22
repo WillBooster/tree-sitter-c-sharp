@@ -922,6 +922,59 @@ class A {
                 (identifier)))))))))
 
 ================================================================================
+Top-level deconstruction
+================================================================================
+
+var (a, b) = (1, 2);
+for (var (i, j) = (0, 0); i < j; i++) {}
+var(a, b);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          (tuple_pattern
+            name: (identifier)
+            name: (identifier))
+          (tuple_expression
+            (argument
+              (integer_literal))
+            (argument
+              (integer_literal)))))))
+  (global_statement
+    (for_statement
+      initializer: (variable_declaration
+        type: (implicit_type)
+        (variable_declarator
+          (tuple_pattern
+            name: (identifier)
+            name: (identifier))
+          (tuple_expression
+            (argument
+              (integer_literal))
+            (argument
+              (integer_literal)))))
+      condition: (binary_expression
+        left: (identifier)
+        right: (identifier))
+      update: (postfix_unary_expression
+        (identifier))
+      body: (block)))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (argument
+            (identifier))
+          (argument
+            (identifier)))))))
+
+================================================================================
 Function with contextually reserved identifiers
 ================================================================================
 

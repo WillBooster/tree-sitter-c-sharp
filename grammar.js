@@ -218,6 +218,7 @@ module.exports = grammar({
     [$.type_pattern, $.declaration_pattern],
     [$.tuple_element, $.using_variable_declarator],
     [$.tuple_pattern, $.parameter],
+    [$.variable_declaration, $.type],
     [$.tuple_pattern, $._simple_name],
     [$.type, $.attribute],
     [$.type, $.nullable_type],
@@ -997,17 +998,19 @@ module.exports = grammar({
     _function_body: ($) =>
       choice(field('body', $.block), seq(field('body', $.arrow_expression_clause), statementEnd()), statementEnd()),
 
-    variable_declaration: ($) => seq(field('type', $.type), commaSep1($.variable_declarator)),
+    variable_declaration: ($) =>
+      choice(
+        seq(field('type', $.type), commaSep1($.variable_declarator)),
+        seq(field('type', $.implicit_type), alias($._deconstruction_declarator, $.variable_declarator))
+      ),
+
+    _deconstruction_declarator: ($) => prec.dynamic(1, seq($.tuple_pattern, '=', $.expression)),
 
     using_variable_declaration: ($) =>
       seq(field('type', $.type), commaSep1(alias($.using_variable_declarator, $.variable_declarator))),
 
     variable_declarator: ($) =>
-      seq(
-        choice(field('name', $.identifier), prec.dynamic(-1, $.tuple_pattern)),
-        optional($.bracketed_argument_list),
-        optional(seq('=', $.expression))
-      ),
+      seq(field('name', $.identifier), optional($.bracketed_argument_list), optional(seq('=', $.expression))),
 
     using_variable_declarator: ($) => seq(field('name', $.identifier), optional(seq('=', $.expression))),
 
