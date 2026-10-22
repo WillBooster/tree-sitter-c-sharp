@@ -11,7 +11,7 @@
 const { alias, choice, field, grammar, optional, prec, repeat, repeat1, seq, sym, token } =
   /** @type {typeof globalThis & import('@willbooster/web-tree-sitter/dsl').DSL} */ (globalThis);
 
-/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | '_dangling_else_if_statement' | '_object_initializer_element' | '_modified_argument' | '_object_member_initializers' | 'argument' | 'attribute_list' | 'collection_element' | 'declaration' | 'enum_member_declaration' | 'expression' | 'if_statement' | 'method_signature' | 'statement' | 'switch_expression_arm'} PreprocContentRule */
+/** @typedef {'_preproc_expression' | '_top_level_item_no_statement' | '_namespace_body_item' | '_base_list_mixed_type' | '_base_list_mixed_suffix' | '_base_list_trivia' | '_base_list' | '_base_list_type' | '_base_list_suffix' | '_base_list_prefix' | '_base_list_separator' | '_base_list_separator_path' | '_enum_base_clause' | '_enum_base_type' | '_dangling_else_if_statement' | '_object_initializer_element' | '_modified_argument' | '_spread_collection_element' | '_object_member_initializers' | 'argument' | 'attribute_list' | 'collection_element' | 'declaration' | 'enum_member_declaration' | 'expression' | 'if_statement' | 'method_signature' | 'statement' | 'switch_expression_arm'} PreprocContentRule */
 
 const PREC = {
   GENERIC: 19,
@@ -2544,6 +2544,8 @@ module.exports = grammar({
 
     collection_element: ($) => choice($.expression_element, $.spread_element),
 
+    _spread_collection_element: ($) => $.spread_element,
+
     expression_element: ($) => prec(1, $.expression),
 
     spread_element: ($) => prec.dynamic(1, prec(PREC.RANGE, seq('..', $.expression))),
@@ -2733,36 +2735,26 @@ module.exports = grammar({
     ...preprocIf('_in_if_alternative', ($) => seq(optional('else'), conditionalStatements($)), 0, false),
 
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),
-    ...preprocIf('_in_initializer', ($) => conditionalListContent($.expression, 'preproc_if_in_initializer'), 0, false),
-    ...preprocIf(
+    ...conditionalListDirective('_in_initializer', ($) => $.expression),
+    ...conditionalListDirective(
       '_in_object_initializer',
-      ($) =>
-        conditionalListContent(
-          $._object_initializer_element,
-          'preproc_if_in_object_initializer',
-          $._object_member_initializers
-        ),
-      0,
-      false
+      ($) => $._object_initializer_element,
+      ($) => $._object_member_initializers
     ),
-    ...preprocIf(
+    ...conditionalListDirective(
       '_in_collection',
-      ($) => conditionalListContent($.collection_element, 'preproc_if_in_collection'),
-      0,
-      false
+      ($) => $.collection_element,
+      ($) => alias($._spread_collection_element, $.collection_element)
     ),
-    ...preprocIf(
+    ...conditionalListDirective(
       '_in_argument_list',
-      ($) => conditionalListContent($.argument, 'preproc_if_in_argument_list', alias($._modified_argument, $.argument)),
-      0,
-      false
+      ($) => $.argument,
+      ($) => alias($._modified_argument, $.argument)
     ),
-    ...preprocIf(
+    ...conditionalListDirective(
       '_in_switch_expression',
-      ($) =>
-        conditionalListContent($.switch_expression_arm, 'preproc_if_in_switch_expression', $.switch_expression_arm),
-      0,
-      false
+      ($) => $.switch_expression_arm,
+      ($) => $.switch_expression_arm
     ),
     ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
     ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
@@ -3385,7 +3377,7 @@ function nullableQuestion() {
  * Comma-separated elements, optionally with a trailing comma, where conditional directives may enclose whole elements
  * together with their commas.
  *
- * @param {import('@willbooster/web-tree-sitter/dsl').Rule} element
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} element
  * @param {string} directive
  * @param {boolean} trailingComma
  */
@@ -3398,7 +3390,7 @@ function conditionalList(element, directive, trailingComma = true) {
 }
 
 /**
- * @param {import('@willbooster/web-tree-sitter/dsl').Rule} element
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} element
  * @param {string} directive
  */
 function conditionalListItem(element, directive) {
@@ -3406,13 +3398,33 @@ function conditionalListItem(element, directive) {
 }
 
 /**
+ * Conditional directive rules for a comma-separated list. The `#if` branch alone decides between this rule and the
+ * expression-level directive, so only `#elif` and `#else` branches may hold a single expression.
+ *
+ * @param {string} suffix
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>} element
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>} [single]
+ * @returns {Record<string, import('@willbooster/web-tree-sitter/dsl').RuleBuilder<PreprocContentRule>>}
+ */
+function conditionalListDirective(suffix, element, single) {
+  const directive = 'preproc_if' + suffix;
+  const rules = preprocIf(suffix, ($) => conditionalListContent(element($), directive, single?.($)), 0, false);
+  /** @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<PreprocContentRule>} $ */
+  const alternativeContent = ($) => choice(conditionalListContent(element($), directive), element($));
+  const alternatives = Object.entries(preprocIf(suffix, alternativeContent, 0, false)).filter(
+    ([name]) => !name.startsWith('preproc_if')
+  );
+  return { ...rules, ...Object.fromEntries(alternatives) };
+}
+
+/**
  * The elements of a conditional branch, which may start with the comma after the preceding element and contain nested
  * conditional groups. A single expression without commas is left to the expression-level directive, which lets an
  * operator after the directive continue it.
  *
- * @param {import('@willbooster/web-tree-sitter/dsl').Rule} element
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} element
  * @param {string} directive
- * @param {import('@willbooster/web-tree-sitter/dsl').Rule} [single] a single element without commas that cannot be an
+ * @param {import('@willbooster/web-tree-sitter/dsl').RuleOrLiteral} [single] a single element without commas that cannot be an
  * expression
  */
 function conditionalListContent(element, directive, single) {

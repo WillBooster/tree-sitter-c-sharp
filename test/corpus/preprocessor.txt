@@ -797,3 +797,120 @@ M(a,
               alternative: (preproc_else
                 (argument
                   (identifier))))))))))
+
+================================================================================
+Single elements in alternative list branches
+================================================================================
+
+M(
+#if X
+ a, b
+#else
+ c
+#endif
+);
+P(
+#if X
+ name: a
+#else
+ name: b
+#endif
+);
+int[] xs = [
+#if X
+ .. ys
+#else
+ .. zs
+#endif
+];
+M(
+#if X
+ ref a
+#else
+ c
+#endif
+);
+M(
+#if X
+ out var a
+#elif Y
+ c
+#endif
+);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (preproc_if
+            condition: (identifier)
+            (argument
+              (identifier))
+            (argument
+              (identifier))
+            alternative: (preproc_else
+              (argument
+                (identifier))))))))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (preproc_if
+            condition: (identifier)
+            (argument
+              name: (identifier)
+              (identifier))
+            alternative: (preproc_else
+              (argument
+                name: (identifier)
+                (identifier))))))))
+  (global_statement
+    (local_declaration_statement
+      (variable_declaration
+        type: (array_type
+          type: (predefined_type)
+          rank: (array_rank_specifier))
+        (variable_declarator
+          name: (identifier)
+          (collection_expression
+            (preproc_if
+              condition: (identifier)
+              (collection_element
+                (spread_element
+                  (identifier)))
+              alternative: (preproc_else
+                (collection_element
+                  (spread_element
+                    (identifier))))))))))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (preproc_if
+            condition: (identifier)
+            (argument
+              (identifier))
+            alternative: (preproc_else
+              (argument
+                (identifier))))))))
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        function: (identifier)
+        arguments: (argument_list
+          (preproc_if
+            condition: (identifier)
+            (argument
+              (declaration_expression
+                type: (implicit_type)
+                name: (identifier)))
+            alternative: (preproc_elif
+              condition: (identifier)
+              (argument
+                (identifier)))))))))
