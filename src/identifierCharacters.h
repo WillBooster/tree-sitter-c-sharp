@@ -18,6 +18,7 @@ static bool is_syntax_word(const char *word) {
         "abstract",
         "add",
         "alias",
+        "allows",
         "and",
         "annotations",
         "as",

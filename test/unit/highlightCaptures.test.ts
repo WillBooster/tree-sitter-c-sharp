@@ -43,6 +43,24 @@ class C {
   });
 });
 
+test('highlights allows as a keyword only in anti-constraints', async () => {
+  const source = 'class C<T> where T : allows ref struct { int allows; void M() { allows = 1; } }';
+  await withHighlights(async (parser, query) => {
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      expect(
+        query
+          .captures(tree.rootNode)
+          .filter((capture) => capture.name === 'keyword' && capture.node.text === 'allows')
+          .map((capture) => capture.node.startIndex)
+      ).toEqual([source.indexOf('allows')]);
+    } finally {
+      tree.delete();
+    }
+  });
+});
+
 test('captures only call names across direct, generic, qualified, conditional and pointer calls', async () => {
   const source = `unsafe class C {
   void Definition() {

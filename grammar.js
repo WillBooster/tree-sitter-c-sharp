@@ -718,6 +718,7 @@ module.exports = grammar({
         'struct',
         'notnull',
         'unmanaged',
+        seq('allows', 'ref', 'struct'),
         $.constructor_constraint,
         field('type', $.type)
       ),
@@ -3428,6 +3429,7 @@ function reservedIdentifiers() {
   return [
     prec(-1, '_'),
     'alias',
+    'allows',
     'async',
     'ascending',
     'by',

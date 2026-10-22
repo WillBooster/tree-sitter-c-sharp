@@ -2346,6 +2346,23 @@
           "value": "unmanaged"
         },
         {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "allows"
+            },
+            {
+              "type": "STRING",
+              "value": "ref"
+            },
+            {
+              "type": "STRING",
+              "value": "struct"
+            }
+          ]
+        },
+        {
           "type": "SYMBOL",
           "name": "constructor_constraint"
         },
@@ -8454,6 +8471,10 @@
         {
           "type": "STRING",
           "value": "alias"
+        },
+        {
+          "type": "STRING",
+          "value": "allows"
         },
         {
           "type": "STRING",
@@ -18740,6 +18761,10 @@
         {
           "type": "STRING",
           "value": "alias"
+        },
+        {
+          "type": "STRING",
+          "value": "allows"
         },
         {
           "type": "STRING",
