@@ -4496,8 +4496,13 @@
                   "name": "discard"
                 },
                 {
-                  "type": "SYMBOL",
-                  "name": "tuple_pattern"
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_deconstruction_tuple_pattern"
+                  },
+                  "named": true,
+                  "value": "tuple_pattern"
                 }
               ]
             },
@@ -4526,8 +4531,13 @@
                         "name": "discard"
                       },
                       {
-                        "type": "SYMBOL",
-                        "name": "tuple_pattern"
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_deconstruction_tuple_pattern"
+                        },
+                        "named": true,
+                        "value": "tuple_pattern"
                       }
                     ]
                   }
