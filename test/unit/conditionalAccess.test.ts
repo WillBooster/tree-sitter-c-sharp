@@ -1580,6 +1580,54 @@ test('preserves access proof after a completed ordinary ternary with nested ques
   }
 });
 
+test('preserves access ownership after typed branches with named expression continuations', () => {
+  const parser = new Parser().setLanguage(language);
+  const inputs = [
+    ['c is T', 'f(a ? 1 : 2)'],
+    ['c is T', 'obj.F(a ? 1 : 2)'],
+    ['c is T', 'a[b ? 1 : 2]'],
+    ['c is T', '@f(a ? 1 : 2)'],
+    ['c is T', String.raw`\u0066(a ? 1 : 2)`],
+    ['c is T', 'f /* invocation */ (a ? 1 : 2)'],
+    ['c is T?[]', 'f(a ? 1 : 2)'],
+    ['c is T?[]', 'f(a is U?[] ? [1] : c)'],
+    ['c', 'f(a is T?[] ? [1] : c)'],
+  ].flatMap(([condition, arm]) => {
+    const expression = `${condition} ? ${arm} : a?[0] is T ? b : c`;
+    return [expression, `F(${expression})`, `flag ? 0 : ${expression}`].map((wrapped) => `var r = ${wrapped};`);
+  });
+  let previous = 'var r = c ? f(a) : a?[0] is T ? b : c;';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const source of [...inputs, ...inputs.toReversed(), previous]) {
+      editTree(tree, previous, source);
+      const incremental = parser.parse(source, tree)!;
+      const fresh = parser.parse(source)!;
+      try {
+        expect(fresh.rootNode.hasError, source).toBe(false);
+        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        const final = fresh.rootNode.descendantsOfType('conditional_expression').at(-1)!;
+        expect(
+          ['condition', 'consequence', 'alternative'].map((field) => final.childForFieldName(field)?.text),
+          source
+        ).toEqual(['a?[0] is T', 'b', 'c']);
+        expect(
+          fresh.rootNode.descendantsOfType('conditional_access_expression').map((node) => node.text),
+          source
+        ).toEqual(['a?[0]']);
+      } finally {
+        fresh.delete();
+        tree.delete();
+        tree = incremental;
+        previous = source;
+      }
+    }
+  } finally {
+    tree.delete();
+    parser.delete();
+  }
+});
+
 test('keeps receiver access when a later ternary alternative contains another type test', () => {
   const parser = new Parser().setLanguage(language);
   try {

@@ -478,7 +478,7 @@ static bool question_pattern_only_start(int32_t c) {
 
 static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first) {
     if (walk->ordinary_name_candidate && walk->recording && !walk->depth && !walk->nullable_only &&
-        (question_operator(c) || c == '<' || c == '>' || c == -1)) {
+        (question_operator(c) || c == '(' || c == '[' || c == '.' || c == '<' || c == '>' || c == -1)) {
         walk->known_ternary = true;
         walk->known_nullable = false;
         walk->definite_ternary = true;
