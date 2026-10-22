@@ -2708,23 +2708,9 @@ module.exports = grammar({
     ...preprocIf('_in_base_list_separator', ($) => $._base_list_separator_path, 0, false, true),
     ...preprocIf('_in_base_list_suffix', ($) => $._base_list_suffix, 0, false),
     ...preprocIf('', ($) => $.declaration),
-    ...preprocIf(
-      '_in_top_level',
-      ($) =>
-        seq(
-          repeat(choice($._top_level_item_no_statement, $.statement)),
-          optional(alias($._dangling_else_if_statement, $.if_statement))
-        ),
-      0,
-      false,
-      true
-    ),
-    ...preprocIf(
-      '_in_if_alternative',
-      ($) => seq('else', choice($.statement, alias($._dangling_else_if_statement, $.if_statement))),
-      0,
-      false
-    ),
+    ...preprocIf('_in_top_level', ($) => conditionalStatements($), 0, false, true),
+    ...preprocIf('_in_if_alternative', ($) => seq(optional('else'), conditionalStatements($)), 0, false),
+
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),
     ...preprocIf('_in_enum_member_declaration', ($) => $.enum_member_declaration, 0, false),
     ...preprocIf('_in_attribute_list', ($) => $.attribute_list, -1, false),
@@ -3133,6 +3119,18 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
         conditionalDirective('elif', $, contentRule($), field('alternative', optional(alternativeBlock())))
       ),
   };
+}
+
+/**
+ * Statements of a conditional branch, where the last may be an if statement whose `else` body follows the directive.
+ *
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<PreprocContentRule>} $
+ */
+function conditionalStatements($) {
+  return seq(
+    repeat(choice($._top_level_item_no_statement, $.statement)),
+    optional(alias($._dangling_else_if_statement, $.if_statement))
+  );
 }
 
 /**

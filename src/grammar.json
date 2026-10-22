@@ -24465,24 +24465,52 @@
                 "type": "SEQ",
                 "members": [
                   {
-                    "type": "STRING",
-                    "value": "else"
-                  },
-                  {
                     "type": "CHOICE",
                     "members": [
                       {
-                        "type": "SYMBOL",
-                        "name": "statement"
+                        "type": "STRING",
+                        "value": "else"
                       },
                       {
-                        "type": "ALIAS",
+                        "type": "BLANK"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "SEQ",
+                    "members": [
+                      {
+                        "type": "REPEAT",
                         "content": {
-                          "type": "SYMBOL",
-                          "name": "_dangling_else_if_statement"
-                        },
-                        "named": true,
-                        "value": "if_statement"
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "SYMBOL",
+                              "name": "_top_level_item_no_statement"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "statement"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "type": "CHOICE",
+                        "members": [
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_dangling_else_if_statement"
+                            },
+                            "named": true,
+                            "value": "if_statement"
+                          },
+                          {
+                            "type": "BLANK"
+                          }
+                        ]
                       }
                     ]
                   }
@@ -24562,24 +24590,52 @@
                 "type": "SEQ",
                 "members": [
                   {
-                    "type": "STRING",
-                    "value": "else"
-                  },
-                  {
                     "type": "CHOICE",
                     "members": [
                       {
-                        "type": "SYMBOL",
-                        "name": "statement"
+                        "type": "STRING",
+                        "value": "else"
                       },
                       {
-                        "type": "ALIAS",
+                        "type": "BLANK"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "SEQ",
+                    "members": [
+                      {
+                        "type": "REPEAT",
                         "content": {
-                          "type": "SYMBOL",
-                          "name": "_dangling_else_if_statement"
-                        },
-                        "named": true,
-                        "value": "if_statement"
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "SYMBOL",
+                              "name": "_top_level_item_no_statement"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "statement"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "type": "CHOICE",
+                        "members": [
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_dangling_else_if_statement"
+                            },
+                            "named": true,
+                            "value": "if_statement"
+                          },
+                          {
+                            "type": "BLANK"
+                          }
+                        ]
                       }
                     ]
                   }
@@ -24627,24 +24683,52 @@
                 "type": "SEQ",
                 "members": [
                   {
-                    "type": "STRING",
-                    "value": "else"
-                  },
-                  {
                     "type": "CHOICE",
                     "members": [
                       {
-                        "type": "SYMBOL",
-                        "name": "statement"
+                        "type": "STRING",
+                        "value": "else"
                       },
                       {
-                        "type": "ALIAS",
+                        "type": "BLANK"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "SEQ",
+                    "members": [
+                      {
+                        "type": "REPEAT",
                         "content": {
-                          "type": "SYMBOL",
-                          "name": "_dangling_else_if_statement"
-                        },
-                        "named": true,
-                        "value": "if_statement"
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "SYMBOL",
+                              "name": "_top_level_item_no_statement"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "statement"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "type": "CHOICE",
+                        "members": [
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_dangling_else_if_statement"
+                            },
+                            "named": true,
+                            "value": "if_statement"
+                          },
+                          {
+                            "type": "BLANK"
+                          }
+                        ]
                       }
                     ]
                   }
