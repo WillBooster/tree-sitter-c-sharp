@@ -60,6 +60,8 @@ enum TokenType {
     INTERPOLATION_FORMAT_COLON,
     PRAGMA_BOUNDARY,
     PRAGMA_TEXT,
+    EXPRESSION_GENERIC_END,
+    DEFINITE_EXPRESSION_GENERIC_END,
 };
 
 typedef enum {
@@ -564,6 +566,8 @@ typedef enum {
     QUESTION_MISMATCHED,
 } QuestionScanResult;
 
+#include "genericExpressions.h"
+
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
@@ -589,6 +593,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     scanner->next_file_directive = false;
     if (valid_symbols[OPT_SEMI] && valid_symbols[INTERPOLATION_REGULAR_START])
         return scan_recovery(scanner, lexer, next_file_directive);
+
+    QuestionScanResult generic_end = scan_expression_generic_end(lexer, valid_symbols);
+    if (generic_end != QUESTION_NOT_STARTED) return generic_end == QUESTION_MATCHED;
 
     if (valid_symbols[PRAGMA_BOUNDARY]) return scan_pragma_boundary(lexer);
     if (valid_symbols[PRAGMA_TEXT]) {

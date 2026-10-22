@@ -94,6 +94,10 @@
     "named": true,
     "subtypes": [
       {
+        "type": "alias_qualified_name",
+        "named": true
+      },
+      {
         "type": "anonymous_method_expression",
         "named": true
       },
@@ -971,6 +975,10 @@
         "required": true,
         "types": [
           {
+            "type": "alias_qualified_name",
+            "named": true
+          },
+          {
             "type": "anonymous_method_expression",
             "named": true
           },
@@ -1289,6 +1297,10 @@
       "multiple": false,
       "required": false,
       "types": [
+        {
+          "type": "alias_qualified_name",
+          "named": true
+        },
         {
           "type": "anonymous_method_expression",
           "named": true
@@ -1701,6 +1713,10 @@
         "multiple": false,
         "required": true,
         "types": [
+          {
+            "type": "alias_qualified_name",
+            "named": true
+          },
           {
             "type": "anonymous_method_expression",
             "named": true
@@ -2133,6 +2149,10 @@
         "multiple": false,
         "required": true,
         "types": [
+          {
+            "type": "alias_qualified_name",
+            "named": true
+          },
           {
             "type": "anonymous_method_expression",
             "named": true
@@ -2960,6 +2980,10 @@
         "required": true,
         "types": [
           {
+            "type": "alias_qualified_name",
+            "named": true
+          },
+          {
             "type": "anonymous_method_expression",
             "named": true
           },
@@ -3367,6 +3391,10 @@
       "multiple": false,
       "required": false,
       "types": [
+        {
+          "type": "alias_qualified_name",
+          "named": true
+        },
         {
           "type": "anonymous_method_expression",
           "named": true
@@ -5895,6 +5923,10 @@
       "required": false,
       "types": [
         {
+          "type": "alias_qualified_name",
+          "named": true
+        },
+        {
           "type": "anonymous_method_expression",
           "named": true
         },
@@ -6025,6 +6057,10 @@
       "multiple": false,
       "required": false,
       "types": [
+        {
+          "type": "alias_qualified_name",
+          "named": true
+        },
         {
           "type": "anonymous_method_expression",
           "named": true

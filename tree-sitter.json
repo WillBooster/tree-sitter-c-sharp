@@ -11,6 +11,7 @@
       "tags": ["queries/tags.scm"],
       "injection-regex": "cs",
       "external-files": [
+        "src/genericExpressions.h",
         "src/identifierCharacters.h",
         "src/nullableRank.h",
         "src/nullableTypes.h",
