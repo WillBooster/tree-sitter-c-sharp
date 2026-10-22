@@ -989,7 +989,7 @@ module.exports = grammar({
 
     constructor_initializer: ($) => seq(':', choice('base', 'this'), $.argument_list),
 
-    argument_list: ($) => seq('(', conditionalList($.argument, 'preproc_if_in_argument_list'), ')'),
+    argument_list: ($) => seq('(', conditionalList($.argument, 'preproc_if_in_argument_list', false), ')'),
 
     tuple_pattern: ($) => seq('(', commaSep1(choice(field('name', $.identifier), $.discard, $.tuple_pattern)), ')'),
 
@@ -3340,18 +3340,19 @@ function nullableQuestion() {
 }
 
 /**
- * Comma-separated elements with an optional trailing comma, where conditional directives may enclose whole elements
+ * Comma-separated elements, optionally with a trailing comma, where conditional directives may enclose whole elements
  * together with their commas.
  *
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} element
  * @param {string} directive
+ * @param {boolean} trailingComma
  */
-function conditionalList(element, directive) {
+function conditionalList(element, directive, trailingComma = true) {
   const conditional = alias(sym(directive), sym('preproc_if'));
-  return seq(
-    repeat(choice(seq(element, ','), seq(element, conditional, optional(',')), seq(conditional, optional(',')))),
-    optional(element)
-  );
+  const items = repeat(choice(seq(element, ','), seq(optional(element), conditional, optional(','))));
+  return trailingComma
+    ? seq(items, optional(element))
+    : optional(seq(items, choice(element, seq(optional(element), conditional))));
 }
 
 /**

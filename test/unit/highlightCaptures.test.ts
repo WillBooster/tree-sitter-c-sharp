@@ -61,6 +61,20 @@ test('highlights allows as a keyword only in anti-constraints', async () => {
   });
 });
 
+test('captures object initializer members inside conditional directives as members', async () => {
+  const source =
+    'var o = new P {\n  First = 1,\n#if X\n  Second = 2,\n#elif Y\n  Third = 3,\n#else\n  Fourth = 4,\n#endif\n};';
+  await withHighlights(async (parser, query) => {
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      expectCaptures(query, tree, source, 'variable.member', ['First', 'Second', 'Third', 'Fourth']);
+    } finally {
+      tree.delete();
+    }
+  });
+});
+
 test('captures only call names across direct, generic, qualified, conditional and pointer calls', async () => {
   const source = `unsafe class C {
   void Definition() {

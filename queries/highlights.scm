@@ -223,6 +223,10 @@
     (initializer_expression (assignment_expression left: (identifier) @variable.member)))
   (assignment_expression
     right: (initializer_expression (assignment_expression left: (identifier) @variable.member)))
+  ; Only object initializer members are assignment expressions directly inside conditional directives.
+  (preproc_if (assignment_expression left: (identifier) @variable.member))
+  (preproc_elif (assignment_expression left: (identifier) @variable.member))
+  (preproc_else (assignment_expression left: (identifier) @variable.member))
   (anonymous_object_creation_expression (identifier) @variable.member . "=")
   (with_initializer . (identifier) @variable.member)
   (member_access_expression name: (identifier) @variable.member)
