@@ -1,7 +1,9 @@
 #ifndef TREE_SITTER_C_SHARP_NULLABLE_TYPES_H_
 #define TREE_SITTER_C_SHARP_NULLABLE_TYPES_H_
 
-typedef struct { uint32_t questions; int32_t initial_suffix; bool colon; bool comma; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
+#include "questionLiterals.h"
+
+typedef struct { uint32_t questions; int32_t initial_suffix; bool colon; bool comma; bool root_comma; RankGroups *groups; RankGroups *prefix; bool prefix_done; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
 
 typedef enum { RANK_TYPE_START, RANK_TYPE_SUFFIX, RANK_TYPE_NAME, RANK_TYPE_TAIL, RANK_TYPE_ARGUMENT, RANK_TYPE_ARGUMENT_END } RankTypeStage;
 typedef struct { RankTypeStage stage; int32_t close; bool flag; } RankTypeFrame;
@@ -25,8 +27,11 @@ static bool rank_read_nullable_boundary(TSLexer *lexer, RankTypeRead *read, bool
 static bool rank_read_as_name(TSLexer *lexer, RankTypeRead *read);
 static bool rank_read_as_name_tail(TSLexer *lexer, RankTypeRead *read, bool arguments_allowed);
 static bool rank_read_as_name_suffix(TSLexer *lexer, RankTypeRead *read, const QuestionIdentifier *name);
-static bool rank_read_calling_convention(TSLexer *lexer);
+static bool rank_read_calling_convention(TSLexer *lexer, RankTypeRead *read);
 static bool rank_read_as_arguments(TSLexer *lexer, int32_t close, RankTypeRead *read);
+static void rank_type_open(RankTypeRead *, char);
+static void rank_type_close(RankTypeRead *, char);
+static bool rank_read_type_rank(TSLexer *lexer, RankTypeRead *read);
 static bool rank_read_as_rank(TSLexer *lexer);
 
 static bool rank_read_prefix(TSLexer *lexer, bool *simple, uint32_t *questions) {
@@ -64,7 +69,7 @@ static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *na
     int32_t next;
     while ((next = question_skip_separators(lexer)) == '[') {
         *simple = false;
-        if (!rank_read_as_rank(lexer)) return false;
+        if (!rank_read_type_rank(lexer, &read)) return false;
     }
     return next >= 0;
 }
@@ -122,6 +127,7 @@ static bool rank_read_type_step(TSLexer *lexer, RankTypeRead *read, RankTypeFram
             array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_SUFFIX, .flag = frame.flag}));
             if (lexer->lookahead == '(') {
                 read->complex = true;
+                rank_type_open(read, '(');
                 advance(lexer);
                 array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = ')'}));
             } else {
@@ -184,7 +190,11 @@ static bool rank_read_type_argument_end(TSLexer *lexer, RankTypeRead *read, Rank
         c = rank_type_gap(lexer, read);
     }
     if (c != ',' && c != close) return false;
-    if (c == ',') read->comma = true;
+    bool root_tuple = close == ')' && read->groups && read->groups->size == 1;
+    if (c == ',') {
+        read->comma = true;
+        read->root_comma |= root_tuple;
+    } else if (close == ')') rank_type_close(read, ')');
     advance(lexer);
     if (c != close) array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = close}));
     return true;
@@ -210,7 +220,7 @@ static bool rank_read_type_suffix(TSLexer *lexer, RankTypeRead *read, bool tuple
                 break;
             case '[':
                 read->complex = true;
-                if (!rank_read_as_rank(lexer)) return false;
+                if (!rank_read_type_rank(lexer, read)) return false;
                 nullable = false;
                 break;
             default:
@@ -226,6 +236,7 @@ static bool rank_read_nullable_suffix(TSLexer *lexer, RankTypeRead *read, bool t
         read->coalesce = true;
         return lexer->lookahead != '=';
     }
+    read->prefix_done = true;
     if (rank_type_gap(lexer, read) < -1 || !rank_read_nullable_boundary(lexer, read, tuple_element)) return false;
     if (!read->conditional) {
         if (read->questions == UINT32_MAX) return false;
@@ -277,7 +288,7 @@ static bool rank_prepare_name_suffix(TSLexer *lexer, RankTypeRead *read, const Q
     if (function_pointer) {
         if (question_skip_separators(lexer) != '*') return false;
         advance(lexer);
-        if (!rank_read_calling_convention(lexer)) return false;
+        if (!rank_read_calling_convention(lexer, read)) return false;
     } else if (!rank_identifier_allowed(name, true)) return false;
     int32_t next = rank_type_gap(lexer, read);
     if (next != '<') return next >= -1 && !function_pointer;
@@ -287,7 +298,7 @@ static bool rank_prepare_name_suffix(TSLexer *lexer, RankTypeRead *read, const Q
     return true;
 }
 
-static bool rank_read_calling_convention(TSLexer *lexer) {
+static bool rank_read_calling_convention(TSLexer *lexer, RankTypeRead *read) {
     if (question_skip_separators(lexer) == '<') return true;
     QuestionIdentifier convention;
     if (!rank_read_identifier(lexer, &convention) || !convention.keyword) return false;
@@ -295,18 +306,37 @@ static bool rank_read_calling_convention(TSLexer *lexer) {
     if (!unmanaged && strcmp(convention.word, "managed")) return false;
     if (question_skip_separators(lexer) != '[') return lexer->lookahead == '<';
     if (!unmanaged) return false;
+    rank_type_open(read, '[');
     do {
         advance(lexer);
         if (question_skip_separators(lexer) < 0 || !rank_read_identifier(lexer, &convention) ||
             !rank_identifier_allowed(&convention, true)) return false;
     } while (question_skip_separators(lexer) == ',');
     if (lexer->lookahead != ']') return false;
+    rank_type_close(read, ']');
     advance(lexer);
     return question_skip_separators(lexer) == '<';
 }
 
 static bool rank_read_as_arguments(TSLexer *lexer, int32_t close, RankTypeRead *read) {
     return rank_read_type_frames(lexer, read, (RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = close});
+}
+
+static void rank_type_open(RankTypeRead *read, char opening) {
+    if (read->groups) array_push(read->groups, opening);
+    if (read->prefix && !read->prefix_done) array_push(read->prefix, opening);
+}
+
+static void rank_type_close(RankTypeRead *read, char closing) {
+    if (read->groups) array_pop(read->groups);
+    if (read->prefix && !read->prefix_done) array_push(read->prefix, closing);
+}
+
+static bool rank_read_type_rank(TSLexer *lexer, RankTypeRead *read) {
+    rank_type_open(read, '[');
+    if (!rank_read_as_rank(lexer)) return false;
+    rank_type_close(read, ']');
+    return true;
 }
 
 static bool rank_read_as_rank(TSLexer *lexer) {

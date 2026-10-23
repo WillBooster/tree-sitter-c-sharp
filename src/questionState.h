@@ -87,7 +87,10 @@ static bool question_apply_event(Scanner *scanner, char event) {
     if (event == ')' || event == ']' || event == '}') return question_close_frame(scanner, event);
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (event == 'l') frame->force_barrier = true;
-    if (event == ':' && frame->pending) frame->pending--;
+    if (event == ':') {
+        if (frame->pending) frame->pending--;
+        else if (!frame->unknown && !scanner->question_unknown) frame->case_colon = false;
+    }
     if (event != ';') return true;
     frame->pending = 0;
     frame->unknown = false;

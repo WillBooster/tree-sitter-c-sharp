@@ -2,20 +2,47 @@
 #define TREE_SITTER_C_SHARP_QUESTION_OPERANDS_H_
 
 static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation) {
+    if (!question_walk_is_name(lexer, walk, identifier)) return QUESTION_WALK_UNKNOWN;
     bool own_as_type = identifier->keyword && !strcmp(identifier->word, "as") && !walk->depth &&
         walk->binding && walk->recording && !walk->root_colons;
     if (own_as_type) return question_walk_as_prefix(lexer);
     if (walk->as_operand && !walk->depth && !(identifier->keyword && !strcmp(identifier->word, "as"))) {
         RankTypeRead read = {0};
-        if (!rank_read_as_name_suffix(lexer, &read, identifier)) return QUESTION_WALK_UNKNOWN;
+        if (!question_walk_name_suffix(lexer, walk, identifier, &read)) return QUESTION_WALK_UNKNOWN;
         if (read.division) walk->as_operand = false;
-        if (read.questions) {
-            walk->found_next_question = true;
-            walk->recording = false;
-            walk->cache_shaped = false;
-        }
     }
     return creation ? question_walk_creation_prefix(lexer, walk) : QUESTION_WALK_CONTINUE;
+}
+
+static bool question_walk_is_name(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier) {
+    if (walk->depth || !walk->is_name_pending) return true;
+    if (identifier->keyword && (!strcmp(identifier->word, "is") || !strcmp(identifier->word, "not"))) return true;
+    walk->is_name_pending = false;
+    if (!rank_identifier_allowed(identifier, true)) return true;
+    RankTypeRead read = {0};
+    if (!question_walk_name_suffix(lexer, walk, identifier, &read)) return false;
+    if (read.division) {
+        if (walk->binding && !walk->cache_colon) walk->root_binary = true;
+        if (walk->recording && walk->ordinary) walk->definite_ternary = true;
+    } else walk->is_name_pending = lexer->lookahead == '.' || lexer->lookahead == ':';
+    return true;
+}
+
+static bool question_walk_name_suffix(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, RankTypeRead *read) {
+    read->prefix = walk->recording ? &walk->events : NULL;
+    if (!rank_read_as_name_suffix(lexer, read, identifier)) return false;
+    if (read->questions) {
+        walk->found_next_question = true;
+        walk->recording = false;
+        walk->cache_shaped = false;
+    }
+    return true;
+}
+
+static void question_walk_is_name_operator(QuestionWalk *walk, int32_t c) {
+    if (walk->depth) return;
+    if (question_opening_group(c) || question_operator(c) || c == -1 || c == '<' || c == '>' || (c >= '0' && c <= '9'))
+        walk->is_name_pending = false;
 }
 
 static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer) {
@@ -43,15 +70,39 @@ static void question_walk_type_operand(QuestionWalk *walk, bool future_identifie
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWalk *walk) {
     if (walk->recording || walk->depth || !walk->binding) return QUESTION_WALK_CONTINUE;
     int32_t next = question_skip_separators(lexer);
-    if (next == '(' || next == '[' || next == '{') return QUESTION_WALK_CONTINUE;
-    RankTypeRead read = {0};
-    if (!rank_read_as_name(lexer, &read) || read.colon || read.division || read.conditional || read.coalesce || read.binary || read.has_word) return QUESTION_WALK_UNKNOWN;
+    if (next == '[' || next == '{') return QUESTION_WALK_CONTINUE;
+    if (next == '(') {
+        bool tuple = false;
+        if (!question_walk_creation_tuple(lexer, &tuple)) return QUESTION_WALK_UNKNOWN;
+        walk->allocation_type = tuple;
+        if (!tuple) return QUESTION_WALK_CONTINUE;
+    } else {
+        RankTypeRead read = {0};
+        if (!rank_read_as_name(lexer, &read) || read.colon || read.division || read.conditional || read.coalesce || read.binary || read.has_word) return QUESTION_WALK_UNKNOWN;
+    }
     next = question_skip_separators(lexer);
     while (next == '?' || next == '*' || next == '[') {
         if (!question_walk_creation_suffix(lexer, walk, next)) return QUESTION_WALK_CONTINUE;
         next = question_skip_separators(lexer);
     }
     return next == '(' || next == '{' ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
+}
+
+static bool question_walk_creation_tuple(TSLexer *lexer, bool *tuple) {
+    RankLiteralFrames frames = array_new();
+    rank_push_code(&frames, '(', RANK_BODY_EXPRESSION, 0);
+    RankGroups *groups = &array_back(&frames)->groups;
+    RankTypeRead read = {.groups = groups};
+    advance(lexer);
+    bool type = rank_read_as_arguments(lexer, ')', &read);
+    *tuple = type && read.root_comma;
+    if (groups->size) {
+        *tuple = false;
+        return rank_read_frames(lexer, &frames, NULL, 0, NULL, NULL);
+    }
+    array_delete(groups);
+    array_delete(&frames);
+    return true;
 }
 
 static bool question_walk_creation_suffix(TSLexer *lexer, QuestionWalk *walk, int32_t suffix) {
