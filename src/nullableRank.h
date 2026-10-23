@@ -121,6 +121,7 @@ static uint8_t rank_stream_result(TSLexer *lexer, const Scanner *scanner, const 
     rank_evaluate_modes(tokens, target, modes);
     bool complete = modes[0].valid && modes[0].end == tokens->size - 1 &&
         modes[1].valid && modes[1].end == tokens->size - 1;
+    if (complete && scanner->question_frames[scanner->question_frame_count - 1].force_barrier && modes[0].role != modes[1].role) return RANK_NONE;
     if (complete) rank_enclosing_modes(lexer, scanner, modes);
     RankParse parsed = modes[0];
     uint8_t result = RANK_NONE;
@@ -139,20 +140,24 @@ static void rank_enclosing_modes(TSLexer *lexer, const Scanner *scanner, RankPar
         const QuestionFrame *parent = &scanner->question_frames[frame - 1];
         if (parent->unknown || parent->case_colon || parent->force_barrier) return;
         advance(lexer);
+        RankTokens tail = array_new();
+        array_push(&tail, ((RankToken){.kind = RANK_NESTED_ATOM, .nested = {modes[0], modes[1]}}));
+        unsigned colons = 0;
+        if (!rank_read_stream(lexer, &tail, &colons) || parent->pending > colons) {
+            array_delete(&tail);
+            return;
+        }
         RankTokens tokens = array_new();
         for (uint32_t i = 0; i < parent->pending; i++) {
             array_push(&tokens, ((RankToken){RANK_ATOM, false}));
             array_push(&tokens, ((RankToken){RANK_QUESTION, false}));
         }
-        array_push(&tokens, ((RankToken){.kind = RANK_NESTED_ATOM, .nested = {modes[0], modes[1]}}));
-        unsigned colons = 0;
-        bool valid = rank_read_stream(lexer, &tokens, &colons);
+        for (unsigned i = 0; i < tail.size; i++) array_push(&tokens, tail.contents[i]);
+        array_delete(&tail);
         RankParse next[2];
-        if (valid) {
-            rank_evaluate_modes(&tokens, ((unsigned)-1), next);
-            valid = next[0].valid && next[0].end == tokens.size - 1 &&
-                next[1].valid && next[1].end == tokens.size - 1;
-        }
+        rank_evaluate_modes(&tokens, ((unsigned)-1), next);
+        bool valid = next[0].valid && next[0].end == tokens.size - 1 &&
+            next[1].valid && next[1].end == tokens.size - 1;
         array_delete(&tokens);
         if (!valid) return;
         modes[0] = next[0];

@@ -33,6 +33,8 @@ static RankReadStep rank_read_code_identifier(TSLexer *, RankLiteralFrame *);
 static RankReadStep rank_read_string_step(TSLexer *, RankLiteralFrames *);
 static RankReadStep rank_read_raw_string_step(TSLexer *, RankLiteralFrames *);
 static RankReadStep rank_push_literal(TSLexer *, RankLiteralFrames *, int32_t, RankBodyMode);
+static RankReadStep rank_push_verbatim(TSLexer *, RankLiteralFrames *, RankBodyMode);
+static void rank_dispose_frames(RankLiteralFrames *, bool *, bool *);
 static RankReadStep rank_push_interpolated(TSLexer *, RankLiteralFrames *, bool, RankBodyMode);
 static RankReadStep rank_close_delimited(TSLexer *, RankGroups *, int32_t, unsigned);
 static bool rank_read_closing_braces(TSLexer *, unsigned);
@@ -77,6 +79,11 @@ static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *fo
         valid &= rank_collect_frame(&frame, force_unsafe, has_question, questions);
         array_delete(&frame.groups);
     }
+    rank_dispose_frames(frames, force_unsafe, has_question);
+    return valid;
+}
+
+static void rank_dispose_frames(RankLiteralFrames *frames, bool *force_unsafe, bool *has_question) {
     for (unsigned i = 0; i < frames->size; i++) {
         RankLiteralFrame *frame = &frames->contents[i];
         if (force_unsafe) *force_unsafe |= frame->access && frame->colon;
@@ -84,7 +91,6 @@ static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *fo
         array_delete(&frame->groups);
     }
     array_delete(frames);
-    return valid;
 }
 
 static bool rank_collect_frame(const RankLiteralFrame *frame, bool *force_unsafe, bool *has_question, uint32_t *questions) {
@@ -202,6 +208,10 @@ static RankReadStep rank_push_literal(TSLexer *lexer, RankLiteralFrames *frames,
     if (c == '$') return rank_push_interpolated(lexer, frames, false, mode);
     if (c != '@') return RANK_READ_TOKEN;
     advance(lexer);
+    return rank_push_verbatim(lexer, frames, mode);
+}
+
+static RankReadStep rank_push_verbatim(TSLexer *lexer, RankLiteralFrames *frames, RankBodyMode mode) {
     if (lexer->lookahead == '$') return rank_push_interpolated(lexer, frames, true, mode);
     if (lexer->lookahead == '"')
         return question_skip_quoted(lexer, true) ? RANK_READ_MORE : RANK_READ_UNKNOWN;

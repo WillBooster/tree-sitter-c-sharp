@@ -3,7 +3,7 @@
 
 #include "questionLiterals.h"
 
-typedef struct { uint32_t questions; int32_t initial_suffix; bool colon; bool comma; bool root_comma; RankGroups *groups; RankGroups *prefix; bool prefix_done; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
+typedef struct { uint32_t questions; int32_t initial_suffix; bool colon; bool comma; bool root_comma; RankGroups *groups; RankGroups *prefix; bool prefix_done; bool verbatim_literal; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
 
 typedef enum { RANK_TYPE_START, RANK_TYPE_SUFFIX, RANK_TYPE_NAME, RANK_TYPE_TAIL, RANK_TYPE_ARGUMENT, RANK_TYPE_ARGUMENT_END } RankTypeStage;
 typedef struct { RankTypeStage stage; int32_t close; bool flag; } RankTypeFrame;
@@ -18,6 +18,7 @@ static bool rank_prepare_name_suffix(TSLexer *, RankTypeRead *, const QuestionId
 static bool rank_read_prefix(TSLexer *lexer, bool *simple, uint32_t *questions);
 static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *name, bool *simple, uint32_t *questions);
 static bool rank_read_identifier(TSLexer *lexer, QuestionIdentifier *identifier);
+static bool rank_read_type_identifier(TSLexer *, QuestionIdentifier *, RankTypeRead *);
 static bool rank_identifier_allowed(const QuestionIdentifier *word, bool type);
 static int32_t rank_type_gap(TSLexer *lexer, RankTypeRead *read);
 static bool rank_read_as_type(TSLexer *lexer, RankTypeRead *read);
@@ -75,9 +76,17 @@ static bool rank_read_prefix_suffix(TSLexer *lexer, const QuestionIdentifier *na
 }
 
 static bool rank_read_identifier(TSLexer *lexer, QuestionIdentifier *identifier) {
+    return rank_read_type_identifier(lexer, identifier, NULL);
+}
+
+static bool rank_read_type_identifier(TSLexer *lexer, QuestionIdentifier *identifier, RankTypeRead *read) {
+    if (read) read->verbatim_literal = false;
     bool verbatim = lexer->lookahead == '@';
     if (verbatim) advance(lexer);
-    if (!is_id_start(lexer->lookahead) && lexer->lookahead != '\\') return false;
+    if (!is_id_start(lexer->lookahead) && lexer->lookahead != '\\') {
+        if (read && verbatim && (lexer->lookahead == '"' || lexer->lookahead == '$')) read->verbatim_literal = true;
+        return false;
+    }
     return question_identifier(lexer, verbatim, identifier);
 }
 
@@ -154,7 +163,7 @@ static bool rank_read_type_step(TSLexer *lexer, RankTypeRead *read, RankTypeFram
 static bool rank_read_type_name_step(TSLexer *lexer, RankTypeRead *read, RankTypeFrames *frames) {
     QuestionIdentifier name;
     bool arguments = false;
-    if (!rank_read_identifier(lexer, &name) || !rank_prepare_name_suffix(lexer, read, &name, &arguments)) return false;
+    if (!rank_read_type_identifier(lexer, &name, read) || !rank_prepare_name_suffix(lexer, read, &name, &arguments)) return false;
     if (arguments) array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = '>'}));
     return true;
 }
@@ -186,7 +195,7 @@ static bool rank_read_type_argument_end(TSLexer *lexer, RankTypeRead *read, Rank
     int32_t c = rank_type_gap(lexer, read);
     if (close == ')' && c != ',' && c != close) {
         QuestionIdentifier name;
-        if (!rank_read_identifier(lexer, &name) || !rank_identifier_allowed(&name, true)) return false;
+        if (!rank_read_type_identifier(lexer, &name, read) || !rank_identifier_allowed(&name, true)) return false;
         c = rank_type_gap(lexer, read);
     }
     if (c != ',' && c != close) return false;
@@ -251,7 +260,7 @@ static bool rank_read_nullable_boundary(TSLexer *lexer, RankTypeRead *read, bool
     if (read->division || lexer->eof(lexer) || (c > 0 && c < 128 && strchr(",>)]}:;[?=<|%", c))) return true;
     if (is_id_start(c) || c == '@' || c == '\\') {
         if (tuple_element) return true;
-        if (!rank_read_identifier(lexer, &read->word)) return false;
+        if (!rank_read_type_identifier(lexer, &read->word, read)) return false;
         read->has_word = true;
         read->conditional = !read->word.keyword || (strcmp(read->word.word, "is") && strcmp(read->word.word, "as"));
         return true;
@@ -301,7 +310,7 @@ static bool rank_prepare_name_suffix(TSLexer *lexer, RankTypeRead *read, const Q
 static bool rank_read_calling_convention(TSLexer *lexer, RankTypeRead *read) {
     if (question_skip_separators(lexer) == '<') return true;
     QuestionIdentifier convention;
-    if (!rank_read_identifier(lexer, &convention) || !convention.keyword) return false;
+    if (!rank_read_type_identifier(lexer, &convention, read) || !convention.keyword) return false;
     bool unmanaged = !strcmp(convention.word, "unmanaged");
     if (!unmanaged && strcmp(convention.word, "managed")) return false;
     if (question_skip_separators(lexer) != '[') return lexer->lookahead == '<';
@@ -309,7 +318,7 @@ static bool rank_read_calling_convention(TSLexer *lexer, RankTypeRead *read) {
     rank_type_open(read, '[');
     do {
         advance(lexer);
-        if (question_skip_separators(lexer) < 0 || !rank_read_identifier(lexer, &convention) ||
+        if (question_skip_separators(lexer) < 0 || !rank_read_type_identifier(lexer, &convention, read) ||
             !rank_identifier_allowed(&convention, true)) return false;
     } while (question_skip_separators(lexer) == ',');
     if (lexer->lookahead != ']') return false;

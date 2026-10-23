@@ -75,7 +75,7 @@ static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWa
         bool tuple = false;
         if (!question_walk_creation_tuple(lexer, &tuple)) return QUESTION_WALK_UNKNOWN;
         walk->allocation_type = tuple;
-        if (!tuple) return QUESTION_WALK_CONTINUE;
+        return QUESTION_WALK_CONTINUE;
     } else {
         RankTypeRead read = {0};
         if (!rank_read_as_name(lexer, &read) || read.colon || read.division || read.conditional || read.coalesce || read.binary || read.has_word) return QUESTION_WALK_UNKNOWN;
@@ -98,6 +98,10 @@ static bool question_walk_creation_tuple(TSLexer *lexer, bool *tuple) {
     *tuple = type && read.root_comma;
     if (groups->size) {
         *tuple = false;
+        if (read.verbatim_literal && rank_push_verbatim(lexer, &frames, RANK_BODY_EXPRESSION) == RANK_READ_UNKNOWN) {
+            rank_dispose_frames(&frames, NULL, NULL);
+            return false;
+        }
         return rank_read_frames(lexer, &frames, NULL, 0, NULL, NULL);
     }
     array_delete(groups);

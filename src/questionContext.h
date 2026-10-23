@@ -482,7 +482,6 @@ static unsigned question_walk_type_test_role(TSLexer *lexer, QuestionWalk *walk)
     bool is_proved = walk->is_eligible && walk->is_seen &&
         !walk->is_reserved && !walk->is_pending_bracket && complete;
     bool is_access = is_proved && !walk->is_current_consumed;
-    if (lexer->log) lexer->log(lexer, "is_access_proof eligible=%d seen=%d consumed=%d reserved=%llu optional=%llu complete=%d result=%d", walk->is_eligible, walk->is_seen, walk->is_current_consumed, (unsigned long long)walk->is_reserved, (unsigned long long)walk->is_optional, complete, is_access);
     if (!is_access && !(is_proved && walk->is_ternary_eligible)) return 0;
     walk->known_ternary = walk->is_current_consumed && !walk->nullable_only;
     return walk->is_current_consumed ? 2 : 3;
@@ -908,6 +907,7 @@ static void question_walk_complete_colon(QuestionWalk *walk) {
 }
 
 static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next) {
+    if (walk->is_seen && !walk->root_colons && walk->prefix_ordinary && walk->optional > 1 && next.token == '[') walk->is_eligible = false;
     if (next.token == '[') walk->is_pending_bracket = true;
     else if (!next.member) walk->is_ternary_eligible = false;
     if (walk->cache_colon || next.token != '[') walk->cache_shaped = false;

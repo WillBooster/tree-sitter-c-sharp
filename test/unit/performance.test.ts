@@ -97,6 +97,24 @@ test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
   }
 );
 
+test('bounds enclosing rank retries behind unmatched parent ternaries', { timeout: 60_000 }, () => {
+  const small = unmatchedParentRankSource(100);
+  const large = unmatchedParentRankSource(1000);
+  parseCpuTime(large);
+  let smallFastest = Infinity;
+  let largeFastest = Infinity;
+  for (let run = 0; run < 3; run++) {
+    smallFastest = Math.min(smallFastest, parseCpuTime(small));
+    largeFastest = Math.min(largeFastest, parseCpuTime(large));
+  }
+  expect(largeFastest / smallFastest).toBeLessThan(18);
+  expect(largeFastest).toBeLessThan(5_000_000);
+});
+
+function unmatchedParentRankSource(count: number): string {
+  return 'var r = f(' + 'a ? '.repeat(count) + 'g(x is T?[] ? [1] : c) ? '.repeat(count) + 'z);';
+}
+
 const expressionContexts = [
   { name: 'top level', wrap: (expression: string): string => `var x = ${expression};` },
   {
