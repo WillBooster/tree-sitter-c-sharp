@@ -483,6 +483,7 @@ typedef enum {
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable);
+static enum TokenType question_access_symbol(const bool *valid_symbols, const QuestionFollowing *next);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
@@ -1080,26 +1081,28 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
 
 static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable) {
     if (role == QUESTION_ROLE_INVALID) return QUESTION_MISMATCHED;
-    bool access = role == 1 || role == 3;
+    enum TokenType symbol;
     if (known_nullable) {
-        if (!valid_symbols[QUESTION_NULLABLE]) return QUESTION_MISMATCHED;
-        lexer->result_symbol = QUESTION_NULLABLE;
-    } else if (access && next->token == '[' && valid_symbols[QUESTION_NULLABLE] && valid_symbols[QUESTION_UNKNOWN]) {
-        lexer->result_symbol = QUESTION_UNKNOWN;
-    } else if (role == 2 && valid_symbols[QUESTION_TERNARY] && !valid_symbols[CASE_LABEL_COLON]) {
-        lexer->result_symbol = QUESTION_TERNARY;
-    } else if (access && (next->member || next->token == '[') && valid_symbols[QUESTION_DEFINITE_ACCESS]) {
-        lexer->result_symbol = QUESTION_DEFINITE_ACCESS;
-    } else if (access && next->member && valid_symbols[QUESTION_MEMBER_ACCESS]) {
-        lexer->result_symbol = QUESTION_MEMBER_ACCESS;
-    } else if (access && next->token == '[' && valid_symbols[QUESTION_ELEMENT_ACCESS]) {
-        lexer->result_symbol = QUESTION_ELEMENT_ACCESS;
-    } else if (role && valid_symbols[QUESTION_NULLABLE]) {
-        lexer->result_symbol = QUESTION_NULLABLE;
-    } else if (!role && valid_symbols[QUESTION_UNKNOWN]) {
-        lexer->result_symbol = QUESTION_UNKNOWN;
+        symbol = QUESTION_NULLABLE;
+    } else if (role == 2) {
+        if (valid_symbols[CASE_LABEL_COLON]) return QUESTION_MISMATCHED;
+        symbol = QUESTION_TERNARY;
+    } else if (role == 1 || role == 3) {
+        symbol = question_access_symbol(valid_symbols, next);
+    } else if (!role) {
+        symbol = QUESTION_UNKNOWN;
     } else return QUESTION_MISMATCHED;
+    if (!valid_symbols[symbol]) return QUESTION_MISMATCHED;
+    lexer->result_symbol = symbol;
     return QUESTION_MATCHED;
+}
+
+static enum TokenType question_access_symbol(const bool *valid_symbols, const QuestionFollowing *next) {
+    if (next->token == '[' && valid_symbols[QUESTION_NULLABLE] && valid_symbols[QUESTION_UNKNOWN]) return QUESTION_UNKNOWN;
+    if ((next->member || next->token == '[') && valid_symbols[QUESTION_DEFINITE_ACCESS]) return QUESTION_DEFINITE_ACCESS;
+    if (next->member && valid_symbols[QUESTION_MEMBER_ACCESS]) return QUESTION_MEMBER_ACCESS;
+    if (next->token == '[' && valid_symbols[QUESTION_ELEMENT_ACCESS]) return QUESTION_ELEMENT_ACCESS;
+    return QUESTION_NULLABLE;
 }
 
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
