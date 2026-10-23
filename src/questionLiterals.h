@@ -14,6 +14,12 @@ typedef struct {
 } RankLiteralFrame;
 typedef Array(RankLiteralFrame) RankLiteralFrames;
 
+static bool question_skip_quoted(TSLexer *lexer, bool verbatim);
+static bool question_skip_raw_quoted(TSLexer *lexer, unsigned count);
+static bool question_skip_character(TSLexer *lexer);
+static bool question_character_escape(TSLexer *lexer);
+static bool question_skip_regular_quoted(TSLexer *lexer, int32_t quote, bool verbatim);
+
 static bool rank_read_delimited(TSLexer *, char, RankBodyMode, bool *);
 static bool rank_read_question_prefix(TSLexer *, char, uint32_t *);
 static RankReadStep rank_skip_literal(TSLexer *, int32_t, RankBodyMode, bool *, unsigned);
@@ -257,6 +263,78 @@ static unsigned rank_read_character_run(TSLexer *lexer, int32_t character) {
         advance(lexer);
     }
     return count;
+}
+
+static bool question_skip_quoted(TSLexer *lexer, bool verbatim) {
+    int32_t quote = lexer->lookahead;
+    advance(lexer);
+    if (quote == '\'') return question_skip_character(lexer);
+    unsigned count = 1;
+    if (!verbatim && quote == '"') {
+        while (lexer->lookahead == '"') { count++; advance(lexer); }
+        if (count == 2) return true;
+    }
+    if (count >= 3) return question_skip_raw_quoted(lexer, count);
+    return question_skip_regular_quoted(lexer, quote, verbatim);
+}
+
+static bool question_skip_character(TSLexer *lexer) {
+    if (lexer->eof(lexer) || lexer->lookahead == '\'' || is_line_terminator(lexer->lookahead)) return false;
+    if (lexer->lookahead == '\\') {
+        advance(lexer);
+        if (!question_character_escape(lexer)) return false;
+    } else {
+        if (lexer->lookahead > 0xFFFF) return false;
+        advance(lexer);
+    }
+    if (lexer->lookahead != '\'') return false;
+    advance(lexer);
+    return true;
+}
+
+static bool question_character_escape(TSLexer *lexer) {
+    int32_t kind = lexer->lookahead;
+    if (kind > 0 && kind < 128 && strchr("0abefnrtv\\\"'", kind)) { advance(lexer); return true; }
+    unsigned digits = kind == 'x' || kind == 'u' ? 4 : kind == 'U' ? 8 : 0;
+    if (!digits) return false;
+    advance(lexer);
+    uint32_t value = 0;
+    unsigned read = 0;
+    while (read < digits && question_hex_digit(lexer->lookahead) < 16) {
+        value = value * 16 + question_hex_digit(lexer->lookahead);
+        read++;
+        advance(lexer);
+    }
+    return value <= 0xFFFF && (kind == 'x' ? read > 0 : read == digits);
+}
+
+static bool question_skip_raw_quoted(TSLexer *lexer, unsigned count) {
+    unsigned closing = 0;
+    while (!lexer->eof(lexer)) {
+        if (lexer->lookahead == '"') closing++; else closing = 0;
+        advance(lexer);
+        if (closing == count) return lexer->lookahead != '"';
+    }
+    return false;
+}
+
+static bool question_skip_regular_quoted(TSLexer *lexer, int32_t quote, bool verbatim) {
+    while (!lexer->eof(lexer)) {
+        int32_t c = lexer->lookahead;
+        advance(lexer);
+        if (c == quote) {
+            if (!verbatim || lexer->lookahead != quote) return true;
+            advance(lexer);
+            continue;
+        }
+        if (c == '\\' && !verbatim) {
+            if (lexer->eof(lexer)) return false;
+            advance(lexer);
+            continue;
+        }
+        if (!verbatim && is_line_terminator(c)) return false;
+    }
+    return false;
 }
 
 #endif

@@ -53,10 +53,6 @@ typedef struct {
 
 static bool question_unicode_escape(TSLexer *lexer, bool first, uint32_t *codepoint);
 static unsigned question_hex_digit(int32_t c);
-static bool question_skip_raw_quoted(TSLexer *lexer, unsigned count);
-static bool question_skip_character(TSLexer *lexer);
-static bool question_character_escape(TSLexer *lexer);
-static bool question_skip_regular_quoted(TSLexer *lexer, int32_t quote, bool verbatim);
 
 static bool question_identifier(TSLexer *lexer, bool verbatim, QuestionIdentifier *identifier) {
     *identifier = (QuestionIdentifier){.keyword = !verbatim};
@@ -77,49 +73,6 @@ static bool question_identifier(TSLexer *lexer, bool verbatim, QuestionIdentifie
         if (identifier->length < sizeof(identifier->word)) identifier->length++;
         first = false;
     }
-}
-
-static bool question_skip_quoted(TSLexer *lexer, bool verbatim) {
-    int32_t quote = lexer->lookahead;
-    advance(lexer);
-    if (quote == '\'') return question_skip_character(lexer);
-    unsigned count = 1;
-    if (!verbatim && quote == '"') {
-        while (lexer->lookahead == '"') { count++; advance(lexer); }
-        if (count == 2) return true;
-    }
-    if (count >= 3) return question_skip_raw_quoted(lexer, count);
-    return question_skip_regular_quoted(lexer, quote, verbatim);
-}
-
-static bool question_skip_character(TSLexer *lexer) {
-    if (lexer->eof(lexer) || lexer->lookahead == '\'' || is_line_terminator(lexer->lookahead)) return false;
-    if (lexer->lookahead == '\\') {
-        advance(lexer);
-        if (!question_character_escape(lexer)) return false;
-    } else {
-        if (lexer->lookahead > 0xFFFF) return false;
-        advance(lexer);
-    }
-    if (lexer->lookahead != '\'') return false;
-    advance(lexer);
-    return true;
-}
-
-static bool question_character_escape(TSLexer *lexer) {
-    int32_t kind = lexer->lookahead;
-    if (kind > 0 && kind < 128 && strchr("0abefnrtv\\\"'", kind)) { advance(lexer); return true; }
-    unsigned digits = kind == 'x' || kind == 'u' ? 4 : kind == 'U' ? 8 : 0;
-    if (!digits) return false;
-    advance(lexer);
-    uint32_t value = 0;
-    unsigned read = 0;
-    while (read < digits && question_hex_digit(lexer->lookahead) < 16) {
-        value = value * 16 + question_hex_digit(lexer->lookahead);
-        read++;
-        advance(lexer);
-    }
-    return value <= 0xFFFF && (kind == 'x' ? read > 0 : read == digits);
 }
 
 static bool question_unicode_escape(TSLexer *lexer, bool first, uint32_t *codepoint) {
@@ -143,35 +96,6 @@ static unsigned question_hex_digit(int32_t c) {
     if (c >= 'a' && c <= 'f') return (unsigned)(c - 'a' + 10);
     if (c >= 'A' && c <= 'F') return (unsigned)(c - 'A' + 10);
     return 16;
-}
-
-static bool question_skip_raw_quoted(TSLexer *lexer, unsigned count) {
-    unsigned closing = 0;
-    while (!lexer->eof(lexer)) {
-        if (lexer->lookahead == '"') closing++; else closing = 0;
-        advance(lexer);
-        if (closing == count) return lexer->lookahead != '"';
-    }
-    return false;
-}
-
-static bool question_skip_regular_quoted(TSLexer *lexer, int32_t quote, bool verbatim) {
-    while (!lexer->eof(lexer)) {
-        int32_t c = lexer->lookahead;
-        advance(lexer);
-        if (c == quote) {
-            if (!verbatim || lexer->lookahead != quote) return true;
-            advance(lexer);
-            continue;
-        }
-        if (c == '\\' && !verbatim) {
-            if (lexer->eof(lexer)) return false;
-            advance(lexer);
-            continue;
-        }
-        if (!verbatim && is_line_terminator(c)) return false;
-    }
-    return false;
 }
 
 #include "nullableRank.h"
@@ -231,6 +155,7 @@ typedef struct {
     bool first_word;
     bool ordinary_first_token;
     bool future_first_token;
+    bool future_ternary_eligible;
     bool ordinary_name_candidate;
     bool ordinary_colon_context;
     bool found_next_question;
@@ -265,6 +190,7 @@ static bool question_closing_group(int32_t c);
 static bool question_operator(int32_t c);
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier);
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier);
+static void question_walk_nullable_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as);
 static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk, const QuestionIdentifier *identifier);
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, const QuestionWalk *walk);
 
@@ -272,6 +198,7 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *walk);
+static void question_walk_assignment_context(QuestionWalk *walk, bool comparison);
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
@@ -577,6 +504,7 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
         strcmp(identifier.word, "from") == 0)) walk->is_eligible = false;
     if (question_keyword_incomplete(lexer, walk, &identifier)) return QUESTION_WALK_UNKNOWN;
     bool is_or_as = identifier.keyword && (strcmp(identifier.word, "is") == 0 || strcmp(identifier.word, "as") == 0);
+    question_walk_nullable_type_operand(walk, future_identifier, is_or_as);
     bool value_operator = is_or_as || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
     if (walk->logical_name_candidate && !walk->depth && !value_operator)
         question_walk_logical_nullable(walk);
@@ -599,6 +527,12 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
     }
     if (walk->recording) walk->first_word = false;
     return creation ? question_walk_creation_prefix(lexer, walk) : QUESTION_WALK_CONTINUE;
+}
+
+static void question_walk_nullable_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as) {
+    if (!future_identifier || !is_or_as || !walk->is_seen || walk->depth || !walk->mandatory) return;
+    walk->mandatory--;
+    walk->is_ternary_eligible = walk->future_ternary_eligible;
 }
 
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, const QuestionWalk *walk) {
@@ -692,7 +626,10 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
         walk->cache_shaped = false;
         walk->is_as_phase = false;
     }
-    else question_walk_future_question(walk, following);
+    else {
+        walk->future_ternary_eligible = walk->is_ternary_eligible;
+        question_walk_future_question(walk, following);
+    }
     return later_nullable;
 }
 
@@ -715,13 +652,16 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
         advance(lexer);
         return QUESTION_WALK_CONTINUE;
     }
-    if (!walk->depth && walk->recording) {
-        if (lexer->lookahead == '=') walk->definite_ternary = walk->ordinary;
-        else walk->assignment_possible = true;
-    }
+    question_walk_assignment_context(walk, lexer->lookahead == '=');
     if (!walk->role_active || !walk->binding || walk->depth != 1) return QUESTION_WALK_CONTINUE;
     int32_t next = question_skip_separators(lexer);
     return question_closing_group(next) || next == ',' || next == ';' ? QUESTION_WALK_UNKNOWN : QUESTION_WALK_CONTINUE;
+}
+
+static void question_walk_assignment_context(QuestionWalk *walk, bool comparison) {
+    if (walk->depth) return;
+    if (!comparison) walk->assignment_possible = true;
+    else if (walk->recording) walk->definite_ternary = walk->ordinary;
 }
 
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c) {
