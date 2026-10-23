@@ -143,6 +143,7 @@ module.exports = grammar({
     [$._simple_name, $._definite_cast_name],
     [$._name, $._definite_cast_name],
     [$._object_initializer_expression, $.initializer_expression],
+    [$.switch_body],
     [$._object_initializer_element, $.initializer_expression],
     [$._object_initializer_element, sym('preproc_elif_in_initializer')],
     [sym('preproc_elif_in_initializer'), sym('preproc_elif_in_object_initializer')],
@@ -1412,7 +1413,14 @@ module.exports = grammar({
         field('body', $.switch_body)
       ),
 
-    switch_body: ($) => seq('{', repeat($._preproc_if_in_switch_body), repeat($.switch_section), blockEnd()),
+    switch_body: ($) =>
+      seq(
+        '{',
+        // Statements after a leading directive are the body shared by its conditional labels.
+        repeat(seq($._preproc_if_in_switch_body, repeat($.statement))),
+        repeat($.switch_section),
+        blockEnd()
+      ),
 
     switch_section: ($) =>
       prec.left(

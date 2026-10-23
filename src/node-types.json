@@ -7585,7 +7585,7 @@
       "required": false,
       "types": [
         {
-          "type": "preproc_if",
+          "type": "statement",
           "named": true
         },
         {

@@ -1033,3 +1033,60 @@ switch (x) {
               (break_statement))))
         (switch_section
           (break_statement))))))
+
+================================================================================
+Leading conditional switch labels with shared statements
+================================================================================
+
+switch (x) {
+#if A
+case 0:
+#else
+case 1:
+#endif
+break;
+}
+switch(x) {
+#if A
+case 0: break;
+#else
+#if B
+case 1: break;
+#endif
+#endif
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (switch_statement
+      value: (identifier)
+      body: (switch_body
+        (preproc_if
+          condition: (identifier)
+          (switch_section
+            (constant_pattern
+              (integer_literal)))
+          alternative: (preproc_else
+            (switch_section
+              (constant_pattern
+                (integer_literal)))))
+        (break_statement))))
+  (global_statement
+    (switch_statement
+      value: (identifier)
+      body: (switch_body
+        (preproc_if
+          condition: (identifier)
+          (switch_section
+            (constant_pattern
+              (integer_literal))
+            (break_statement))
+          alternative: (preproc_else
+            (preproc_if
+              condition: (identifier)
+              (switch_section
+                (constant_pattern
+                  (integer_literal))
+                (break_statement)))))))))
