@@ -711,4 +711,76 @@ export const ownershipSamples = [
     source: "var r = flag ? c is T ? (f(a ? 1 : 2)) : a?[0] is T and U ? b : c : end;",
     ranges: [[[8,12],[15,65],[68,71]],[[15,21],[24,38],[41,65]],[[27,28],[31,32],[35,36]],[[41,57],[60,61],[64,65]]],
   },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? stackalloc int?[2] : b: break; } } }",
+    ranges: [[[46,47],[50,68],[71,72]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? stackalloc T?[2] is U : b: break; } } }",
+    ranges: [[[46,47],[50,71],[74,75]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when x is { } ? stackalloc int?[2] : b: break; } } }",
+    ranges: [[[46,54],[57,75],[78,79]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? stackalloc int?[2] == null : b: break; } } }",
+    ranges: [[[46,47],[50,76],[79,80]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? new int?[2] is T : b: break; } } }",
+    ranges: [[[46,47],[50,66],[69,70]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? new int?[2] is not null : b: break; } } }",
+    ranges: [[[46,47],[50,73],[76,77]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? new int?[2].Length > 0 : b: break; } } }",
+    ranges: [[[46,47],[50,72],[75,76]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? new T?[1] : b: break; } } }",
+    ranges: [[[46,47],[50,59],[62,63]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? new T?[1] is T : b: break; } } }",
+    ranges: [[[46,47],[50,64],[67,68]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? new T?[1] is not null : b: break; } } }",
+    ranges: [[[46,47],[50,71],[74,75]]],
+  },
+  {
+    source: "var r = a ? stackalloc int?[2] is T ? [1] : c : b;",
+    ranges: [[[8,9],[12,45],[48,49]],[[12,35],[38,41],[44,45]]],
+  },
+  {
+    source: "var r = a ? stackalloc int?[2] is T? is U : b;",
+    ranges: [[[8,9],[12,41],[44,45]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? stackalloc int ? [1] : c : b: break; } } }",
+    ranges: [[[46,47],[50,70],[73,74]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? stackalloc T ? [1] : c : b: break; } } }",
+    ranges: [[[46,47],[50,68],[71,72]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? stackalloc int[2] ? [1] : c : b: break; } } }",
+    ranges: [[[46,47],[50,73],[76,77]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? stackalloc int?[2] ? [1] : c : b: break; } } }",
+    ranges: [[[46,47],[50,74],[77,78]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? stackalloc int?[2] is T ? [1] : c : b: break; } } }",
+    ranges: [[[46,47],[50,83],[86,87]],[[50,73],[76,79],[82,83]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when a ? stackalloc int?[2] is T? is U : b: break; } } }",
+    ranges: [[[46,47],[50,79],[82,83]]],
+  },
 ];

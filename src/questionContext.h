@@ -144,6 +144,7 @@ typedef struct {
     bool cache_colon;
     bool role_active;
     bool case_colon_possible;
+    bool case_boundary;
     bool recording;
     bool ordinary;
     bool known_nullable;
@@ -270,6 +271,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
     bool ternary_only = rank_phase == RANK_PATTERN_COMPLETE;
     bool cached = scanner->question_access_cache && following.token == '[' && !ternary_only &&
         (known || (scanner->question_unknown && !known_nullable && !(context_flags & QUESTION_NULLABLE_ONLY)));
+    bool case_boundary = (frame->case_colon && !(context_flags & QUESTION_CASE_COLON));
     bool ordinary = following.token != '[' && !following.member;
     bool definite_ternary = ternary_only || (ordinary && !known_nullable && following.token >= '0' && following.token <= '9');
     QuestionWalk walk = {
@@ -279,10 +281,10 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .access_alternative = context_flags & QUESTION_ACCESS_ALTERNATIVE,
         .cached_count = scanner->question_access_cache,
         .reserved = frame->pending,
-        .mandatory = (uint64_t)frame->pending + ordinary,
+        .mandatory = (uint64_t)frame->pending + ordinary + case_boundary,
         .optional = following.token == '[',
         .is_optional = following.token == '[',
-        .is_reserved = frame->pending,
+        .is_reserved = (uint64_t)frame->pending + case_boundary,
         .is_eligible = known && following.token == '[' && !cached,
         .is_ternary_eligible = true,
         .cached_access = cached,
@@ -296,6 +298,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .cache_shaped = following.token == '[' && !cached && !ternary_only,
         .role_active = !following.member && !cached && !known_nullable && !definite_ternary,
         .case_colon_possible = context_flags & QUESTION_CASE_COLON,
+        .case_boundary = case_boundary,
         .recording = true,
         .ordinary = ordinary,
         .ordinary_colon_context = !scanner->question_unknown && !frame->unknown && !frame->pending &&
@@ -841,6 +844,7 @@ static void question_walk_colon(QuestionWalk *walk) {
 }
 
 static void question_walk_complete_colon(QuestionWalk *walk) {
+    if (walk->case_boundary && !walk->mandatory) walk->role_active = false;
     bool known_ordinary = walk->ordinary && walk->role_known && !walk->nullable_only;
     bool ordinary_complete = known_ordinary && !walk->optional && walk->mandatory == walk->reserved;
     if (ordinary_complete || ((walk->recording || walk->ordinary) && !walk->mandatory && !walk->optional)) {
