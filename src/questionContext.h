@@ -119,6 +119,7 @@ typedef struct {
     bool is_eligible;
     bool is_ternary_eligible;
     bool is_seen;
+    bool type_operand;
     bool is_later_alternative;
     bool is_as_phase;
     bool is_current_consumed;
@@ -198,6 +199,7 @@ static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, const QuestionWalk *walk);
 
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as);
+static bool question_walk_type_keyword(QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as, bool case_colon);
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_coalescing(TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk);
@@ -541,7 +543,7 @@ static void question_walk_type_operand(QuestionWalk *walk, bool future_identifie
     if (!walk->depth && !walk->recording && walk->confirmation_operand && walk->optional == 1 &&
         identifier->keyword && !strcmp(identifier->word, "is"))
         walk->confirmation_type = true;
-    if (!future_identifier || !is_or_as || !walk->is_seen || walk->depth || !walk->mandatory) return;
+    if (!future_identifier || !is_or_as || !walk->type_operand || walk->depth || !walk->mandatory) return;
     walk->mandatory--;
     walk->is_ternary_eligible = walk->future_ternary_eligible;
 }
@@ -574,23 +576,27 @@ static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk
 
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as) {
     walk->cache_type_uncertain = true;
-    bool is_keyword = !strcmp(identifier->word, "is");
-    bool root_is = is_keyword && !walk->depth;
-    bool independent_type = is_or_as && (walk->depth || walk->is_later_alternative);
-    bool repeated_case_test = root_is && !walk->is_later_alternative && walk->is_seen &&
-        scanner->question_frames[scanner->question_frame_count - 1].case_colon;
-    walk->is_eligible = walk->is_eligible && !repeated_case_test;
-    if (root_is) {
-        if (!walk->is_later_alternative) walk->is_seen = true;
-    } else if (is_or_as && !walk->depth && !walk->recording && walk->is_seen) {
-        walk->is_as_phase = true;
-    } else if (!independent_type) {
-        walk->is_eligible = false;
-    }
+    bool case_colon = scanner->question_frames[scanner->question_frame_count - 1].case_colon;
+    bool independent_type = question_walk_type_keyword(walk, identifier, is_or_as, case_colon);
     if (is_or_as && walk->recording) scanner->question_type_uncertain = true;
     if (!is_or_as) scanner->question_unknown = true;
     scanner->question_access_cache = 0;
     if (!independent_type) walk->role_known = false;
+}
+
+static bool question_walk_type_keyword(QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as, bool case_colon) {
+    bool is_keyword = !strcmp(identifier->word, "is");
+    bool root_is = is_keyword && !walk->depth;
+    bool independent_type = is_or_as && (walk->depth || walk->is_later_alternative || walk->root_colons);
+    if (is_or_as && !walk->depth) walk->type_operand = true;
+    bool current_is = root_is && !independent_type;
+    bool repeated_case_test = current_is && walk->is_seen && case_colon;
+    walk->is_eligible = walk->is_eligible && !repeated_case_test;
+    walk->is_seen = walk->is_seen || current_is;
+    bool root_as = is_or_as && !walk->depth && !root_is;
+    if (root_as && !walk->recording && walk->is_seen) walk->is_as_phase = true;
+    else if (!root_is && !independent_type) walk->is_eligible = false;
+    return independent_type;
 }
 
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk) {
@@ -630,7 +636,7 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     question_skip_separators(lexer);
     QuestionFollowing following = question_following(lexer);
     walk->future_first_token = following.token != '[' && !following.member;
-    if (walk->recording && walk->root_colons && walk->binding && following.token != '[' && !following.member) {
+    if (walk->recording && walk->root_colons && walk->binding && !walk->type_operand && following.token != '[' && !following.member) {
         walk->role_active = false;
         walk->role_known = false;
         walk->is_eligible = false;
@@ -827,6 +833,7 @@ static void question_walk_colon(QuestionWalk *walk) {
         walk->definite_ternary = true;
     }
     walk->is_as_phase = false;
+    walk->type_operand = false;
     walk->confirmation_operand = false;
     if (walk->root_colons < 2) walk->root_colons++;
     bool later_obligation = walk->mandatory > walk->is_reserved ||
@@ -852,7 +859,7 @@ static void question_walk_colon(QuestionWalk *walk) {
 }
 
 static void question_walk_complete_colon(QuestionWalk *walk) {
-    if (walk->case_boundary && !walk->mandatory) walk->role_active = false;
+    if (walk->case_boundary && !walk->mandatory && walk->following.token == '[' && !walk->access_alternative) walk->role_active = false;
     bool known_ordinary = walk->ordinary && walk->role_known && !walk->nullable_only;
     bool ordinary_complete = known_ordinary && !walk->optional && walk->mandatory == walk->reserved;
     if (ordinary_complete || ((walk->recording || walk->ordinary) && !walk->mandatory && !walk->optional)) {

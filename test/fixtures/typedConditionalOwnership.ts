@@ -835,4 +835,76 @@ export const ownershipSamples = [
     source: "$\"{(flag ? (x is T) ? (a ? b : c) : x -= d ? [1] : new T?[1] : end)}\";",
     ranges: [[[4,8],[11,60],[63,66]],[[11,19],[22,33],[36,60]],[[23,24],[27,28],[31,32]],[[41,42],[45,48],[51,60]]],
   },
+  {
+    source: "class C { void M() { switch (v) { case 1 when d ? a ? [1] : b : c: break; } } }",
+    ranges: [[[46,47],[50,61],[64,65]],[[50,51],[54,57],[60,61]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when d ? a ? [1] : f(g) : a is T? is t: break; } } }",
+    ranges: [[[46,47],[50,64],[67,79]],[[50,51],[54,57],[60,64]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when d ? a ? [1] : b : a is T? is t: break; } } }",
+    ranges: [[[46,47],[50,61],[64,76]],[[50,51],[54,57],[60,61]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when d ? a ? [1] : 1 : a is T? is t: break; } } }",
+    ranges: [[[46,47],[50,61],[64,76]],[[50,51],[54,57],[60,61]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when d ? a ? [1, 2] : b : a is T? is t: break; } } }",
+    ranges: [[[46,47],[50,64],[67,79]],[[50,51],[54,60],[63,64]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a is T ? is t: break; } } }",
+    ranges: [[[45,46],[49,63],[66,79]],[[49,50],[53,56],[59,63]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a is T ? as U: break; } } }",
+    ranges: [[[45,46],[49,63],[66,79]],[[49,50],[53,56],[59,63]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a is T ? issue : t: break; } } }",
+    ranges: [[[45,46],[49,63],[66,84]],[[49,50],[53,56],[59,63]],[[66,72],[75,80],[83,84]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a is T ? @is : t: break; } } }",
+    ranges: [[[45,46],[49,63],[66,82]],[[49,50],[53,56],[59,63]],[[66,72],[75,78],[81,82]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a is T ? \\u0069s : t: break; } } }",
+    ranges: [[[45,46],[49,63],[66,86]],[[49,50],[53,56],[59,63]],[[66,72],[75,82],[85,86]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a is T ? isα : t: break; } } }",
+    ranges: [[[45,46],[49,63],[66,82]],[[49,50],[53,56],[59,63]],[[66,72],[75,78],[81,82]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a as T ? is t: break; } } }",
+    ranges: [[[45,46],[49,63],[66,79]],[[49,50],[53,56],[59,63]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a as T ? issue : t: break; } } }",
+    ranges: [[[45,46],[49,63],[66,84]],[[49,50],[53,56],[59,63]],[[66,72],[75,80],[83,84]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a as T ? @is : t: break; } } }",
+    ranges: [[[45,46],[49,63],[66,82]],[[49,50],[53,56],[59,63]],[[66,72],[75,78],[81,82]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : (a is T? is t): break; } } }",
+    ranges: [[[45,46],[49,63],[66,80]],[[49,50],[53,56],[59,63]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : f(a is T? is t): break; } } }",
+    ranges: [[[45,46],[49,63],[66,81]],[[49,50],[53,56],[59,63]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : f(a as T? as U): break; } } }",
+    ranges: [[[45,46],[49,63],[66,81]],[[49,50],[53,56],[59,63]]],
+  },
+  {
+    source: "class C { void M() { switch(v) { case 1 when d ? a ? [1] : f(g) : a as T? as U: break; } } }",
+    ranges: [[[45,46],[49,63],[66,78]],[[49,50],[53,56],[59,63]]],
+  },
 ];
