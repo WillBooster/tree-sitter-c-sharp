@@ -1412,14 +1412,7 @@ module.exports = grammar({
         field('body', $.switch_body)
       ),
 
-    switch_body: ($) =>
-      seq(
-        '{',
-        // Statements after a leading directive are the body shared by its conditional labels.
-        optional(seq($._preproc_if_in_switch_body, repeat(choice($._preproc_if_in_switch_body, $.statement)))),
-        repeat($.switch_section),
-        blockEnd()
-      ),
+    switch_body: ($) => seq('{', optional(conditionalSectionRun($)), repeat($.switch_section), blockEnd()),
 
     switch_section: ($) =>
       prec.left(
@@ -2738,7 +2731,7 @@ module.exports = grammar({
       conditionalDirective(
         'if',
         $,
-        choice(seq(repeat1($._preproc_if_in_switch_body), repeat($.switch_section)), repeat1($.switch_section)),
+        choice(seq(conditionalSectionRun($), repeat($.switch_section)), repeat1($.switch_section)),
         field('alternative', optional($._preproc_switch_body_alternative)),
         preprocessor('endif')
       ),
@@ -2747,12 +2740,12 @@ module.exports = grammar({
         'elif',
         $,
         repeat($.statement),
-        repeat($._preproc_if_in_switch_body),
+        optional(conditionalSectionRun($)),
         repeat($.switch_section),
         field('alternative', optional($._preproc_switch_body_alternative))
       ),
     preproc_else_in_switch_body: ($) =>
-      seq(preprocessor('else'), repeat($.statement), repeat($._preproc_if_in_switch_body), repeat($.switch_section)),
+      seq(preprocessor('else'), repeat($.statement), optional(conditionalSectionRun($)), repeat($.switch_section)),
     _preproc_switch_body_alternative: () =>
       choice(
         alias(sym('preproc_else_in_switch_body'), sym('preproc_else')),
@@ -3194,6 +3187,15 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
  */
 function argumentValue($) {
   return choice(seq(optional(choice('ref', 'out', 'in')), $.expression), seq('out', $.declaration_expression));
+}
+
+/**
+ * Conditional switch sections followed by more of them or by the statements their conditional labels share.
+ *
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_preproc_if_in_switch_body' | 'statement'>} $
+ */
+function conditionalSectionRun($) {
+  return seq($._preproc_if_in_switch_body, repeat(choice($._preproc_if_in_switch_body, $.statement)));
 }
 
 /**
