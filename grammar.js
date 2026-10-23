@@ -359,6 +359,7 @@ module.exports = grammar({
     sym('_expression_generic_end'),
     sym('_definite_expression_generic_end'),
     sym('_if_alternative_directive'),
+    sym('_conditional_consequence_start'),
   ],
 
   extras: ($) => [
@@ -2006,6 +2007,7 @@ module.exports = grammar({
         seq(
           field('condition', $.expression),
           ternaryQuestion(),
+          sym('_conditional_consequence_start'),
           field('consequence', $.expression),
           ':',
           sym('_conditional_alternative_start'),

@@ -13863,6 +13863,10 @@
             ]
           },
           {
+            "type": "SYMBOL",
+            "name": "_conditional_consequence_start"
+          },
+          {
             "type": "FIELD",
             "name": "consequence",
             "content": {
@@ -31972,6 +31976,10 @@
     {
       "type": "SYMBOL",
       "name": "_if_alternative_directive"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_conditional_consequence_start"
     }
   ],
   "inline": [

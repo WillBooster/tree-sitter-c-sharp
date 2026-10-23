@@ -4,43 +4,7 @@
 static bool question_context_idle(const Scanner *scanner);
 static bool question_close_frame(Scanner *scanner, char closing);
 
-static void apply_question_events(Scanner *scanner, const char *events, unsigned count) {
-    for (unsigned i = 0; i < count; i++) {
-        char c = events[i];
-        QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-        if (c == '(' || c == '[' || c == '{') {
-            if (scanner->question_frame_count == QUESTION_FRAME_LIMIT) {
-                scanner->question_unknown = true; scanner->question_access_cache = 0;
-                return;
-            }
-            scanner->question_frames[scanner->question_frame_count++] = (QuestionFrame){.group = (uint8_t)c};
-            continue;
-        }
-        if (c == ')' || c == ']' || c == '}') {
-            if (!question_close_frame(scanner, c)) {
-                scanner->question_unknown = true; scanner->question_access_cache = 0;
-                return;
-            }
-            continue;
-        }
-        if (c == ':' && frame->pending) frame->pending--;
-        if (c != ';') continue;
-        frame->pending = 0;
-        frame->unknown = false;
-        frame->case_colon = false;
-        if (scanner->question_frame_count == 1) reset_question_context(scanner);
-    }
-}
-
-static bool question_close_frame(Scanner *scanner, char closing) {
-    QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    bool root = scanner->question_frame_count == 1;
-    if (root && question_context_idle(scanner) && !scanner->question_unknown) return true;
-    char opening = closing == ')' ? '(' : closing == ']' ? '[' : '{';
-    if (root || frame->group != opening) return false;
-    scanner->question_frame_count--;
-    return true;
-}
+static void apply_question_events(Scanner *scanner, const char *events, unsigned count);
 
 static int32_t question_skip_separators(TSLexer *lexer) {
     for (;;) {
@@ -217,6 +181,7 @@ typedef enum {
     QUESTION_CASE_COLON = 2,
     QUESTION_NULLABLE_ONLY = 4,
     QUESTION_ACCESS_ALTERNATIVE = 8,
+    QUESTION_NULLABLE_ALLOWED = 16,
 } QuestionContextFlags;
 
 typedef struct {
@@ -242,6 +207,7 @@ typedef struct {
     bool binding;
     bool entering_binding;
     bool nullable_only;
+    bool nullable_allowed;
     bool omitted_rank_candidate;
     bool nullable_name_candidate;
     bool logical_name_candidate;
@@ -289,6 +255,8 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
 static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first);
 static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
+static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk);
+static void question_save_confirmation(Scanner *scanner, const Scanner *confirmed);
 static bool question_walk_access_prefix(const QuestionWalk *walk);
 static bool question_type_boundary(int32_t c);
 static bool question_opening_group(int32_t c);
@@ -305,6 +273,7 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
 static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_leading_commas(TSLexer *lexer, QuestionWalk *walk);
+static bool question_walk_multidimensional_rank(TSLexer *lexer, QuestionWalk *walk, int32_t *first);
 static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *walk);
 static bool question_binding_start(TSLexer *lexer, int32_t first);
 static bool question_invalid_binding_has_clause(TSLexer *lexer, const QuestionWalk *walk);
@@ -387,6 +356,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .cached_access = cached,
         .entering_binding = following.token == '[',
         .nullable_only = context_flags & QUESTION_NULLABLE_ONLY,
+        .nullable_allowed = context_flags & QUESTION_NULLABLE_ALLOWED,
         .omitted_rank_candidate = following.token == '[',
         .role_known = known,
         .context_known = context_known,
@@ -397,7 +367,9 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .recording = true,
         .ordinary = ordinary,
         .ordinary_colon_context = !scanner->question_unknown && !frame->unknown && !frame->pending &&
-            !scanner->interpolation_stack.size && !(context_flags & (QUESTION_NULLABLE_ONLY | QUESTION_CASE_COLON)),
+            (!scanner->interpolation_stack.size || (interpolation && interpolation->question_depth > 0 &&
+                interpolation->question_depth != UINT16_MAX)) &&
+            !(context_flags & (QUESTION_NULLABLE_ONLY | QUESTION_CASE_COLON)),
         .known_nullable = known_nullable,
         .known_ternary = definite_ternary,
         .rank_phase = rank_phase,
@@ -508,22 +480,15 @@ static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, i
 
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    if (walk->mandatory && !walk->cached_access) walk->role_known = false;
-    unsigned role = 0;
-    if (walk->known_ternary || (walk->role_known && walk->proved_ternary)) role = 2;
-    else if (walk->binding) {
-        if (walk->cached_access || walk->role_known || question_walk_access_prefix(walk)) role = 1;
-        else {
-            bool complete = !walk->role_active || lexer->eof(lexer);
-            bool is_proved = walk->is_eligible && walk->is_seen &&
-                !walk->is_reserved && !walk->is_pending_bracket && complete;
-            bool is_access = is_proved && !walk->is_current_consumed;
-            if (lexer->log) lexer->log(lexer, "is_access_proof eligible=%d seen=%d consumed=%d reserved=%llu optional=%llu complete=%d result=%d", walk->is_eligible, walk->is_seen, walk->is_current_consumed, (unsigned long long)walk->is_reserved, (unsigned long long)walk->is_optional, complete, is_access);
-            if (is_access || (is_proved && walk->is_ternary_eligible)) {
-                walk->known_ternary = walk->is_current_consumed;
-                role = walk->known_ternary ? 2 : 3;
-            }
-        }
+    unsigned role = question_walk_role(lexer, walk);
+    bool confirmable = !role && walk->ordinary && !walk->known_nullable;
+    Scanner confirmed;
+    if (confirmable) {
+        confirmed = *scanner;
+        QuestionWalk ternary = *walk;
+        ternary.known_ternary = true;
+        question_walk_pending(&ternary, &confirmed.question_frames[confirmed.question_frame_count - 1], false);
+        apply_question_events(&confirmed, walk->events.contents, walk->events.size);
     }
     question_walk_pending(walk, frame, role == 1 || role == 3);
     apply_question_events(scanner, walk->events.contents, walk->events.size);
@@ -531,7 +496,27 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
     if (!walk->found_next_question && question_context_idle(scanner) && !preserve_unknown) reset_question_context(scanner);
     if (preserve_unknown) scanner->question_unknown = true;
     question_walk_cache(scanner, walk);
+    if (confirmable) {
+        if (!walk->found_next_question && question_context_idle(&confirmed) && !preserve_unknown) reset_question_context(&confirmed);
+        if (preserve_unknown) confirmed.question_unknown = true;
+        question_save_confirmation(scanner, &confirmed);
+    }
     return role;
+}
+
+static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk) {
+    if (walk->mandatory && !walk->cached_access) walk->role_known = false;
+    if (walk->known_ternary || (walk->role_known && walk->proved_ternary)) return 2;
+    if (!walk->binding) return 0;
+    if (walk->cached_access || walk->role_known || question_walk_access_prefix(walk)) return 1;
+    bool complete = !walk->role_active || lexer->eof(lexer);
+    bool is_proved = walk->is_eligible && walk->is_seen &&
+        !walk->is_reserved && !walk->is_pending_bracket && complete;
+    bool is_access = is_proved && !walk->is_current_consumed;
+    if (lexer->log) lexer->log(lexer, "is_access_proof eligible=%d seen=%d consumed=%d reserved=%llu optional=%llu complete=%d result=%d", walk->is_eligible, walk->is_seen, walk->is_current_consumed, (unsigned long long)walk->is_reserved, (unsigned long long)walk->is_optional, complete, is_access);
+    if (!is_access && !(is_proved && walk->is_ternary_eligible)) return 0;
+    walk->known_ternary = walk->is_current_consumed;
+    return walk->known_ternary ? 2 : 3;
 }
 
 static bool question_walk_access_prefix(const QuestionWalk *walk) {
@@ -699,6 +684,7 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
     walk->ordinary_name_candidate = false;
     if (!walk->depth && walk->binding && !walk->cache_colon && lexer->lookahead == '=') walk->root_binary = true;
     if (lexer->lookahead == '>') {
+        if (walk->recording) array_push(&walk->events, 'l');
         if (!walk->depth) {
             walk->cache_shaped = false;
             walk->role_active = false;
@@ -765,6 +751,7 @@ static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
     int32_t first = question_skip_separators(lexer);
     if (first == '#' || first == -2) return QUESTION_WALK_UNKNOWN;
+    if (!question_walk_multidimensional_rank(lexer, walk, &first)) return QUESTION_WALK_UNKNOWN;
     if (first == ',' && !walk->nullable_context && !walk->nullable_only) {
         QuestionWalkStep step = question_walk_leading_commas(lexer, walk);
         if (step != QUESTION_WALK_CONTINUE) return step;
@@ -789,6 +776,15 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
     if (first == ';' && walk->nullable_context && question_invalid_binding_has_clause(lexer, walk))
         return QUESTION_WALK_UNKNOWN;
     return QUESTION_WALK_INVALID;
+}
+
+static bool question_walk_multidimensional_rank(TSLexer *lexer, QuestionWalk *walk, int32_t *first) {
+    if (*first != ',' || !walk->nullable_context || !walk->nullable_allowed) return true;
+    do { advance(lexer); *first = question_skip_separators(lexer); } while (*first == ',');
+    if (*first != ']') return false;
+    walk->known_nullable = true;
+    walk->role_active = false;
+    return true;
 }
 
 static QuestionWalkStep question_walk_leading_commas(TSLexer *lexer, QuestionWalk *walk) {
@@ -846,7 +842,8 @@ static void question_walk_colon(QuestionWalk *walk) {
         walk->cache_shaped = false;
         return;
     }
-    if (walk->ordinary_colon_context && walk->ordinary && walk->recording && !walk->known_nullable) {
+    bool first_root_colon = !walk->root_colons && walk->mandatory == 1 && !walk->optional;
+    if (walk->ordinary_colon_context && walk->ordinary && (walk->recording || first_root_colon) && !walk->known_nullable) {
         walk->known_ternary = true;
         walk->definite_ternary = true;
     }
@@ -909,11 +906,6 @@ static bool question_expression_keyword(const QuestionIdentifier *identifier) {
     const char *word = identifier->word;
     return !strcmp(word, "true") || !strcmp(word, "false") || !strcmp(word, "null") ||
         !strcmp(word, "new") || !strcmp(word, "base");
-}
-
-static bool question_context_idle(const Scanner *scanner) {
-    return scanner->question_frame_count == 1 && !scanner->question_frames[0].pending &&
-        !scanner->question_frames[0].unknown && !scanner->question_frames[0].case_colon;
 }
 
 static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool proved_access) {

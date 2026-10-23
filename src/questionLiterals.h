@@ -8,16 +8,21 @@ typedef struct {
     RankGroups groups;
     RankBodyMode mode;
     unsigned quotes, dollars, format_braces, identifiers;
+    uint32_t questions;
+    bool paired_question;
     bool string, verbatim, content, access, colon, question;
 } RankLiteralFrame;
 typedef Array(RankLiteralFrame) RankLiteralFrames;
 
 static bool rank_read_delimited(TSLexer *, char, RankBodyMode, bool *);
+static bool rank_read_question_prefix(TSLexer *, char, uint32_t *);
 static RankReadStep rank_skip_literal(TSLexer *, int32_t, RankBodyMode, bool *, unsigned);
 static bool rank_skip_interpolated(TSLexer *, bool, RankBodyMode, unsigned, bool *);
-static bool rank_read_frames(TSLexer *, RankLiteralFrames *, bool *, unsigned, bool *);
+static bool rank_read_frames(TSLexer *, RankLiteralFrames *, bool *, unsigned, bool *, uint32_t *);
+static bool rank_collect_frame(const RankLiteralFrame *, bool *, bool *, uint32_t *);
 static void rank_push_code(RankLiteralFrames *, char, RankBodyMode, unsigned);
 static RankReadStep rank_read_code_step(TSLexer *, RankLiteralFrames *);
+static RankReadStep rank_read_code_question(TSLexer *, RankLiteralFrame *);
 static RankReadStep rank_read_code_identifier(TSLexer *, RankLiteralFrame *);
 static RankReadStep rank_read_string_step(TSLexer *, RankLiteralFrames *);
 static RankReadStep rank_read_raw_string_step(TSLexer *, RankLiteralFrames *);
@@ -31,24 +36,30 @@ static unsigned rank_read_character_run(TSLexer *, int32_t);
 static bool rank_read_delimited(TSLexer *lexer, char opening, RankBodyMode mode, bool *force_unsafe) {
     RankLiteralFrames frames = array_new();
     rank_push_code(&frames, opening, mode, 0);
-    return rank_read_frames(lexer, &frames, force_unsafe, 0, NULL);
+    return rank_read_frames(lexer, &frames, force_unsafe, 0, NULL, NULL);
+}
+
+static bool rank_read_question_prefix(TSLexer *lexer, char opening, uint32_t *questions) {
+    RankLiteralFrames frames = array_new();
+    rank_push_code(&frames, opening, RANK_BODY_EXPRESSION, 0);
+    return rank_read_frames(lexer, &frames, NULL, 0, NULL, questions);
 }
 
 static RankReadStep rank_skip_literal(TSLexer *lexer, int32_t c, RankBodyMode mode, bool *force_unsafe, unsigned frame_limit) {
     RankLiteralFrames frames = array_new();
     RankReadStep step = rank_push_literal(lexer, &frames, c, mode);
-    bool valid = rank_read_frames(lexer, &frames, force_unsafe, frame_limit, NULL);
+    bool valid = rank_read_frames(lexer, &frames, force_unsafe, frame_limit, NULL, NULL);
     return valid ? step : RANK_READ_UNKNOWN;
 }
 
 static bool rank_skip_interpolated(TSLexer *lexer, bool verbatim, RankBodyMode mode, unsigned frame_limit, bool *has_question) {
     RankLiteralFrames frames = array_new();
     RankReadStep step = rank_push_interpolated(lexer, &frames, verbatim, mode);
-    bool valid = rank_read_frames(lexer, &frames, NULL, frame_limit, has_question);
+    bool valid = rank_read_frames(lexer, &frames, NULL, frame_limit, has_question, NULL);
     return step != RANK_READ_UNKNOWN && valid;
 }
 
-static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *force_unsafe, unsigned frame_limit, bool *has_question) {
+static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *force_unsafe, unsigned frame_limit, bool *has_question, uint32_t *questions) {
     bool valid = true;
     while (frames->size) {
         if (frame_limit && frames->size > frame_limit) { valid = false; break; }
@@ -57,8 +68,7 @@ static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *fo
         if (step == RANK_READ_UNKNOWN) { valid = false; break; }
         if (step != RANK_READ_DONE) continue;
         RankLiteralFrame frame = array_pop(frames);
-        if (force_unsafe) *force_unsafe |= frame.access && frame.colon;
-        if (has_question) *has_question |= frame.question;
+        valid &= rank_collect_frame(&frame, force_unsafe, has_question, questions);
         array_delete(&frame.groups);
     }
     for (unsigned i = 0; i < frames->size; i++) {
@@ -69,6 +79,15 @@ static bool rank_read_frames(TSLexer *lexer, RankLiteralFrames *frames, bool *fo
     }
     array_delete(frames);
     return valid;
+}
+
+static bool rank_collect_frame(const RankLiteralFrame *frame, bool *force_unsafe, bool *has_question, uint32_t *questions) {
+    if (force_unsafe) *force_unsafe |= frame->access && frame->colon;
+    if (has_question) *has_question |= frame->question;
+    if (!questions) return true;
+    if (UINT32_MAX - *questions < frame->questions) return false;
+    *questions += frame->questions;
+    return true;
 }
 
 static void rank_push_code(RankLiteralFrames *frames, char opening, RankBodyMode mode, unsigned format_braces) {
@@ -101,16 +120,24 @@ static RankReadStep rank_read_code_step(TSLexer *lexer, RankLiteralFrames *frame
     RankReadStep literal = rank_push_literal(lexer, frames, c, question_free ? frame->mode : RANK_BODY_EXPRESSION);
     if (literal != RANK_READ_TOKEN) return literal;
     if (c == '@') return RANK_READ_MORE;
-    if (c == '?') {
-        frame->question = true;
-        advance(lexer);
-        bool binding = question_skip_separators(lexer) == '[';
-        frame->access |= binding;
-        return frame->mode == RANK_BODY_BRACKET && binding ? RANK_READ_UNKNOWN : RANK_READ_MORE;
-    }
+    if (c == '?') return rank_read_code_question(lexer, frame);
     if (c == '(' || c == '[' || c == '{') array_push(&frame->groups, (char)c);
     advance(lexer);
     return RANK_READ_MORE;
+}
+
+static RankReadStep rank_read_code_question(TSLexer *lexer, RankLiteralFrame *frame) {
+    frame->question = true;
+    advance(lexer);
+    if (frame->paired_question) frame->paired_question = false;
+    else if (lexer->lookahead == '?') frame->paired_question = true;
+    else {
+        if (frame->questions == UINT32_MAX) return RANK_READ_UNKNOWN;
+        frame->questions++;
+    }
+    bool binding = question_skip_separators(lexer) == '[';
+    frame->access |= binding;
+    return frame->mode == RANK_BODY_BRACKET && binding ? RANK_READ_UNKNOWN : RANK_READ_MORE;
 }
 
 static RankReadStep rank_read_code_identifier(TSLexer *lexer, RankLiteralFrame *frame) {
