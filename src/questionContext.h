@@ -130,6 +130,7 @@ typedef struct {
     unsigned brace_depth;
     uint8_t root_colons;
     bool root_binary;
+    bool prefix_ordinary;
     bool cached_access;
     bool binding;
     bool entering_binding;
@@ -455,7 +456,7 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
 
 static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk) {
     bool ambiguous_optional = (walk->reserved || walk->case_boundary) &&
-        ((walk->optional > 1 && !walk->is_ternary_eligible) ||
+        ((walk->optional > 1 && walk->prefix_ordinary) ||
          (walk->optional && !walk->is_eligible && walk->is_optional > walk->optional));
     if ((walk->mandatory && !walk->cached_access) ||
         (walk->root_colons && walk->type_operand && ambiguous_optional)) walk->role_known = false;
@@ -642,6 +643,7 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
         walk->is_as_phase = false;
     }
     else {
+        if (!walk->root_colons && following.token != '[' && !following.member) walk->prefix_ordinary = true;
         walk->future_ternary_eligible = walk->is_ternary_eligible;
         question_walk_future_question(walk, following);
     }
