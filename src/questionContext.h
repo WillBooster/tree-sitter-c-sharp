@@ -448,7 +448,7 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
 }
 
 static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk) {
-    if (walk->mandatory && !walk->cached_access) walk->role_known = false;
+    if ((walk->mandatory && !walk->cached_access) || (walk->root_colons && walk->type_operand)) walk->role_known = false;
     if (walk->known_ternary || (walk->role_known && walk->proved_ternary)) return 2;
     if (!walk->binding) return 0;
     if (walk->cached_access || walk->role_known || question_walk_access_prefix(walk)) return 1;
@@ -887,7 +887,7 @@ static void question_walk_colon(QuestionWalk *walk) {
 }
 
 static void question_walk_complete_colon(QuestionWalk *walk) {
-    if (walk->case_boundary && !walk->mandatory && walk->following.token == '[' && !walk->access_alternative) walk->role_active = false;
+    if (walk->case_boundary && walk->nullable_allowed && !walk->mandatory && walk->following.token == '[' && !walk->access_alternative) walk->role_active = false;
     bool known_ordinary = walk->ordinary && walk->role_known && !walk->nullable_only;
     bool ordinary_complete = known_ordinary && !walk->optional && walk->mandatory == walk->reserved;
     if (ordinary_complete || ((walk->recording || walk->ordinary) && !walk->mandatory && !walk->optional)) {
