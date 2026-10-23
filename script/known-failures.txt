@@ -1,7 +1,6 @@
 examples/Newtonsoft.Json/Src/Newtonsoft.Json.Tests/TestFixtureBase.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonTextReader.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonValidatingReader.cs
-examples/Newtonsoft.Json/Src/Newtonsoft.Json/JsonWriter.Async.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/IJEnumerable.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/JValue.cs
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Linq/JsonPath/FieldMultipleFilter.cs

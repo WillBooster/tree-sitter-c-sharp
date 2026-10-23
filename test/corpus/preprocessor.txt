@@ -992,3 +992,44 @@ switch (x) {
                   (invocation_expression
                     function: (identifier)
                     arguments: (argument_list)))))))))))
+
+================================================================================
+Nested conditional directives around switch sections
+================================================================================
+
+switch (x) {
+  case 0: break;
+#if A
+#if B
+  case 1: break;
+#endif
+  case 2: break;
+#endif
+  default: break;
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (switch_statement
+      value: (identifier)
+      body: (switch_body
+        (switch_section
+          (constant_pattern
+            (integer_literal))
+          (break_statement)
+          (preproc_if
+            condition: (identifier)
+            (preproc_if
+              condition: (identifier)
+              (switch_section
+                (constant_pattern
+                  (integer_literal))
+                (break_statement)))
+            (switch_section
+              (constant_pattern
+                (integer_literal))
+              (break_statement))))
+        (switch_section
+          (break_statement))))))

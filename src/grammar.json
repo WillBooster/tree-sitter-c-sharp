@@ -25131,11 +25131,35 @@
           "name": "_directive_newline"
         },
         {
-          "type": "REPEAT1",
-          "content": {
-            "type": "SYMBOL",
-            "name": "switch_section"
-          }
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "REPEAT1",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_preproc_if_in_switch_body"
+                  }
+                },
+                {
+                  "type": "REPEAT",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "switch_section"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "REPEAT1",
+              "content": {
+                "type": "SYMBOL",
+                "name": "switch_section"
+              }
+            }
+          ]
         },
         {
           "type": "FIELD",
@@ -25199,6 +25223,13 @@
           "type": "REPEAT",
           "content": {
             "type": "SYMBOL",
+            "name": "_preproc_if_in_switch_body"
+          }
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
             "name": "switch_section"
           }
         },
@@ -25237,6 +25268,13 @@
           "content": {
             "type": "SYMBOL",
             "name": "statement"
+          }
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_preproc_if_in_switch_body"
           }
         },
         {

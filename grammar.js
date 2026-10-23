@@ -2725,12 +2725,13 @@ module.exports = grammar({
     ...preprocIf('_in_top_level', ($) => conditionalStatements($), 0, false, true),
     ...preprocIf('_in_if_alternative', ($) => seq(optional('else'), conditionalStatements($)), 0, false),
 
-    // Alternatives start with any statements that continue the enclosing section, followed by complete sections.
+    // Alternatives start with any statements that continue the enclosing section. Nested directives precede the
+    // sections because a directive after a section belongs to that section's statements.
     preproc_if_in_switch_body: ($) =>
       conditionalDirective(
         'if',
         $,
-        repeat1($.switch_section),
+        choice(seq(repeat1($._preproc_if_in_switch_body), repeat($.switch_section)), repeat1($.switch_section)),
         field('alternative', optional($._preproc_switch_body_alternative)),
         preprocessor('endif')
       ),
@@ -2739,10 +2740,12 @@ module.exports = grammar({
         'elif',
         $,
         repeat($.statement),
+        repeat($._preproc_if_in_switch_body),
         repeat($.switch_section),
         field('alternative', optional($._preproc_switch_body_alternative))
       ),
-    preproc_else_in_switch_body: ($) => seq(preprocessor('else'), repeat($.statement), repeat($.switch_section)),
+    preproc_else_in_switch_body: ($) =>
+      seq(preprocessor('else'), repeat($.statement), repeat($._preproc_if_in_switch_body), repeat($.switch_section)),
     _preproc_switch_body_alternative: () =>
       choice(
         alias(sym('preproc_else_in_switch_body'), sym('preproc_else')),
