@@ -482,7 +482,7 @@ typedef enum {
 #include "ifAlternativeDirective.h"
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
-static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable);
+static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable, bool known_ternary);
 static enum TokenType question_access_symbol(const bool *valid_symbols, const QuestionFollowing *next);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
@@ -1073,20 +1073,21 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     if (lexer->log) lexer->log(lexer, "question_role role=%u access=%d ternary=%d nullable=%d unknown=%d", role,
         (valid_symbols[QUESTION_MEMBER_ACCESS] || valid_symbols[QUESTION_ELEMENT_ACCESS]), valid_symbols[QUESTION_TERNARY],
         valid_symbols[QUESTION_NULLABLE], valid_symbols[QUESTION_UNKNOWN]);
-    QuestionScanResult result = select_question_symbol(lexer, valid_symbols, &next, role, known_nullable);
+    QuestionScanResult result = select_question_symbol(lexer, valid_symbols, &next, role, known_nullable, known_ternary);
     if (result == QUESTION_MATCHED && lexer->result_symbol == QUESTION_TERNARY)
         scanner->question_type_uncertain = false;
     return result;
 }
 
-static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable) {
+static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable, bool known_ternary) {
     if (role == QUESTION_ROLE_INVALID) return QUESTION_MISMATCHED;
     enum TokenType symbol;
     if (known_nullable) {
         symbol = QUESTION_NULLABLE;
     } else if (role == 2) {
-        if (valid_symbols[CASE_LABEL_COLON]) return QUESTION_MISMATCHED;
-        symbol = QUESTION_TERNARY;
+        bool nullable_fallback = !known_ternary && (!valid_symbols[QUESTION_TERNARY] || valid_symbols[CASE_LABEL_COLON]);
+        if (valid_symbols[CASE_LABEL_COLON] && !nullable_fallback) return QUESTION_MISMATCHED;
+        symbol = nullable_fallback ? QUESTION_NULLABLE : QUESTION_TERNARY;
     } else if (role == 1 || role == 3) {
         symbol = question_access_symbol(valid_symbols, next);
     } else if (!role) {

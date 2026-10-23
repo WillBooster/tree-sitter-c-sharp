@@ -351,4 +351,80 @@ export const ownershipSamples = [
     source: "var r = a is T ? x = d ? [1] : new T?[b ? 1 : 2] : b ? c : e;",
     ranges: [[[8,14],[17,48],[51,60]],[[21,22],[25,28],[31,48]],[[38,39],[42,43],[46,47]],[[51,52],[55,56],[59,60]]],
   },
+  {
+    source: "switch (v) { case 1 when new int?[1]: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case 1 when new int?[1] != null: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case 1 when new int?[1].Length > 0: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case 1 when new T?[1,2]: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case 1 when new T?[1][]: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case int? z when new int?[1]: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case int? z when new int?[1] != null: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case int? z when new int?[1].Length > 0: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case int? z when new T?[1,2]: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case int? z when new T?[1][]: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case 1 when x is T?[,] ? z ? a?[x] : a?[0] : w: break; }",
+    ranges: [[[25,35],[38,55],[58,59]],[[38,39],[42,47],[50,55]]],
+  },
+  {
+    source: "switch (v) { case 1 when x is int?[,] ? z ? a?[x] : a?[0] : w: break; }",
+    ranges: [[[25,37],[40,57],[60,61]],[[40,41],[44,49],[52,57]]],
+  },
+  {
+    source: "switch (v) { case 1 when x is T?[,,] ? z ? a?[x] : a?[0] : w: break; }",
+    ranges: [[[25,36],[39,56],[59,60]],[[39,40],[43,48],[51,56]]],
+  },
+  {
+    source: "switch (v) { case 1 or 2 when x is T?[,] ? z ? a?[x] : a?[0] : w: break; }",
+    ranges: [[[30,40],[43,60],[63,64]],[[43,44],[47,52],[55,60]]],
+  },
+  {
+    source: "switch (v) { case 1 or 2 when x is int?[,] ? z ? a?[x] : a?[0] : w: break; }",
+    ranges: [[[30,42],[45,62],[65,66]],[[45,46],[49,54],[57,62]]],
+  },
+  {
+    source: "switch (v) { case 1 or 2 when x is T?[,,] ? z ? a?[x] : a?[0] : w: break; }",
+    ranges: [[[30,41],[44,61],[64,65]],[[44,45],[48,53],[56,61]]],
+  },
+  {
+    source: "switch (v) { case int? z when x is T?[,] ? z ? a?[x] : a?[0] : w: break; }",
+    ranges: [[[30,40],[43,60],[63,64]],[[43,44],[47,52],[55,60]]],
+  },
+  {
+    source: "switch (v) { case 1 or 2 when new int?[1]: break; }",
+    ranges: [],
+  },
+  {
+    source: "switch (v) { case 1 or 2 when new int?[1] != null: break; }",
+    ranges: [],
+  },
 ];

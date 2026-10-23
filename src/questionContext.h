@@ -779,7 +779,7 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
 }
 
 static bool question_walk_multidimensional_rank(TSLexer *lexer, QuestionWalk *walk, int32_t *first) {
-    if (*first != ',' || !walk->nullable_context || !walk->nullable_allowed) return true;
+    if (*first != ',' || !walk->nullable_context || !walk->nullable_allowed || walk->case_colon_possible) return true;
     do { advance(lexer); *first = question_skip_separators(lexer); } while (*first == ',');
     if (*first != ']') return false;
     walk->known_nullable = true;
