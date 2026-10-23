@@ -94,6 +94,7 @@ typedef struct {
     uint32_t query_pending;
     uint32_t lambda_query;
     uint32_t generic_pending;
+    uint16_t rank_modes[4];
     bool query_result;
     bool lambda_result;
     bool unknown;
@@ -984,6 +985,10 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 static bool scan_conditional_consequence(Scanner *scanner, TSLexer *lexer) {
     TernaryConfirmation value = scanner->ternary_confirmation;
     if (value.valid && value.frame < scanner->question_frame_count) {
+        QuestionFrame *frame = &scanner->question_frames[value.frame];
+        if (scanner->question_unknown != value.unknown) question_clear_rank_from(scanner, 0);
+        else if (frame->pending != value.pending || frame->unknown != value.frame_unknown)
+            question_clear_rank_from(scanner, value.frame + 1);
         scanner->question_frames[value.frame].pending = value.pending;
         scanner->question_frames[value.frame].unknown = value.frame_unknown;
         scanner->question_unknown = value.unknown;

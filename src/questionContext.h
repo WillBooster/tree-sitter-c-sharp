@@ -109,6 +109,8 @@ static void question_scope_init(Scanner *scope, const Scanner *source) {
 
 static bool question_rank_scope(Scanner *, QuestionInput *, QuestionCheckpoint, unsigned, bool);
 static bool question_apply_event(Scanner *, char);
+static void question_end_lambda(QuestionFrame *);
+static void question_clear_rank_from(Scanner *, unsigned);
 #include "nullableRank.h"
 
 typedef enum {
@@ -279,10 +281,8 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     QuestionInput input = question_input_create(lexer);
     lexer = &input.lexer;
     QuestionWalk walk = question_walk_create(scanner, following, *known_nullable, context_flags, rank_phase);
-    Scanner preview;
     walk.input = &input;
     walk.scanner = scanner;
-    walk.preview = &preview;
     for (unsigned i = 0; i < scanner->question_frame_count; i++)
         walk.lambda_prefix |= scanner->question_frames[i].force_barrier;
     Interpolation *interpolation = question_interpolation(scanner);
@@ -309,6 +309,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     *known_ternary = walk.known_ternary;
     array_delete(&walk.groups);
     array_delete(&walk.events);
+    ts_free(walk.preview);
     array_delete(&input.characters);
     return result;
 unknown:
@@ -317,6 +318,7 @@ unknown:
     scanner->question_access_cache = 0;
     array_delete(&walk.groups);
     array_delete(&walk.events);
+    ts_free(walk.preview);
     array_delete(&input.characters);
     *known_nullable = walk.known_nullable;
     *known_ternary = walk.known_ternary;

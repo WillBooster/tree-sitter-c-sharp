@@ -152,6 +152,53 @@ test('invalidates incomplete enclosing-rank context after tail edits', () => {
   }
 });
 
+test('invalidates invocation ownership proof after future argument and enclosing edits', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(
+    language,
+    '(conditional_expression condition: (_) @condition consequence: (_) @consequence alternative: (_) @alternative)'
+  );
+  const target = 'a is T[]?[] ? [1] : c';
+  const base = `var r = flag ? x is T?[,] ? f(${target}, ${target}, ${target}) : a?[0] : end; class Following {}`;
+  const changed = [
+    base.replace(`${target})`, 'y=>y)'),
+    base.replace(': a?[0] : end', ': a : end'),
+    base.replace('x is T?[,] ?', 'x ?'),
+    base.replace(`${target})`, 'from y in ys orderby y, y.Q select y)'),
+  ];
+  let previous = base;
+  let tree = parser.parse(previous)!;
+  try {
+    for (const source of changed.flatMap((source) => [source, base])) {
+      const fresh = parser.parse(source)!;
+      editTree(tree, previous, source);
+      const incremental = parser.parse(source, tree)!;
+      try {
+        expect(fresh.rootNode.hasError, source).toBe(false);
+        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        expect(ownershipCaptures(query, incremental.rootNode), source).toEqual(
+          ownershipCaptures(query, fresh.rootNode)
+        );
+        expect(
+          fresh.rootNode
+            .descendantsOfType('class_declaration')
+            .map((node) => [node.text, node.startIndex, node.endIndex]),
+          source
+        ).toEqual([['class Following {}', source.lastIndexOf('class Following {}'), source.length]]);
+      } finally {
+        fresh.delete();
+        tree.delete();
+        tree = incremental;
+        previous = source;
+      }
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
 function ownershipCaptures(query: Query, node: Node): string[] {
   return query
     .captures(node)

@@ -3,15 +3,52 @@
 
 static bool question_walk_scope_prefix(QuestionWalk *, unsigned, bool);
 
+static bool rank_prepare_arguments(const Scanner *scanner, RankScopeRead *scope, Scanner *context) {
+    question_scope_init(context, scanner);
+    if (scope->prefix_questions && !question_rank_scope(context, scope->input, scope->prefix, scope->tail.cursor, true)) return false;
+    const QuestionFrame *frame = &context->question_frames[context->question_frame_count - 1];
+    if (frame->group != 'p' || frame->force_barrier || frame->generic_pending) return false;
+    if (!question_rank_scope(context, scope->input, scope->tail, scope->end, false)) return false;
+    return !context->question_frames[context->question_frame_count - 1].query_pending;
+}
+
+static bool rank_complete_arguments(TSLexer *lexer, RankScopeRead *scope, Scanner *context) {
+    QuestionCheckpoint restore = {.cursor = scope->input->cursor, .capturing = scope->input->capturing};
+    bool valid = true;
+    while (lexer->lookahead == ',') {
+        if (!question_apply_event(context, ',')) { valid = false; break; }
+        advance(lexer);
+        if (!rank_complete_sibling(lexer, context, scope->input)) { valid = false; break; }
+    }
+    valid = valid && lexer->lookahead == ')' &&
+        !context->question_frames[context->question_frame_count - 1].query_pending;
+    if (valid) question_end_lambda(&context->question_frames[context->question_frame_count - 1]);
+    else question_input_restore(scope->input, restore);
+    return valid;
+}
+
+static bool rank_complete_sibling(TSLexer *lexer, Scanner *context, QuestionInput *input) {
+    QuestionCheckpoint start = {.cursor = input->cursor, .capturing = input->capturing};
+    RankTokens sibling = array_new();
+    unsigned colons = 0;
+    bool read = rank_read_stream_from(lexer, &sibling, &colons, true);
+    RankParse summary[2] = {0};
+    if (read) rank_evaluate_modes(&sibling, ((unsigned)-1), summary);
+    bool valid = read && summary[0].valid && summary[0].end == sibling.size - 1;
+    array_delete(&sibling);
+
+    return valid && question_rank_scope(context, input, start, input->cursor, false);
+}
+
+
 static bool question_rank_scope(Scanner *context, QuestionInput *input, QuestionCheckpoint start, unsigned end, bool normalize) {
     QuestionCheckpoint restore = {.cursor = input->cursor, .capturing = input->capturing};
     question_input_restore(input, (QuestionCheckpoint){start.cursor, true});
-    Scanner local, preview;
+    Scanner local;
     question_scope_init(&local, context);
     QuestionWalk walk = question_walk_create(&local, (QuestionFollowing){0}, false, 0, RANK_NONE);
     walk.input = input;
     walk.scanner = &local;
-    walk.preview = &preview;
     walk.syntax_only = true;
     walk.discard_to_question = normalize;
     walk.role_active = false;
@@ -37,6 +74,7 @@ static bool question_rank_scope(Scanner *context, QuestionInput *input, Question
         context->question_frame_count = local.question_frame_count;
         array_assign(&context->interpolation_stack, &local.interpolation_stack);
     }
+    ts_free(walk.preview);
     array_delete(&local.interpolation_stack);
     array_delete(&walk.groups);
     array_delete(&walk.events);
@@ -71,6 +109,7 @@ static bool question_generic_permitted(uint8_t kind, const QuestionGenericContex
 
 static const QuestionFrame *question_walk_prefix_frame(QuestionWalk *walk) {
     if (!walk->preview_ready) {
+        if (!walk->preview) walk->preview = ts_malloc(sizeof(*walk->preview));
         *walk->preview = *walk->scanner;
         walk->preview_ready = true;
         walk->preview_valid = true;
