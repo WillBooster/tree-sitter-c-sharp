@@ -6369,6 +6369,10 @@
           "named": true
         },
         {
+          "type": "switch_section",
+          "named": true
+        },
+        {
           "type": "type_declaration",
           "named": true
         }
@@ -6458,6 +6462,10 @@
         },
         {
           "type": "switch_expression_arm",
+          "named": true
+        },
+        {
+          "type": "switch_section",
           "named": true
         },
         {
@@ -6627,6 +6635,10 @@
         },
         {
           "type": "switch_expression_arm",
+          "named": true
+        },
+        {
+          "type": "switch_section",
           "named": true
         },
         {
@@ -7572,6 +7584,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "preproc_if",
+          "named": true
+        },
         {
           "type": "switch_section",
           "named": true

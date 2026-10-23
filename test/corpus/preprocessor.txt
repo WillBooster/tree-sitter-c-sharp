@@ -914,3 +914,81 @@ M(
               condition: (identifier)
               (argument
                 (identifier)))))))))
+
+================================================================================
+Switch sections inside conditional directives
+================================================================================
+
+switch (x) {
+#if A
+  case 0: break;
+#endif
+  case 1:
+#if B
+  case 2:
+#endif
+#if C
+    Foo();
+#endif
+    break;
+#if D
+  case 3:
+    break;
+#elif E
+    Bar();
+  case 4:
+    break;
+#else
+    Baz();
+#endif
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (switch_statement
+      value: (identifier)
+      body: (switch_body
+        (preproc_if
+          condition: (identifier)
+          (switch_section
+            (constant_pattern
+              (integer_literal))
+            (break_statement)))
+        (switch_section
+          (constant_pattern
+            (integer_literal))
+          (preproc_if
+            condition: (identifier)
+            (switch_section
+              (constant_pattern
+                (integer_literal))))
+          (preproc_if
+            condition: (identifier)
+            (expression_statement
+              (invocation_expression
+                function: (identifier)
+                arguments: (argument_list))))
+          (break_statement)
+          (preproc_if
+            condition: (identifier)
+            (switch_section
+              (constant_pattern
+                (integer_literal))
+              (break_statement))
+            alternative: (preproc_elif
+              condition: (identifier)
+              (expression_statement
+                (invocation_expression
+                  function: (identifier)
+                  arguments: (argument_list)))
+              (switch_section
+                (constant_pattern
+                  (integer_literal))
+                (break_statement))
+              alternative: (preproc_else
+                (expression_statement
+                  (invocation_expression
+                    function: (identifier)
+                    arguments: (argument_list)))))))))))

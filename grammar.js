@@ -1412,16 +1412,18 @@ module.exports = grammar({
         field('body', $.switch_body)
       ),
 
-    switch_body: ($) => seq('{', repeat($.switch_section), blockEnd()),
+    switch_body: ($) => seq('{', repeat($._preproc_if_in_switch_body), repeat($.switch_section), blockEnd()),
 
     switch_section: ($) =>
       prec.left(
         seq(
           choice(seq('case', choice($.expression, seq($.pattern, optional($.when_clause)))), 'default'),
           alias(sym('_case_label_colon'), ':'),
-          repeat($.statement)
+          repeat(choice($.statement, $._preproc_if_in_switch_body))
         )
       ),
+
+    _preproc_if_in_switch_body: () => alias(sym('preproc_if_in_switch_body'), sym('preproc_if')),
 
     throw_statement: ($) => seq('throw', optional($.expression), statementEnd()),
 
@@ -2723,6 +2725,29 @@ module.exports = grammar({
     ...preprocIf('_in_top_level', ($) => conditionalStatements($), 0, false, true),
     ...preprocIf('_in_if_alternative', ($) => seq(optional('else'), conditionalStatements($)), 0, false),
 
+    // Alternatives start with any statements that continue the enclosing section, followed by complete sections.
+    preproc_if_in_switch_body: ($) =>
+      conditionalDirective(
+        'if',
+        $,
+        repeat1($.switch_section),
+        field('alternative', optional($._preproc_switch_body_alternative)),
+        preprocessor('endif')
+      ),
+    preproc_elif_in_switch_body: ($) =>
+      conditionalDirective(
+        'elif',
+        $,
+        repeat($.statement),
+        repeat($.switch_section),
+        field('alternative', optional($._preproc_switch_body_alternative))
+      ),
+    preproc_else_in_switch_body: ($) => seq(preprocessor('else'), repeat($.statement), repeat($.switch_section)),
+    _preproc_switch_body_alternative: () =>
+      choice(
+        alias(sym('preproc_else_in_switch_body'), sym('preproc_else')),
+        alias(sym('preproc_elif_in_switch_body'), sym('preproc_elif'))
+      ),
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),
     ...conditionalListDirective('_in_initializer', ($) => $.expression),
     ...conditionalListDirective(
