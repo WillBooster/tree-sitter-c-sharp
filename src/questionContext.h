@@ -481,7 +481,7 @@ static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, i
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     unsigned role = question_walk_role(lexer, walk);
-    bool confirmable = !role && walk->ordinary && !walk->known_nullable;
+    bool confirmable = !role && walk->ordinary && !walk->known_nullable && !walk->assignment_possible;
     Scanner confirmed;
     if (confirmable) {
         confirmed = *scanner;
