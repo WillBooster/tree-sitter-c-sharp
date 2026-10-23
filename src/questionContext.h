@@ -199,6 +199,7 @@ static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, const Ques
 
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as);
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk);
+static void question_walk_coalescing(TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_assignment_context(QuestionWalk *walk, bool comparison);
@@ -416,7 +417,7 @@ static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, i
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     unsigned role = question_walk_role(lexer, walk);
-    bool confirmation_proved = walk->depth || walk->root_colons < 2 || !walk->optional ||
+    bool confirmation_proved = walk->depth > 0 || walk->root_colons < 2 || !walk->optional ||
         (walk->optional == 1 && walk->confirmation_type);
     bool confirmable = !role && walk->ordinary && !walk->known_nullable && !walk->assignment_possible && confirmation_proved;
     Scanner confirmed;
@@ -597,10 +598,7 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
     if (walk->known_nullable || walk->known_ternary) walk->role_active = false;
     advance(lexer);
     if (lexer->lookahead == '?') {
-        if (walk->is_as_phase) walk->is_eligible = false;
-        if (!walk->depth && walk->binding && !walk->cache_colon) walk->root_binary = true;
-        advance(lexer);
-        if (lexer->lookahead == '=') advance(lexer);
+        question_walk_coalescing(lexer, walk);
         return QUESTION_WALK_CONTINUE;
     }
     if (walk->role_active && walk->binding && walk->depth == 1 && walk->groups.size &&
@@ -616,6 +614,16 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
     walk->found_next_question = true;
     walk->recording = false;
     return walk->role_active ? QUESTION_WALK_CONTINUE : QUESTION_WALK_STOP;
+}
+
+static void question_walk_coalescing(TSLexer *lexer, QuestionWalk *walk) {
+    if (walk->is_as_phase) walk->is_eligible = false;
+    if (!walk->depth && walk->binding && !walk->cache_colon) walk->root_binary = true;
+    advance(lexer);
+    if (lexer->lookahead == '=') {
+        question_walk_assignment_context(walk, false);
+        advance(lexer);
+    }
 }
 
 static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
