@@ -15,7 +15,7 @@ typedef struct { bool unknown, extended, rank, cache, depths, confirmation; } Qu
 static QuestionSerialization question_serialization_plan(const Scanner *scanner, unsigned available) {
     bool confirmation = scanner->ternary_confirmation.valid;
     bool extended = (!scanner->question_unknown || confirmation) && (scanner->question_frame_count > 1 ||
-        scanner->question_frames[0].pending || scanner->question_frames[0].unknown || scanner->question_frames[0].case_colon || scanner->question_frames[0].force_barrier);
+        scanner->question_frames[0].pending || scanner->question_frames[0].unknown || scanner->question_frames[0].case_colon || scanner->question_frames[0].force_barrier || scanner->question_frames[0].query_pending || scanner->question_frames[0].query_result || scanner->question_frames[0].generic_pending);
     bool unknown = scanner->question_unknown;
     unsigned extension_size = extended ? question_serialized_size(scanner) : 2;
     if (extended && extension_size > available) {
@@ -68,34 +68,77 @@ static void question_serialize_modes(const Scanner *scanner, QuestionSerializati
 }
 
 static bool question_apply_event(Scanner *scanner, char event);
+static bool question_apply_scope_event(QuestionFrame *, char);
 
-static void apply_question_events(Scanner *scanner, const char *events, unsigned count) {
+static bool apply_question_events(Scanner *scanner, const char *events, unsigned count) {
     for (unsigned i = 0; i < count; i++) {
         if (question_apply_event(scanner, events[i])) continue;
         scanner->question_unknown = true;
         scanner->question_access_cache = 0;
-        return;
+        return false;
     }
+    return true;
 }
 
 static bool question_apply_event(Scanner *scanner, char event) {
-    if (event == '(' || event == '[' || event == '{') {
+    if (event == 'p' || event == '(' || event == '[' || event == '{') {
         if (scanner->question_frame_count == QUESTION_FRAME_LIMIT) return false;
         scanner->question_frames[scanner->question_frame_count++] = (QuestionFrame){.group = (uint8_t)event};
         return true;
     }
     if (event == ')' || event == ']' || event == '}') return question_close_frame(scanner, event);
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    if (event == 'l') frame->force_barrier = true;
+    if (!question_apply_scope_event(frame, event)) return false;
     if (event == ':') {
         if (frame->pending) frame->pending--;
         else if (!frame->unknown && !scanner->question_unknown) frame->case_colon = false;
     }
     if (event != ';') return true;
     frame->pending = 0;
+    frame->query_pending = 0;
+    frame->generic_pending = 0;
+    frame->query_result = false;
+    frame->lambda_query = 0;
+    frame->lambda_result = false;
     frame->unknown = false;
     frame->case_colon = false;
     if (scanner->question_frame_count == 1) reset_question_context(scanner);
+    return true;
+}
+
+static bool question_apply_scope_event(QuestionFrame *frame, char event) {
+    if (event == 'g') {
+        if (frame->generic_pending == UINT32_MAX) return false;
+        frame->generic_pending++;
+    }
+    if (event == 'h' && frame->generic_pending) frame->generic_pending--;
+    if (frame->generic_pending && (event == ',' || event == 'q' || event == 's' || event == 'i' || event == 'k')) return true;
+    if (event == 'l' && !frame->force_barrier) {
+        frame->lambda_query = frame->query_pending;
+        frame->lambda_result = frame->query_result;
+        frame->force_barrier = true;
+    }
+    if (event == 'q' || (event == 'i' && frame->query_result)) {
+        if (event == 'q') frame->lambda_result = false;
+        else if (frame->lambda_result) {
+            frame->force_barrier = false;
+            frame->lambda_query = 0;
+            frame->lambda_result = false;
+        }
+        if (frame->query_pending == UINT32_MAX) return false;
+        frame->query_pending++;
+        frame->query_result = false;
+    }
+    if (event == 's' && frame->query_pending) { frame->query_pending--; frame->query_result = true; }
+    if (event == 'k' && frame->query_pending) frame->query_result = false;
+    if (event == ',') {
+        if (frame->query_pending <= frame->lambda_query) {
+            frame->force_barrier = false;
+            frame->lambda_query = 0;
+            frame->lambda_result = false;
+        }
+        frame->query_result = false;
+    }
     return true;
 }
 
@@ -104,14 +147,15 @@ static bool question_close_frame(Scanner *scanner, char closing) {
     bool root = scanner->question_frame_count == 1;
     if (root && question_context_idle(scanner) && !scanner->question_unknown) return true;
     char opening = closing == ')' ? '(' : closing == ']' ? '[' : '{';
-    if (root || frame->group != opening) return false;
+    if (root || (frame->group != opening && !(closing == ')' && frame->group == 'p'))) return false;
     scanner->question_frame_count--;
     return true;
 }
 
 static bool question_context_idle(const Scanner *scanner) {
     return scanner->question_frame_count == 1 && !scanner->question_frames[0].pending &&
-        !scanner->question_frames[0].unknown && !scanner->question_frames[0].case_colon;
+        !scanner->question_frames[0].unknown && !scanner->question_frames[0].case_colon &&
+        !scanner->question_frames[0].query_pending && !scanner->question_frames[0].query_result && !scanner->question_frames[0].generic_pending;
 }
 
 static void question_save_confirmation(Scanner *scanner, const Scanner *confirmed) {
@@ -120,7 +164,10 @@ static void question_save_confirmation(Scanner *scanner, const Scanner *confirme
     for (unsigned i = 0; i < scanner->question_frame_count; i++) {
         QuestionFrame actual = scanner->question_frames[i];
         QuestionFrame next = confirmed->question_frames[i];
-        if (actual.group != next.group || actual.case_colon != next.case_colon || actual.force_barrier != next.force_barrier) return;
+        if (actual.group != next.group || actual.case_colon != next.case_colon || actual.force_barrier != next.force_barrier ||
+            actual.query_pending != next.query_pending || actual.query_result != next.query_result ||
+            actual.lambda_query != next.lambda_query || actual.lambda_result != next.lambda_result ||
+            actual.generic_pending != next.generic_pending) return;
         if (actual.pending == next.pending && actual.unknown == next.unknown) continue;
         if (changed >= 0) return;
         changed = (int)i;
@@ -160,12 +207,27 @@ static bool question_read_rank(Scanner *scanner, unsigned flags, const char *buf
     return true;
 }
 
+static unsigned question_varint_size(uint32_t value) {
+    unsigned size = 1;
+    while (value >>= 7) size++;
+    return size;
+}
+
+static void question_write_varint(char *buffer, unsigned *size, uint32_t value) {
+    do {
+        unsigned byte = value & 127;
+        value >>= 7;
+        buffer[(*size)++] = (char)(byte | (value ? 128 : 0));
+    } while (value);
+}
+
 static unsigned question_serialized_size(const Scanner *scanner) {
     unsigned size = 2;
     for (unsigned i = 0; i < scanner->question_frame_count; i++) {
-        uint32_t pending = scanner->question_frames[i].pending;
-        size++;
-        do { size++; pending >>= 7; } while (pending);
+        QuestionFrame frame = scanner->question_frames[i];
+        size += 1 + question_varint_size(frame.pending);
+        if (frame.query_pending || frame.lambda_query || frame.generic_pending)
+            size += 1 + question_varint_size(frame.query_pending) + question_varint_size(frame.lambda_query) + question_varint_size(frame.generic_pending);
     }
     return size;
 }
@@ -175,12 +237,15 @@ static void question_serialize(const Scanner *scanner, char *buffer, unsigned *s
     buffer[(*size)++] = (char)(scanner->question_frame_count >> 8);
     for (unsigned i = 0; i < scanner->question_frame_count; i++) {
         QuestionFrame frame = scanner->question_frames[i];
+        bool extra = frame.query_pending || frame.lambda_query || frame.generic_pending;
+        if (extra) buffer[(*size)++] = 7;
         buffer[(*size)++] = (char)question_frame_modes(frame);
-        do {
-            unsigned byte = frame.pending & 127;
-            frame.pending >>= 7;
-            buffer[(*size)++] = (char)(byte | (frame.pending ? 128 : 0));
-        } while (frame.pending);
+        question_write_varint(buffer, size, frame.pending);
+        if (extra) {
+            question_write_varint(buffer, size, frame.query_pending);
+            question_write_varint(buffer, size, frame.lambda_query);
+            question_write_varint(buffer, size, frame.generic_pending);
+        }
     }
 }
 
@@ -193,11 +258,23 @@ static bool question_deserialize(Scanner *scanner, const char *buffer, unsigned 
     for (unsigned i = 0; i < count; i++) {
         if (*size == length) return false;
         unsigned group = (unsigned char)buffer[(*size)++];
-        if ((group & ~31U) || (!i && (group & 3)) || (i && !(group & 3))) return false;
-        static const char groups[] = {0, '(', '[', '{'};
-        QuestionFrame frame = {.group = groups[group & 3], .unknown = (group & 4) != 0,
-            .case_colon = (group & 8) != 0, .force_barrier = (group & 16) != 0};
+        bool extra = group == 7;
+        if (extra) {
+            if (*size == length) return false;
+            group = (unsigned char)buffer[(*size)++];
+        }
+        unsigned kind = group & 7;
+        if (kind > 4 || (!i && kind) || (i && !kind)) return false;
+        static const char groups[] = {0, '(', '[', '{', 'p'};
+        QuestionFrame frame = {.group = groups[kind], .unknown = (group & 8) != 0,
+            .case_colon = (group & 16) != 0, .force_barrier = (group & 32) != 0,
+            .query_result = (group & 64) != 0, .lambda_result = (group & 128) != 0};
         if (!question_read_varint(buffer, length, size, &frame.pending)) return false;
+        if (extra && (!question_read_varint(buffer, length, size, &frame.query_pending) ||
+            !question_read_varint(buffer, length, size, &frame.lambda_query) ||
+            !question_read_varint(buffer, length, size, &frame.generic_pending) ||
+            (!frame.query_pending && !frame.lambda_query && !frame.generic_pending))) return false;
+        if (!frame.force_barrier && (frame.lambda_query || frame.lambda_result)) return false;
         scanner->question_frames[i] = frame;
     }
     return true;
@@ -215,8 +292,9 @@ static bool question_read_varint(const char *buffer, unsigned length, unsigned *
 }
 
 static unsigned question_frame_modes(QuestionFrame frame) {
-    unsigned group = frame.group == '(' ? 1 : frame.group == '[' ? 2 : frame.group == '{' ? 3 : 0;
-    return group | (frame.unknown ? 4 : 0) | (frame.case_colon ? 8 : 0) | (frame.force_barrier ? 16 : 0);
+    unsigned group = frame.group == '(' ? 1 : frame.group == '[' ? 2 : frame.group == '{' ? 3 : frame.group == 'p' ? 4 : 0;
+    return group | (frame.unknown ? 8 : 0) | (frame.case_colon ? 16 : 0) |
+        (frame.force_barrier ? 32 : 0) | (frame.query_result ? 64 : 0) | (frame.lambda_result ? 128 : 0);
 }
 
 #endif

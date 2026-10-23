@@ -91,6 +91,11 @@ static inline bool is_raw(Interpolation *interpolation) { return interpolation->
 typedef struct {
     uint8_t group;
     uint32_t pending;
+    uint32_t query_pending;
+    uint32_t lambda_query;
+    uint32_t generic_pending;
+    bool query_result;
+    bool lambda_result;
     bool unknown;
     bool case_colon;
     bool force_barrier;
@@ -208,6 +213,12 @@ static void clear_question_rank(Scanner *scanner) {
     scanner->question_rank_role = 0;
     scanner->question_rank_prefix_questions = 0;
 }
+
+typedef enum {
+    QUESTION_NOT_STARTED,
+    QUESTION_MATCHED,
+    QUESTION_MISMATCHED,
+} QuestionScanResult;
 
 #include "questionContext.h"
 #include "questionState.h"
@@ -472,13 +483,6 @@ static bool scan_file_directive_kind(TSLexer *lexer);
 static bool scan_pragma_boundary(TSLexer *lexer);
 static bool scan_pragma_text(TSLexer *lexer);
 
-typedef enum {
-    QUESTION_NOT_STARTED,
-    QUESTION_MATCHED,
-    QUESTION_MISMATCHED,
-} QuestionScanResult;
-
-#include "genericExpressions.h"
 #include "ifAlternativeDirective.h"
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);

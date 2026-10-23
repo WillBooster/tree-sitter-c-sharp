@@ -13,6 +13,8 @@ typedef enum {
     RANK_PATTERN_COMPLETE,
 } NullableRankRole;
 
+typedef struct { QuestionInput *input; QuestionCheckpoint prefix, tail; unsigned end; bool prefix_questions; } RankScopeRead;
+
 typedef enum { RANK_ATOM, RANK_NONPRIMARY_ATOM, RANK_LAMBDA, RANK_IS_TYPE, RANK_DEFINITE_TYPE, RANK_QUESTION, RANK_COLON, RANK_CONTINUATION, RANK_AS, RANK_SWITCH, RANK_BINARY, RANK_BINARY_PRIMARY, RANK_NESTED_ATOM, RANK_END } RankTokenKind;
 typedef enum { RANK_CERT_START, RANK_CERT_INVALID, RANK_CERT_DECIMAL, RANK_CERT_NAME, RANK_CERT_IS, RANK_CERT_TYPE } RankCertificate;
 typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid; } RankParse;
@@ -29,6 +31,9 @@ static RankCertificate rank_certify_word(RankCertificate certificate, const Ques
 static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite);
 static bool rank_read_bracket(TSLexer *lexer);
 static bool rank_read_stream(TSLexer *lexer, RankTokens *tokens, unsigned *colons);
+static bool rank_read_stream_from(TSLexer *, RankTokens *, unsigned *, bool);
+static bool rank_complete_arguments(TSLexer *, const Scanner *, RankScopeRead *, Scanner *);
+static bool rank_complete_sibling(TSLexer *, Scanner *, QuestionInput *);
 static bool rank_read_atom(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static bool rank_read_collection(TSLexer *lexer, RankTokens *tokens);
 static bool rank_read_operator(TSLexer *lexer, RankTokens *tokens, unsigned *colons, bool *atom, bool division);
@@ -62,15 +67,27 @@ static bool rank_read_rhs_generic(TSLexer *lexer, bool *colon, bool *generic, bo
 static bool rank_read_terminal(TSLexer *lexer, bool *colon);
 static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static void rank_evaluate_modes(const RankTokens *tokens, unsigned target, RankParse modes[2]);
-static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next);
-static void rank_enclosing_modes(TSLexer *lexer, Scanner *scanner, RankParse modes[2]);
+static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next, RankScopeRead *);
+
+static void rank_enclosing_modes(TSLexer *lexer, Scanner *scanner, RankParse modes[2], bool);
 static unsigned rank_enclosing_boundary(const Scanner *scanner, unsigned frame);
 static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, unsigned start, bool force, unsigned target);
 static RankParse rank_atom_summary(RankToken atom, bool force);
 static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
 static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
 
+static uint8_t rank_stream_input(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
+
 static uint8_t rank_stream_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions) {
+    QuestionInput input = question_input_create(lexer);
+    uint8_t role = rank_stream_input(&input.lexer, scanner, questions, &input);
+    array_delete(&input.characters);
+    return role;
+}
+
+static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
+    QuestionCheckpoint prefix = question_input_checkpoint(input);
+    uint32_t prior_questions = *questions;
     uint32_t pending = scanner->question_frames[scanner->question_frame_count - 1].pending;
     int32_t first = question_skip_separators(lexer);
     if (first == '(' || first == '[' || first == '{') {
@@ -90,10 +107,14 @@ static uint8_t rank_stream_role(TSLexer *lexer, Scanner *scanner, uint32_t *ques
     RankTokens tail = array_new();
     bool definite = false;
     unsigned colons = 0;
-    if (!rank_read_omitted_ranks(lexer, &tail, &definite) || !rank_read_stream(lexer, &tail, &colons) || pending > colons) {
+    if (!rank_read_omitted_ranks(lexer, &tail, &definite)) { array_delete(&tail); return RANK_NONE; }
+    RankScopeRead scope_read = {.input = input, .prefix = prefix,
+        .tail = {.cursor = input->cursor, .capturing = input->capturing}, .prefix_questions = *questions > prior_questions};
+    if (!rank_read_stream(lexer, &tail, &colons) || pending > colons) {
         array_delete(&tail);
         return RANK_NONE;
     }
+    scope_read.end = input->cursor;
     if (!pending && simple_type && !definite &&
         (lexer->lookahead == ';' || lexer->eof(lexer)) && rank_numeric_type_chain(&tail)) {
         array_delete(&tail);
@@ -110,19 +131,24 @@ static uint8_t rank_stream_role(TSLexer *lexer, Scanner *scanner, uint32_t *ques
     array_push(&tokens, ((RankToken){RANK_ATOM, true}));
     for (unsigned i = 0; i < tail.size; i++) array_push(&tokens, tail.contents[i]);
     bool has_next = tail.size > 1 && tail.contents[0].kind == RANK_QUESTION;
-    uint8_t result = rank_stream_result(lexer, scanner, &tokens, target, has_next);
+    uint8_t result = rank_stream_result(lexer, scanner, &tokens, target, has_next, &scope_read);
     array_delete(&tokens);
     array_delete(&tail);
     return result;
 }
 
-static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next) {
+static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next, RankScopeRead *scope) {
     RankParse modes[2];
     rank_evaluate_modes(tokens, target, modes);
     bool complete = modes[0].valid && modes[0].end == tokens->size - 1 &&
         modes[1].valid && modes[1].end == tokens->size - 1;
-    if (complete && scanner->question_frames[scanner->question_frame_count - 1].force_barrier && modes[0].role != modes[1].role) return RANK_NONE;
-    if (complete && modes[0].role != modes[1].role) rank_enclosing_modes(lexer, scanner, modes);
+    if (complete && modes[0].role != modes[1].role) {
+        Scanner context;
+        bool scope_attempted = scope && lexer->lookahead == ',';
+        bool arguments_complete = scope_attempted && rank_complete_arguments(lexer, scanner, scope, &context);
+        rank_enclosing_modes(lexer, arguments_complete ? &context : scanner, modes, arguments_complete);
+        if (scope_attempted) array_delete(&context.interpolation_stack);
+    }
     RankParse parsed = modes[0];
     uint8_t result = RANK_NONE;
     if (parsed.valid && (complete || parsed.end == tokens->size - 1)) {
@@ -132,18 +158,53 @@ static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTo
     return result;
 }
 
-static void rank_enclosing_modes(TSLexer *lexer, Scanner *scanner, RankParse modes[2]) {
+static bool rank_complete_arguments(TSLexer *lexer, const Scanner *scanner, RankScopeRead *scope, Scanner *context) {
+    question_scope_init(context, scanner);
+    QuestionCheckpoint restore = {.cursor = scope->input->cursor, .capturing = scope->input->capturing};
+    if (scope->prefix_questions && !question_rank_scope(context, scope->input, scope->prefix, scope->tail.cursor, true)) return false;
+    const QuestionFrame *frame = &context->question_frames[context->question_frame_count - 1];
+    if (frame->group != 'p' || frame->force_barrier || frame->generic_pending) return false;
+    if (!question_rank_scope(context, scope->input, scope->tail, scope->end, false)) return false;
+    if (context->question_frames[context->question_frame_count - 1].query_pending) return false;
+    bool valid = true;
+    while (lexer->lookahead == ',') {
+        if (!question_apply_event(context, ',')) { valid = false; break; }
+        advance(lexer);
+        if (!rank_complete_sibling(lexer, context, scope->input)) { valid = false; break; }
+    }
+    valid = valid && lexer->lookahead == ')' &&
+        !context->question_frames[context->question_frame_count - 1].query_pending;
+    if (!valid) question_input_restore(scope->input, restore);
+    return valid;
+}
+
+static bool rank_complete_sibling(TSLexer *lexer, Scanner *context, QuestionInput *input) {
+    QuestionCheckpoint start = {.cursor = input->cursor, .capturing = input->capturing};
+    RankTokens sibling = array_new();
+    unsigned colons = 0;
+    bool read = rank_read_stream_from(lexer, &sibling, &colons, true);
+    RankParse summary[2] = {0};
+    if (read) rank_evaluate_modes(&sibling, ((unsigned)-1), summary);
+    bool valid = read && summary[0].valid && summary[0].end == sibling.size - 1;
+    array_delete(&sibling);
+
+    return valid && question_rank_scope(context, input, start, input->cursor, false);
+}
+
+static void rank_enclosing_modes(TSLexer *lexer, Scanner *scanner, RankParse modes[2], bool arguments_complete) {
     unsigned frame = scanner->question_frame_count - 1;
     unsigned boundary = rank_enclosing_boundary(scanner, frame);
-    while (frame > boundary && scanner->question_frames[frame].group == '(' &&
+    while (frame > boundary && (scanner->question_frames[frame].group == '(' || scanner->question_frames[frame].group == 'p') &&
         !scanner->question_frames[frame].force_barrier && lexer->lookahead == ')') {
         QuestionFrame *parent = &scanner->question_frames[frame - 1];
         if (parent->unknown || parent->case_colon || parent->force_barrier) return;
+        if (arguments_complete && parent->group && parent->group != '(' && parent->group != 'p') return;
         advance(lexer);
         RankTokens tail = array_new();
         array_push(&tail, ((RankToken){.kind = RANK_NESTED_ATOM, .nested = {modes[0], modes[1]}}));
         unsigned colons = 0;
         bool read = rank_read_stream(lexer, &tail, &colons);
+        if (arguments_complete && lexer->lookahead == ',') { array_delete(&tail); return; }
         if (!read || parent->pending > colons) {
             if (read) parent->unknown = true;
             array_delete(&tail);
@@ -245,7 +306,10 @@ static bool rank_read_bracket(TSLexer *lexer) {
 }
 
 static bool rank_read_stream(TSLexer *lexer, RankTokens *tokens, unsigned *colons) {
-    bool atom = false;
+    return rank_read_stream_from(lexer, tokens, colons, false);
+}
+
+static bool rank_read_stream_from(TSLexer *lexer, RankTokens *tokens, unsigned *colons, bool atom) {
     while (!lexer->eof(lexer)) {
         int32_t c = question_skip_separators(lexer);
         bool division = c == -1;

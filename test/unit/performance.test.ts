@@ -97,6 +97,43 @@ test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
   }
 );
 
+test('bounds failed generic lookahead in lambda arguments', { timeout: 60_000 }, () => {
+  const small = failedGenericLambdaSource(100);
+  const large = failedGenericLambdaSource(1000);
+  parseCpuTime(large, false);
+  let smallFastest = Infinity;
+  let largeFastest = Infinity;
+  for (let run = 0; run < 3; run++) {
+    smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
+    largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+  }
+  expect(largeFastest / smallFastest).toBeLessThan(18);
+  expect(largeFastest).toBeLessThan(5_000_000);
+});
+
+function failedGenericLambdaSource(count: number): string {
+  return 'var r = flag ? x is T?[,] ? f(x => ' + 'a < '.repeat(count) + 'a, g(a is T[]?[] ? [1] : c)) : a?[0] : end;';
+}
+
+test('bounds repeated nullable-rank arguments', { timeout: 60_000 }, () => {
+  const small = repeatedSiblingRankSource(100);
+  const large = repeatedSiblingRankSource(1000);
+  parseCpuTime(large, false);
+  let smallFastest = Infinity;
+  let largeFastest = Infinity;
+  for (let run = 0; run < 3; run++) {
+    smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
+    largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+  }
+  expect(largeFastest / smallFastest).toBeLessThan(18);
+  expect(largeFastest).toBeLessThan(5_000_000);
+});
+
+function repeatedSiblingRankSource(count: number): string {
+  const argumentsList = Array.from({ length: count }, () => 'a is T[]?[] ? [1] : c').join(', ');
+  return `var r = flag ? x is T?[,] ? f(${argumentsList}) : a?[0] : end;`;
+}
+
 test('bounds enclosing rank retries behind unmatched parent ternaries', { timeout: 60_000 }, () => {
   const small = unmatchedParentRankSource(100);
   const large = unmatchedParentRankSource(1000);

@@ -3,16 +3,16 @@
 
 #include "questionLiterals.h"
 
-typedef struct { uint32_t questions; int32_t initial_suffix; bool colon; bool comma; bool root_comma; RankGroups *groups; RankGroups *prefix; bool prefix_done; bool verbatim_literal; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
+typedef struct { void *generic_context; unsigned (*generic_open)(TSLexer *, void *); void (*generic_close)(TSLexer *, void *, unsigned); unsigned generic_start; bool allow_omitted; uint32_t questions; int32_t initial_suffix; bool colon; bool comma; bool root_comma; RankGroups *groups; RankGroups *prefix; bool prefix_done; bool prefix_all; bool verbatim_literal; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
 
 typedef enum { RANK_TYPE_START, RANK_TYPE_SUFFIX, RANK_TYPE_NAME, RANK_TYPE_TAIL, RANK_TYPE_ARGUMENT, RANK_TYPE_ARGUMENT_END } RankTypeStage;
-typedef struct { RankTypeStage stage; int32_t close; bool flag; } RankTypeFrame;
+typedef struct { RankTypeStage stage; int32_t close; bool flag; unsigned opening; } RankTypeFrame;
 typedef Array(RankTypeFrame) RankTypeFrames;
 static bool rank_read_type_frames(TSLexer *, RankTypeRead *, RankTypeFrame);
 static bool rank_read_type_step(TSLexer *, RankTypeRead *, RankTypeFrames *, RankTypeFrame);
 static bool rank_read_type_name_step(TSLexer *, RankTypeRead *, RankTypeFrames *);
 static bool rank_read_type_tail_step(TSLexer *, RankTypeRead *, RankTypeFrames *, bool);
-static bool rank_read_type_argument_end(TSLexer *, RankTypeRead *, RankTypeFrames *, int32_t);
+static bool rank_read_type_argument_end(TSLexer *, RankTypeRead *, RankTypeFrames *, int32_t, unsigned);
 static bool rank_prepare_name_suffix(TSLexer *, RankTypeRead *, const QuestionIdentifier *, bool *);
 
 static bool rank_read_prefix(TSLexer *lexer, bool *simple, uint32_t *questions);
@@ -151,11 +151,13 @@ static bool rank_read_type_step(TSLexer *lexer, RankTypeRead *read, RankTypeFram
         case RANK_TYPE_TAIL:
             return rank_read_type_tail_step(lexer, read, frames, frame.flag);
         case RANK_TYPE_ARGUMENT:
-            array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT_END, .close = frame.close}));
-            array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_START, .flag = frame.close == ')'}));
+            array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT_END, .close = frame.close, .opening = frame.opening}));
+            if (frame.close != '>' || !read->allow_omitted ||
+                (question_skip_separators(lexer) != ',' && lexer->lookahead != '>'))
+                array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_START, .flag = frame.close == ')'}));
             return true;
         case RANK_TYPE_ARGUMENT_END:
-            return rank_read_type_argument_end(lexer, read, frames, frame.close);
+            return rank_read_type_argument_end(lexer, read, frames, frame.close, frame.opening);
     }
     return false;
 }
@@ -164,7 +166,7 @@ static bool rank_read_type_name_step(TSLexer *lexer, RankTypeRead *read, RankTyp
     QuestionIdentifier name;
     bool arguments = false;
     if (!rank_read_type_identifier(lexer, &name, read) || !rank_prepare_name_suffix(lexer, read, &name, &arguments)) return false;
-    if (arguments) array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = '>'}));
+    if (arguments) array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = '>', .opening = read->generic_start}));
     return true;
 }
 
@@ -173,9 +175,11 @@ static bool rank_read_type_tail_step(TSLexer *lexer, RankTypeRead *read, RankTyp
     int32_t c = rank_type_gap(lexer, read);
     if (c == '<' && arguments_allowed) {
         read->complex = true;
+        unsigned opening = read->generic_open ? read->generic_open(lexer, read->generic_context) : 0;
+        if (read->prefix && (!read->prefix_done || read->prefix_all)) array_push(read->prefix, 'g');
         advance(lexer);
         array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_TAIL}));
-        array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = '>'}));
+        array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = '>', .opening = opening}));
         return true;
     }
     if (c != '.' && c != ':') return c >= -1;
@@ -183,7 +187,7 @@ static bool rank_read_type_tail_step(TSLexer *lexer, RankTypeRead *read, RankTyp
     if (c == ':') {
         if (lexer->lookahead != ':') {
             read->colon = true;
-            if (read->prefix && !read->prefix_done) array_push(read->prefix, ':');
+            if (read->prefix && (!read->prefix_done || read->prefix_all)) array_push(read->prefix, ':');
             return true;
         }
         advance(lexer);
@@ -194,7 +198,7 @@ static bool rank_read_type_tail_step(TSLexer *lexer, RankTypeRead *read, RankTyp
     return true;
 }
 
-static bool rank_read_type_argument_end(TSLexer *lexer, RankTypeRead *read, RankTypeFrames *frames, int32_t close) {
+static bool rank_read_type_argument_end(TSLexer *lexer, RankTypeRead *read, RankTypeFrames *frames, int32_t close, unsigned opening) {
     if (read->colon || read->coalesce || read->conditional || read->division || read->binary || read->has_word) return false;
     int32_t c = rank_type_gap(lexer, read);
     if (close == ')' && c != ',' && c != close) {
@@ -207,9 +211,12 @@ static bool rank_read_type_argument_end(TSLexer *lexer, RankTypeRead *read, Rank
     if (c == ',') {
         read->comma = true;
         read->root_comma |= root_tuple;
+        if (close == ')' && read->prefix && (!read->prefix_done || read->prefix_all)) array_push(read->prefix, ',');
     } else if (close == ')') rank_type_close(read, ')');
+    else if (close == '>' && read->prefix && (!read->prefix_done || read->prefix_all)) array_push(read->prefix, 'h');
     advance(lexer);
-    if (c != close) array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = close}));
+    if (c != close) array_push(frames, ((RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = close, .opening = opening}));
+    else if (close == '>' && read->generic_close) read->generic_close(lexer, read->generic_context, opening);
     return true;
 }
 
@@ -306,6 +313,8 @@ static bool rank_prepare_name_suffix(TSLexer *lexer, RankTypeRead *read, const Q
     int32_t next = rank_type_gap(lexer, read);
     if (next != '<') return next >= -1 && !function_pointer;
     read->complex = true;
+    if (read->generic_open) read->generic_start = read->generic_open(lexer, read->generic_context);
+    if (read->prefix && (!read->prefix_done || read->prefix_all)) array_push(read->prefix, 'g');
     advance(lexer);
     *arguments = true;
     return true;
@@ -332,17 +341,17 @@ static bool rank_read_calling_convention(TSLexer *lexer, RankTypeRead *read) {
 }
 
 static bool rank_read_as_arguments(TSLexer *lexer, int32_t close, RankTypeRead *read) {
-    return rank_read_type_frames(lexer, read, (RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = close});
+    return rank_read_type_frames(lexer, read, (RankTypeFrame){.stage = RANK_TYPE_ARGUMENT, .close = close, .opening = read->generic_start});
 }
 
 static void rank_type_open(RankTypeRead *read, char opening) {
     if (read->groups) array_push(read->groups, opening);
-    if (read->prefix && !read->prefix_done) array_push(read->prefix, opening);
+    if (read->prefix && (!read->prefix_done || read->prefix_all)) array_push(read->prefix, opening);
 }
 
 static void rank_type_close(RankTypeRead *read, char closing) {
     if (read->groups) array_pop(read->groups);
-    if (read->prefix && !read->prefix_done) array_push(read->prefix, closing);
+    if (read->prefix && (!read->prefix_done || read->prefix_all)) array_push(read->prefix, closing);
 }
 
 static bool rank_read_type_rank(TSLexer *lexer, RankTypeRead *read) {
