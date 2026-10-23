@@ -39,13 +39,8 @@ test('preserves typed conditional fields, ranges and captures across local edits
         const expected = sample.ranges
           .flatMap((ranges) => ranges.map(([start, end], index) => `${fields[index]}:${start}:${end}`))
           .toSorted();
-        const captures = (node: Node): string[] =>
-          query
-            .captures(node)
-            .map(({ name, node: captured }) => `${name}:${captured.startIndex}:${captured.endIndex}`)
-            .toSorted();
-        expect(captures(fresh.rootNode), sample.source).toEqual(expected);
-        expect(captures(incremental.rootNode), sample.source).toEqual(expected);
+        expect(ownershipCaptures(query, fresh.rootNode), sample.source).toEqual(expected);
+        expect(ownershipCaptures(query, incremental.rootNode), sample.source).toEqual(expected);
         expect(syntaxSnapshot(incremental.rootNode), sample.source).toEqual(syntaxSnapshot(fresh.rootNode));
       } finally {
         fresh.delete();
@@ -114,3 +109,52 @@ test('retains nullable stack allocation ranks inside conditional alternatives', 
     parser.delete();
   }
 });
+
+test('invalidates incomplete enclosing-rank context after tail edits', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(
+    language,
+    '(conditional_expression condition: (_) @condition consequence: (_) @consequence alternative: (_) @alternative)'
+  );
+  const prefix = 'var r = f(' + 'a ? '.repeat(3) + 'g(x is T?[] ? [1] : c) ? '.repeat(3) + 'z';
+  const malformed = prefix + '); class Following {}';
+  const corrected = prefix + ' : 0'.repeat(6) + '); class Following {}';
+  let previous = corrected;
+  let tree = parser.parse(previous)!;
+  try {
+    for (const source of [malformed, corrected, malformed, corrected]) {
+      const fresh = parser.parse(source)!;
+      editTree(tree, previous, source);
+      const incremental = parser.parse(source, tree)!;
+      try {
+        expect(fresh.rootNode.hasError, source).toBe(source === malformed);
+        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        expect(ownershipCaptures(query, incremental.rootNode), source).toEqual(
+          ownershipCaptures(query, fresh.rootNode)
+        );
+        expect(
+          fresh.rootNode
+            .descendantsOfType('class_declaration')
+            .map((node) => [node.text, node.startIndex, node.endIndex, node.hasError]),
+          source
+        ).toEqual([['class Following {}', source.lastIndexOf('class Following {}'), source.length, false]]);
+      } finally {
+        fresh.delete();
+        tree.delete();
+        tree = incremental;
+        previous = source;
+      }
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
+function ownershipCaptures(query: Query, node: Node): string[] {
+  return query
+    .captures(node)
+    .map(({ name, node: captured }) => `${name}:${captured.startIndex}:${captured.endIndex}`)
+    .toSorted();
+}

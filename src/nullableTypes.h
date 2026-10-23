@@ -181,7 +181,11 @@ static bool rank_read_type_tail_step(TSLexer *lexer, RankTypeRead *read, RankTyp
     if (c != '.' && c != ':') return c >= -1;
     advance(lexer);
     if (c == ':') {
-        if (lexer->lookahead != ':') { read->colon = true; return true; }
+        if (lexer->lookahead != ':') {
+            read->colon = true;
+            if (read->prefix && !read->prefix_done) array_push(read->prefix, ':');
+            return true;
+        }
         advance(lexer);
     }
     if (question_skip_separators(lexer) < 0) return false;

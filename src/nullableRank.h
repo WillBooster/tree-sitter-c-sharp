@@ -22,7 +22,7 @@ typedef enum { RANK_HEADER_START, RANK_HEADER_MODIFIER, RANK_HEADER_NAME, RANK_H
 typedef struct { unsigned token; RankLambdaHeader header; bool content; bool primary; bool type_pending; bool type_complete; bool pattern; bool member; bool colon; bool conditional; bool nullable_type; bool division; bool has_word; QuestionIdentifier word; unsigned nullable_event; } RankExpression;
 
 static bool question_type_boundary(int32_t c);
-static uint8_t rank_stream_role(TSLexer *lexer, const Scanner *scanner, uint32_t *questions);
+static uint8_t rank_stream_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions);
 static bool rank_numeric_type_chain(const RankTokens *tokens);
 static RankCertificate rank_certify_character(RankCertificate certificate, int32_t c);
 static RankCertificate rank_certify_word(RankCertificate certificate, const QuestionIdentifier *name);
@@ -62,15 +62,15 @@ static bool rank_read_rhs_generic(TSLexer *lexer, bool *colon, bool *generic, bo
 static bool rank_read_terminal(TSLexer *lexer, bool *colon);
 static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static void rank_evaluate_modes(const RankTokens *tokens, unsigned target, RankParse modes[2]);
-static uint8_t rank_stream_result(TSLexer *lexer, const Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next);
-static void rank_enclosing_modes(TSLexer *lexer, const Scanner *scanner, RankParse modes[2]);
+static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next);
+static void rank_enclosing_modes(TSLexer *lexer, Scanner *scanner, RankParse modes[2]);
 static unsigned rank_enclosing_boundary(const Scanner *scanner, unsigned frame);
 static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, unsigned start, bool force, unsigned target);
 static RankParse rank_atom_summary(RankToken atom, bool force);
 static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
 static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
 
-static uint8_t rank_stream_role(TSLexer *lexer, const Scanner *scanner, uint32_t *questions) {
+static uint8_t rank_stream_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions) {
     uint32_t pending = scanner->question_frames[scanner->question_frame_count - 1].pending;
     int32_t first = question_skip_separators(lexer);
     if (first == '(' || first == '[' || first == '{') {
@@ -116,13 +116,13 @@ static uint8_t rank_stream_role(TSLexer *lexer, const Scanner *scanner, uint32_t
     return result;
 }
 
-static uint8_t rank_stream_result(TSLexer *lexer, const Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next) {
+static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next) {
     RankParse modes[2];
     rank_evaluate_modes(tokens, target, modes);
     bool complete = modes[0].valid && modes[0].end == tokens->size - 1 &&
         modes[1].valid && modes[1].end == tokens->size - 1;
     if (complete && scanner->question_frames[scanner->question_frame_count - 1].force_barrier && modes[0].role != modes[1].role) return RANK_NONE;
-    if (complete) rank_enclosing_modes(lexer, scanner, modes);
+    if (complete && modes[0].role != modes[1].role) rank_enclosing_modes(lexer, scanner, modes);
     RankParse parsed = modes[0];
     uint8_t result = RANK_NONE;
     if (parsed.valid && (complete || parsed.end == tokens->size - 1)) {
@@ -132,18 +132,20 @@ static uint8_t rank_stream_result(TSLexer *lexer, const Scanner *scanner, const 
     return result;
 }
 
-static void rank_enclosing_modes(TSLexer *lexer, const Scanner *scanner, RankParse modes[2]) {
+static void rank_enclosing_modes(TSLexer *lexer, Scanner *scanner, RankParse modes[2]) {
     unsigned frame = scanner->question_frame_count - 1;
     unsigned boundary = rank_enclosing_boundary(scanner, frame);
     while (frame > boundary && scanner->question_frames[frame].group == '(' &&
         !scanner->question_frames[frame].force_barrier && lexer->lookahead == ')') {
-        const QuestionFrame *parent = &scanner->question_frames[frame - 1];
+        QuestionFrame *parent = &scanner->question_frames[frame - 1];
         if (parent->unknown || parent->case_colon || parent->force_barrier) return;
         advance(lexer);
         RankTokens tail = array_new();
         array_push(&tail, ((RankToken){.kind = RANK_NESTED_ATOM, .nested = {modes[0], modes[1]}}));
         unsigned colons = 0;
-        if (!rank_read_stream(lexer, &tail, &colons) || parent->pending > colons) {
+        bool read = rank_read_stream(lexer, &tail, &colons);
+        if (!read || parent->pending > colons) {
+            if (read) parent->unknown = true;
             array_delete(&tail);
             return;
         }
