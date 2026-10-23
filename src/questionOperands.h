@@ -5,6 +5,16 @@ static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, Questio
     bool own_as_type = identifier->keyword && !strcmp(identifier->word, "as") && !walk->depth &&
         walk->binding && walk->recording && !walk->root_colons;
     if (own_as_type) return question_walk_as_prefix(lexer);
+    if (walk->as_operand && !walk->depth && !(identifier->keyword && !strcmp(identifier->word, "as"))) {
+        RankTypeRead read = {0};
+        if (!rank_read_as_name_suffix(lexer, &read, identifier)) return QUESTION_WALK_UNKNOWN;
+        if (read.division) walk->as_operand = false;
+        if (read.questions) {
+            walk->found_next_question = true;
+            walk->recording = false;
+            walk->cache_shaped = false;
+        }
+    }
     return creation ? question_walk_creation_prefix(lexer, walk) : QUESTION_WALK_CONTINUE;
 }
 
@@ -19,6 +29,8 @@ static void question_walk_type_operand(QuestionWalk *walk, bool future_identifie
     if (!walk->depth) {
         if (creation) walk->allocation_type = true;
         else if (is_or_as) walk->allocation_type = false;
+        if (identifier->keyword && (!strcmp(identifier->word, "switch") || !strcmp(identifier->word, "with")))
+            walk->as_operand = false;
     }
     if (!walk->depth && !walk->recording && walk->confirmation_operand && walk->optional == 1 &&
         identifier->keyword && !strcmp(identifier->word, "is"))

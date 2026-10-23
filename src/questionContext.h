@@ -121,7 +121,7 @@ typedef struct {
     bool is_seen;
     bool type_operand;
     bool pending_as_role;
-    bool operand_ordinary;
+    bool as_operand;
     bool allocation_type;
     bool type_rank;
     bool is_later_alternative;
@@ -400,6 +400,7 @@ static bool question_pattern_only_start(int32_t c) {
 }
 
 static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first) {
+    if (!walk->depth && (question_operator(c) || c == -1)) walk->as_operand = false;
     if (walk->ordinary_name_candidate && walk->recording && !walk->depth && !walk->nullable_only &&
         (question_operator(c) || c == '(' || c == '[' || c == '.' || c == '<' || c == '>' || c == -1)) {
         walk->known_ternary = true;
@@ -508,7 +509,7 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
             walk->logical_name_candidate = false;
             walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary;
             if (walk->recording) walk->first_word = false;
-            return QUESTION_WALK_CONTINUE;
+            return question_walk_identifier_operand(lexer, walk, &identifier, false);
         }
     }
     if (walk->logical_name_candidate && !walk->recording && !walk->depth) question_walk_logical_nullable(walk);
@@ -583,8 +584,8 @@ static bool question_walk_type_keyword(QuestionWalk *walk, const QuestionIdentif
     bool is_keyword = !strcmp(identifier->word, "is");
     bool root_is = is_keyword && !walk->depth;
     bool root_as = is_or_as && !walk->depth && !root_is;
-    walk->pending_as_role = walk->pending_as_role ||
-        (root_as && walk->root_colons && !walk->is_later_alternative && !walk->proved_ternary && !walk->operand_ordinary);
+    if (!walk->depth) walk->as_operand = root_as && walk->root_colons &&
+        !walk->is_later_alternative && !walk->proved_ternary;
     bool independent_type = is_or_as && (walk->depth || walk->is_later_alternative || walk->root_colons);
     if (is_or_as && !walk->depth) walk->type_operand = true;
     bool current_is = root_is && !independent_type;
@@ -620,6 +621,7 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
 }
 
 static void question_walk_coalescing(TSLexer *lexer, QuestionWalk *walk) {
+    if (!walk->depth) walk->as_operand = false;
     if (walk->is_as_phase) walk->is_eligible = false;
     if (!walk->depth && walk->binding && !walk->cache_colon) walk->root_binary = true;
     advance(lexer);
@@ -632,6 +634,10 @@ static void question_walk_coalescing(TSLexer *lexer, QuestionWalk *walk) {
 static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     question_skip_separators(lexer);
     QuestionFollowing following = question_following(lexer);
+    bool as_question = walk->as_operand && !following.member &&
+        (following.token == '[' || following.token == '(' || following.token == '?' || question_type_boundary(following.token));
+    if (as_question && walk->optional == 1) walk->pending_as_role = true;
+    if (!as_question) walk->as_operand = false;
     walk->future_first_token = following.token != '[' && !following.member;
     if (walk->recording && walk->root_colons && walk->binding && !walk->type_operand && !walk->allocation_type && following.token != '[' && !following.member) {
         walk->role_active = false;
@@ -650,7 +656,6 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     }
     else {
         if (!walk->root_colons && following.token != '[' && !following.member) walk->prefix_ordinary = true;
-        if (walk->root_colons && (walk->type_operand || walk->optional > 1) && following.token != '[' && !following.member) walk->operand_ordinary = true;
         walk->future_ternary_eligible = walk->is_ternary_eligible;
         question_walk_future_question(walk, following);
     }
@@ -685,6 +690,7 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
 
 static void question_walk_assignment_context(QuestionWalk *walk, bool comparison) {
     if (walk->depth) return;
+    walk->as_operand = false;
     if (!comparison) walk->assignment_possible = true;
     else if (walk->recording) walk->definite_ternary = walk->ordinary;
 }
@@ -838,7 +844,7 @@ static void question_walk_colon(QuestionWalk *walk) {
         walk->cache_shaped = false;
         return;
     }
-    walk->operand_ordinary = false;
+    walk->as_operand = false;
     bool first_root_colon = !walk->root_colons && walk->mandatory == 1 && !walk->optional;
     if (walk->ordinary_colon_context && walk->ordinary && (walk->recording || first_root_colon) && !walk->known_nullable) {
         walk->known_ternary = true;

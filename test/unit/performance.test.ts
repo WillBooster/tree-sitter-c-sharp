@@ -244,18 +244,23 @@ function parseCpuTime(source: string, expectedErrors = true): number {
   return elapsed / samples;
 }
 
-test.each([
-  { name: 'regular', open: '$"{', close: '}"' },
-  { name: 'verbatim', open: '$@"{', close: '}"' },
-  { name: 'raw', open: '$$"""{{', close: '}}"""' },
-])('preserves supported $name nesting and recovers after scanner-depth stress', ({ open, close }) => {
-  for (const depth of [100, 5000]) {
+test.each(
+  [
+    { name: 'regular', open: '$"{', close: '}"' },
+    { name: 'verbatim', open: '$@"{', close: '}"' },
+    { name: 'raw', open: '$$"""{{', close: '}}"""' },
+  ].flatMap((interpolation) =>
+    [100, 5000].flatMap((depth) =>
+      ['a ? 1 : ', 'x is T?[] ? [a] : '].map((prefix) => ({ ...interpolation, depth, prefix }))
+    )
+  )
+)(
+  'preserves supported $name nesting at depth $depth after $prefix and recovers after scanner-depth stress',
+  ({ open, close, depth, prefix }) => {
     const nested = open.repeat(depth) + '1' + close.repeat(depth);
-    for (const prefix of ['a ? 1 : ', 'x is T?[] ? [a] : ']) {
-      assertDeepParsingKeepsRuntimeUsable(`${prefix}${nested}`, 'interpolated_string_expression', depth, depth === 100);
-    }
+    assertDeepParsingKeepsRuntimeUsable(`${prefix}${nested}`, 'interpolated_string_expression', depth, depth === 100);
   }
-});
+);
 
 test.each([
   { name: 'generic', open: 'L<', close: '>', node: 'generic_name', clean: true },
