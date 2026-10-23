@@ -120,6 +120,7 @@ typedef struct {
     bool is_ternary_eligible;
     bool is_seen;
     bool type_operand;
+    bool pending_as_role;
     bool allocation_type;
     bool type_rank;
     bool is_later_alternative;
@@ -458,7 +459,8 @@ static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk) {
     bool ambiguous_optional = (walk->reserved || walk->case_boundary) &&
         ((walk->optional > 1 && walk->prefix_ordinary) ||
          (walk->optional && !walk->is_eligible && walk->is_optional > walk->optional));
-    if ((walk->mandatory && !walk->cached_access) ||
+    if ((walk->pending_as_role && !walk->proved_ternary) ||
+        (walk->mandatory && !walk->cached_access) ||
         (walk->root_colons && walk->type_operand && ambiguous_optional)) walk->role_known = false;
     if (walk->known_ternary || (walk->role_known && walk->proved_ternary)) return 2;
     if (!walk->binding) return 0;
@@ -578,13 +580,15 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
 static bool question_walk_type_keyword(QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as, bool case_colon) {
     bool is_keyword = !strcmp(identifier->word, "is");
     bool root_is = is_keyword && !walk->depth;
+    bool root_as = is_or_as && !walk->depth && !root_is;
+    walk->pending_as_role = walk->pending_as_role ||
+        (root_as && walk->root_colons && !walk->is_later_alternative && !walk->proved_ternary);
     bool independent_type = is_or_as && (walk->depth || walk->is_later_alternative || walk->root_colons);
     if (is_or_as && !walk->depth) walk->type_operand = true;
     bool current_is = root_is && !independent_type;
     bool repeated_case_test = current_is && walk->is_seen && case_colon;
     walk->is_eligible = walk->is_eligible && !repeated_case_test;
     walk->is_seen = walk->is_seen || current_is;
-    bool root_as = is_or_as && !walk->depth && !root_is;
     if (root_as && !walk->recording && walk->is_seen) walk->is_as_phase = true;
     else if (!root_is && !root_as && !independent_type) walk->is_eligible = false;
     return independent_type;
