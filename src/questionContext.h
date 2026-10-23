@@ -135,6 +135,8 @@ typedef struct {
     uint8_t root_colons;
     bool root_binary;
     bool prefix_ordinary;
+    bool ordinary_is_seen;
+    uint64_t ordinary_optionals;
     bool lambda_boundary;
     bool cached_access;
     bool binding;
@@ -653,7 +655,11 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
         walk->is_as_phase = false;
     }
     else {
-        if (!walk->root_colons && following.token != '[' && !following.member) walk->prefix_ordinary = true;
+        if (!walk->root_colons && following.token != '[' && !following.member) {
+            walk->prefix_ordinary = true;
+            walk->ordinary_is_seen = walk->is_seen;
+            walk->ordinary_optionals = walk->optional;
+        }
         walk->future_ternary_eligible = walk->is_ternary_eligible;
         question_walk_future_question(walk, following);
     }
@@ -892,7 +898,7 @@ static void question_walk_complete_colon(QuestionWalk *walk) {
 }
 
 static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next) {
-    if (walk->is_seen && !walk->root_colons && walk->prefix_ordinary && walk->optional > 1 && next.token == '[') walk->is_eligible = false;
+    if (walk->ordinary_is_seen && !walk->root_colons && walk->prefix_ordinary && walk->optional > walk->ordinary_optionals && next.token == '[') walk->is_eligible = false;
     if (next.token == '[') walk->is_pending_bracket = true;
     else if (!next.member) walk->is_ternary_eligible = false;
     if (walk->cache_colon || next.token != '[') walk->cache_shaped = false;
