@@ -326,7 +326,7 @@ static void question_walk_type_operand(QuestionWalk *walk, bool future_identifie
 }
 
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWalk *walk) {
-    if (walk->depth || (!walk->binding && !walk->recording)) return QUESTION_WALK_CONTINUE;
+    if (walk->depth) return QUESTION_WALK_CONTINUE;
     int32_t next = question_skip_separators(lexer);
     if (walk->recording && next != '(') return QUESTION_WALK_CONTINUE;
     if (next == '[' || next == '{') return QUESTION_WALK_CONTINUE;
