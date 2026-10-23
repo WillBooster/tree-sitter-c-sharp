@@ -156,6 +156,8 @@ typedef struct {
     bool ordinary_first_token;
     bool future_first_token;
     bool future_ternary_eligible;
+    bool confirmation_operand;
+    bool confirmation_type;
     bool ordinary_name_candidate;
     bool ordinary_colon_context;
     bool found_next_question;
@@ -190,7 +192,7 @@ static bool question_closing_group(int32_t c);
 static bool question_operator(int32_t c);
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier);
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier);
-static void question_walk_nullable_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as);
+static void question_walk_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as, const QuestionIdentifier *identifier);
 static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk, const QuestionIdentifier *identifier);
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, const QuestionWalk *walk);
 
@@ -411,7 +413,9 @@ static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, i
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     unsigned role = question_walk_role(lexer, walk);
-    bool confirmable = !role && walk->ordinary && !walk->known_nullable && !walk->assignment_possible;
+    bool confirmation_proved = walk->depth || walk->root_colons < 2 || !walk->optional ||
+        (walk->optional == 1 && walk->confirmation_type);
+    bool confirmable = !role && walk->ordinary && !walk->known_nullable && !walk->assignment_possible && confirmation_proved;
     Scanner confirmed;
     if (confirmable) {
         confirmed = *scanner;
@@ -504,7 +508,7 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
         strcmp(identifier.word, "from") == 0)) walk->is_eligible = false;
     if (question_keyword_incomplete(lexer, walk, &identifier)) return QUESTION_WALK_UNKNOWN;
     bool is_or_as = identifier.keyword && (strcmp(identifier.word, "is") == 0 || strcmp(identifier.word, "as") == 0);
-    question_walk_nullable_type_operand(walk, future_identifier, is_or_as);
+    question_walk_type_operand(walk, future_identifier, is_or_as, &identifier);
     bool value_operator = is_or_as || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
     if (walk->logical_name_candidate && !walk->depth && !value_operator)
         question_walk_logical_nullable(walk);
@@ -529,7 +533,10 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
     return creation ? question_walk_creation_prefix(lexer, walk) : QUESTION_WALK_CONTINUE;
 }
 
-static void question_walk_nullable_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as) {
+static void question_walk_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as, const QuestionIdentifier *identifier) {
+    if (!walk->depth && !walk->recording && walk->confirmation_operand && walk->optional == 1 &&
+        identifier->keyword && !strcmp(identifier->word, "is"))
+        walk->confirmation_type = true;
     if (!future_identifier || !is_or_as || !walk->is_seen || walk->depth || !walk->mandatory) return;
     walk->mandatory--;
     walk->is_ternary_eligible = walk->future_ternary_eligible;
@@ -809,6 +816,7 @@ static void question_walk_colon(QuestionWalk *walk) {
         walk->definite_ternary = true;
     }
     walk->is_as_phase = false;
+    walk->confirmation_operand = false;
     if (walk->root_colons < 2) walk->root_colons++;
     bool later_obligation = walk->mandatory > walk->is_reserved ||
         walk->optional > (walk->following.token == '[' ? 1u : 0u);
@@ -828,6 +836,7 @@ static void question_walk_colon(QuestionWalk *walk) {
         if (walk->optional == 1 && walk->following.token == '[') walk->proved_ternary = true;
         walk->optional--;
     } else walk->role_known = false;
+    if (!walk->optional) walk->confirmation_type = false;
     question_walk_complete_colon(walk);
 }
 
@@ -850,6 +859,7 @@ static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing 
         walk->role_known = false;
         walk->is_eligible = false;
     }
+    if (!next.member) walk->confirmation_operand = next.token == '[';
     if (next.token == '[') walk->optional++;
     else if (!next.member) walk->mandatory++;
 }
