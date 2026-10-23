@@ -454,8 +454,9 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
 }
 
 static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk) {
-    bool ambiguous_optional = (walk->optional > 1 && !walk->is_ternary_eligible) ||
-        (walk->optional && !walk->is_eligible && walk->is_optional > walk->optional);
+    bool ambiguous_optional = (walk->reserved || walk->case_boundary) &&
+        ((walk->optional > 1 && !walk->is_ternary_eligible) ||
+         (walk->optional && !walk->is_eligible && walk->is_optional > walk->optional));
     if ((walk->mandatory && !walk->cached_access) ||
         (walk->root_colons && walk->type_operand && ambiguous_optional)) walk->role_known = false;
     if (walk->known_ternary || (walk->role_known && walk->proved_ternary)) return 2;
