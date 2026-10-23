@@ -64,6 +64,7 @@ static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static void rank_evaluate_modes(const RankTokens *tokens, unsigned target, RankParse modes[2]);
 static uint8_t rank_stream_result(TSLexer *lexer, const Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next);
 static void rank_enclosing_modes(TSLexer *lexer, const Scanner *scanner, RankParse modes[2]);
+static unsigned rank_enclosing_boundary(const Scanner *scanner, unsigned frame);
 static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, unsigned start, bool force, unsigned target);
 static RankParse rank_atom_summary(RankToken atom, bool force);
 static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
@@ -131,9 +132,9 @@ static uint8_t rank_stream_result(TSLexer *lexer, const Scanner *scanner, const 
 }
 
 static void rank_enclosing_modes(TSLexer *lexer, const Scanner *scanner, RankParse modes[2]) {
-    if (scanner->interpolation_stack.size) return;
     unsigned frame = scanner->question_frame_count - 1;
-    while (frame && scanner->question_frames[frame].group == '(' &&
+    unsigned boundary = rank_enclosing_boundary(scanner, frame);
+    while (frame > boundary && scanner->question_frames[frame].group == '(' &&
         !scanner->question_frames[frame].force_barrier && lexer->lookahead == ')') {
         const QuestionFrame *parent = &scanner->question_frames[frame - 1];
         if (parent->unknown || parent->case_colon || parent->force_barrier) return;
@@ -158,6 +159,14 @@ static void rank_enclosing_modes(TSLexer *lexer, const Scanner *scanner, RankPar
         modes[1] = next[1];
         frame--;
     }
+}
+
+static unsigned rank_enclosing_boundary(const Scanner *scanner, unsigned frame) {
+    if (!scanner->interpolation_stack.size) return 0;
+    const Interpolation *interpolation = array_back(&scanner->interpolation_stack);
+    unsigned depth = interpolation->question_depth;
+    if (!interpolation->open_brace_count || !depth || depth == UINT16_MAX) return frame;
+    return depth > frame ? 0 : frame - depth + 1;
 }
 
 static bool rank_numeric_type_chain(const RankTokens *tokens) {

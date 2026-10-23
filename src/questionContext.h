@@ -256,6 +256,7 @@ static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, i
 static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
 static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk);
+static unsigned question_walk_type_test_role(TSLexer *lexer, QuestionWalk *walk);
 static void question_save_confirmation(Scanner *scanner, const Scanner *confirmed);
 static bool question_walk_access_prefix(const QuestionWalk *walk);
 static bool question_type_boundary(int32_t c);
@@ -511,14 +512,18 @@ static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk) {
     if (walk->known_ternary || (walk->role_known && walk->proved_ternary)) return 2;
     if (!walk->binding) return 0;
     if (walk->cached_access || walk->role_known || question_walk_access_prefix(walk)) return 1;
+    return question_walk_type_test_role(lexer, walk);
+}
+
+static unsigned question_walk_type_test_role(TSLexer *lexer, QuestionWalk *walk) {
     bool complete = !walk->role_active || lexer->eof(lexer);
     bool is_proved = walk->is_eligible && walk->is_seen &&
         !walk->is_reserved && !walk->is_pending_bracket && complete;
     bool is_access = is_proved && !walk->is_current_consumed;
     if (lexer->log) lexer->log(lexer, "is_access_proof eligible=%d seen=%d consumed=%d reserved=%llu optional=%llu complete=%d result=%d", walk->is_eligible, walk->is_seen, walk->is_current_consumed, (unsigned long long)walk->is_reserved, (unsigned long long)walk->is_optional, complete, is_access);
     if (!is_access && !(is_proved && walk->is_ternary_eligible)) return 0;
-    walk->known_ternary = walk->is_current_consumed;
-    return walk->known_ternary ? 2 : 3;
+    walk->known_ternary = walk->is_current_consumed && !walk->nullable_only;
+    return walk->is_current_consumed ? 2 : 3;
 }
 
 static bool question_walk_access_prefix(const QuestionWalk *walk) {
