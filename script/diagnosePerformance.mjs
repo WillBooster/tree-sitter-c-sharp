@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { Language, Parser } from '@willbooster/web-tree-sitter';
 
 const Root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const RuntimeDirectory = path.join(Root, 'node_modules/@willbooster/web-tree-sitter');
+const RuntimeWasmPath = path.join(RuntimeDirectory, 'web-tree-sitter.wasm');
 const Cases = [
   {
     name: 'element-access ternary arms at field initializer',
@@ -19,6 +21,16 @@ const Cases = [
     name: 'identifier ternaries at top level',
     sizes: [200, 2000],
     source: (count) => `var x = ${'a ? a : '.repeat(count)}a;`,
+  },
+  {
+    name: 'nullable-type-test ternaries at top level',
+    sizes: [200, 2000],
+    source: (count) => `var x = ${'a is T? ? a : '.repeat(count)}a;`,
+  },
+  {
+    name: 'access chains after nullable interpolation holes',
+    sizes: [200, 2000],
+    source: (count) => `var r = $"{(f(a?[0], x is null) ? f($"{x as int?:?foo}")${'?[0]'.repeat(count - 1)} : b):X}";`,
   },
   ...['var r = $"{(a, f(b, (c +\n', 'var r = $"{(a?[0], f(b, $"{(c\n'].map((line) => ({
     name: `unterminated interpolation ${JSON.stringify(line)}`,
@@ -35,15 +47,14 @@ const Cases = [
 await main();
 
 async function main() {
-  assert.equal(process.env.CI, 'true', 'Performance diagnostics must run in CI');
-  assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Performance diagnostics require a GitHub Actions worker');
-  assert.ok(process.env.GITHUB_RUN_ID, 'A GitHub Actions run is required');
+  assert.ok(
+    process.env.CI === 'true' && process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_RUN_ID,
+    'Performance diagnostics require an actual GitHub Actions run'
+  );
   const published = await publishedWasm();
   const publishedPath = published.path;
   const candidatePath = path.join(Root, 'tree-sitter-c_sharp.wasm');
-  const runtime = JSON.parse(
-    fs.readFileSync(path.join(Root, 'node_modules/@willbooster/web-tree-sitter/package.json'), 'utf8')
-  );
+  const runtime = JSON.parse(fs.readFileSync(path.join(RuntimeDirectory, 'package.json'), 'utf8'));
   console.log(
     JSON.stringify({
       diagnostic: 'paired-parser-cpu',
@@ -54,6 +65,7 @@ async function main() {
       cpu: os.cpus()[0]?.model,
       node: process.version,
       runtime: `${runtime.name}@${runtime.version}`,
+      runtimeWasmSha256: digest(RuntimeWasmPath),
       publishedVersion: '15.0.0',
       publishedPackageSri: published.integrity,
       publishedWasmSha256: digest(publishedPath),
@@ -62,9 +74,9 @@ async function main() {
       minimumBatchCpuMicroseconds: 50_000,
     })
   );
-  await Parser.init();
-  const publishedLanguage = await Language.load(publishedPath);
-  const candidateLanguage = await Language.load(candidatePath);
+  await Parser.init({ wasmModule: new WebAssembly.Module(fs.readFileSync(RuntimeWasmPath)) });
+  const publishedLanguage = Language.loadSync(new WebAssembly.Module(fs.readFileSync(publishedPath)));
+  const candidateLanguage = Language.loadSync(new WebAssembly.Module(fs.readFileSync(candidatePath)));
   assert.equal(publishedLanguage.abiVersion, candidateLanguage.abiVersion);
   console.log(
     JSON.stringify({
