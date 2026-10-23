@@ -650,7 +650,7 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     }
     else {
         if (!walk->root_colons && following.token != '[' && !following.member) walk->prefix_ordinary = true;
-        if (walk->root_colons && following.token != '[' && !following.member) walk->operand_ordinary = true;
+        if (walk->root_colons && walk->optional > 1 && following.token != '[' && !following.member) walk->operand_ordinary = true;
         walk->future_ternary_eligible = walk->is_ternary_eligible;
         question_walk_future_question(walk, following);
     }

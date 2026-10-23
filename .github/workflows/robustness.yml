@@ -29,11 +29,16 @@ jobs:
       - uses: jdx/mise-action@v5.2.0
       - run: bun install --frozen-lockfile
       - run: bun run test/ci-setup
-      - run: bun run build/ci
+      - id: parser_build
+        run: bun run build/ci
       # Release builds regenerate src/ from all script/generate inputs. Detect committed output drift here,
       # including new untracked generated files, which git diff would otherwise miss.
       - run: git add --intent-to-add -- src/ && git diff --exit-code -- src/
       - run: bun run test/ci
+      - name: Compare published and candidate parser CPU samples
+        if: ${{ !cancelled() && steps.parser_build.outcome == 'success' && matrix.runner == 'macos-15-intel' }}
+        timeout-minutes: 5
+        run: node --no-liftoff --no-wasm-lazy-compilation script/diagnosePerformance.mjs
   # Runs the parser under libFuzzer with AddressSanitizer and UndefinedBehaviorSanitizer, seeded with the
   # input of each corpus case. A grammar change alters which tokens the scanner is asked for, so it runs
   # on every change, not only on scanner changes. The parser runs on WillBooster/tree-sitter at the
