@@ -17279,11 +17279,15 @@
                     "type": "CHOICE",
                     "members": [
                       {
-                        "type": "FIELD",
-                        "name": "type",
+                        "type": "PREC_DYNAMIC",
+                        "value": -1,
                         "content": {
-                          "type": "SYMBOL",
-                          "name": "type"
+                          "type": "FIELD",
+                          "name": "type",
+                          "content": {
+                            "type": "SYMBOL",
+                            "name": "type"
+                          }
                         }
                       },
                       {

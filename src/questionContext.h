@@ -220,6 +220,7 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
 static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first);
 static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
+static bool question_walk_proves_binding_ternary(const QuestionWalk *walk);
 static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk);
 static unsigned question_walk_type_test_role(TSLexer *lexer, QuestionWalk *walk);
 static void question_save_confirmation(Scanner *scanner, const Scanner *confirmed);
@@ -491,6 +492,7 @@ static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, i
 
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (question_walk_proves_binding_ternary(walk)) walk->known_ternary = true;
     unsigned role = question_walk_role(lexer, walk);
     bool confirmation_proved = walk->depth > 0 || walk->root_colons < 2 || !walk->optional ||
         (walk->optional == 1 && walk->confirmation_type);
@@ -509,12 +511,17 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
     if (!walk->found_next_question && question_context_idle(scanner) && !preserve_unknown) reset_question_context(scanner);
     if (preserve_unknown) scanner->question_unknown = true;
     question_walk_cache(scanner, walk);
-    if (confirmable) {
-        if (!walk->found_next_question && question_context_idle(&confirmed) && !preserve_unknown) reset_question_context(&confirmed);
-        if (preserve_unknown) confirmed.question_unknown = true;
-        question_save_confirmation(scanner, &confirmed);
-    }
+    if (!confirmable) return role;
+    if (!walk->found_next_question && question_context_idle(&confirmed) && !preserve_unknown) reset_question_context(&confirmed);
+    if (preserve_unknown) confirmed.question_unknown = true;
+    question_save_confirmation(scanner, &confirmed);
     return role;
+}
+
+static bool question_walk_proves_binding_ternary(const QuestionWalk *walk) {
+    if (!walk->binding || walk->nullable_only || !walk->context_known) return false;
+    if (walk->assignment_possible || walk->lambda_boundary || walk->case_colon_possible || walk->case_boundary) return false;
+    return walk->proved_ternary && !walk->mandatory && !walk->optional;
 }
 
 static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk) {
@@ -700,7 +707,7 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
     walk->ordinary_name_candidate = false;
     if (!walk->depth && walk->binding && !walk->cache_colon && lexer->lookahead == '=') walk->root_binary = true;
     if (lexer->lookahead == '>') {
-        bool own_argument = !walk->depth && !walk->argument_ended;
+        bool own_argument = !walk->depth && !walk->argument_ended && walk->recording;
         if (own_argument) walk->lambda_boundary = true;
         if (walk->recording) {
             array_push(&walk->events, 'l');
