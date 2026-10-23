@@ -89,3 +89,28 @@ test('retains nullable creation types around parenthesized arguments', () => {
     parser.delete();
   }
 });
+
+test('retains nullable stack allocation ranks inside conditional alternatives', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const source of [
+      'var r = (flag ? (x is T) ? (a ? b : c) : d ? [1] : stackalloc int?[2] : end);',
+      '$"{(flag ? (x is T) ? (a ? b : c) : d ? [1] : stackalloc int?[2] : end)}";',
+    ]) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const allocations = tree.rootNode.descendantsOfType('stackalloc_expression');
+        expect(allocations, source).toHaveLength(1);
+        const type = allocations[0]!.childForFieldName('type')!;
+        expect(type.type, source).toBe('array_type');
+        expect(type.text, source).toBe('int?[2]');
+        expect(type.childForFieldName('rank')?.text, source).toBe('[2]');
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

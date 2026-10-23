@@ -16,7 +16,7 @@ static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer) {
 }
 
 static void question_walk_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as, const QuestionIdentifier *identifier, bool creation) {
-    if (!walk->depth && walk->binding) {
+    if (!walk->depth) {
         if (creation) walk->allocation_type = true;
         else if (is_or_as) walk->allocation_type = false;
     }

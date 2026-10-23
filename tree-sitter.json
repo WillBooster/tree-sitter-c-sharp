@@ -18,6 +18,7 @@
         "src/nullableTypes.h",
         "src/questionContext.h",
         "src/questionLiterals.h",
+        "src/questionOperands.h",
         "src/questionState.h",
         "src/tree_sitter/alloc.h",
         "src/tree_sitter/array.h",

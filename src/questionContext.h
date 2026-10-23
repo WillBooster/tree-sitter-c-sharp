@@ -132,6 +132,7 @@ typedef struct {
     uint8_t root_colons;
     bool root_binary;
     bool prefix_ordinary;
+    bool lambda_boundary;
     bool cached_access;
     bool binding;
     bool entering_binding;
@@ -432,7 +433,7 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
     unsigned role = question_walk_role(lexer, walk);
     bool confirmation_proved = walk->depth > 0 || walk->root_colons < 2 || !walk->optional ||
         (walk->optional == 1 && walk->confirmation_type);
-    bool confirmable = !role && walk->ordinary && !walk->known_nullable && !walk->assignment_possible && confirmation_proved;
+    bool confirmable = !walk->lambda_boundary && !role && walk->ordinary && !walk->known_nullable && !walk->assignment_possible && confirmation_proved;
     Scanner confirmed;
     if (confirmable) {
         confirmed = *scanner;
@@ -663,6 +664,7 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
     walk->ordinary_name_candidate = false;
     if (!walk->depth && walk->binding && !walk->cache_colon && lexer->lookahead == '=') walk->root_binary = true;
     if (lexer->lookahead == '>') {
+        if (!walk->depth) walk->lambda_boundary = true;
         if (walk->recording) array_push(&walk->events, 'l');
         if (!walk->depth) {
             walk->cache_shaped = false;
@@ -869,7 +871,8 @@ static void question_walk_colon(QuestionWalk *walk) {
 static void question_walk_complete_colon(QuestionWalk *walk) {
     if (walk->case_boundary && walk->nullable_allowed && !walk->mandatory && walk->following.token == '[' && !walk->access_alternative) walk->role_active = false;
     bool known_ordinary = walk->ordinary && walk->role_known && !walk->nullable_only;
-    bool ordinary_complete = known_ordinary && !walk->optional && walk->mandatory == walk->reserved;
+    bool nullable_group = walk->nullable_allowed && walk->following.token == '(' && walk->reserved;
+    bool ordinary_complete = known_ordinary && !nullable_group && !walk->optional && walk->mandatory == walk->reserved;
     if (ordinary_complete || ((walk->recording || walk->ordinary) && !walk->mandatory && !walk->optional)) {
         if (walk->case_colon_possible && !walk->known_ternary) walk->role_known = false;
         if (known_ordinary && walk->role_known) walk->known_ternary = true;
