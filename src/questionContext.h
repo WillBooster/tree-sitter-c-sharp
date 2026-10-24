@@ -199,6 +199,8 @@ typedef struct {
     bool later_ordinary_operand;
     bool access_chain_value;
     bool ambiguous_binding_chain;
+    bool own_binding_open;
+    bool own_binding_colon;
     unsigned binding_chain_depth;
     bool future_ternary_eligible;
     bool confirmation_operand;
@@ -812,6 +814,10 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
     question_walk_record_delimiter(walk, c);
     if (question_opening_group(c)) walk->depth++;
     else if (question_closing_group(c)) walk->depth--;
+    if (c == ']' && walk->own_binding_open && !walk->depth) {
+        walk->own_binding_open = false;
+        walk->own_binding_colon = question_skip_separators(lexer) == ':';
+    }
     bool statement_end = c == ';' && walk->depth <= 0;
     if (statement_end || walk->depth < 0) { walk->role_active = false; walk->suffix.boundary = true; }
     bool root_statement_end = statement_end && walk->depth + scanner->question_frame_count <= 1;

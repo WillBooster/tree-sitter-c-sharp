@@ -152,7 +152,8 @@ static void question_walk_finish_binding_chain(QuestionWalk *walk) {
 static void question_walk_access_chain(QuestionWalk *walk, QuestionFollowing following) {
     if (!walk->recording && walk->reserved && walk->root_colons && walk->later_ordinary_operand &&
         walk->mandatory && walk->access_chain_value && !walk->type_operand && following.token == '[') {
-        walk->ambiguous_binding_chain = true;
+        // Only a binding closed directly by a colon (`p ? a?[0] : ...`) can also be a ternary consequence.
+        if (walk->own_binding_colon) walk->ambiguous_binding_chain = true;
         walk->cache_shaped = false;
         walk->suffix.regular = false;
     }
@@ -512,6 +513,7 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
         if (step != QUESTION_WALK_CONTINUE) return step;
     }
     walk->binding = first >= 0 && first != ']' && first != ',' && !lexer->eof(lexer);
+    walk->own_binding_open = walk->binding;
     bool nullable_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
     bool expression_rank = walk->rank_phase == RANK_TERNARY || walk->rank_phase == RANK_AFTER_NULLABLE;
     bool rank_separator = first == ']' || first == ',';
