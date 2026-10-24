@@ -57,6 +57,8 @@ static RankReadStep rank_read_expression_verbatim(TSLexer *, RankTokens *, bool 
 static bool rank_read_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
 static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression, QuestionIdentifier name);
 static bool rank_read_creation(TSLexer *lexer, bool *force_unsafe);
+static int32_t rank_read_creation_prefix(TSLexer *lexer);
+static int32_t rank_read_creation_suffix(TSLexer *lexer);
 static RankReadStep rank_read_pattern_word(TSLexer *lexer, const QuestionIdentifier *name, RankExpression *expression, RankCertificate *certificate);
 static void rank_start_lambda(RankTokens *tokens, unsigned *expression);
 static bool rank_read_lambda_arrow(TSLexer *lexer, RankTokens *tokens, unsigned *expression, RankLambdaHeader *header, bool *content, bool *primary);
@@ -643,19 +645,28 @@ static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankE
 }
 
 static bool rank_read_creation(TSLexer *lexer, bool *force_unsafe) {
+    int32_t c = rank_read_creation_prefix(lexer);
+    if (!c) return false;
+    advance(lexer);
+    return rank_read_delimited(lexer, (char)c, RANK_BODY_EXPRESSION, force_unsafe);
+}
+
+static int32_t rank_read_creation_prefix(TSLexer *lexer) {
     int32_t c = question_skip_separators(lexer);
     if (c != '(' && c != '[' && c != '{') {
         RankTypeRead read = {0};
-        if (!rank_read_as_name(lexer, &read) || read.colon || read.division) return false;
-        c = question_skip_separators(lexer);
-        while (c == '?' || c == '*') {
-            advance(lexer);
-            c = question_skip_separators(lexer);
-        }
+        if (!rank_read_as_name(lexer, &read) || read.colon || read.division) return 0;
     }
-    if (c != '(' && c != '[' && c != '{') return false;
-    advance(lexer);
-    return rank_read_delimited(lexer, (char)c, RANK_BODY_EXPRESSION, force_unsafe);
+    return rank_read_creation_suffix(lexer);
+}
+
+static int32_t rank_read_creation_suffix(TSLexer *lexer) {
+    int32_t c = question_skip_separators(lexer);
+    while (c == '?' || c == '*') {
+        advance(lexer);
+        c = question_skip_separators(lexer);
+    }
+    return c == '(' || c == '[' || c == '{' ? c : 0;
 }
 
 static RankReadStep rank_read_pattern_word(TSLexer *lexer, const QuestionIdentifier *name, RankExpression *expression, RankCertificate *certificate) {

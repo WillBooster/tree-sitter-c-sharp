@@ -289,6 +289,7 @@ static void question_walk_type_operand(QuestionWalk *walk, bool future_identifie
 }
 
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWalk *walk) {
+    if (walk->depth && !walk->recording) return question_walk_creation_child(lexer, walk);
     if (walk->depth) return QUESTION_WALK_CONTINUE;
     int32_t next = question_skip_separators(lexer);
     if (walk->recording && next != '(') return QUESTION_WALK_CONTINUE;
@@ -303,6 +304,32 @@ static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWa
         if (!rank_read_as_name(lexer, &read) || read.colon || read.division || read.conditional || read.coalesce || read.binary || read.has_word) return QUESTION_WALK_UNKNOWN;
     }
     return QUESTION_WALK_CONTINUE;
+}
+
+static QuestionWalkStep question_walk_creation_child(TSLexer *lexer, QuestionWalk *walk) {
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    bool complete = false;
+    int32_t opening;
+    if (question_skip_separators(lexer) == '(') {
+        bool tuple = false;
+        if (!question_walk_creation_tuple(lexer, walk, &tuple)) goto unknown;
+        int32_t next = question_skip_separators(lexer);
+        complete = !tuple || (next != '?' && next != '*' && next != '(' && next != '[' && next != '{');
+        opening = complete ? 0 : rank_read_creation_suffix(lexer);
+    } else opening = rank_read_creation_prefix(lexer);
+    if (!complete && !opening) {
+        question_input_restore(walk->input, start);
+        return QUESTION_WALK_CONTINUE;
+    }
+    if (!complete) {
+        advance(lexer);
+        if (!rank_read_delimited(lexer, (char)opening, RANK_BODY_EXPRESSION, NULL)) goto unknown;
+    }
+    question_input_restore(walk->input, (QuestionCheckpoint){walk->input->cursor, start.capturing});
+    return QUESTION_WALK_CONTINUE;
+unknown:
+    question_input_restore(walk->input, start);
+    return QUESTION_WALK_UNKNOWN;
 }
 
 static bool question_walk_creation_tuple(TSLexer *lexer, QuestionWalk *walk, bool *tuple) {

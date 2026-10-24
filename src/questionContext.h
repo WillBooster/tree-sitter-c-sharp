@@ -235,6 +235,7 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
 static void question_walk_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as, const QuestionIdentifier *identifier, bool creation);
 static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk, const QuestionIdentifier *identifier);
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWalk *walk);
+static QuestionWalkStep question_walk_creation_child(TSLexer *, QuestionWalk *);
 static bool question_walk_creation_tuple(TSLexer *lexer, QuestionWalk *walk, bool *tuple);
 static bool question_walk_is_name(TSLexer *, QuestionWalk *, const QuestionIdentifier *);
 static bool question_walk_name_suffix(TSLexer *, QuestionWalk *, const QuestionIdentifier *, RankTypeRead *);
@@ -714,6 +715,8 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
             walk->lambda_prefix = true;
         }
         if (own_argument) {
+            if (walk->context_known && !walk->interpolation_depth && walk->following.token == '(')
+                walk->known_nullable = true;
             walk->cache_shaped = false;
             walk->role_active = false;
             walk->role_known = false;
