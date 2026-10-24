@@ -1,10 +1,17 @@
-import { Language, Parser, Query, type Node } from '@willbooster/web-tree-sitter';
+import { Language, type Node, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 import { ownershipSamples } from '../fixtures/typedConditionalOwnership';
 import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
 
 let language: Language;
+
+interface AllocationSample {
+  source: string;
+  type: string;
+  rank: string;
+  header: boolean;
+}
 
 beforeAll(async () => {
   await Parser.init();
@@ -282,6 +289,101 @@ test('preserves conditional ownership across distant alternative edits', () => {
     parser.delete();
   }
 });
+
+test('preserves complete stack allocation types and nullable lambda headers through edits', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(
+    language,
+    '(lambda_expression type: (_) @return) (stackalloc_expression type: (_) @allocation)'
+  );
+  const deepType = 'G<T?>?[]?[a?[0]]';
+  const samples = [
+    typedAllocationSample('int?*[a?[0]][b]', '[b]'),
+    typedAllocationSample('G<T?>?[]?[a?[0]]', '[a?[0]]'),
+    typedAllocationSample('G<T?[a?[0]]>[b?[0]]', '[b?[0]]'),
+    {
+      source: 'class C { void M() { switch (v) { case 1 when a ? stackalloc int?[2]?*[1] ? [1] : c : b: break; } } }',
+      type: 'int?[2]?*[1] ? [1]',
+      rank: '[1]',
+      header: false,
+    },
+    {
+      source: `var r = flag ? ${'f('.repeat(506)}f(T? (k) => f(x is A, stackalloc ${deepType}))${')'.repeat(506)} : end;`,
+      type: deepType,
+      rank: '[a?[0]]',
+      header: true,
+    },
+  ];
+  const following = 'class Following { int Value => 1; }';
+  let previous = 'var r = 0;';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const sample of [...samples, ...samples.toReversed()]) {
+      const source = `/* 日本語? */ ${sample.source} ${following}`;
+      editTree(tree, previous, source);
+      const incremental = parser.parse(source, tree)!;
+      const fresh = parser.parse(source)!;
+      try {
+        expect(fresh.rootNode.hasError, source).toBe(false);
+        const expected = expectAllocationFields(fresh.rootNode, source, sample.type, sample.rank, sample.header);
+        expect(ownershipCaptures(query, fresh.rootNode), source).toEqual(expected);
+        expect(ownershipCaptures(query, incremental.rootNode), source).toEqual(expected);
+        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        const declaration = fresh.rootNode
+          .descendantsOfType('class_declaration')
+          .find((node) => node.text === following)!;
+        expect(declaration.parent?.type, source).toBe('compilation_unit');
+        expect([declaration.startIndex, declaration.endIndex], source).toEqual([
+          source.lastIndexOf(following),
+          source.length,
+        ]);
+      } finally {
+        tree.delete();
+        tree = incremental;
+        fresh.delete();
+        previous = source;
+      }
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
+function typedAllocationSample(type: string, rank: string): AllocationSample {
+  return { source: `var r = f(T? (k) => f(x is A, stackalloc ${type}));`, type, rank, header: true };
+}
+
+function expectAllocationFields(root: Node, source: string, type: string, rank: string, header: boolean): string[] {
+  const allocations = root.descendantsOfType('stackalloc_expression');
+  expect(allocations, source).toHaveLength(1);
+  const allocation = allocations[0]!;
+  const start = source.indexOf(`stackalloc ${type}`);
+  expect([allocation.text, allocation.startIndex, allocation.endIndex], source).toEqual([
+    `stackalloc ${type}`,
+    start,
+    start + 'stackalloc '.length + type.length,
+  ]);
+  const field = allocation.childForFieldName('type')!;
+  expect([field.type, field.text, field.childForFieldName('rank')?.text], source).toEqual(['array_type', type, rank]);
+  expect(field.childForFieldName('type')?.text, source).toBe(type.slice(0, -rank.length).trimEnd());
+  const expected = [`allocation:${start + 'stackalloc '.length}:${start + 'stackalloc '.length + type.length}`];
+  const lambdas = root.descendantsOfType('lambda_expression');
+  expect(lambdas, source).toHaveLength(header ? 1 : 0);
+  if (header) {
+    const lambda = lambdas[0]!;
+    expect([lambda.childForFieldName('type')?.type, lambda.childForFieldName('type')?.text], source).toEqual([
+      'nullable_type',
+      'T?',
+    ]);
+    expect(lambda.childForFieldName('parameters')?.text, source).toBe('(k)');
+    expect(lambda.childForFieldName('body')?.type, source).toBe('invocation_expression');
+    const position = source.indexOf('T? (k)');
+    expected.push(`return:${position}:${position + 2}`);
+  }
+  return expected.toSorted();
+}
 
 function ownershipCaptures(query: Query, node: Node): string[] {
   return query

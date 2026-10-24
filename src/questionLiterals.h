@@ -3,7 +3,7 @@
 
 typedef Array(char) RankGroups;
 typedef enum { RANK_READ_UNKNOWN, RANK_READ_MORE, RANK_READ_DONE, RANK_READ_TOKEN } RankReadStep;
-typedef enum { RANK_BODY_BRACKET, RANK_BODY_EXPRESSION, RANK_BODY_QUESTION_FREE, RANK_BODY_INTERPOLATION_QUESTION_FREE } RankBodyMode;
+typedef enum { RANK_BODY_BRACKET, RANK_BODY_EXPRESSION, RANK_BODY_QUESTION_FREE, RANK_BODY_INTERPOLATION_QUESTION_FREE, RANK_BODY_TYPE_DIMENSION } RankBodyMode;
 typedef struct {
     RankGroups groups;
     RankBodyMode mode;
@@ -28,6 +28,8 @@ static bool rank_read_frames(TSLexer *, RankLiteralFrames *, bool *, unsigned, b
 static bool rank_collect_frame(const RankLiteralFrame *, bool *, bool *, uint32_t *);
 static void rank_push_code(RankLiteralFrames *, char, RankBodyMode, unsigned);
 static RankReadStep rank_read_code_step(TSLexer *, RankLiteralFrames *);
+static RankReadStep rank_read_dimension_operator(TSLexer *, RankBodyMode, int32_t);
+static RankReadStep rank_read_code_verbatim(TSLexer *, RankBodyMode);
 static RankReadStep rank_read_code_question(TSLexer *, RankLiteralFrame *);
 static RankReadStep rank_read_code_identifier(TSLexer *, RankLiteralFrame *);
 static RankReadStep rank_read_string_step(TSLexer *, RankLiteralFrames *);
@@ -115,6 +117,8 @@ static RankReadStep rank_read_code_step(TSLexer *lexer, RankLiteralFrames *frame
     bool identifier_start = is_id_start(c) || c == '\\';
     if (!identifier_start) frame->identifiers = 0;
     if (c == -1) { frame->content = true; return RANK_READ_MORE; }
+    RankReadStep dimension = rank_read_dimension_operator(lexer, frame->mode, c);
+    if (dimension != RANK_READ_TOKEN) return dimension;
     if (c == ')' || c == ']' || c == '}') {
         RankReadStep step = rank_close_delimited(lexer, &frame->groups, c, frame->format_braces);
         if (step == RANK_READ_DONE && !frame->content && frame->mode == RANK_BODY_BRACKET) return RANK_READ_UNKNOWN;
@@ -129,13 +133,27 @@ static RankReadStep rank_read_code_step(TSLexer *lexer, RankLiteralFrames *frame
     if (c == ':') frame->colon = true;
     bool question_free = frame->mode == RANK_BODY_QUESTION_FREE || frame->mode == RANK_BODY_INTERPOLATION_QUESTION_FREE;
     if (question_free && c == '?') return RANK_READ_UNKNOWN;
-    RankReadStep literal = rank_push_literal(lexer, frames, c, question_free ? frame->mode : RANK_BODY_EXPRESSION);
+    RankReadStep literal = rank_push_literal(lexer, frames, c, question_free || frame->mode == RANK_BODY_TYPE_DIMENSION ? frame->mode : RANK_BODY_EXPRESSION);
     if (literal != RANK_READ_TOKEN) return literal;
-    if (c == '@') return RANK_READ_MORE;
+    if (c == '@') return rank_read_code_verbatim(lexer, frame->mode);
     if (c == '?') return rank_read_code_question(lexer, frame);
     if (c == '(' || c == '[' || c == '{') array_push(&frame->groups, (char)c);
     advance(lexer);
     return RANK_READ_MORE;
+}
+
+static RankReadStep rank_read_dimension_operator(TSLexer *lexer, RankBodyMode mode, int32_t c) {
+    if (mode != RANK_BODY_TYPE_DIMENSION) return RANK_READ_TOKEN;
+    if (c == '{') return RANK_READ_UNKNOWN;
+    if (c != '=') return RANK_READ_TOKEN;
+    advance(lexer);
+    return lexer->lookahead == '>' ? RANK_READ_UNKNOWN : RANK_READ_MORE;
+}
+
+static RankReadStep rank_read_code_verbatim(TSLexer *lexer, RankBodyMode mode) {
+    if (mode != RANK_BODY_TYPE_DIMENSION) return RANK_READ_MORE;
+    QuestionIdentifier identifier;
+    return question_identifier(lexer, true, &identifier) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
 }
 
 static RankReadStep rank_read_code_question(TSLexer *lexer, RankLiteralFrame *frame) {
@@ -155,6 +173,9 @@ static RankReadStep rank_read_code_question(TSLexer *lexer, RankLiteralFrame *fr
 static RankReadStep rank_read_code_identifier(TSLexer *lexer, RankLiteralFrame *frame) {
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return RANK_READ_UNKNOWN;
+    if (frame->mode == RANK_BODY_TYPE_DIMENSION && identifier.keyword &&
+        (!strcmp(identifier.word, "new") || !strcmp(identifier.word, "stackalloc") || !strcmp(identifier.word, "is") ||
+         !strcmp(identifier.word, "as") || !strcmp(identifier.word, "delegate"))) return RANK_READ_UNKNOWN;
     if (!identifier.keyword || (identifier.length < sizeof(identifier.word) && is_syntax_word(identifier.word))) {
         frame->identifiers = 0;
         return RANK_READ_MORE;

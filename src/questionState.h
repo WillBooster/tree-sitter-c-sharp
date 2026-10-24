@@ -12,6 +12,27 @@ static bool question_read_rank(Scanner *scanner, unsigned flags, const char *buf
 
 typedef struct { bool unknown, extended, rank, cache, depths, confirmation, transfers; } QuestionSerialization;
 
+static uint8_t question_take_rank(Scanner *scanner, bool *known_nullable) {
+    if (scanner->question_rank_role == RANK_ALLOCATION_PREFIX) {
+        *known_nullable = true;
+        if (!--scanner->question_rank_prefix_questions) clear_question_rank(scanner);
+        return RANK_NONE;
+    }
+    if (scanner->question_rank_role == RANK_ALLOCATION_MIXED) {
+        *known_nullable |= scanner->question_rank_prefix_questions & 1;
+        scanner->question_rank_prefix_questions >>= 1;
+        if (scanner->question_rank_prefix_questions == 1) clear_question_rank(scanner);
+        return RANK_NONE;
+    }
+    if (scanner->question_rank_role && scanner->question_rank_prefix_questions) {
+        scanner->question_rank_prefix_questions--;
+        return RANK_NONE;
+    }
+    uint8_t role = scanner->question_rank_role;
+    clear_question_rank(scanner);
+    return role;
+}
+
 static QuestionSerialization question_serialization_plan(const Scanner *scanner, unsigned available) {
     bool confirmation = scanner->ternary_confirmation.valid;
     bool extended = (!scanner->question_unknown || confirmation) && (scanner->question_frame_count > 1 ||
@@ -30,8 +51,9 @@ static QuestionSerialization question_serialization_plan(const Scanner *scanner,
         available += extension_size;
         extended = false;
     }
-    bool rank = !unknown && scanner->question_rank_role &&
-        (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE) && available >= 5;
+    bool allocation = (scanner->question_rank_role == RANK_ALLOCATION_PREFIX || scanner->question_rank_role == RANK_ALLOCATION_MIXED) && scanner->question_rank_prefix_questions;
+    bool rank = (allocation || (!unknown && scanner->question_rank_role &&
+        (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE))) && available >= 5;
     if (rank) available -= 5;
     bool cache = !rank && (unknown || !scanner->question_type_uncertain) && scanner->question_access_cache && available >= 4;
     if (cache) available -= 4;
@@ -226,9 +248,11 @@ static void question_save_confirmation(Scanner *scanner, const Scanner *confirme
 
 static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size) {
     if (flags & QUESTION_STATE_UNKNOWN) {
-        if (!(flags & (QUESTION_STATE_ACCESS_CACHE | QUESTION_STATE_CONFIRMATION)) ||
-            ((flags & QUESTION_STATE_EXTENDED) && !(flags & QUESTION_STATE_CONFIRMATION)) ||
-            (flags & (QUESTION_STATE_RANK_ROLE | QUESTION_STATE_TYPE_UNCERTAIN))) return false;
+        bool allocation = (flags & QUESTION_STATE_RANK_ROLE) && *size + 5 <= length &&
+            ((uint8_t)buffer[*size] == RANK_ALLOCATION_PREFIX || (uint8_t)buffer[*size] == RANK_ALLOCATION_MIXED);
+        if (!(flags & (QUESTION_STATE_ACCESS_CACHE | QUESTION_STATE_CONFIRMATION)) && !allocation) return false;
+        if (((flags & QUESTION_STATE_EXTENDED) && !(flags & QUESTION_STATE_CONFIRMATION)) ||
+            (flags & QUESTION_STATE_TYPE_UNCERTAIN) || ((flags & QUESTION_STATE_RANK_ROLE) && !allocation)) return false;
         scanner->question_unknown = true;
     }
     scanner->question_type_uncertain = (flags & QUESTION_STATE_TYPE_UNCERTAIN) != 0;
@@ -247,6 +271,8 @@ static bool question_read_rank(Scanner *scanner, unsigned flags, const char *buf
     scanner->question_rank_role = (uint8_t)buffer[(*size)++];
     for (unsigned byte = 0; byte < 4; byte++) scanner->question_rank_prefix_questions |=
         (uint32_t)(unsigned char)buffer[(*size)++] << (byte * 8);
+    if (scanner->question_rank_role == RANK_ALLOCATION_PREFIX) return scanner->question_rank_prefix_questions != 0;
+    if (scanner->question_rank_role == RANK_ALLOCATION_MIXED) return scanner->question_rank_prefix_questions > 1;
     if (!scanner->question_rank_role || scanner->question_rank_role > RANK_PATTERN_COMPLETE) return false;
     if (!scanner->question_type_uncertain && scanner->question_rank_role != RANK_PATTERN_COMPLETE) return false;
     return true;

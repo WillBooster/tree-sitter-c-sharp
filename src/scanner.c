@@ -65,6 +65,7 @@ enum TokenType {
     IF_ALTERNATIVE_DIRECTIVE,
     CONDITIONAL_CONSEQUENCE_START,
     EXPRESSION_GENERIC_START,
+    STACKALLOC_CONTEXT,
 };
 
 typedef enum {
@@ -616,6 +617,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         if (question != QUESTION_NOT_STARTED) return question == QUESTION_MATCHED;
     }
 
+    QuestionScanResult creation_context = scan_stackalloc_context(scanner, lexer, valid_symbols);
+    if (creation_context != QUESTION_NOT_STARTED) return creation_context == QUESTION_MATCHED;
+
     // Lambda-paren scanning advances forward speculatively past the
     // opening `(`. If it consumes input and then bails, the lexer
     // cursor is mispositioned and must not be reused by other token
@@ -1080,13 +1084,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     bool known_nullable = next.token == ')' || next.token == ',' || next.token == ':' ||
         (valid_symbols[QUESTION_NULLABLE] &&
          (consumed_division || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
-    uint8_t rank_phase = RANK_NONE;
-    if (scanner->question_rank_role && scanner->question_rank_prefix_questions) {
-        scanner->question_rank_prefix_questions--;
-    } else {
-        rank_phase = scanner->question_rank_role;
-        clear_question_rank(scanner);
-    }
+    uint8_t rank_phase = question_take_rank(scanner, &known_nullable);
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown || frame->unknown || next.token != '[')
         rank_phase = RANK_NONE;

@@ -53,6 +53,9 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._stackalloc_array_type, $.array_type],
+    [$._stackalloc_array_type, $._array_base_type],
+    [$._stackalloc_nullable_type, $.nullable_type],
     [$._simple_name, $._expression_simple_name, $._pattern_simple_identifier_name, $._ambiguous_cast_qualified_name],
     [$._expression_simple_name, $._ambiguous_cast_qualified_name],
     [$._simple_name, $._expression_simple_name, $._ambiguous_cast_qualified_name],
@@ -361,6 +364,7 @@ module.exports = grammar({
     sym('_if_alternative_directive'),
     sym('_conditional_consequence_start'),
     sym('_expression_generic_start'),
+    sym('_stackalloc_context'),
   ],
 
   extras: ($) => [
@@ -1251,6 +1255,32 @@ module.exports = grammar({
     implicit_type: () => prec.dynamic(1, 'var'),
 
     array_type: ($) => seq(field('type', $._array_base_type), field('rank', $.array_rank_specifier)),
+
+    _stackalloc_array_type: ($) =>
+      prec.dynamic(
+        1,
+        seq(
+          field(
+            'type',
+            choice(
+              alias($._stackalloc_array_type, $.array_type),
+              $._name,
+              alias($._stackalloc_nullable_type, $.nullable_type),
+              $.pointer_type,
+              $.function_pointer_type,
+              $.predefined_type,
+              $.tuple_type
+            )
+          ),
+          field('rank', $.array_rank_specifier)
+        )
+      ),
+
+    _stackalloc_nullable_type: ($) =>
+      seq(
+        field('type', choice(alias($._stackalloc_array_type, $.array_type), $._name, $.predefined_type, $.tuple_type)),
+        nullableQuestion()
+      ),
 
     _array_base_type: ($) =>
       choice(
@@ -3329,12 +3359,21 @@ function arrayCreationExpression($, initializer) {
 }
 
 /**
- * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'type'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_stackalloc_array_type' | 'array_type' | 'type'>} $
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} initializer
  * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
  */
 function stackallocExpression($, initializer) {
-  return prec.left(seq('stackalloc', field('type', $.type), initializer));
+  return choice(
+    prec.left(seq('stackalloc', field('type', $.type), initializer)),
+    prec.right(
+      seq(
+        alias(sym('_stackalloc_context'), 'stackalloc'),
+        field('type', alias($._stackalloc_array_type, $.array_type)),
+        initializer
+      )
+    )
+  );
 }
 
 /**

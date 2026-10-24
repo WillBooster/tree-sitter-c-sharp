@@ -148,6 +148,24 @@ function repeatedGenericConditionalSource(count: number): string {
   return 'var r = ' + 'x ? a?[0] : G<B,C> ? a : d ? [b] : '.repeat(count) + 'c;';
 }
 
+test('bounds repeated omitted stack allocation ranks', { timeout: 60_000 }, () => {
+  const small = omittedStackAllocationRanks(100);
+  const large = omittedStackAllocationRanks(1000);
+  parseCpuTime(large, false);
+  let smallFastest = Infinity;
+  let largeFastest = Infinity;
+  for (let run = 0; run < 3; run++) {
+    smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
+    largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+  }
+  expect(largeFastest / smallFastest).toBeLessThan(18);
+  expect(largeFastest).toBeLessThan(5_000_000);
+});
+
+function omittedStackAllocationRanks(count: number): string {
+  return `var r = stackalloc int?${'[]'.repeat(count)}[size];`;
+}
+
 test('bounds repeated nullable-rank arguments', { timeout: 60_000 }, () => {
   const small = repeatedSiblingRankSource(100);
   const large = repeatedSiblingRankSource(1000);

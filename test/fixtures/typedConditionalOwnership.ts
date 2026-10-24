@@ -2791,4 +2791,24 @@ export const ownershipSamples = [
     source: "var r = f(T? (k) => (a?[0] is T ? b?[0] : c?[0]));",
     ranges: [[[21, 31], [34, 39], [42, 47]]],
   },
+  {
+    source: "var r = f(T? (k) => f(x is A, stackalloc int?[a?[0]]));",
+    ranges: [],
+  },
+  {
+    source: "var r = f(T? (k) => f(x is A, stackalloc int?*[a?[0]]));",
+    ranges: [],
+  },
+  {
+    source: "var r = f(T? (k) => f(x is A, stackalloc int?[a?[0]] as T));",
+    ranges: [],
+  },
+  {
+    source: "var r = f(T? (k) => f(x is A, stackalloc G<T?>?[]?[a?[0]]));",
+    ranges: [],
+  },
+  {
+    source: "var r = f(T? (k) => f(x is A, stackalloc G<T[a?[b ? 0 : 1]]>?[z?[0]]));",
+    ranges: [[[48,49],[52,53],[56,57]]],
+  },
 ];

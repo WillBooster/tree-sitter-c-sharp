@@ -623,4 +623,43 @@ static QuestionWalkStep question_walk_string(TSLexer *lexer, QuestionWalk *walk,
     return valid ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
 }
 
+static uint8_t stackalloc_prefix_role(TSLexer *lexer, uint32_t *questions);
+
+static QuestionScanResult scan_stackalloc_context(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+    if (!valid_symbols[STACKALLOC_CONTEXT]) return QUESTION_NOT_STARTED;
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    if (lexer->lookahead != 's') return QUESTION_NOT_STARTED;
+    char word[11] = {0};
+    size_t length = consume_identifier_into(lexer, word, sizeof(word));
+    if (!buf_equals(word, length, "stackalloc") || lexer->lookahead == '\\' ||
+        (lexer->lookahead > 0x7f && !is_space_but_line_feed(lexer->lookahead) && !is_line_terminator(lexer->lookahead))) return QUESTION_MISMATCHED;
+    lexer->mark_end(lexer);
+
+    if (scanner->question_rank_role) return QUESTION_MISMATCHED;
+    uint32_t questions = 0;
+    uint8_t role = stackalloc_prefix_role(lexer, &questions);
+    if (!role) return QUESTION_MISMATCHED;
+    scanner->question_rank_role = role;
+    scanner->question_rank_prefix_questions = questions;
+    lexer->result_symbol = STACKALLOC_CONTEXT;
+    return QUESTION_MATCHED;
+}
+
+static uint8_t stackalloc_prefix_role(TSLexer *lexer, uint32_t *questions) {
+    RankGroups groups = array_new();
+    RankTypeRead read = {.groups = &groups, .allocation_prefix = true};
+    bool complete = rank_read_as_type(lexer, &read);
+    bool sized = !complete && read.sized_rank && groups.size == 1 && *array_back(&groups) == '[';
+    bool valid = sized && !read.colon && !read.coalesce && !read.conditional && !read.division && !read.binary && !read.has_word;
+    array_delete(&groups);
+    if (!valid || !read.questions) return RANK_NONE;
+    if (!read.expression_questions) {
+        *questions = read.questions;
+        return RANK_ALLOCATION_PREFIX;
+    }
+    if (read.expression_questions > 31 || read.questions > 31 - read.expression_questions) return RANK_NONE;
+    *questions = read.question_bits | (1U << (read.questions + read.expression_questions));
+    return RANK_ALLOCATION_MIXED;
+}
+
 #endif

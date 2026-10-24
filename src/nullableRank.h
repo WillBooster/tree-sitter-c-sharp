@@ -11,6 +11,8 @@ typedef enum {
     RANK_TERNARY,
     RANK_AFTER_NULLABLE,
     RANK_PATTERN_COMPLETE,
+    RANK_ALLOCATION_PREFIX,
+    RANK_ALLOCATION_MIXED,
 } NullableRankRole;
 
 typedef struct { QuestionInput *input; QuestionCheckpoint prefix, tail; unsigned end; bool prefix_questions; } RankScopeRead;
