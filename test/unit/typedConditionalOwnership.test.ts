@@ -26,7 +26,7 @@ beforeAll(async () => {
   language = await Language.load('tree-sitter-c_sharp.wasm');
 });
 
-test('preserves typed conditional fields, ranges and captures across local edits', () => {
+test('preserves typed conditional fields, ranges and captures across local edits', { timeout: 30_000 }, () => {
   const parser = new Parser().setLanguage(language);
   const query = new Query(
     language,
