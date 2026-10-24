@@ -2466,6 +2466,7 @@ module.exports = grammar({
           repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
           choice(
             field('parameters', prec(-1, alias($.identifier, sym('implicit_parameter')))),
+            prec(1, prec.dynamic(1, seq(field('type', $.ref_type), field('parameters', $._lambda_parameters)))),
             seq(optional(prec.dynamic(-1, field('type', $.type))), field('parameters', $._lambda_parameters))
           )
         )

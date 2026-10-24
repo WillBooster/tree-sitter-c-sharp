@@ -165,6 +165,7 @@ typedef struct {
     bool lambda_boundary;
     bool cached_access;
     bool binding;
+    QuestionSuffixBuilder suffix;
     bool entering_binding;
     bool nullable_only;
     bool nullable_allowed;
@@ -192,6 +193,10 @@ typedef struct {
     bool first_word;
     bool ordinary_first_token;
     bool future_first_token;
+    bool later_ordinary_operand;
+    bool access_chain_value;
+    bool ambiguous_binding_chain;
+    unsigned binding_chain_depth;
     bool future_ternary_eligible;
     bool confirmation_operand;
     bool confirmation_type;
@@ -214,6 +219,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
 static QuestionWalkStep question_walk_argument_end(TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_punctuation(Scanner *, TSLexer *, QuestionWalk *, int32_t);
 static void question_walk_nullable_tail(QuestionWalk *walk, int32_t c);
+static bool question_suffix_ordinary(QuestionFollowing next);
 static void question_walk_logical_nullable(QuestionWalk *walk);
 static bool question_pattern_only_start(int32_t c);
 static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
@@ -224,6 +230,7 @@ static bool question_walk_proves_binding_ternary(const QuestionWalk *walk);
 static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk);
 static unsigned question_walk_type_test_role(TSLexer *lexer, QuestionWalk *walk);
 static void question_save_confirmation(Scanner *scanner, const Scanner *confirmed);
+static void question_complete_context(Scanner *, bool, bool);
 static bool question_walk_access_prefix(const QuestionWalk *walk);
 static bool question_type_boundary(int32_t c);
 static bool question_opening_group(int32_t c);
@@ -268,7 +275,7 @@ static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing 
 static bool question_uncertain_keyword(const QuestionIdentifier *identifier);
 static bool question_expression_keyword(const QuestionIdentifier *identifier);
 static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool proved_access);
-static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk);
+static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk, unsigned role);
 static Interpolation *question_interpolation(Scanner *scanner);
 static void interpolation_question_events(Scanner *scanner, const char *events, unsigned count);
 static bool question_walk_interpolation_end(const QuestionWalk *walk, int32_t c);
@@ -309,22 +316,25 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
         !scanner->question_frames[scanner->question_frame_count - 1].unknown)
         scanner->question_rank_role = RANK_AFTER_NULLABLE;
     *known_ternary = walk.known_ternary;
-    array_delete(&walk.groups);
-    array_delete(&walk.events);
-    ts_free(walk.preview);
+    question_walk_dispose(&walk);
     array_delete(&input.characters);
     return result;
 unknown:
+    question_clear_access_cache(scanner);
     if (interpolation) interpolation->question_depth = UINT16_MAX;
     scanner->question_unknown = true;
-    scanner->question_access_cache = 0;
-    array_delete(&walk.groups);
-    array_delete(&walk.events);
-    ts_free(walk.preview);
+    question_walk_dispose(&walk);
     array_delete(&input.characters);
     *known_nullable = walk.known_nullable;
     *known_ternary = walk.known_ternary;
     return result ? result : walk.known_ternary ? 2 : 0;
+}
+
+
+static bool question_suffix_context(const Scanner *scanner, bool known, bool known_nullable, uint8_t rank_phase) {
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    return known && !known_nullable && !rank_phase && !scanner->interpolation_stack.size &&
+        !frame->case_colon && !frame->force_barrier && !frame->query_pending && !frame->query_result && !frame->generic_pending;
 }
 
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase) {
@@ -335,10 +345,14 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
     bool ternary_only = rank_phase == RANK_PATTERN_COMPLETE;
     bool cached = scanner->question_access_cache && following.token == '[' && !ternary_only &&
         (known || (scanner->question_unknown && !known_nullable && !(context_flags & QUESTION_NULLABLE_ONLY)));
+    bool suffix_context = question_suffix_context(scanner, known, known_nullable, rank_phase);
+    unsigned suffix_role = question_suffix_take(&scanner->suffix, following.token == '[',
+        suffix_context && (following.token == '[' || question_suffix_ordinary(following)), scanner->question_frame_count, frame->pending);
     bool case_boundary = (frame->case_colon && !(context_flags & QUESTION_CASE_COLON));
     bool ordinary = following.token != '[' && !following.member;
     bool definite_ternary = ternary_only || (ordinary && !known_nullable && following.token >= '0' && following.token <= '9');
     QuestionWalk walk = {
+        .suffix = {.role = suffix_role, .regular = !suffix_role && following.token == '[' && suffix_context},
         .following = following,
         .interpolation_depth = interpolation && interpolation->question_depth != UINT16_MAX ? interpolation->question_depth : -1,
         .nullable_context = scanner->question_type_uncertain || rank_phase != RANK_NONE,
@@ -360,7 +374,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .context_known = context_known,
         .no_colons = true,
         .cache_shaped = following.token == '[' && !cached && !ternary_only,
-        .role_active = !following.member && !cached && !known_nullable && !definite_ternary,
+        .role_active = !suffix_role && !following.member && !cached && !known_nullable && !definite_ternary,
         .case_colon_possible = context_flags & QUESTION_CASE_COLON,
         .case_boundary = case_boundary,
         .recording = true,
@@ -369,14 +383,15 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
             (!scanner->interpolation_stack.size || (interpolation && interpolation->question_depth > 0 &&
                 interpolation->question_depth != UINT16_MAX)) &&
             !(context_flags & (QUESTION_NULLABLE_ONLY | QUESTION_CASE_COLON)),
-        .known_nullable = known_nullable,
-        .known_ternary = definite_ternary,
+        .known_nullable = known_nullable && !suffix_role,
+        .known_ternary = definite_ternary || suffix_role == 2,
         .rank_phase = rank_phase,
         .nullable_terminator = question_type_boundary(following.token) || following.token == '}',
         .definite_ternary = definite_ternary,
         .first_word = true,
         .ordinary_first_token = ordinary && following.token != '/',
     };
+    if (walk.suffix.regular) array_push(&walk.suffix.live, UINT32_MAX);
     scanner->question_access_cache = 0;
     return walk;
 }
@@ -427,6 +442,7 @@ static QuestionWalkStep question_walk_argument_end(TSLexer *lexer, QuestionWalk 
         const QuestionFrame *prefix = question_walk_prefix_frame(walk);
         if (prefix && !prefix->generic_pending && !prefix->query_pending) walk->argument_ended = true;
     }
+    walk->suffix.boundary = true;
     walk->is_eligible = walk->is_eligible && walk->is_later_alternative;
     walk->role_active = false;
     if (!walk->recording) return QUESTION_WALK_STOP;
@@ -459,6 +475,9 @@ static bool question_pattern_only_start(int32_t c) {
 }
 
 static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first) {
+    if (!walk->depth && (question_operator(c) || c == -1)) {
+        walk->access_chain_value = false;
+    }
     question_walk_creation_operator(walk, c);
     question_walk_is_name_operator(walk, c);
     if (!walk->depth && (question_operator(c) || c == -1)) walk->as_operand = false;
@@ -493,6 +512,7 @@ static bool question_walk_binding_operator(TSLexer *lexer, QuestionWalk *walk, i
 
 static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    question_walk_finish_binding_chain(walk);
     if (question_walk_proves_binding_ternary(walk)) walk->known_ternary = true;
     unsigned role = question_walk_role(lexer, walk);
     bool confirmation_proved = walk->depth > 0 || walk->root_colons < 2 || !walk->optional ||
@@ -509,12 +529,10 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
     question_walk_pending(walk, frame, role == 1 || role == 3);
     apply_question_events(scanner, walk->events.contents, walk->events.size);
     bool preserve_unknown = question_interpolation(scanner) && !walk->context_known;
-    if (!walk->found_next_question && question_context_idle(scanner) && !preserve_unknown) reset_question_context(scanner);
-    if (preserve_unknown) scanner->question_unknown = true;
-    question_walk_cache(scanner, walk);
+    question_complete_context(scanner, walk->found_next_question, preserve_unknown);
+    question_walk_cache(scanner, walk, role);
     if (!confirmable) return role;
-    if (!walk->found_next_question && question_context_idle(&confirmed) && !preserve_unknown) reset_question_context(&confirmed);
-    if (preserve_unknown) confirmed.question_unknown = true;
+    question_complete_context(&confirmed, walk->found_next_question, preserve_unknown);
     question_save_confirmation(scanner, &confirmed);
     return role;
 }
@@ -526,6 +544,7 @@ static bool question_walk_proves_binding_ternary(const QuestionWalk *walk) {
 }
 
 static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk) {
+    if (walk->suffix.role) return walk->suffix.role;
     bool ambiguous_optional = (walk->reserved || walk->case_boundary) &&
         ((walk->optional > 1 && walk->prefix_ordinary) ||
          (walk->optional && !walk->is_eligible && walk->is_optional > walk->optional));
@@ -577,12 +596,15 @@ static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk
 }
 
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as) {
+    walk->suffix.regular = false;
     walk->cache_type_uncertain = true;
     bool case_colon = scanner->question_frames[scanner->question_frame_count - 1].case_colon;
     bool independent_type = question_walk_type_keyword(walk, identifier, is_or_as, case_colon);
+    if (independent_type && !walk->depth && !strcmp(identifier->word, "is")) walk->ambiguous_binding_chain = false;
     if (is_or_as && walk->recording) scanner->question_type_uncertain = true;
     if (!is_or_as) scanner->question_unknown = true;
-    scanner->question_access_cache = 0;
+    question_clear_access_cache(scanner);
+    walk->access_chain_value = false;
     if (!independent_type) walk->role_known = false;
 }
 
@@ -617,6 +639,7 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
         return QUESTION_WALK_CONTINUE;
     }
     if (walk->cache_type_uncertain) walk->cache_shaped = false;
+    if (walk->depth) walk->suffix.regular = false;
     if (walk->known_nullable || walk->known_ternary) walk->role_active = false;
     advance(lexer);
     if (lexer->lookahead == '?') {
@@ -655,22 +678,16 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     question_skip_separators(lexer);
     QuestionFollowing following = question_following(lexer);
     walk->is_name_pending = false;
-    if (following.token == '>') {
-        walk->cache_shaped = false;
-        walk->is_as_phase = false;
-        return true;
-    }
-    if (walk->allocation_type && (following.token == '[' || (following.token == '(' && !walk->allocation_rank))) {
-        walk->cache_shaped = false;
-        walk->is_as_phase = false;
-        return true;
-    }
+    if (question_walk_nullable_marker(walk, following)) return true;
+    question_walk_access_chain(walk, following);
     walk->allocation_type = false;
     walk->allocation_rank = false;
     bool as_question = walk->as_operand && !following.member &&
         (following.token == '[' || following.token == '(' || following.token == '?' || question_type_boundary(following.token));
     if (as_question && walk->optional == 1) walk->pending_as_role = true;
     if (!as_question) walk->as_operand = false;
+    if (following.token == '[') question_suffix_add(&walk->suffix, true);
+    else if (!question_suffix_ordinary(following)) walk->suffix.regular = false;
     walk->future_first_token = following.token != '[' && !following.member;
     if (walk->recording && walk->root_colons && walk->binding && !walk->type_operand && !walk->allocation_type && following.token != '[' && !following.member) {
         walk->is_eligible &= !walk->is_seen;
@@ -706,6 +723,7 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
     walk->ordinary_name_candidate = false;
     if (!walk->depth && walk->binding && !walk->cache_colon && lexer->lookahead == '=') walk->root_binary = true;
     if (lexer->lookahead == '>') {
+        walk->suffix.regular = false;
         bool own_argument = !walk->depth && !walk->argument_ended && walk->recording;
         if (own_argument) walk->lambda_boundary = true;
         if (walk->recording) {
@@ -730,6 +748,8 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
 }
 
 static void question_walk_assignment_context(QuestionWalk *walk, bool comparison) {
+    if (!comparison) walk->suffix.regular = false;
+    walk->access_chain_value = false;
     if (walk->depth) return;
     walk->as_operand = false;
     walk->is_name_pending = false;
@@ -765,7 +785,7 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
     if (question_opening_group(c)) walk->depth++;
     else if (question_closing_group(c)) walk->depth--;
     bool statement_end = c == ';' && walk->depth <= 0;
-    if (statement_end || walk->depth < 0) walk->role_active = false;
+    if (statement_end || walk->depth < 0) { walk->role_active = false; walk->suffix.boundary = true; }
     bool root_statement_end = statement_end && walk->depth + scanner->question_frame_count <= 1;
     return root_statement_end || (!walk->role_active && !walk->recording) ? QUESTION_WALK_STOP : QUESTION_WALK_CONTINUE;
 }
@@ -773,6 +793,7 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
 static bool question_walk_enter_pending_binding(TSLexer *lexer, QuestionWalk *walk) {
     int32_t first = question_skip_separators(lexer);
     walk->is_pending_bracket = false;
+    if (!walk->depth && !walk->type_operand) walk->binding_chain_depth = 1;
     if (first == '#' || first == -2) return false;
     if (first == ',' && walk->type_operand) {
         do { advance(lexer); } while (question_skip_separators(lexer) == ',');
@@ -829,6 +850,8 @@ static void question_walk_colon(QuestionWalk *walk) {
     }
     walk->as_operand = false;
     walk->is_name_pending = false;
+    walk->later_ordinary_operand = false;
+    walk->access_chain_value = false;
     bool first_root_colon = !walk->root_colons && walk->mandatory == 1 && !walk->optional;
     if (walk->ordinary_colon_context && walk->ordinary && (walk->recording || first_root_colon) && !walk->known_nullable) {
         walk->known_ternary = true;
@@ -855,6 +878,7 @@ static void question_walk_colon(QuestionWalk *walk) {
     walk->no_colons = false;
     if (walk->mandatory) walk->mandatory--;
     else if (walk->optional) {
+        question_suffix_colon(&walk->suffix);
         if (walk->optional == 1 && walk->following.token == '[') walk->proved_ternary = true;
         walk->optional--;
     } else walk->role_known = false;
@@ -919,17 +943,7 @@ static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool
     } else if (!known_access && !walk->following.member) frame->unknown = true;
 }
 
-static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk) {
-    if (walk->cached_access) {
-        scanner->question_access_cache = walk->cached_count - 1;
-        return;
-    }
-    // In an A+ then colon* stream, unmatched optional questions are exactly the leading access prefix.
-    bool reusable = walk->binding && walk->cache_shaped && !walk->proved_ternary &&
-        (walk->role_known || question_walk_access_prefix(walk));
-    if (reusable && walk->optional > 1 && walk->optional - 1 <= UINT32_MAX)
-        scanner->question_access_cache = (uint32_t)(walk->optional - 1);
-}
+
 
 
 static bool question_walk_interpolation_end(const QuestionWalk *walk, int32_t c) {

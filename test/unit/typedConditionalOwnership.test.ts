@@ -56,6 +56,41 @@ test('preserves typed conditional fields, ranges and captures across local edits
   }
 });
 
+test('retains explicit nullable ref lambda return types and their complete bodies', () => {
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const qualifier of ['ref', 'ref readonly']) {
+      for (const returnType of ['T?', 'int?', 'G<A>?']) {
+        const source = `var r = f(${qualifier} ${returnType} (k) => a ? [1] : c, y);`;
+        const tree = parser.parse(source)!;
+        try {
+          expect(tree.rootNode.hasError, source).toBe(false);
+          const lambdas = tree.rootNode.descendantsOfType('lambda_expression');
+          expect(lambdas, source).toHaveLength(1);
+          const lambda = lambdas[0]!;
+          const type = lambda.childForFieldName('type')!;
+          expect(type.type, source).toBe('ref_type');
+          expect(type.text, source).toBe(`${qualifier} ${returnType}`);
+          const inner = type.childForFieldName('type')!;
+          expect(inner.type, source).toBe('nullable_type');
+          expect(inner.text, source).toBe(returnType);
+          expect(lambda.childForFieldName('parameters')?.text, source).toBe('(k)');
+          const body = lambda.childForFieldName('body')!;
+          expect(body.type, source).toBe('conditional_expression');
+          expect(
+            ['condition', 'consequence', 'alternative'].map((field) => body.childForFieldName(field)?.text),
+            source
+          ).toEqual(['a', '[1]', 'c']);
+        } finally {
+          tree.delete();
+        }
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
 test('retains nullable creation types around parenthesized arguments', () => {
   const parser = new Parser().setLanguage(language);
   try {

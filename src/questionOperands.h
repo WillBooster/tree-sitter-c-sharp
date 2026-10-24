@@ -2,6 +2,7 @@
 #define TREE_SITTER_C_SHARP_QUESTION_OPERANDS_H_
 
 static bool question_walk_scope_prefix(QuestionWalk *, unsigned, bool);
+static void question_walk_dispose(QuestionWalk *);
 
 static bool rank_prepare_arguments(const Scanner *scanner, RankScopeRead *scope, Scanner *context) {
     question_scope_init(context, scanner);
@@ -74,12 +75,17 @@ static bool question_rank_scope(Scanner *context, QuestionInput *input, Question
         context->question_frame_count = local.question_frame_count;
         array_assign(&context->interpolation_stack, &local.interpolation_stack);
     }
-    ts_free(walk.preview);
+    question_walk_dispose(&walk);
     array_delete(&local.interpolation_stack);
-    array_delete(&walk.groups);
-    array_delete(&walk.events);
     question_input_restore(input, restore);
     return valid;
+}
+
+static void question_walk_dispose(QuestionWalk *walk) {
+    array_delete(&walk->groups);
+    array_delete(&walk->events);
+    question_suffix_dispose(&walk->suffix);
+    ts_free(walk->preview);
 }
 
 static bool question_walk_scope_prefix(QuestionWalk *walk, unsigned end, bool normalize) {
@@ -122,6 +128,42 @@ static QuestionGenericContext question_generic_context(QuestionWalk *walk, bool 
         tuple, frame && (frame->query_pending || frame->query_result)};
 }
 
+static bool question_suffix_ordinary(QuestionFollowing next) {
+    return !next.member && next.token != '[' && next.token != '(' && next.token != '.' &&
+        !question_type_boundary(next.token) && next.token != '?' && next.token != '}' && next.token > 0;
+}
+
+static bool question_walk_nullable_marker(QuestionWalk *walk, QuestionFollowing following) {
+    bool allocation = walk->allocation_type &&
+        (following.token == '[' || (following.token == '(' && !walk->allocation_rank));
+    if (following.token != '>' && !allocation) return false;
+    if (allocation && following.token == '[') question_suffix_add(&walk->suffix, false);
+    else walk->suffix.regular = false;
+    walk->cache_shaped = false;
+    walk->is_as_phase = false;
+    return true;
+}
+
+static void question_walk_finish_binding_chain(QuestionWalk *walk) {
+    if (!walk->ambiguous_binding_chain || walk->optional <= 1) return;
+    walk->role_known = false;
+    walk->is_eligible = false;
+}
+
+static void question_walk_access_chain(QuestionWalk *walk, QuestionFollowing following) {
+    if (!walk->recording && walk->root_colons && walk->later_ordinary_operand &&
+        walk->mandatory && walk->access_chain_value && !walk->type_operand && following.token == '[') {
+        walk->ambiguous_binding_chain = true;
+        walk->cache_shaped = false;
+        walk->suffix.regular = false;
+    }
+    if (following.member) walk->access_chain_value = false;
+    else if (following.token != '[') {
+        walk->access_chain_value = false;
+        if (walk->root_colons && question_suffix_ordinary(following)) walk->later_ordinary_operand = true;
+    }
+}
+
 static void question_walk_generic(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool declaration) {
     if (walk->discard_to_question || !rank_identifier_allowed(identifier, true)) return;
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
@@ -138,6 +180,7 @@ static void question_walk_generic(TSLexer *lexer, QuestionWalk *walk, const Ques
     if (recording) array_push(&prefix, 'g');
     RankTypeRead read = {.prefix = recording ? &prefix : NULL, .prefix_all = walk->syntax_only};
     bool generic = question_read_generic_arguments(&context, &read);
+    if (read.questions || read.prefix_done) walk->suffix.regular = false;
     if (generic) {
         for (unsigned i = 0; i < prefix.size; i++) array_push(&walk->events, prefix.contents[i]);
         if (recording && read.prefix_done && !walk->syntax_only) {
@@ -172,8 +215,10 @@ static bool question_query_header(TSLexer *lexer, QuestionWalk *walk) {
 }
 
 static void question_walk_query(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier) {
-    if (!walk->recording || !identifier->keyword || walk->previous_token == '.') return;
     const char *word = identifier->word;
+    static const char *const clauses[] = {"from", "join", "select", "group", "orderby", "into"};
+    walk->suffix.regular &= !(identifier->keyword && walk->previous_token != '.' && question_word_in(word, clauses, sizeof(clauses) / sizeof(clauses[0])));
+    if (!walk->recording || !identifier->keyword || walk->previous_token == '.') return;
     if (!strcmp(word, "from") || !strcmp(word, "join")) {
         if (question_query_header(lexer, walk)) array_push(&walk->events, !strcmp(word, "from") ? 'q' : 'k');
     } else if (!strcmp(word, "select") || !strcmp(word, "group")) array_push(&walk->events, 's');
@@ -274,6 +319,7 @@ static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer) {
 static void question_walk_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as, const QuestionIdentifier *identifier, bool creation) {
     if (!walk->depth) {
         if (creation || is_or_as) {
+            walk->access_chain_value = false;
             walk->allocation_type = creation;
             walk->allocation_rank = false;
         }
@@ -302,11 +348,13 @@ static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWa
     } else {
         RankTypeRead read = {0};
         if (!rank_read_as_name(lexer, &read) || read.colon || read.division || read.conditional || read.coalesce || read.binary || read.has_word) return QUESTION_WALK_UNKNOWN;
+        if (read.questions || read.prefix_done) walk->suffix.regular = false;
     }
     return QUESTION_WALK_CONTINUE;
 }
 
 static QuestionWalkStep question_walk_creation_child(TSLexer *lexer, QuestionWalk *walk) {
+    walk->suffix.regular = false;
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
     bool complete = false;
     int32_t opening;
@@ -344,6 +392,7 @@ static bool question_walk_creation_tuple(TSLexer *lexer, QuestionWalk *walk, boo
     if (recording) array_push(&walk->events, '(');
     advance(lexer);
     bool type = rank_read_as_arguments(lexer, ')', &read);
+    walk->suffix.regular = false;
     if (recording && !type) {
         *tuple = false;
         walk->events.size = events;
@@ -396,6 +445,7 @@ static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
     if (!walk->role_active || !walk->binding) return true;
     bool matches = c == ')' ? opening == '(' || opening == 'p' : c == ']' ? opening == '[' : opening == '{';
     if (!matches) return false;
+
     if (opening != '(' || walk->previous_token != '(') return true;
     return question_skip_separators(lexer) == '=';
 }
@@ -456,6 +506,10 @@ static bool question_walk_operand_group(TSLexer *lexer, QuestionWalk *walk, int3
     }
     if (constructor) array_push(&walk->groups, 'p');
     else if (!question_walk_group(lexer, walk, c)) return false;
+    if (walk->role_active && walk->binding && c == ']' && walk->binding_chain_depth == (unsigned)walk->depth) {
+        walk->access_chain_value = true;
+        walk->binding_chain_depth = 0;
+    }
     if (walk->type_rank && walk->depth == 1 && c == ']') question_walk_type_rank_end(lexer, walk);
     return true;
 }
@@ -498,7 +552,7 @@ static QuestionWalkStep question_walk_string(TSLexer *lexer, QuestionWalk *walk,
     bool valid = interpolated
         ? rank_skip_interpolated(lexer, verbatim, opaque_questions ? RANK_BODY_EXPRESSION : RANK_BODY_QUESTION_FREE, 2 * UINT8_MAX, &has_question)
         : question_skip_quoted(lexer, verbatim);
-    if (has_question) walk->cache_shaped = false;
+    if (has_question) { walk->cache_shaped = false; walk->suffix.regular = false; }
     return valid ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
 }
 

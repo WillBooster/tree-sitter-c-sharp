@@ -76,7 +76,7 @@ static bool apply_question_events(Scanner *scanner, const char *events, unsigned
     for (unsigned i = 0; i < count; i++) {
         if (question_apply_event(scanner, events[i])) continue;
         scanner->question_unknown = true;
-        scanner->question_access_cache = 0;
+        question_clear_access_cache(scanner);
         return false;
     }
     return true;
@@ -172,6 +172,35 @@ static bool question_context_idle(const Scanner *scanner) {
     return scanner->question_frame_count == 1 && !scanner->question_frames[0].pending &&
         !scanner->question_frames[0].unknown && !scanner->question_frames[0].case_colon &&
         !scanner->question_frames[0].query_pending && !scanner->question_frames[0].query_result && !scanner->question_frames[0].generic_pending;
+}
+
+static void question_complete_context(Scanner *scanner, bool found_next_question, bool preserve_unknown) {
+    if (!found_next_question && !preserve_unknown && question_context_idle(scanner)) reset_question_context(scanner);
+    scanner->question_unknown |= preserve_unknown;
+}
+
+static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk, unsigned role) {
+    if (walk->suffix.role) {
+        if (scanner->question_unknown || scanner->question_frames[scanner->question_frame_count - 1].unknown || scanner->suffix.frames != scanner->question_frame_count)
+            question_clear_suffix(scanner);
+        else scanner->suffix.pending = scanner->question_frames[scanner->question_frame_count - 1].pending;
+        return;
+    }
+    if (role == 1 && walk->suffix.regular && walk->suffix.boundary && !walk->mandatory && !walk->proved_ternary && !walk->known_ternary &&
+        walk->role_known && walk->binding && walk->suffix.roles.size && !scanner->question_unknown &&
+        !scanner->question_frames[scanner->question_frame_count - 1].unknown) {
+        question_suffix_store(&scanner->suffix, &walk->suffix, scanner->question_frame_count,
+            scanner->question_frames[scanner->question_frame_count - 1].pending);
+    }
+    if (walk->cached_access) {
+        scanner->question_access_cache = walk->cached_count - 1;
+        return;
+    }
+    // In an A+ then colon* stream, unmatched optional questions are exactly the leading access prefix.
+    bool reusable = walk->binding && walk->cache_shaped && !walk->proved_ternary &&
+        (walk->role_known || question_walk_access_prefix(walk));
+    if (reusable && walk->optional > 1 && walk->optional - 1 <= UINT32_MAX)
+        scanner->question_access_cache = (uint32_t)(walk->optional - 1);
 }
 
 static void question_save_confirmation(Scanner *scanner, const Scanner *confirmed) {

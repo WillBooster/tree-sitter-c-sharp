@@ -17273,6 +17273,35 @@
                 }
               },
               {
+                "type": "PREC",
+                "value": 1,
+                "content": {
+                  "type": "PREC_DYNAMIC",
+                  "value": 1,
+                  "content": {
+                    "type": "SEQ",
+                    "members": [
+                      {
+                        "type": "FIELD",
+                        "name": "type",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "ref_type"
+                        }
+                      },
+                      {
+                        "type": "FIELD",
+                        "name": "parameters",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_lambda_parameters"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
                 "type": "SEQ",
                 "members": [
                   {

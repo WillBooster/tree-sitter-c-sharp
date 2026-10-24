@@ -110,12 +110,15 @@ typedef struct {
     bool valid;
 } TernaryConfirmation;
 
+#include "questionSuffix.h"
+
 typedef struct {
     uint8_t quote_count;
     bool next_file_directive;
     bool question_unknown;
     bool question_type_uncertain;
     uint32_t question_access_cache;
+    QuestionSuffix suffix;
     uint8_t question_rank_role;
     uint32_t question_rank_prefix_questions;
     TernaryConfirmation ternary_confirmation;
@@ -200,11 +203,20 @@ static bool buf_equals(const char *buf, size_t n, const char *kw) {
 
 static void clear_question_rank(Scanner *scanner);
 
+static void question_clear_suffix(Scanner *scanner) {
+    question_suffix_clear(&scanner->suffix);
+}
+
+static void question_clear_access_cache(Scanner *scanner) {
+    scanner->question_access_cache = 0;
+    question_clear_suffix(scanner);
+}
+
 static void reset_question_context(Scanner *scanner) {
     scanner->ternary_confirmation = (TernaryConfirmation){0};
     scanner->question_unknown = false;
     scanner->question_type_uncertain = false;
-    scanner->question_access_cache = 0;
+    question_clear_access_cache(scanner);
     clear_question_rank(scanner);
     scanner->question_frame_count = 1;
     scanner->question_frames[0] = (QuestionFrame){0};
@@ -250,6 +262,7 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
     buffer[size++] = (char)scanner->interpolation_stack.size;
     size += interpolation_serialize(scanner, buffer + size, state.depths);
     question_serialize_modes(scanner, state, buffer, &size);
+    question_suffix_serialize(&scanner->suffix, buffer, &size);
     return size;
 }
 
@@ -313,6 +326,7 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
         value.unknown = modes & 2;
         scanner->ternary_confirmation = value;
     }
+    if (size < length) question_suffix_read(&scanner->suffix, scanner->question_frame_count, buffer, length, &size);
     if (size != length) goto unknown;
     return;
 unknown:
@@ -666,7 +680,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             advance(lexer);
         }
         scanner->question_type_uncertain = false;
-        scanner->question_access_cache = 0;
+        question_clear_access_cache(scanner);
         clear_question_rank(scanner);
         return true;
     }
@@ -984,6 +998,8 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
 static bool scan_conditional_consequence(Scanner *scanner, TSLexer *lexer) {
     TernaryConfirmation value = scanner->ternary_confirmation;
+    if (!scanner->suffix.confirm || value.valid) question_clear_suffix(scanner);
+    scanner->suffix.confirm = false;
     if (value.valid && value.frame < scanner->question_frame_count) {
         QuestionFrame *frame = &scanner->question_frames[value.frame];
         if (scanner->question_unknown != value.unknown) question_clear_rank_from(scanner, 0);
@@ -1027,7 +1043,7 @@ static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *val
     advance(lexer);
     lexer->mark_end(lexer);
     scanner->question_type_uncertain = false;
-    scanner->question_access_cache = 0;
+    question_clear_access_cache(scanner);
     clear_question_rank(scanner);
     lexer->result_symbol = end;
     return true;
@@ -1131,7 +1147,7 @@ static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLex
     if (!symbol || following != '?' || !question_read_single_question(lexer)) return QUESTION_MISMATCHED;
     scanner->question_rank_role = RANK_PATTERN_COMPLETE;
     scanner->question_rank_prefix_questions = 0;
-    scanner->question_access_cache = 0;
+    question_clear_access_cache(scanner);
     lexer->result_symbol = symbol;
     return QUESTION_MATCHED;
 }
@@ -1205,7 +1221,7 @@ static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *l
     if (!matched || next == '\\' || (next > 0x7F && !is_directive_horizontal(next) && !is_line_terminator(next)))
         return QUESTION_MISMATCHED;
     scanner->question_type_uncertain = true;
-    scanner->question_access_cache = 0;
+    question_clear_access_cache(scanner);
     clear_question_rank(scanner);
     lexer->mark_end(lexer);
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
