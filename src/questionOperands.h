@@ -252,12 +252,25 @@ static void question_walk_query(TSLexer *lexer, QuestionWalk *walk, const Questi
 }
 
 static bool question_walk_skip_lambda_header(TSLexer *lexer, QuestionWalk *walk);
+static bool question_predefined_type_follows(TSLexer *lexer, QuestionInput *input);
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier);
 
 static QuestionWalkStep question_walk_word(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier) {
     bool operand_start = !walk->depth && walk->role_active && (walk->previous_token == ':' || walk->previous_token == '?');
-    if (operand_start && question_walk_skip_lambda_header(lexer, walk)) return QUESTION_WALK_CONTINUE;
+    if (operand_start && question_predefined_type_follows(lexer, walk->input) && question_walk_skip_lambda_header(lexer, walk))
+        return QUESTION_WALK_CONTINUE;
     return question_walk_identifier(scanner, lexer, walk, first_identifier, future_identifier);
+}
+
+// `c ? (k) => 1 : d` also matches a nullable lambda header, but a predefined type cannot be a condition.
+static bool question_predefined_type_follows(TSLexer *lexer, QuestionInput *input) {
+    static const char *const types[] = {"bool", "byte", "sbyte", "char", "decimal", "double", "float", "int", "uint", "long", "ulong", "short", "ushort", "string", "object", "nint", "nuint"};
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    QuestionIdentifier word;
+    bool predefined = rank_read_identifier(lexer, &word) && word.keyword &&
+        question_word_in(word.word, types, sizeof(types) / sizeof(types[0]));
+    question_input_restore(input, start);
+    return predefined;
 }
 
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier) {
