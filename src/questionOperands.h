@@ -143,6 +143,17 @@ static bool question_walk_nullable_marker(QuestionWalk *walk, QuestionFollowing 
     return true;
 }
 
+// A binding closed by a colon, or followed by another `?[`, can also be read as a ternary consequence.
+static bool question_own_binding_competes(TSLexer *lexer, QuestionInput *input) {
+    int32_t next = question_skip_separators(lexer);
+    if (next != '?') return next == ':';
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    advance(lexer);
+    bool binding = question_skip_separators(lexer) == '[';
+    question_input_restore(input, start);
+    return binding;
+}
+
 static void question_walk_finish_binding_chain(QuestionWalk *walk) {
     if (!walk->ambiguous_binding_chain || walk->optional <= 1) return;
     walk->role_known = false;
@@ -152,8 +163,7 @@ static void question_walk_finish_binding_chain(QuestionWalk *walk) {
 static void question_walk_access_chain(QuestionWalk *walk, QuestionFollowing following) {
     if (!walk->recording && walk->reserved && walk->root_colons && walk->later_ordinary_operand &&
         walk->mandatory && walk->access_chain_value && !walk->type_operand && following.token == '[') {
-        // Only a binding closed directly by a colon (`p ? a?[0] : ...`) can also be a ternary consequence.
-        if (walk->own_binding_colon) walk->ambiguous_binding_chain = true;
+        if (walk->own_binding_competes) walk->ambiguous_binding_chain = true;
         walk->cache_shaped = false;
         walk->suffix.regular = false;
     }

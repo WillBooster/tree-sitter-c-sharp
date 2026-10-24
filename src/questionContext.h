@@ -200,7 +200,7 @@ typedef struct {
     bool access_chain_value;
     bool ambiguous_binding_chain;
     bool own_binding_open;
-    bool own_binding_colon;
+    bool own_binding_competes;
     unsigned binding_chain_depth;
     bool future_ternary_eligible;
     bool confirmation_operand;
@@ -286,6 +286,7 @@ static bool question_uncertain_keyword(const QuestionIdentifier *identifier);
 static bool question_expression_keyword(const QuestionIdentifier *identifier);
 static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool proved_access);
 static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk, unsigned role);
+static bool question_own_binding_competes(TSLexer *lexer, QuestionInput *input);
 static Interpolation *question_interpolation(Scanner *scanner);
 static void interpolation_question_events(Scanner *scanner, const char *events, unsigned count);
 static bool question_walk_interpolation_end(const QuestionWalk *walk, int32_t c);
@@ -816,7 +817,7 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
     else if (question_closing_group(c)) walk->depth--;
     if (c == ']' && walk->own_binding_open && !walk->depth) {
         walk->own_binding_open = false;
-        walk->own_binding_colon = question_skip_separators(lexer) == ':';
+        walk->own_binding_competes = question_own_binding_competes(lexer, walk->input);
     }
     bool statement_end = c == ';' && walk->depth <= 0;
     if (statement_end || walk->depth < 0) { walk->role_active = false; walk->suffix.boundary = true; }
