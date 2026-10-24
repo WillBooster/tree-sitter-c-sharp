@@ -2883,4 +2883,32 @@ export const ownershipSamples = [
     source: "class C { void M() { var r = Foo? (x) => y is T[] ? a : b; } }",
     ranges: [[[41,49],[52,53],[56,57]]],
   },
+  {
+    source: "F(T? (k) => k < n, Make<int>(x));",
+    ranges: [],
+  },
+  {
+    source: "F(T? (k) => k < n, Make<int>);",
+    ranges: [],
+  },
+  {
+    source: "var r = (T? (k) => k < n, Make<int>(x));",
+    ranges: [],
+  },
+  {
+    source: "var r = new[] { T? (k) => k < n, Make<int>(x) };",
+    ranges: [],
+  },
+  {
+    source: "F(List<int>? (k) => k < n, y.Make<int>(x));",
+    ranges: [],
+  },
+  {
+    source: "var r = a?[0] ? 1 : b ? c?[0] ? [1] : 2 : 3;",
+    ranges: [[[8,9],[10,39],[42,43]],[[10,13],[16,17],[20,39]],[[20,21],[24,35],[38,39]]],
+  },
+  {
+    source: "var r = a?[0] ? [1] : b ? c?[0] ? [1] : [2] : d;",
+    ranges: [[[8,9],[10,43],[46,47]],[[10,13],[16,19],[22,43]],[[22,23],[26,37],[40,43]]],
+  },
 ];
