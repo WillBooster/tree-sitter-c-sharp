@@ -13,6 +13,13 @@ interface AllocationSample {
   header: boolean;
 }
 
+interface LambdaFields {
+  type: string;
+  parameters: string;
+  body: string;
+  bodyType: string;
+}
+
 beforeAll(async () => {
   await Parser.init();
   language = await Language.load('tree-sitter-c_sharp.wasm');
@@ -352,6 +359,84 @@ test('preserves complete stack allocation types and nullable lambda headers thro
     parser.delete();
   }
 });
+
+test('preserves nested and block lambda return fields through edits', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(
+    language,
+    '(lambda_expression type: (_) @return parameters: (_) @parameters body: (_) @body)'
+  );
+  const samples = [
+    {
+      source: 'var r = list.Select(Foo? (Foo x) => x.Items.Select(Bar? (Bar y) => y.Next));',
+      fields: [
+        {
+          type: 'Foo?',
+          parameters: '(Foo x)',
+          body: 'x.Items.Select(Bar? (Bar y) => y.Next)',
+          bodyType: 'invocation_expression',
+        },
+        { type: 'Bar?', parameters: '(Bar y)', body: 'y.Next', bodyType: 'member_access_expression' },
+      ],
+    },
+    {
+      source: 'var r = g(Foo? (k) => { return a?[0] is Foo? ? x : a?[0]; });',
+      fields: [{ type: 'Foo?', parameters: '(k)', body: '{ return a?[0] is Foo? ? x : a?[0]; }', bodyType: 'block' }],
+    },
+  ];
+  const following = 'class Following { int Value => 1; }';
+  let previous = 'var r = 0;';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const sample of [...samples, ...samples.toReversed()]) {
+      const source = `/* 日本語? */ ${sample.source} ${following}`;
+      editTree(tree, previous, source);
+      const incremental = parser.parse(source, tree)!;
+      const fresh = parser.parse(source)!;
+      try {
+        expect(fresh.rootNode.hasError, source).toBe(false);
+        const expected = expectLambdaFields(fresh.rootNode, source, sample.fields);
+        expect(ownershipCaptures(query, fresh.rootNode), source).toEqual(expected);
+        expect(ownershipCaptures(query, incremental.rootNode), source).toEqual(expected);
+        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        const declaration = fresh.rootNode
+          .descendantsOfType('class_declaration')
+          .find((node) => node.text === following)!;
+        expect(declaration.parent?.type, source).toBe('compilation_unit');
+        expect(declaration.startIndex, source).toBe(source.lastIndexOf(following));
+      } finally {
+        tree.delete();
+        tree = incremental;
+        fresh.delete();
+        previous = source;
+      }
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
+function expectLambdaFields(root: Node, source: string, expected: readonly LambdaFields[]): string[] {
+  const lambdas = root.descendantsOfType('lambda_expression');
+  expect(lambdas, source).toHaveLength(expected.length);
+  const captures: string[] = [];
+  for (const [index, fields] of expected.entries()) {
+    const lambda = lambdas[index]!;
+    expect(lambda.childForFieldName('type')?.type, source).toBe('nullable_type');
+    expect(lambda.childForFieldName('parameters')?.type, source).toBe('parameter_list');
+    expect(lambda.childForFieldName('body')?.type, source).toBe(fields.bodyType);
+    for (const field of ['type', 'parameters', 'body'] as const) {
+      const node = lambda.childForFieldName(field)!;
+      const text = fields[field];
+      const start = source.indexOf(text, lambda.startIndex);
+      expect([node.text, node.startIndex, node.endIndex], source).toEqual([text, start, start + text.length]);
+      captures.push(`${field === 'type' ? 'return' : field}:${start}:${start + text.length}`);
+    }
+  }
+  return captures.toSorted();
+}
 
 function typedAllocationSample(type: string, rank: string): AllocationSample {
   return { source: `var r = f(T? (k) => f(x is A, stackalloc ${type}));`, type, rank, header: true };

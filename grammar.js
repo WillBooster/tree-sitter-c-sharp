@@ -188,6 +188,13 @@ module.exports = grammar({
     [$._pattern_identifier, $.from_clause, $._reserved_identifier],
     [$.scoped_type, $._pattern_identifier, $._reserved_identifier],
     [$._pattern_identifier, $._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
+    [
+      $._pattern_identifier,
+      $._lambda_expression_init,
+      $._typed_lambda_expression_init,
+      $.anonymous_method_expression,
+      $._reserved_identifier,
+    ],
     [$._pattern_identifier, $.identifier],
     [$.implicit_type, $._pattern_identifier, $._reserved_identifier],
     [$._pattern_primary_expression, $._conditional_access_receiver],
@@ -254,11 +261,23 @@ module.exports = grammar({
     [$._reserved_identifier, $.modifier],
     [$._reserved_identifier],
     [$._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
+    [$._lambda_expression_init, $._typed_lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
     [$._lambda_expression_init, $._reserved_identifier],
+    [$._lambda_expression_init, $._typed_lambda_expression_init, $._reserved_identifier],
     [$.modifier, $._lambda_expression_init, $.anonymous_method_expression],
+    [$.modifier, $._lambda_expression_init, $._typed_lambda_expression_init, $.anonymous_method_expression],
     [$.modifier, $._lambda_expression_init],
+    [$.modifier, $._lambda_expression_init, $._typed_lambda_expression_init],
     [$.modifier, $._lambda_expression_init, $._reserved_identifier],
+    [$.modifier, $._lambda_expression_init, $._typed_lambda_expression_init, $._reserved_identifier],
     [$.modifier, $._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
+    [
+      $.modifier,
+      $._lambda_expression_init,
+      $._typed_lambda_expression_init,
+      $.anonymous_method_expression,
+      $._reserved_identifier,
+    ],
     [$._reserved_identifier, $.scoped_type],
     [$._reserved_identifier, $.implicit_type],
     [$._reserved_identifier, $.from_clause],
@@ -2487,7 +2506,13 @@ module.exports = grammar({
     parenthesized_expression: ($) => seq('(', $.expression, ')'),
 
     lambda_expression: ($) =>
-      prec(-1, seq($._lambda_expression_init, '=>', field('body', choice($.block, $.expression)))),
+      prec(
+        -1,
+        choice(
+          seq($._lambda_expression_init, '=>', field('body', choice($.block, $.expression))),
+          prec.dynamic(-1, seq($._typed_lambda_expression_init, '=>', field('body', choice($.block, $.expression))))
+        )
+      ),
 
     _lambda_expression_init: ($) =>
       prec(
@@ -2498,8 +2523,19 @@ module.exports = grammar({
           choice(
             field('parameters', prec(-1, alias($.identifier, sym('implicit_parameter')))),
             prec(1, prec.dynamic(1, seq(field('type', $.ref_type), field('parameters', $._lambda_parameters)))),
-            seq(optional(prec.dynamic(-1, field('type', $.type))), field('parameters', $._lambda_parameters))
+            field('parameters', $._lambda_parameters)
           )
+        )
+      ),
+
+    _typed_lambda_expression_init: ($) =>
+      prec(
+        -1,
+        seq(
+          repeat($._attribute_list),
+          repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
+          field('type', $.type),
+          field('parameters', $._lambda_parameters)
         )
       ),
 

@@ -2819,4 +2819,44 @@ export const ownershipSamples = [
     source: "var r = f(T? (k) => f(x is A, stackalloc G<T[a?[b?[0]]]>?[z]));",
     ranges: [],
   },
+  {
+    source: "var r = list.Select(Foo? (Foo x) => x.Items.Select(Bar? (Bar y) => y.Next));",
+    ranges: [],
+  },
+  {
+    source: "var r = f(Foo? (k) => g(Foo? (j) => 1));",
+    ranges: [],
+  },
+  {
+    source: "var r = f(Foo? () => g(Foo? () => null));",
+    ranges: [],
+  },
+  {
+    source: "var r = f(Foo? (Foo x) => g(Bar?[] (Bar y) => y));",
+    ranges: [],
+  },
+  {
+    source: "var r = f(Foo? (k) => { return g(T? (j) => 1); });",
+    ranges: [],
+  },
+  {
+    source: "var r = g(Foo? (k) => { return a?[0] is Foo? ? x : a?[0]; });",
+    ranges: [[[31,44],[47,48],[51,56]]],
+  },
+  {
+    source: "var r = Foo? (k) => { return a?[0] is Foo? ? x : a?[0]; };",
+    ranges: [[[29,42],[45,46],[49,54]]],
+  },
+  {
+    source: "var r = g(Foo? (k) => { return a?[0] is int? ? x : a?[0]; });",
+    ranges: [[[31,44],[47,48],[51,56]]],
+  },
+  {
+    source: "var r = g(Foo? (k) => { x = a?[0] is Foo? ? x : a?[0]; });",
+    ranges: [[[28,41],[44,45],[48,53]]],
+  },
+  {
+    source: "var r = g(Foo? (k) => { return (a?[0] is Foo? ? x : a?[0]); });",
+    ranges: [[[32,45],[48,49],[52,57]]],
+  },
 ];
