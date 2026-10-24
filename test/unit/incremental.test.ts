@@ -39,7 +39,7 @@ test('reports invalid UTF-8 after conditional access without stalling', () => {
     expect(build.error, build.stderr).toBeUndefined();
     expect(build.status, build.stderr).toBe(0);
     const source = path.join(directory, 'invalid.cs');
-    writeFileSync(source, Buffer.concat([Buffer.from('var r=a?[0]'), Buffer.from([0xFF]), Buffer.from(';')]));
+    writeFileSync(source, Buffer.concat([Buffer.from('var r=a?[0]'), Buffer.from([0xff]), Buffer.from(';')]));
     const parsed = spawnSync(script, ['parse', '--lib-path', library, '--lang-name', 'c_sharp', source], {
       cwd: root,
       encoding: 'utf8',
