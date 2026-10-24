@@ -147,22 +147,27 @@ static void question_generic_close(TSLexer *lexer, void *data, unsigned opening)
 }
 
 static void question_walk_generic(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool declaration) {
-    if (walk->discard_to_question || !walk->recording || !walk->lambda_prefix || !rank_identifier_allowed(identifier, true)) return;
+    if (walk->discard_to_question || !rank_identifier_allowed(identifier, true)) return;
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
     int32_t next = question_skip_separators(lexer);
     TSLexerPosition position;
     question_input_position(lexer, &position);
     unsigned opening = walk->input->cursor;
     bool replay = opening < walk->input->characters.size;
-    QuestionGenericContext context = question_generic_context(walk, declaration);
-    if (next != '<' || (position.bytes < walk->input->failed_until &&
-        (!replay || !question_generic_permitted(walk->input->characters.contents[opening].generic, &context)))) {
+    if (next != '<') {
         question_input_restore(walk->input, start);
         return;
     }
+    QuestionGenericContext context = question_generic_context(walk, declaration);
+    if (position.bytes < walk->input->failed_until &&
+        (!replay || !question_generic_permitted(walk->input->characters.contents[opening].generic, &context))) {
+        question_input_restore(walk->input, start);
+        return;
+    }
+    bool recording = walk->recording;
     RankGroups prefix = array_new();
-    array_push(&prefix, 'g');
-    RankTypeRead read = {.prefix = &prefix, .prefix_all = walk->syntax_only, .allow_omitted = true,
+    if (recording) array_push(&prefix, 'g');
+    RankTypeRead read = {.prefix = recording ? &prefix : NULL, .prefix_all = walk->syntax_only, .allow_omitted = true,
         .generic_context = &context, .generic_open = question_generic_open,
         .generic_close = question_generic_close, .generic_start = opening};
     advance(lexer);
@@ -177,7 +182,7 @@ static void question_walk_generic(TSLexer *lexer, QuestionWalk *walk, const Ques
     question_input_restore(walk->input, generic ? end : start);
     if (generic) {
         for (unsigned i = 0; i < prefix.size; i++) array_push(&walk->events, prefix.contents[i]);
-        if (read.prefix_done && !walk->syntax_only) {
+        if (recording && read.prefix_done && !walk->syntax_only) {
             walk->recording = false;
             walk->found_next_question = true;
             walk->cache_shaped = false;
@@ -273,7 +278,7 @@ static bool question_walk_is_name(TSLexer *lexer, QuestionWalk *walk, const Ques
     if (walk->depth || !walk->is_name_pending) return true;
     if (identifier->keyword && (!strcmp(identifier->word, "is") || !strcmp(identifier->word, "not"))) return true;
     walk->is_name_pending = false;
-    if (!rank_identifier_allowed(identifier, true)) return true;
+    if (!rank_identifier_allowed(identifier, true) && !(identifier->keyword && !strcmp(identifier->word, "delegate"))) return true;
     RankTypeRead read = {0};
     if (!question_walk_name_suffix(lexer, walk, identifier, &read)) return false;
     if (read.division) {
@@ -366,7 +371,7 @@ static bool question_walk_creation_tuple(TSLexer *lexer, QuestionWalk *walk, boo
         checkpoint.cursor = walk->input->cursor;
         question_input_restore(walk->input, checkpoint);
     }
-    if (read.prefix_done && !walk->syntax_only) {
+    if (recording && read.prefix_done && !walk->syntax_only) {
         walk->recording = false;
         walk->found_next_question = true;
         walk->cache_shaped = false;

@@ -53,6 +53,7 @@ static bool rank_read_is(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static bool rank_read_expression_tail(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression);
 static RankReadStep rank_start_conditional_operand(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
 static RankReadStep rank_read_expression_name(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression);
+static RankReadStep rank_read_expression_verbatim(TSLexer *, RankTokens *, bool *, RankExpression *);
 static bool rank_read_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
 static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression, QuestionIdentifier name);
 static bool rank_read_creation(TSLexer *lexer, bool *force_unsafe);
@@ -516,6 +517,7 @@ static RankReadStep rank_start_conditional_operand(TSLexer *lexer, RankTokens *t
 }
 
 static RankReadStep rank_read_expression_token(TSLexer *lexer, RankTokens *tokens, bool *colon, int32_t c, RankExpression *expression) {
+    if (c == '@') return rank_read_expression_verbatim(lexer, tokens, colon, expression);
     RankCertificate *certificate = &tokens->contents[expression->token].certificate;
     *certificate = rank_certify_character(*certificate, c);
     if (is_id_start(c) || c == '\\') return rank_read_expression_name(lexer, tokens, colon, expression);
@@ -550,6 +552,21 @@ static RankReadStep rank_read_expression_token(TSLexer *lexer, RankTokens *token
             expression->content = true;
             return rank_skip_rhs_token(lexer, c, expression, &tokens->contents[expression->token].force_unsafe, prefix) ? RANK_READ_MORE : RANK_READ_UNKNOWN;
     }
+}
+
+static RankReadStep rank_read_expression_verbatim(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression) {
+    RankReadStep literal = rank_skip_literal(lexer, '@', RANK_BODY_EXPRESSION, &tokens->contents[expression->token].force_unsafe, 0);
+    if (literal == RANK_READ_TOKEN) {
+        if (!question_identifier(lexer, true, &expression->word)) return RANK_READ_UNKNOWN;
+        expression->has_word = true;
+        return rank_read_expression_name(lexer, tokens, colon, expression);
+    }
+    tokens->contents[expression->token].certificate = RANK_CERT_INVALID;
+    expression->type_pending = expression->type_complete = false;
+    expression->header = RANK_HEADER_INVALID;
+    expression->content = true;
+    if (literal == RANK_READ_MORE) expression->primary = true;
+    return literal;
 }
 
 static RankReadStep rank_read_expression_name(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression) {
