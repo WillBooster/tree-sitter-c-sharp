@@ -83,17 +83,7 @@ test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
   { timeout: 60_000 },
   (newline) => {
     const line = '#pragma warning disable X #:x' + newline;
-    const small = line.repeat(500) + 'class C {}';
-    const large = line.repeat(5000) + 'class C {}';
-    parseCpuTime(large);
-    let smallFastest = Infinity;
-    let largeFastest = Infinity;
-    for (let run = 0; run < 3; run++) {
-      smallFastest = Math.min(smallFastest, parseCpuTime(small));
-      largeFastest = Math.min(largeFastest, parseCpuTime(large));
-    }
-    expect(largeFastest / smallFastest).toBeLessThan(18);
-    expect(largeFastest).toBeLessThan(5_000_000);
+    expectBoundedGrowth(line.repeat(500) + 'class C {}', line.repeat(5000) + 'class C {}');
   }
 );
 
@@ -101,17 +91,7 @@ test.each([
   { name: 'lambda arguments', source: failedGenericLambdaSource },
   { name: 'following arguments', source: failedGenericSiblingSource },
 ])('bounds failed generic lookahead in $name', { timeout: 60_000 }, ({ source }) => {
-  const small = source(100);
-  const large = source(1000);
-  parseCpuTime(large, false);
-  let smallFastest = Infinity;
-  let largeFastest = Infinity;
-  for (let run = 0; run < 3; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
-  }
-  expect(largeFastest / smallFastest).toBeLessThan(18);
-  expect(largeFastest).toBeLessThan(5_000_000);
+  expectBoundedGrowth(source(100), source(1000), false);
 });
 
 function failedGenericLambdaSource(count: number): string {
@@ -130,17 +110,7 @@ test.each([{ name: 'generic alternatives', source: repeatedGenericConditionalSou
   'bounds ordinary suffix lookahead in $name',
   { timeout: 60_000 },
   ({ source }) => {
-    const small = source(100);
-    const large = source(1000);
-    parseCpuTime(large, false);
-    let smallFastest = Infinity;
-    let largeFastest = Infinity;
-    for (let run = 0; run < 3; run++) {
-      smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
-      largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
-    }
-    expect(largeFastest / smallFastest).toBeLessThan(18);
-    expect(largeFastest).toBeLessThan(5_000_000);
+    expectBoundedGrowth(source(100), source(1000), false);
   }
 );
 
@@ -149,17 +119,7 @@ function repeatedGenericConditionalSource(count: number): string {
 }
 
 test('bounds repeated omitted stack allocation ranks', { timeout: 60_000 }, () => {
-  const small = omittedStackAllocationRanks(100);
-  const large = omittedStackAllocationRanks(1000);
-  parseCpuTime(large, false);
-  let smallFastest = Infinity;
-  let largeFastest = Infinity;
-  for (let run = 0; run < 3; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
-  }
-  expect(largeFastest / smallFastest).toBeLessThan(18);
-  expect(largeFastest).toBeLessThan(5_000_000);
+  expectBoundedGrowth(omittedStackAllocationRanks(100), omittedStackAllocationRanks(1000), false);
 });
 
 function omittedStackAllocationRanks(count: number): string {
@@ -167,17 +127,7 @@ function omittedStackAllocationRanks(count: number): string {
 }
 
 test('bounds repeated nullable-rank arguments', { timeout: 60_000 }, () => {
-  const small = repeatedSiblingRankSource(100);
-  const large = repeatedSiblingRankSource(1000);
-  parseCpuTime(large, false);
-  let smallFastest = Infinity;
-  let largeFastest = Infinity;
-  for (let run = 0; run < 3; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
-  }
-  expect(largeFastest / smallFastest).toBeLessThan(18);
-  expect(largeFastest).toBeLessThan(5_000_000);
+  expectBoundedGrowth(repeatedSiblingRankSource(100), repeatedSiblingRankSource(1000), false);
 });
 
 function repeatedSiblingRankSource(count: number): string {
@@ -186,17 +136,7 @@ function repeatedSiblingRankSource(count: number): string {
 }
 
 test('bounds enclosing rank retries behind unmatched parent ternaries', { timeout: 60_000 }, () => {
-  const small = unmatchedParentRankSource(100);
-  const large = unmatchedParentRankSource(1000);
-  parseCpuTime(large);
-  let smallFastest = Infinity;
-  let largeFastest = Infinity;
-  for (let run = 0; run < 3; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large));
-  }
-  expect(largeFastest / smallFastest).toBeLessThan(18);
-  expect(largeFastest).toBeLessThan(5_000_000);
+  expectBoundedGrowth(unmatchedParentRankSource(100), unmatchedParentRankSource(1000));
 });
 
 function unmatchedParentRankSource(count: number): string {
@@ -311,7 +251,6 @@ const questionSources = [
 ];
 
 test.each(questionSources)('parses repeated $name in linear time', { timeout: 60_000 }, ({ source, node }) => {
-  const small = source(200);
   const large = source(2000);
   const tree = parser.parse(large)!;
   try {
@@ -320,16 +259,20 @@ test.each(questionSources)('parses repeated $name in linear time', { timeout: 60
   } finally {
     tree.delete();
   }
-  parseCpuTime(large, false);
+  expectBoundedGrowth(source(200), large, false);
+});
+
+function expectBoundedGrowth(small: string, large: string, expectedErrors = true): void {
+  parseCpuTime(large, expectedErrors);
   let smallFastest = Infinity;
   let largeFastest = Infinity;
   for (let run = 0; run < 3; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+    smallFastest = Math.min(smallFastest, parseCpuTime(small, expectedErrors));
+    largeFastest = Math.min(largeFastest, parseCpuTime(large, expectedErrors));
   }
   expect(largeFastest / smallFastest).toBeLessThan(18);
   expect(largeFastest).toBeLessThan(5_000_000);
-});
+}
 
 function parseCpuTime(source: string, expectedErrors = true): number {
   const start = process.threadCpuUsage();
@@ -496,16 +439,9 @@ test.each(['var r = $"{(a, f(b, (c +\n', 'var r = $"{(a?[0], f(b, $"{(c\n'])(
   'recovers from repeated unterminated interpolation holes %j in linear time',
   { timeout: 60_000 },
   (line) => {
-    const small = `class C { void M() {\n${line.repeat(500)}} }`;
-    const large = `class C { void M() {\n${line.repeat(5000)}} }`;
-    parseCpuTime(large);
-    let smallFastest = Infinity;
-    let largeFastest = Infinity;
-    for (let run = 0; run < 3; run++) {
-      smallFastest = Math.min(smallFastest, parseCpuTime(small));
-      largeFastest = Math.min(largeFastest, parseCpuTime(large));
-    }
-    expect(largeFastest / smallFastest).toBeLessThan(18);
-    expect(largeFastest).toBeLessThan(5_000_000);
+    expectBoundedGrowth(
+      `class C { void M() {\n${line.repeat(500)}} }`,
+      `class C { void M() {\n${line.repeat(5000)}} }`
+    );
   }
 );
