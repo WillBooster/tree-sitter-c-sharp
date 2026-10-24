@@ -251,6 +251,15 @@ static void question_walk_query(TSLexer *lexer, QuestionWalk *walk, const Questi
     else if (!strcmp(word, "orderby") || !strcmp(word, "where") || !strcmp(word, "let") || !strcmp(word, "on") || !strcmp(word, "equals")) array_push(&walk->events, 'k');
 }
 
+static bool question_walk_skip_lambda_header(TSLexer *lexer, QuestionWalk *walk);
+static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier);
+
+static QuestionWalkStep question_walk_word(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier) {
+    bool operand_start = !walk->depth && walk->role_active && (walk->previous_token == ':' || walk->previous_token == '?');
+    if (operand_start && question_walk_skip_lambda_header(lexer, walk)) return QUESTION_WALK_CONTINUE;
+    return question_walk_identifier(scanner, lexer, walk, first_identifier, future_identifier);
+}
+
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier) {
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return QUESTION_WALK_UNKNOWN;
@@ -307,6 +316,11 @@ static bool question_walk_future_lambda(TSLexer *lexer, QuestionWalk *walk, cons
     static const char *const modifiers[] = {"ref", "static", "async"};
     if (walk->depth || !walk->role_active || !identifier->keyword ||
         !question_word_in(identifier->word, modifiers, sizeof(modifiers) / sizeof(modifiers[0]))) return false;
+    return question_walk_skip_lambda_header(lexer, walk);
+}
+
+// A complete nullable lambda header is skipped so its return-type `?` is not counted as a question.
+static bool question_walk_skip_lambda_header(TSLexer *lexer, QuestionWalk *walk) {
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
     RankGroups prefix = array_new();
     RankTypeRead read = {.prefix = walk->recording ? &prefix : NULL};

@@ -242,7 +242,7 @@ static bool question_closing_group(int32_t c);
 static bool question_operator(int32_t c);
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier);
 static QuestionWalkStep question_walk_string(TSLexer *, QuestionWalk *, bool);
-static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier);
+static QuestionWalkStep question_walk_word(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier);
 static void question_walk_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as, const QuestionIdentifier *identifier, bool creation);
 static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk, const QuestionIdentifier *identifier);
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWalk *walk);
@@ -429,7 +429,7 @@ static QuestionWalkStep question_walk_step(Scanner *scanner, TSLexer *lexer, Que
         return QUESTION_WALK_CONTINUE;
     if (c == '$' || c == '@' || c == '"' || c == '\'') return question_walk_literal(lexer, walk, c, first_identifier);
     if (c == 0 || c == '#') return QUESTION_WALK_UNKNOWN;
-    if (is_id_start(c) || c == '\\') return question_walk_identifier(scanner, lexer, walk, first_identifier, future_identifier);
+    if (is_id_start(c) || c == '\\') return question_walk_word(scanner, lexer, walk, first_identifier, future_identifier);
     if (c == '?') return question_walk_question(lexer, walk);
     return question_walk_punctuation(scanner, lexer, walk, c);
 }
