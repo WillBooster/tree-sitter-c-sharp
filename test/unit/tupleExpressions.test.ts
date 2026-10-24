@@ -1,5 +1,6 @@
 import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
+
 import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
 
 let language: Language;

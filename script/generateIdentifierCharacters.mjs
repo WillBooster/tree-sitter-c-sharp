@@ -6,15 +6,15 @@ assert.equal(process.versions.unicode, '17.0', 'Recheck the C# directive categor
 // .NET 10 uses Unicode 16 UTF-16 categories. These BMP additions in Node's Unicode 17 data are unassigned
 // in Unicode 16, so its C# lexer excludes them from identifiers: https://www.unicode.org/Public/17.0.0/ucd/DerivedAge.txt.
 const unicode17BmpIdentifierAdditions = [
-  [0x08_8F, 0x08_8F],
-  [0x0C_5C, 0x0C_5C],
-  [0x0C_DC, 0x0C_DC],
-  [0x1A_CF, 0x1A_DD],
-  [0x1A_E0, 0x1A_EB],
-  [0xA7_CE, 0xA7_CF],
-  [0xA7_D2, 0xA7_D2],
-  [0xA7_D4, 0xA7_D4],
-  [0xA7_F1, 0xA7_F1],
+  [0x08_8f, 0x08_8f],
+  [0x0c_5c, 0x0c_5c],
+  [0x0c_dc, 0x0c_dc],
+  [0x1a_cf, 0x1a_dd],
+  [0x1a_e0, 0x1a_eb],
+  [0xa7_ce, 0xa7_cf],
+  [0xa7_d2, 0xa7_d2],
+  [0xa7_d4, 0xa7_d4],
+  [0xa7_f1, 0xa7_f1],
 ];
 const source = readFileSync(process.argv[2], 'utf8');
 const unnamedSymbols = new Set(
