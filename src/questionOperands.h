@@ -156,6 +156,19 @@ static bool question_own_binding_competes(TSLexer *lexer, QuestionInput *input) 
     return binding;
 }
 
+static bool question_attributed_lambda_follows(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    bool attributes = true;
+    while (attributes && question_skip_separators(lexer) == '[') {
+        advance(lexer);
+        attributes = rank_read_delimited(lexer, '[', RANK_BODY_EXPRESSION, NULL);
+    }
+    RankTypeRead read = {0};
+    bool header = attributes && question_read_nullable_lambda_header(lexer, input, &read);
+    question_input_restore(input, start);
+    return header;
+}
+
 static void question_walk_finish_binding_chain(QuestionWalk *walk) {
     if (!walk->ambiguous_binding_chain || walk->optional <= 1) return;
     walk->role_known = false;
@@ -573,8 +586,11 @@ static bool question_walk_operand_group(TSLexer *lexer, QuestionWalk *walk, int3
     }
     if (constructor) array_push(&walk->groups, 'p');
     else if (!question_walk_group(lexer, walk, c)) return false;
-    if (c == ']' && walk->own_binding == QUESTION_OWN_BINDING_OPEN && walk->depth == 1)
+    if (c == ']' && walk->own_binding == QUESTION_OWN_BINDING_OPEN && walk->depth == 1) {
         walk->own_binding = question_own_binding_competes(lexer, walk->input) ? QUESTION_OWN_BINDING_COMPETES : 0;
+        // An element access cannot be followed by `T? (...) =>`, so the bracket is a lambda's attribute list.
+        if (question_attributed_lambda_follows(lexer, walk->input)) walk->known_ternary = true;
+    }
     if (walk->role_active && walk->binding && c == ']' && walk->binding_chain_depth == (unsigned)walk->depth) {
         walk->access_chain_value = true;
         walk->binding_chain_depth = 0;

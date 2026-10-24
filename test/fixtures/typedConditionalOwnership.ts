@@ -2907,4 +2907,16 @@ export const ownershipSamples = [
     source: "class C { void M() { switch (v) { case 1 when y?[0] ? k : x: break; } } }",
     ranges: [[[46,51],[54,55],[58,59]]],
   },
+  {
+    source: "var r = a ? [Attr] T? (c) => d : e;",
+    ranges: [[[8,9],[12,30],[33,34]]],
+  },
+  {
+    source: "var r = F(a ? [A(1)] T? (c) => d : e);",
+    ranges: [[[10,11],[14,32],[35,36]]],
+  },
+  {
+    source: "var r = a ? [A] [B] int? (c) => d : e;",
+    ranges: [[[8,9],[12,33],[36,37]]],
+  },
 ];
