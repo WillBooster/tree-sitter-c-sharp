@@ -226,6 +226,15 @@ static void question_walk_query(TSLexer *lexer, QuestionWalk *walk, const Questi
 }
 
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier) {
+    if (walk->depth || !walk->role_active)
+        return question_walk_identifier_read(scanner, lexer, walk, first_identifier, future_identifier, NULL);
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    QuestionWalkStep step = question_walk_identifier_read(scanner, lexer, walk, first_identifier, future_identifier, &start);
+    question_input_restore(walk->input, (QuestionCheckpoint){walk->input->cursor, start.capturing});
+    return step;
+}
+
+static QuestionWalkStep question_walk_identifier_read(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier, const QuestionCheckpoint *word_start) {
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return QUESTION_WALK_UNKNOWN;
     question_walk_query(lexer, walk, &identifier);
@@ -256,11 +265,11 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
         }
     }
     if (walk->recording) walk->first_word = false;
-    return question_walk_identifier_operand(lexer, walk, &identifier, creation);
+    return question_walk_identifier_operand(lexer, walk, &identifier, creation, word_start);
 }
 
-static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation) {
-    if (question_walk_future_lambda(lexer, walk, identifier)) return QUESTION_WALK_CONTINUE;
+static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation, const QuestionCheckpoint *word_start) {
+    if (question_walk_future_lambda(lexer, walk, identifier, word_start)) return QUESTION_WALK_CONTINUE;
     if (!question_walk_is_name(lexer, walk, identifier)) return QUESTION_WALK_UNKNOWN;
     bool own_as_type = identifier->keyword && !strcmp(identifier->word, "as") && !walk->depth &&
         walk->binding && walk->recording && !walk->root_colons;
@@ -277,14 +286,16 @@ static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, Questio
     return creation ? question_walk_creation_prefix(lexer, walk) : QUESTION_WALK_CONTINUE;
 }
 
-static bool question_walk_future_lambda(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier) {
+static bool question_walk_future_lambda(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, const QuestionCheckpoint *word_start) {
     static const char *const modifiers[] = {"ref", "static", "async"};
-    if (walk->depth || !walk->role_active || !identifier->keyword ||
-        !question_word_in(identifier->word, modifiers, sizeof(modifiers) / sizeof(modifiers[0]))) return false;
+    if (walk->depth || !walk->role_active || !identifier->keyword) return false;
+    bool predefined = word_start && question_word_in(identifier->word, question_predefined_types,
+        sizeof(question_predefined_types) / sizeof(question_predefined_types[0]));
+    if (!predefined && !question_word_in(identifier->word, modifiers, sizeof(modifiers) / sizeof(modifiers[0]))) return false;
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
     RankGroups prefix = array_new();
     RankTypeRead read = {.prefix = walk->recording ? &prefix : NULL};
-    bool valid = question_read_nullable_lambda_header(lexer, walk->input, &read);
+    bool valid = question_read_nullable_lambda_header(lexer, walk->input, &read, predefined ? word_start : NULL);
     if (valid) {
         if (walk->recording)
             for (unsigned i = 0; i < prefix.size; i++) array_push(&walk->events, prefix.contents[i]);
@@ -298,7 +309,12 @@ static bool question_walk_future_lambda(TSLexer *lexer, QuestionWalk *walk, cons
     return valid;
 }
 
-static bool question_read_nullable_lambda_header(TSLexer *lexer, QuestionInput *input, RankTypeRead *read) {
+static bool question_read_nullable_lambda_header(TSLexer *lexer, QuestionInput *input, RankTypeRead *read, const QuestionCheckpoint *word_start) {
+    if (word_start) {
+        int32_t suffix = question_skip_separators(lexer);
+        if (suffix != '?' && suffix != '[' && suffix != '*') return false;
+        question_input_restore(input, (QuestionCheckpoint){word_start->cursor, true});
+    }
     if (!question_read_lambda_modifiers(lexer, input)) return false;
     if (!rank_read_as_type(lexer, read) || !read->prefix_done || read->colon || read->division ||
         read->coalesce || read->binary || read->has_word) return false;
@@ -602,7 +618,7 @@ static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk
             walk->logical_name_candidate = false;
             walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary;
             if (walk->recording) walk->first_word = false;
-            return question_walk_identifier_operand(lexer, walk, &identifier, false);
+            return question_walk_identifier_operand(lexer, walk, &identifier, false, NULL);
         }
     }
     return question_walk_string(lexer, walk, verbatim);

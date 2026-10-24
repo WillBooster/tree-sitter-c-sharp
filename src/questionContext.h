@@ -122,6 +122,8 @@ typedef enum {
     QUESTION_DIMENSION_EXPRESSION = 32,
 } QuestionContextFlags;
 
+static const char *const question_predefined_types[] = {"bool", "byte", "sbyte", "char", "decimal", "double", "float", "int", "uint", "long", "ulong", "short", "ushort", "string", "object", "void"};
+
 typedef struct {
     QuestionFollowing following;
     QuestionInput *input;
@@ -242,6 +244,7 @@ static bool question_operator(int32_t c);
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier);
 static QuestionWalkStep question_walk_string(TSLexer *, QuestionWalk *, bool);
 static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier);
+static QuestionWalkStep question_walk_identifier_read(Scanner *, TSLexer *, QuestionWalk *, bool, bool, const QuestionCheckpoint *);
 static void question_walk_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as, const QuestionIdentifier *identifier, bool creation);
 static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk, const QuestionIdentifier *identifier);
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWalk *walk);
@@ -251,9 +254,9 @@ static bool question_walk_is_name(TSLexer *, QuestionWalk *, const QuestionIdent
 static bool question_walk_name_suffix(TSLexer *, QuestionWalk *, const QuestionIdentifier *, RankTypeRead *);
 static void question_walk_is_name_operator(QuestionWalk *, int32_t);
 static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer, QuestionWalk *walk);
-static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation);
-static bool question_walk_future_lambda(TSLexer *, QuestionWalk *, const QuestionIdentifier *);
-static bool question_read_nullable_lambda_header(TSLexer *, QuestionInput *, RankTypeRead *);
+static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation, const QuestionCheckpoint *);
+static bool question_walk_future_lambda(TSLexer *, QuestionWalk *, const QuestionIdentifier *, const QuestionCheckpoint *);
+static bool question_read_nullable_lambda_header(TSLexer *, QuestionInput *, RankTypeRead *, const QuestionCheckpoint *);
 static bool question_read_lambda_modifiers(TSLexer *, QuestionInput *);
 
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as);
@@ -593,10 +596,9 @@ static bool question_operator(int32_t c) {
 static bool question_keyword_incomplete(TSLexer *lexer, const QuestionWalk *walk, const QuestionIdentifier *identifier) {
     if (!identifier->keyword || !walk->role_active || !walk->binding) return false;
     static const char *const operands[] = {"new", "typeof", "sizeof", "checked", "unchecked", "delegate", "stackalloc"};
-    static const char *const types[] = {"bool", "byte", "sbyte", "char", "decimal", "double", "float", "int", "uint", "long", "ulong", "short", "ushort", "string", "object", "void"};
     bool required = question_word_in(identifier->word, operands, sizeof(operands) / sizeof(operands[0]));
     if (walk->depth == 1 && !walk->cache_type_uncertain)
-        required |= question_word_in(identifier->word, types, sizeof(types) / sizeof(types[0]));
+        required |= question_word_in(identifier->word, question_predefined_types, sizeof(question_predefined_types) / sizeof(question_predefined_types[0]));
     if (!required) return false;
     int32_t next = question_skip_separators(lexer);
     return question_closing_group(next) || next == ':' || next == ';';

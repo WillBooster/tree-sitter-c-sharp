@@ -383,6 +383,10 @@ test('preserves nested and block lambda return fields through edits', () => {
       source: 'var r = g(Foo? (k) => { return a?[0] is Foo? ? x : a?[0]; });',
       fields: [{ type: 'Foo?', parameters: '(k)', body: '{ return a?[0] is Foo? ? x : a?[0]; }', bodyType: 'block' }],
     },
+    {
+      source: 'var r = a ? b ? [1] : int? (k) => k : c;',
+      fields: [{ type: 'int?', parameters: '(k)', body: 'k', bodyType: 'identifier' }],
+    },
   ];
   const following = 'class Following { int Value => 1; }';
   let previous = 'var r = 0;';
@@ -430,7 +434,8 @@ function expectLambdaFields(root: Node, source: string, expected: readonly Lambd
     for (const field of ['type', 'parameters', 'body'] as const) {
       const node = lambda.childForFieldName(field)!;
       const text = fields[field];
-      const start = source.indexOf(text, lambda.startIndex);
+      const afterHeader = field === 'body' ? source.indexOf('=>', lambda.startIndex) + 2 : lambda.startIndex;
+      const start = source.indexOf(text, afterHeader);
       expect([node.text, node.startIndex, node.endIndex], source).toEqual([text, start, start + text.length]);
       captures.push(`${field === 'type' ? 'return' : field}:${start}:${start + text.length}`);
     }

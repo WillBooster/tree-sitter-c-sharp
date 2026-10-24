@@ -2859,4 +2859,12 @@ export const ownershipSamples = [
     source: "var r = g(Foo? (k) => { return (a?[0] is Foo? ? x : a?[0]); });",
     ranges: [[[32,45],[48,49],[52,57]]],
   },
+  {
+    source: "var r = a ? b ? [1] : int? (k) => k : c;",
+    ranges: [[[8,9],[12,35],[38,39]],[[12,13],[16,19],[22,35]]],
+  },
+  {
+    source: "var r = a ? b ? [1] : int[]? (int? k) => k : c;",
+    ranges: [[[8,9],[12,42],[45,46]],[[12,13],[16,19],[22,42]]],
+  },
 ];
