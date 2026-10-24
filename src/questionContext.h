@@ -673,9 +673,7 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     if (!as_question) walk->as_operand = false;
     walk->future_first_token = following.token != '[' && !following.member;
     if (walk->recording && walk->root_colons && walk->binding && !walk->type_operand && !walk->allocation_type && following.token != '[' && !following.member) {
-        walk->role_active = false;
-        walk->role_known = false;
-        walk->is_eligible = false;
+        walk->is_eligible &= !walk->is_seen;
     }
     if (following.token == '.' && !following.member && walk->binding && !walk->cache_colon)
         walk->root_binary = true;
