@@ -1412,16 +1412,18 @@ module.exports = grammar({
         field('body', $.switch_body)
       ),
 
-    switch_body: ($) => seq('{', repeat($.switch_section), blockEnd()),
+    switch_body: ($) => seq('{', optional(conditionalSectionRun($)), repeat($.switch_section), blockEnd()),
 
     switch_section: ($) =>
       prec.left(
         seq(
           choice(seq('case', choice($.expression, seq($.pattern, optional($.when_clause)))), 'default'),
           alias(sym('_case_label_colon'), ':'),
-          repeat($.statement)
+          repeat(choice($.statement, $._preproc_if_in_switch_body))
         )
       ),
+
+    _preproc_if_in_switch_body: () => alias(sym('preproc_if_in_switch_body'), sym('preproc_if')),
 
     throw_statement: ($) => seq('throw', optional($.expression), statementEnd()),
 
@@ -2723,6 +2725,32 @@ module.exports = grammar({
     ...preprocIf('_in_top_level', ($) => conditionalStatements($), 0, false, true),
     ...preprocIf('_in_if_alternative', ($) => seq(optional('else'), conditionalStatements($)), 0, false),
 
+    // Alternatives start with any statements that continue the enclosing section. Nested directives precede the
+    // sections because a directive after a section belongs to that section's statements.
+    preproc_if_in_switch_body: ($) =>
+      conditionalDirective(
+        'if',
+        $,
+        choice(seq(conditionalSectionRun($), repeat($.switch_section)), repeat1($.switch_section)),
+        field('alternative', optional($._preproc_switch_body_alternative)),
+        preprocessor('endif')
+      ),
+    preproc_elif_in_switch_body: ($) =>
+      conditionalDirective(
+        'elif',
+        $,
+        repeat($.statement),
+        optional(conditionalSectionRun($)),
+        repeat($.switch_section),
+        field('alternative', optional($._preproc_switch_body_alternative))
+      ),
+    preproc_else_in_switch_body: ($) =>
+      seq(preprocessor('else'), repeat($.statement), optional(conditionalSectionRun($)), repeat($.switch_section)),
+    _preproc_switch_body_alternative: () =>
+      choice(
+        alias(sym('preproc_else_in_switch_body'), sym('preproc_else')),
+        alias(sym('preproc_elif_in_switch_body'), sym('preproc_elif'))
+      ),
     ...preprocIf('_in_expression', ($) => $.expression, -2, false),
     ...conditionalListDirective('_in_initializer', ($) => $.expression),
     ...conditionalListDirective(
@@ -3159,6 +3187,15 @@ function preprocIf(suffix, content, precedence = 0, rep = true, required = false
  */
 function argumentValue($) {
   return choice(seq(optional(choice('ref', 'out', 'in')), $.expression), seq('out', $.declaration_expression));
+}
+
+/**
+ * Conditional switch sections followed by more of them or by the statements their conditional labels share.
+ *
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_preproc_if_in_switch_body' | 'statement'>} $
+ */
+function conditionalSectionRun($) {
+  return seq($._preproc_if_in_switch_body, repeat(choice($._preproc_if_in_switch_body, $.statement)));
 }
 
 /**
