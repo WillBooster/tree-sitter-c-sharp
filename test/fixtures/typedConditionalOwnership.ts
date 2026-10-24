@@ -2783,4 +2783,12 @@ export const ownershipSamples = [
     source: "var r = a?[0] as T ? b?[0] is U ? [0] : x : y;",
     ranges: [[[8, 18], [21, 41], [44, 45]], [[21, 31], [34, 37], [40, 41]]],
   },
+  {
+    source: "var r = f(T? (k) => g<A>(x is D<K,V>));",
+    ranges: [],
+  },
+  {
+    source: "var r = f(T? (k) => (a?[0] is T ? b?[0] : c?[0]));",
+    ranges: [[[21, 31], [34, 39], [42, 47]]],
+  },
 ];

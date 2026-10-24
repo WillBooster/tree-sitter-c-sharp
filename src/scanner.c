@@ -64,6 +64,7 @@ enum TokenType {
     DEFINITE_EXPRESSION_GENERIC_END,
     IF_ALTERNATIVE_DIRECTIVE,
     CONDITIONAL_CONSEQUENCE_START,
+    EXPRESSION_GENERIC_START,
 };
 
 typedef enum {
@@ -532,6 +533,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
     if (valid_symbols[CONDITIONAL_CONSEQUENCE_START]) return scan_conditional_consequence(scanner, lexer);
     scanner->ternary_confirmation.valid = false;
+
+    QuestionScanResult generic_start = scan_expression_generic_start(lexer, valid_symbols);
+    if (generic_start != QUESTION_NOT_STARTED) return generic_start == QUESTION_MATCHED;
 
     QuestionScanResult generic_end = scan_expression_generic_end(lexer, valid_symbols);
     if (generic_end != QUESTION_NOT_STARTED) return generic_end == QUESTION_MATCHED;

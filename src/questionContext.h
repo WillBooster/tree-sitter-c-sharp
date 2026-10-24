@@ -161,6 +161,7 @@ typedef struct {
     bool future_root_question;
     bool own_as_seen;
     bool ordinary_is_seen;
+    bool typed_ordinary_snapshot;
     uint64_t ordinary_optionals;
     bool argument_ended;
     bool lambda_boundary;
@@ -616,11 +617,16 @@ static bool question_walk_type_keyword(QuestionWalk *walk, const QuestionIdentif
     bool is_keyword = !strcmp(identifier->word, "is");
     bool root_is = is_keyword && !walk->depth;
     bool root_as = is_or_as && !walk->depth && !root_is;
-    if (!walk->depth) walk->is_name_pending = root_is;
-    if (!walk->depth) walk->as_operand = root_as && walk->root_colons &&
-        !walk->is_later_alternative && !walk->proved_ternary;
+    if (!walk->depth) {
+        walk->is_name_pending = root_is;
+        walk->as_operand = root_as && walk->root_colons &&
+            !walk->is_later_alternative && !walk->proved_ternary;
+    }
     bool independent_type = question_walk_independent_type(walk, is_or_as, root_is);
-    if (root_is && independent_type && walk->prefix_ordinary) walk->ordinary_optionals = walk->optional;
+    if (root_is && independent_type && walk->prefix_ordinary) {
+        walk->ordinary_optionals = walk->optional;
+        walk->typed_ordinary_snapshot = true;
+    }
     if (is_or_as && !walk->depth) {
         walk->type_operand = true;
         walk->future_root_question = false;
@@ -724,6 +730,7 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
             walk->prefix_ordinary = true;
             walk->ordinary_is_seen = walk->is_seen;
             walk->ordinary_optionals = walk->optional;
+            walk->typed_ordinary_snapshot = false;
         }
         walk->future_ternary_eligible = walk->is_ternary_eligible;
         question_walk_future_question(walk, following);
@@ -916,7 +923,7 @@ static void question_walk_complete_colon(QuestionWalk *walk) {
 }
 
 static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next) {
-    if (walk->ordinary_is_seen && walk->prefix_ordinary && walk->optional > walk->ordinary_optionals && next.token == '[') walk->is_eligible = false;
+    if (walk->ordinary_is_seen && (!walk->root_colons || walk->typed_ordinary_snapshot) && walk->prefix_ordinary && walk->optional > walk->ordinary_optionals && next.token == '[') walk->is_eligible = false;
     if (next.token == '[') walk->is_pending_bracket = true;
     else if (!next.member) walk->is_ternary_eligible = false;
     if (walk->cache_colon || next.token != '[') walk->cache_shaped = false;

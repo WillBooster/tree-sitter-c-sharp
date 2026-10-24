@@ -186,4 +186,36 @@ static void question_generic_close(TSLexer *lexer, void *data, unsigned opening)
     input->characters.contents[opening].generic = generic ? kind : GENERIC_NOT_FOLLOWING;
 }
 
+static bool expression_generic_flat(TSLexer *);
+
+static QuestionScanResult scan_expression_generic_start(TSLexer *lexer, const bool *valid_symbols) {
+    if (!valid_symbols[EXPRESSION_GENERIC_START]) return QUESTION_NOT_STARTED;
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    if (lexer->lookahead != '<') return QUESTION_NOT_STARTED;
+    QuestionInput input = question_input_create(lexer);
+    QuestionCheckpoint start = question_input_checkpoint(&input);
+    advance(&input.lexer);
+    lexer->mark_end(lexer);
+    question_input_restore(&input, (QuestionCheckpoint){start.cursor, true});
+    bool flat = expression_generic_flat(&input.lexer);
+    question_input_restore(&input, (QuestionCheckpoint){start.cursor, true});
+    QuestionGenericContext context = {.input = &input};
+    RankTypeRead read = {0};
+    bool generic = flat && question_read_generic_arguments(&context, &read);
+    array_delete(&input.characters);
+    if (!generic) return QUESTION_MISMATCHED;
+    lexer->result_symbol = EXPRESSION_GENERIC_START;
+    return QUESTION_MATCHED;
+}
+
+static bool expression_generic_flat(TSLexer *lexer) {
+    advance(lexer);
+    for (;;) {
+        int32_t c = question_skip_separators(lexer);
+        if (c < 0 || lexer->eof(lexer) || c == '<' || c == '(' || c == '"' || c == '\'' || c == '$' || c == '#') return false;
+        if (c == '>') return true;
+        advance(lexer);
+    }
+}
+
 #endif

@@ -360,6 +360,7 @@ module.exports = grammar({
     sym('_definite_expression_generic_end'),
     sym('_if_alternative_directive'),
     sym('_conditional_consequence_start'),
+    sym('_expression_generic_start'),
   ],
 
   extras: ($) => [
@@ -633,7 +634,7 @@ module.exports = grammar({
 
     type_parameter_list: ($) =>
       seq(
-        '<',
+        genericStart(),
         commaSep1($.type_parameter),
         choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
       ),
@@ -1056,7 +1057,7 @@ module.exports = grammar({
 
     type_argument_list: ($) =>
       seq(
-        '<',
+        genericStart(),
         choice(repeat(','), commaSep1($.type)),
         choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
       ),
@@ -1068,7 +1069,7 @@ module.exports = grammar({
 
     _expression_type_argument_list: ($) =>
       seq(
-        '<',
+        genericStart(),
         choice(
           seq(choice(repeat(','), commaSep1($.type)), alias(sym('_expression_generic_end'), '>')),
           seq(repeat(','), alias(sym('_definite_expression_generic_end'), '>')),
@@ -1130,7 +1131,7 @@ module.exports = grammar({
 
     _ambiguous_expression_arguments: ($) =>
       seq(
-        '<',
+        genericStart(),
         commaSep1(alias($._nongeneric_expression_type_argument, $.type)),
         choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
       ),
@@ -1163,7 +1164,7 @@ module.exports = grammar({
 
     _method_expression_arguments: ($) =>
       seq(
-        '<',
+        genericStart(),
         choice(
           repeat(','),
           seq(
@@ -1278,7 +1279,7 @@ module.exports = grammar({
         'delegate',
         '*',
         optional($.calling_convention),
-        '<',
+        genericStart(),
         repeat(seq($.function_pointer_parameter, ',')),
         field('returns', $.type),
         '>'
@@ -3756,4 +3757,8 @@ function blockEnd() {
 
 function ampersandOperator() {
   return alias(sym('_ampersand_operator'), '&');
+}
+
+function genericStart() {
+  return choice('<', alias(sym('_expression_generic_start'), '<'));
 }

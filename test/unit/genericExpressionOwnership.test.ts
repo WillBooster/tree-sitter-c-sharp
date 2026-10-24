@@ -195,6 +195,8 @@ test('preserves callable and operator ranges while editing and undoing generic-s
     for (const [expression, expectedGenerics, expectedArgumentTypes] of [
       ['A<X>>B', [], []],
       ['F<int>(B)', ['F<int>'], ['int']],
+      ['F<A,B>(B)', ['F<A,B>'], ['A', 'B']],
+      ['Use(A < B, C > D)', [], []],
       ['F<int>!', ['F<int>'], ['int']],
       ['F<T>..B', ['F<T>'], ['T']],
       ['F<G<T>,U>>B', ['F<G<T>,U>', 'G<T>'], ['G<T>', 'T', 'U']],

@@ -575,8 +575,10 @@ static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk) {
         if (walk->optional) walk->optional--;
     } else if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;
     else walk->is_optional++;
-    if (!walk->root_colons && walk->prefix_ordinary && walk->is_seen && walk->future_root_question)
+    if (!walk->root_colons && walk->prefix_ordinary && walk->is_seen && walk->future_root_question) {
         walk->ordinary_optionals = walk->optional;
+        walk->typed_ordinary_snapshot = true;
+    }
     if (!walk->prefix_ordinary && question_walk_type_follows(lexer, walk)) walk->future_root_question = false;
 }
 
