@@ -908,7 +908,8 @@ static void question_walk_colon(QuestionWalk *walk) {
     if (walk->mandatory) walk->mandatory--;
     else if (walk->optional) {
         question_suffix_colon(&walk->suffix);
-        if (walk->optional == 1 && walk->following.token == '[') walk->proved_ternary = true;
+        // In a case label the remaining colon may be the label's own colon.
+        if (walk->optional == 1 && walk->following.token == '[' && !walk->case_colon_possible) walk->proved_ternary = true;
         walk->optional--;
     } else walk->role_known = false;
     if (!walk->optional) walk->confirmation_type = false;

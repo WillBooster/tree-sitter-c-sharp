@@ -2895,4 +2895,16 @@ export const ownershipSamples = [
     source: "var r = (x ? a?[0] ? 1 : b ? c?[0] ? [1] : 2 : 3 : e);",
     ranges: [[[9,10],[13,48],[51,52]],[[13,18],[21,22],[25,48]],[[25,26],[29,44],[47,48]],[[29,34],[37,40],[43,44]]],
   },
+  {
+    source: "class C { void M() { switch (v) { case 1 when y?[0] ? k : new int?[3]: break; } } }",
+    ranges: [[[46,51],[54,55],[58,69]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case y?[0] ? new int?[3] : k: break; } } }",
+    ranges: [[[39,44],[47,58],[61,62]]],
+  },
+  {
+    source: "class C { void M() { switch (v) { case 1 when y?[0] ? k : x: break; } } }",
+    ranges: [[[46,51],[54,55],[58,59]]],
+  },
 ];
