@@ -38,6 +38,33 @@ test.each(wrappers)('retains nullable declarations before $name interpolation fo
   }
 });
 
+test.each(wrappers)('retains nullable lambda returns and $name interpolation formats', ({ open, close }) => {
+  for (const { type, body, format } of [
+    { type: 'a ?', body: 'k', format: ': c' },
+    { type: 'a ?', body: 'k?[0]', format: ': c' },
+    { type: 'a ?', body: 'f(a ? 1 : 2)', format: ': c' },
+    { type: 'T?', body: 'k', format: ': 5' },
+    { type: 'T ?', body: 'k', format: ': (k) => k' },
+  ]) {
+    const source = `var r = ${open}${type} (k) => ${body} ${format}${close};`;
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(false);
+      const lambdas = tree.rootNode.descendantsOfType('lambda_expression');
+      expect(lambdas, source).toHaveLength(1);
+      expect(lambdas[0]?.childForFieldName('type')?.type, source).toBe('nullable_type');
+      expect(lambdas[0]?.childForFieldName('type')?.text, source).toBe(type);
+      expect(lambdas[0]?.childForFieldName('parameters')?.text, source).toBe('(k)');
+      expect(lambdas[0]?.childForFieldName('body')?.text, source).toBe(body);
+      const formats = tree.rootNode.descendantsOfType('interpolation_format_clause');
+      expect(formats, source).toHaveLength(1);
+      expect(formats[0]?.text, source).toBe(format);
+    } finally {
+      tree.delete();
+    }
+  }
+});
+
 test.each(wrappers)('retains nested conditional expressions in $name interpolation holes', ({ open, close }) => {
   for (const expression of ['(a ? b : c)', 'F(a ? b : c)']) {
     const source = `var r = ${open}${expression}:X${close};`;

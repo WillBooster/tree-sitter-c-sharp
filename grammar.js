@@ -53,6 +53,9 @@ module.exports = grammar({
   name: 'c_sharp',
 
   conflicts: ($) => [
+    [$._stackalloc_array_type, $.array_type],
+    [$._stackalloc_array_type, $._array_base_type],
+    [$._stackalloc_nullable_type, $.nullable_type],
     [$._simple_name, $._expression_simple_name, $._pattern_simple_identifier_name, $._ambiguous_cast_qualified_name],
     [$._expression_simple_name, $._ambiguous_cast_qualified_name],
     [$._simple_name, $._expression_simple_name, $._ambiguous_cast_qualified_name],
@@ -185,6 +188,13 @@ module.exports = grammar({
     [$._pattern_identifier, $.from_clause, $._reserved_identifier],
     [$.scoped_type, $._pattern_identifier, $._reserved_identifier],
     [$._pattern_identifier, $._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
+    [
+      $._pattern_identifier,
+      $._lambda_expression_init,
+      $._typed_lambda_expression_init,
+      $.anonymous_method_expression,
+      $._reserved_identifier,
+    ],
     [$._pattern_identifier, $.identifier],
     [$.implicit_type, $._pattern_identifier, $._reserved_identifier],
     [$._pattern_primary_expression, $._conditional_access_receiver],
@@ -251,11 +261,23 @@ module.exports = grammar({
     [$._reserved_identifier, $.modifier],
     [$._reserved_identifier],
     [$._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
+    [$._lambda_expression_init, $._typed_lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
     [$._lambda_expression_init, $._reserved_identifier],
+    [$._lambda_expression_init, $._typed_lambda_expression_init, $._reserved_identifier],
     [$.modifier, $._lambda_expression_init, $.anonymous_method_expression],
+    [$.modifier, $._lambda_expression_init, $._typed_lambda_expression_init, $.anonymous_method_expression],
     [$.modifier, $._lambda_expression_init],
+    [$.modifier, $._lambda_expression_init, $._typed_lambda_expression_init],
     [$.modifier, $._lambda_expression_init, $._reserved_identifier],
+    [$.modifier, $._lambda_expression_init, $._typed_lambda_expression_init, $._reserved_identifier],
     [$.modifier, $._lambda_expression_init, $.anonymous_method_expression, $._reserved_identifier],
+    [
+      $.modifier,
+      $._lambda_expression_init,
+      $._typed_lambda_expression_init,
+      $.anonymous_method_expression,
+      $._reserved_identifier,
+    ],
     [$._reserved_identifier, $.scoped_type],
     [$._reserved_identifier, $.implicit_type],
     [$._reserved_identifier, $.from_clause],
@@ -359,6 +381,9 @@ module.exports = grammar({
     sym('_expression_generic_end'),
     sym('_definite_expression_generic_end'),
     sym('_if_alternative_directive'),
+    sym('_conditional_consequence_start'),
+    sym('_expression_generic_start'),
+    sym('_stackalloc_context'),
   ],
 
   extras: ($) => [
@@ -632,7 +657,7 @@ module.exports = grammar({
 
     type_parameter_list: ($) =>
       seq(
-        '<',
+        genericStart(),
         commaSep1($.type_parameter),
         choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
       ),
@@ -1055,7 +1080,7 @@ module.exports = grammar({
 
     type_argument_list: ($) =>
       seq(
-        '<',
+        genericStart(),
         choice(repeat(','), commaSep1($.type)),
         choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
       ),
@@ -1067,7 +1092,7 @@ module.exports = grammar({
 
     _expression_type_argument_list: ($) =>
       seq(
-        '<',
+        genericStart(),
         choice(
           seq(choice(repeat(','), commaSep1($.type)), alias(sym('_expression_generic_end'), '>')),
           seq(repeat(','), alias(sym('_definite_expression_generic_end'), '>')),
@@ -1129,7 +1154,7 @@ module.exports = grammar({
 
     _ambiguous_expression_arguments: ($) =>
       seq(
-        '<',
+        genericStart(),
         commaSep1(alias($._nongeneric_expression_type_argument, $.type)),
         choice('>', alias(sym('_expression_generic_end'), '>'), alias(sym('_definite_expression_generic_end'), '>'))
       ),
@@ -1162,7 +1187,7 @@ module.exports = grammar({
 
     _method_expression_arguments: ($) =>
       seq(
-        '<',
+        genericStart(),
         choice(
           repeat(','),
           seq(
@@ -1250,6 +1275,32 @@ module.exports = grammar({
 
     array_type: ($) => seq(field('type', $._array_base_type), field('rank', $.array_rank_specifier)),
 
+    _stackalloc_array_type: ($) =>
+      prec.dynamic(
+        1,
+        seq(
+          field(
+            'type',
+            choice(
+              alias($._stackalloc_array_type, $.array_type),
+              $._name,
+              alias($._stackalloc_nullable_type, $.nullable_type),
+              $.pointer_type,
+              $.function_pointer_type,
+              $.predefined_type,
+              $.tuple_type
+            )
+          ),
+          field('rank', $.array_rank_specifier)
+        )
+      ),
+
+    _stackalloc_nullable_type: ($) =>
+      seq(
+        field('type', choice(alias($._stackalloc_array_type, $.array_type), $._name, $.predefined_type, $.tuple_type)),
+        nullableQuestion()
+      ),
+
     _array_base_type: ($) =>
       choice(
         $.array_type,
@@ -1277,7 +1328,7 @@ module.exports = grammar({
         'delegate',
         '*',
         optional($.calling_convention),
-        '<',
+        genericStart(),
         repeat(seq($.function_pointer_parameter, ',')),
         field('returns', $.type),
         '>'
@@ -2008,6 +2059,7 @@ module.exports = grammar({
         seq(
           field('condition', $.expression),
           ternaryQuestion(),
+          sym('_conditional_consequence_start'),
           field('consequence', $.expression),
           ':',
           sym('_conditional_alternative_start'),
@@ -2456,7 +2508,13 @@ module.exports = grammar({
     parenthesized_expression: ($) => seq('(', $.expression, ')'),
 
     lambda_expression: ($) =>
-      prec(-1, seq($._lambda_expression_init, '=>', field('body', choice($.block, $.expression)))),
+      prec(
+        -1,
+        choice(
+          prec.dynamic(1, seq($._lambda_expression_init, '=>', field('body', choice($.block, $.expression)))),
+          seq($._typed_lambda_expression_init, '=>', field('body', choice($.block, $.expression)))
+        )
+      ),
 
     _lambda_expression_init: ($) =>
       prec(
@@ -2466,8 +2524,20 @@ module.exports = grammar({
           repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
           choice(
             field('parameters', prec(-1, alias($.identifier, sym('implicit_parameter')))),
-            seq(optional(field('type', $.type)), field('parameters', $._lambda_parameters))
+            prec(1, prec.dynamic(1, seq(field('type', $.ref_type), field('parameters', $._lambda_parameters)))),
+            field('parameters', $._lambda_parameters)
           )
+        )
+      ),
+
+    _typed_lambda_expression_init: ($) =>
+      prec(
+        -1,
+        seq(
+          repeat($._attribute_list),
+          repeat(prec.dynamic(1, alias(choice('static', 'async'), $.modifier))),
+          field('type', $.type),
+          field('parameters', $._lambda_parameters)
         )
       ),
 
@@ -3362,12 +3432,21 @@ function arrayCreationExpression($, initializer) {
 }
 
 /**
- * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'type'>} $
+ * @param {import('@willbooster/web-tree-sitter/dsl').GrammarSymbols<'_stackalloc_array_type' | 'array_type' | 'type'>} $
  * @param {import('@willbooster/web-tree-sitter/dsl').Rule} initializer
  * @returns {import('@willbooster/web-tree-sitter/dsl').Rule}
  */
 function stackallocExpression($, initializer) {
-  return prec.left(seq('stackalloc', field('type', $.type), initializer));
+  return choice(
+    prec.left(seq('stackalloc', field('type', $.type), initializer)),
+    prec.right(
+      seq(
+        alias(sym('_stackalloc_context'), 'stackalloc'),
+        field('type', alias($._stackalloc_array_type, $.array_type)),
+        initializer
+      )
+    )
+  );
 }
 
 /**
@@ -3790,4 +3869,8 @@ function blockEnd() {
 
 function ampersandOperator() {
   return alias(sym('_ampersand_operator'), '&');
+}
+
+function genericStart() {
+  return choice('<', alias(sym('_expression_generic_start'), '<'));
 }

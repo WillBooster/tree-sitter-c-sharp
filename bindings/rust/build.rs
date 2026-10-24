@@ -34,6 +34,9 @@ fn main() {
     println!("cargo:rerun-if-changed=src/nullableTypes.h");
     println!("cargo:rerun-if-changed=src/questionContext.h");
     println!("cargo:rerun-if-changed=src/questionLiterals.h");
+    println!("cargo:rerun-if-changed=src/questionOperands.h");
+    println!("cargo:rerun-if-changed=src/questionState.h");
+    println!("cargo:rerun-if-changed=src/questionSuffix.h");
 
     c_config.compile("tree-sitter-c-sharp");
 }
