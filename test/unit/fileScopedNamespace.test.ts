@@ -1,4 +1,4 @@
-import { Language, Parser, Query, type Node, type Tree } from '@willbooster/web-tree-sitter';
+import { Language, type Node, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
 import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
