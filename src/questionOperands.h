@@ -55,7 +55,6 @@ static bool question_rank_scope(Scanner *context, QuestionInput *input, Question
     walk.role_active = false;
     walk.ordinary = false;
     walk.first_word = false;
-    for (unsigned i = 0; i < local.question_frame_count; i++) walk.lambda_prefix |= local.question_frames[i].force_barrier;
     bool valid = question_walk_scope_prefix(&walk, end, normalize);
     if (valid) {
         valid = apply_question_events(&local, walk.events.contents, walk.events.size);
@@ -261,10 +260,11 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
 }
 
 static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation) {
+    if (question_walk_future_lambda(lexer, walk, identifier)) return QUESTION_WALK_CONTINUE;
     if (!question_walk_is_name(lexer, walk, identifier)) return QUESTION_WALK_UNKNOWN;
     bool own_as_type = identifier->keyword && !strcmp(identifier->word, "as") && !walk->depth &&
         walk->binding && walk->recording && !walk->root_colons;
-    if (own_as_type) return question_walk_as_prefix(lexer);
+    if (own_as_type) return question_walk_as_prefix(lexer, walk);
     if (walk->as_operand && !walk->depth && !(identifier->keyword && !strcmp(identifier->word, "as"))) {
         RankTypeRead read = {0};
         if (!question_walk_name_suffix(lexer, walk, identifier, &read)) return QUESTION_WALK_UNKNOWN;
@@ -275,6 +275,55 @@ static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, Questio
         (!strcmp(identifier->word, "out") || !strcmp(identifier->word, "case") || !strcmp(identifier->word, "is"));
     if (!creation) question_walk_generic(lexer, walk, identifier, declaration);
     return creation ? question_walk_creation_prefix(lexer, walk) : QUESTION_WALK_CONTINUE;
+}
+
+static bool question_walk_future_lambda(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier) {
+    static const char *const modifiers[] = {"ref", "static", "async"};
+    if (walk->depth || !walk->role_active || !identifier->keyword ||
+        !question_word_in(identifier->word, modifiers, sizeof(modifiers) / sizeof(modifiers[0]))) return false;
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    RankGroups prefix = array_new();
+    RankTypeRead read = {.prefix = walk->recording ? &prefix : NULL};
+    bool valid = question_read_nullable_lambda_header(lexer, walk->input, &read);
+    if (valid) {
+        if (walk->recording)
+            for (unsigned i = 0; i < prefix.size; i++) array_push(&walk->events, prefix.contents[i]);
+        walk->recording = false;
+        walk->found_next_question = true;
+        walk->cache_shaped = false;
+        walk->suffix.regular = false;
+        question_input_restore(walk->input, (QuestionCheckpoint){walk->input->cursor, start.capturing});
+    } else question_input_restore(walk->input, start);
+    array_delete(&prefix);
+    return valid;
+}
+
+static bool question_read_nullable_lambda_header(TSLexer *lexer, QuestionInput *input, RankTypeRead *read) {
+    if (!question_read_lambda_modifiers(lexer, input)) return false;
+    if (!rank_read_as_type(lexer, read) || !read->prefix_done || read->colon || read->division ||
+        read->coalesce || read->binary || read->has_word) return false;
+    if (question_skip_separators(lexer) != '(') return false;
+    advance(lexer);
+    if (!rank_read_delimited(lexer, '(', RANK_BODY_EXPRESSION, NULL)) return false;
+    if (question_skip_separators(lexer) != '=') return false;
+    advance(lexer);
+    if (lexer->lookahead != '>') return false;
+    advance(lexer);
+    return true;
+}
+
+static bool question_read_lambda_modifiers(TSLexer *lexer, QuestionInput *input) {
+    static const char *const modifiers[] = {"ref", "readonly", "static", "async"};
+    for (;;) {
+        QuestionCheckpoint start = question_input_checkpoint(input);
+        QuestionIdentifier modifier;
+        if (question_skip_separators(lexer) < 0) return false;
+        bool name = rank_read_identifier(lexer, &modifier);
+        if (name && modifier.keyword &&
+            question_word_in(modifier.word, modifiers, sizeof(modifiers) / sizeof(modifiers[0]))) continue;
+        question_input_restore(input, start);
+        return true;
+    }
 }
 
 static bool question_walk_is_name(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier) {
@@ -309,11 +358,14 @@ static void question_walk_is_name_operator(QuestionWalk *walk, int32_t c) {
         walk->is_name_pending = false;
 }
 
-static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer) {
-    if (question_skip_separators(lexer) == '(') return QUESTION_WALK_CONTINUE;
+static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer, QuestionWalk *walk) {
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    if (question_skip_separators(lexer) == '(') { question_input_restore(walk->input, start); return QUESTION_WALK_CONTINUE; }
     RankTypeRead read = {0};
-    return rank_read_as_name(lexer, &read) && !read.colon && !read.division && !read.conditional &&
-        !read.coalesce && !read.binary && !read.has_word ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
+    bool valid = rank_read_as_name(lexer, &read) && !read.division && !read.conditional &&
+        !read.coalesce && !read.binary && !read.has_word;
+    question_input_restore(walk->input, start);
+    return valid ? QUESTION_WALK_CONTINUE : QUESTION_WALK_UNKNOWN;
 }
 
 static void question_walk_type_operand(QuestionWalk *walk, bool future_identifier, bool is_or_as, const QuestionIdentifier *identifier, bool creation) {
@@ -331,6 +383,7 @@ static void question_walk_type_operand(QuestionWalk *walk, bool future_identifie
         walk->confirmation_type = true;
     if (!future_identifier || !is_or_as || !walk->type_operand || walk->depth || !walk->mandatory) return;
     walk->mandatory--;
+    walk->future_root_question = false;
     walk->is_ternary_eligible = walk->future_ternary_eligible;
 }
 
@@ -522,6 +575,18 @@ static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk) {
         if (walk->optional) walk->optional--;
     } else if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;
     else walk->is_optional++;
+    if (!walk->root_colons && walk->prefix_ordinary && walk->is_seen && walk->future_root_question)
+        walk->ordinary_optionals = walk->optional;
+    if (!walk->prefix_ordinary && question_walk_type_follows(lexer, walk)) walk->future_root_question = false;
+}
+
+static bool question_walk_type_follows(TSLexer *lexer, QuestionWalk *walk) {
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    QuestionIdentifier word;
+    bool type = rank_read_identifier(lexer, &word) && word.keyword &&
+        (!strcmp(word.word, "is") || !strcmp(word.word, "as"));
+    question_input_restore(walk->input, start);
+    return type;
 }
 
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier) {

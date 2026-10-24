@@ -133,7 +133,6 @@ typedef struct {
     bool preview_valid;
     bool generic_declaration;
     int32_t consumed_token;
-    bool lambda_prefix;
     uint32_t cached_count;
     uint32_t reserved;
     uint64_t mandatory;
@@ -159,6 +158,8 @@ typedef struct {
     uint8_t root_colons;
     bool root_binary;
     bool prefix_ordinary;
+    bool future_root_question;
+    bool own_as_seen;
     bool ordinary_is_seen;
     uint64_t ordinary_optionals;
     bool argument_ended;
@@ -247,11 +248,15 @@ static bool question_walk_creation_tuple(TSLexer *lexer, QuestionWalk *walk, boo
 static bool question_walk_is_name(TSLexer *, QuestionWalk *, const QuestionIdentifier *);
 static bool question_walk_name_suffix(TSLexer *, QuestionWalk *, const QuestionIdentifier *, RankTypeRead *);
 static void question_walk_is_name_operator(QuestionWalk *, int32_t);
-static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer);
+static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation);
+static bool question_walk_future_lambda(TSLexer *, QuestionWalk *, const QuestionIdentifier *);
+static bool question_read_nullable_lambda_header(TSLexer *, QuestionInput *, RankTypeRead *);
+static bool question_read_lambda_modifiers(TSLexer *, QuestionInput *);
 
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as);
 static bool question_walk_type_keyword(QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as, bool case_colon);
+static bool question_walk_independent_type(const QuestionWalk *, bool, bool);
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_coalescing(TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk);
@@ -262,6 +267,7 @@ static bool question_walk_operand_group(TSLexer *lexer, QuestionWalk *walk, int3
 static void question_walk_creation_operator(QuestionWalk *, int32_t);
 static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk);
+static bool question_walk_type_follows(TSLexer *, QuestionWalk *);
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_leading_commas(TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_multidimensional_rank(TSLexer *lexer, QuestionWalk *walk, int32_t *first);
@@ -292,8 +298,6 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     QuestionWalk walk = question_walk_create(scanner, following, *known_nullable, context_flags, rank_phase);
     walk.input = &input;
     walk.scanner = scanner;
-    for (unsigned i = 0; i < scanner->question_frame_count; i++)
-        walk.lambda_prefix |= scanner->question_frames[i].force_barrier;
     Interpolation *interpolation = question_interpolation(scanner);
     unsigned result = 0;
     while (!lexer->eof(lexer)) {
@@ -615,8 +619,13 @@ static bool question_walk_type_keyword(QuestionWalk *walk, const QuestionIdentif
     if (!walk->depth) walk->is_name_pending = root_is;
     if (!walk->depth) walk->as_operand = root_as && walk->root_colons &&
         !walk->is_later_alternative && !walk->proved_ternary;
-    bool independent_type = is_or_as && (walk->depth || walk->is_later_alternative || walk->root_colons);
-    if (is_or_as && !walk->depth) walk->type_operand = true;
+    bool independent_type = question_walk_independent_type(walk, is_or_as, root_is);
+    if (root_is && independent_type && walk->prefix_ordinary) walk->ordinary_optionals = walk->optional;
+    if (is_or_as && !walk->depth) {
+        walk->type_operand = true;
+        walk->future_root_question = false;
+    }
+    if (root_as && walk->recording && !walk->root_colons) walk->own_as_seen = true;
     bool current_is = root_is && !independent_type;
     bool repeated_case_test = current_is && walk->is_seen && case_colon;
     walk->is_eligible = walk->is_eligible && !repeated_case_test;
@@ -624,6 +633,13 @@ static bool question_walk_type_keyword(QuestionWalk *walk, const QuestionIdentif
     if (root_as && !walk->recording && walk->is_seen) walk->is_as_phase = true;
     else if (!root_is && !root_as && !independent_type) walk->is_eligible = false;
     return independent_type;
+}
+
+static bool question_walk_independent_type(const QuestionWalk *walk, bool is_or_as, bool root_is) {
+    if (!is_or_as) return false;
+    if (walk->depth || walk->is_later_alternative || walk->root_colons) return true;
+    bool owned_type = walk->is_seen || (walk->own_as_seen && !walk->prefix_ordinary);
+    return root_is && walk->future_root_question && owned_type;
 }
 
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk) {
@@ -679,6 +695,7 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     QuestionFollowing following = question_following(lexer);
     walk->is_name_pending = false;
     if (question_walk_nullable_marker(walk, following)) return true;
+    walk->future_root_question = true;
     question_walk_access_chain(walk, following);
     walk->allocation_type = false;
     walk->allocation_rank = false;
@@ -728,7 +745,6 @@ static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *w
         if (own_argument) walk->lambda_boundary = true;
         if (walk->recording) {
             array_push(&walk->events, 'l');
-            walk->lambda_prefix = true;
         }
         if (own_argument) {
             if (walk->context_known && !walk->interpolation_depth && walk->following.token == '(')
@@ -900,7 +916,7 @@ static void question_walk_complete_colon(QuestionWalk *walk) {
 }
 
 static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next) {
-    if (walk->ordinary_is_seen && !walk->root_colons && walk->prefix_ordinary && walk->optional > walk->ordinary_optionals && next.token == '[') walk->is_eligible = false;
+    if (walk->ordinary_is_seen && walk->prefix_ordinary && walk->optional > walk->ordinary_optionals && next.token == '[') walk->is_eligible = false;
     if (next.token == '[') walk->is_pending_bracket = true;
     else if (!next.member) walk->is_ternary_eligible = false;
     if (walk->cache_colon || next.token != '[') walk->cache_shaped = false;

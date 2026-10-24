@@ -234,6 +234,55 @@ test('invalidates invocation ownership proof after future argument and enclosing
   }
 });
 
+test('preserves conditional ownership across distant alternative edits', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(
+    language,
+    '(conditional_expression condition: (_) @condition consequence: (_) @consequence alternative: (_) @alternative)'
+  );
+  const part = 'x ? a?[0] : G<B,C> ? a : d ? [b] : ';
+  const base = '/*🙂*/ var r = ' + part.repeat(67) + 'c; class Following {}';
+  const middle = base.indexOf(part, '/*🙂*/ var r = '.length + 33 * part.length);
+  const last = base.lastIndexOf('d ? [b] :');
+  const changed = [
+    base.slice(0, middle) + part.replace('d ? [b] :', 'd ? b :') + base.slice(middle + part.length),
+    base.slice(0, last) + base.slice(last).replace('d ? [b] :', 'd ? b :'),
+    base.replace('c; class Following', 'c : z; class Following'),
+    base.replace('c; class Following', 'from q in xs select q; class Following'),
+  ];
+  let previous = base;
+  let tree = parser.parse(previous)!;
+  try {
+    for (const source of changed.flatMap((source) => [source, base])) {
+      const fresh = parser.parse(source)!;
+      editTree(tree, previous, source);
+      const incremental = parser.parse(source, tree)!;
+      try {
+        expect(fresh.rootNode.hasError, source).toBe(false);
+        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        expect(ownershipCaptures(query, incremental.rootNode), source).toEqual(
+          ownershipCaptures(query, fresh.rootNode)
+        );
+        expect(
+          fresh.rootNode
+            .descendantsOfType('class_declaration')
+            .map((node) => [node.text, node.startIndex, node.endIndex]),
+          source
+        ).toEqual([['class Following {}', source.lastIndexOf('class Following {}'), source.length]]);
+      } finally {
+        fresh.delete();
+        tree.delete();
+        tree = incremental;
+        previous = source;
+      }
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
 function ownershipCaptures(query: Query, node: Node): string[] {
   return query
     .captures(node)

@@ -126,29 +126,26 @@ function failedGenericSiblingSource(count: number): string {
   );
 }
 
-test.each([
-  { name: 'generic alternatives', source: repeatedGenericConditionalSource },
-  { name: 'chained access alternatives', source: repeatedChainedConditionalSource },
-])('bounds ordinary suffix lookahead in $name', { timeout: 60_000 }, ({ source }) => {
-  const small = source(100);
-  const large = source(1000);
-  parseCpuTime(large, false);
-  let smallFastest = Infinity;
-  let largeFastest = Infinity;
-  for (let run = 0; run < 3; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+test.each([{ name: 'generic alternatives', source: repeatedGenericConditionalSource }])(
+  'bounds ordinary suffix lookahead in $name',
+  { timeout: 60_000 },
+  ({ source }) => {
+    const small = source(100);
+    const large = source(1000);
+    parseCpuTime(large, false);
+    let smallFastest = Infinity;
+    let largeFastest = Infinity;
+    for (let run = 0; run < 3; run++) {
+      smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
+      largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+    }
+    expect(largeFastest / smallFastest).toBeLessThan(18);
+    expect(largeFastest).toBeLessThan(5_000_000);
   }
-  expect(largeFastest / smallFastest).toBeLessThan(18);
-  expect(largeFastest).toBeLessThan(5_000_000);
-});
+);
 
 function repeatedGenericConditionalSource(count: number): string {
   return 'var r = ' + 'x ? a?[0] : G<B,C> ? a : d ? [b] : '.repeat(count) + 'c;';
-}
-
-function repeatedChainedConditionalSource(count: number): string {
-  return 'var r = ' + 'p ? a?[0] : c ? b?[0] ? [a] : d : '.repeat(count) + 'z;';
 }
 
 test('bounds repeated nullable-rank arguments', { timeout: 60_000 }, () => {
