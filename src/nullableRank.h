@@ -836,21 +836,22 @@ static bool rank_skip_rhs_token(TSLexer *lexer, int32_t c, RankExpression *expre
 }
 
 static bool rank_read_rhs_generic(TSLexer *lexer, bool *colon, bool *generic, bool *high) {
+    *colon = false;
     *high = false;
+    QuestionGenericContext context = {.input = (QuestionInput *)lexer};
+    RankTypeRead read = {0};
+    if (question_read_generic_arguments(&context, &read)) {
+        *generic = true;
+        *high = true;
+        return true;
+    }
     advance(lexer);
     if (lexer->lookahead == '=' || lexer->lookahead == '<') {
         *high = lexer->lookahead == '<';
         advance(lexer);
         return lexer->lookahead != '=';
     }
-    RankTypeRead read = {0};
-    bool valid = rank_read_as_arguments(lexer, '>', &read);
-    *colon = read.colon;
-    if (!valid) return !read.comma && !read.complex;
-    int32_t next = question_skip_separators(lexer);
-    *generic = next == '(' || next == '.';
-    *high = *generic;
-    return next >= 0 && (!read.comma || *generic);
+    return true;
 }
 
 static bool rank_read_terminal(TSLexer *lexer, bool *colon) {

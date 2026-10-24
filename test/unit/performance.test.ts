@@ -97,9 +97,12 @@ test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
   }
 );
 
-test('bounds failed generic lookahead in lambda arguments', { timeout: 60_000 }, () => {
-  const small = failedGenericLambdaSource(100);
-  const large = failedGenericLambdaSource(1000);
+test.each([
+  { name: 'lambda arguments', source: failedGenericLambdaSource },
+  { name: 'following arguments', source: failedGenericSiblingSource },
+])('bounds failed generic lookahead in $name', { timeout: 60_000 }, ({ source }) => {
+  const small = source(100);
+  const large = source(1000);
   parseCpuTime(large, false);
   let smallFastest = Infinity;
   let largeFastest = Infinity;
@@ -113,6 +116,14 @@ test('bounds failed generic lookahead in lambda arguments', { timeout: 60_000 },
 
 function failedGenericLambdaSource(count: number): string {
   return 'var r = flag ? x is T?[,] ? f(x => ' + 'a < '.repeat(count) + 'a, g(a is T[]?[] ? [1] : c)) : a?[0] : end;';
+}
+
+function failedGenericSiblingSource(count: number): string {
+  return (
+    'var r = flag ? x is T?[,] ? f(a is T[]?[] ? [1] : c, ' +
+    'a < '.repeat(count) +
+    'a, g(a is T[]?[] ? [1] : c)) : a?[0] : end;'
+  );
 }
 
 test('bounds repeated nullable-rank arguments', { timeout: 60_000 }, () => {

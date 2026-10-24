@@ -128,4 +128,62 @@ static bool expression_generic_word_following(TSLexer *lexer, GenericFollowing *
     return true;
 }
 
+typedef struct { QuestionInput *input; bool identifiers; bool tuple_comma; bool query; } QuestionGenericContext;
+static bool question_generic_permitted(uint8_t, const QuestionGenericContext *);
+static unsigned question_generic_open(TSLexer *, void *);
+static void question_generic_close(TSLexer *, void *, unsigned);
+
+static bool question_read_generic_arguments(QuestionGenericContext *context, RankTypeRead *read) {
+    QuestionInput *input = context->input;
+    TSLexer *lexer = &input->lexer;
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    TSLexerPosition position;
+    question_input_position(lexer, &position);
+    unsigned opening = input->cursor;
+    bool replay = opening < input->characters.size;
+    if (position.bytes < input->failed_until &&
+        (!replay || !question_generic_permitted(input->characters.contents[opening].generic, context))) {
+        question_input_restore(input, start);
+        return false;
+    }
+    read->allow_omitted = true;
+    read->generic_context = context;
+    read->generic_open = question_generic_open;
+    read->generic_close = question_generic_close;
+    read->generic_start = opening;
+    advance(lexer);
+    bool generic = rank_read_as_arguments(lexer, '>', read) && !read->colon && !read->coalesce &&
+        !read->conditional && !read->division && !read->binary && !read->has_word &&
+        question_generic_permitted(input->characters.contents[opening].generic, context);
+    QuestionCheckpoint end = {.cursor = input->cursor, .capturing = start.capturing};
+    if (!generic) {
+        question_input_position(lexer, &position);
+        if (position.bytes > input->failed_until) input->failed_until = position.bytes;
+    }
+    question_input_restore(input, generic ? end : start);
+    return generic;
+}
+
+static bool question_generic_permitted(uint8_t kind, const QuestionGenericContext *context) {
+    return kind == GENERIC_TOKEN || ((kind & GENERIC_IDENTIFIER) &&
+        (context->identifiers || (context->tuple_comma && (kind & GENERIC_TUPLE_COMMA)))) ||
+        ((kind & GENERIC_QUERY) && context->query);
+}
+
+static unsigned question_generic_open(TSLexer *lexer, void *data) {
+    (void)lexer;
+    QuestionGenericContext *context = data;
+    return context->input->cursor;
+}
+
+static void question_generic_close(TSLexer *lexer, void *data, unsigned opening) {
+    QuestionGenericContext *context = data;
+    QuestionInput *input = context->input;
+    QuestionCheckpoint checkpoint = question_input_checkpoint(input);
+    GenericFollowing kind;
+    bool generic = expression_generic_following_read(lexer, &kind);
+    question_input_restore(input, checkpoint);
+    input->characters.contents[opening].generic = generic ? kind : GENERIC_NOT_FOLLOWING;
+}
+
 #endif

@@ -539,7 +539,7 @@ static unsigned question_walk_role(TSLexer *lexer, QuestionWalk *walk) {
 
 static unsigned question_walk_type_test_role(TSLexer *lexer, QuestionWalk *walk) {
     bool complete = !walk->role_active || lexer->eof(lexer);
-    bool is_proved = walk->is_eligible && walk->is_seen &&
+    bool is_proved = (!walk->pending_as_role || walk->proved_ternary) && walk->is_eligible && walk->is_seen &&
         !walk->is_reserved && !walk->is_pending_bracket && complete;
     bool is_access = is_proved && !walk->is_current_consumed;
     if (!is_access && !(is_proved && walk->is_ternary_eligible)) return 0;
