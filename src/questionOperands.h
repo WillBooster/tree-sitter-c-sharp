@@ -269,6 +269,22 @@ static QuestionWalkStep question_walk_identifier_read(Scanner *scanner, TSLexer 
     return question_walk_identifier_operand(lexer, walk, &identifier, creation, word_start);
 }
 
+static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as) {
+    walk->suffix.regular = false;
+    walk->cache_type_uncertain = true;
+    bool case_colon = scanner->question_frames[scanner->question_frame_count - 1].case_colon;
+    bool independent_type = question_walk_type_keyword(walk, identifier, is_or_as, case_colon);
+    if (independent_type && !walk->depth && !strcmp(identifier->word, "is")) walk->ambiguous_binding_chain = false;
+    if (is_or_as && walk->recording) scanner->question_type_uncertain = true;
+    if (!is_or_as) scanner->question_unknown = true;
+    question_clear_access_cache(scanner);
+    walk->access_chain_value = false;
+    if (!independent_type) {
+        if (is_or_as && !walk->depth && walk->binding && walk->recording && !strcmp(identifier->word, "is")) walk->own_is_unknown = true;
+        else walk->role_known = false;
+    }
+}
+
 static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation, const QuestionCheckpoint *word_start) {
     if (question_walk_future_lambda(lexer, walk, identifier, word_start)) return QUESTION_WALK_CONTINUE;
     if (!question_walk_is_name(lexer, walk, identifier)) return QUESTION_WALK_UNKNOWN;
@@ -315,8 +331,10 @@ static bool question_walk_is_name(TSLexer *lexer, QuestionWalk *walk, const Ques
     if (identifier->keyword && (!strcmp(identifier->word, "is") || !strcmp(identifier->word, "not"))) return true;
     walk->is_name_pending = false;
     if (!rank_identifier_allowed(identifier, true) && !(identifier->keyword && !strcmp(identifier->word, "delegate"))) return true;
+    bool recording = walk->recording;
     RankTypeRead read = {0};
     if (!question_walk_name_suffix(lexer, walk, identifier, &read)) return false;
+    if (recording && walk->own_is_unknown && read.complex) walk->role_known = false;
     if (read.division) {
         if (walk->binding && !walk->cache_colon) walk->root_binary = true;
         if (walk->recording && walk->ordinary) walk->definite_ternary = true;
@@ -509,7 +527,7 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
         walk->known_nullable = true;
         walk->role_active = false;
     }
-    if (!walk->binding && !walk->role_known) walk->role_active = false;
+    if (!walk->binding && !question_walk_role_known(walk)) walk->role_active = false;
     walk->rank_phase = RANK_NONE;
     walk->entering_binding = false;
     if (question_binding_start(lexer, first)) return QUESTION_WALK_CONTINUE;

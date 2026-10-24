@@ -210,7 +210,7 @@ static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk, unsi
         return;
     }
     if (role == 1 && walk->suffix.regular && walk->suffix.boundary && !walk->mandatory && !walk->proved_ternary && !walk->known_ternary &&
-        walk->role_known && walk->binding && walk->suffix.roles.size && !scanner->question_unknown &&
+        question_walk_role_known(walk) && walk->binding && walk->suffix.roles.size && !scanner->question_unknown &&
         !scanner->question_frames[scanner->question_frame_count - 1].unknown) {
         question_suffix_store(&scanner->suffix, &walk->suffix, scanner->question_frame_count,
             scanner->question_frames[scanner->question_frame_count - 1].pending);
@@ -221,7 +221,7 @@ static void question_walk_cache(Scanner *scanner, const QuestionWalk *walk, unsi
     }
     // In an A+ then colon* stream, unmatched optional questions are exactly the leading access prefix.
     bool reusable = walk->binding && walk->cache_shaped && !walk->proved_ternary &&
-        (walk->role_known || question_walk_access_prefix(walk));
+        (question_walk_role_known(walk) || question_walk_access_prefix(walk));
     if (reusable && walk->optional > 1 && walk->optional - 1 <= UINT32_MAX)
         scanner->question_access_cache = (uint32_t)(walk->optional - 1);
 }

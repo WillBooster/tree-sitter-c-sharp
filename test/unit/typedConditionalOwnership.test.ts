@@ -71,6 +71,70 @@ test('preserves typed conditional fields, ranges and captures across local edits
   }
 });
 
+test('retains a later type-tested conditional after an ambiguous binding chain', () => {
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(
+    language,
+    '(conditional_expression condition: (_) @condition consequence: (_) @consequence alternative: (_) @alternative)'
+  );
+  const prefix = '/* 日本語? */ var r = a?[0] is T ? b?[0] ? [1] : y : ';
+  const following = ' class Following {}';
+  let previous = '';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const condition of ['c', 'c is T', 'c']) {
+      const tail = `${condition} ? f : g;`;
+      const source = prefix + tail + following;
+      const fresh = parser.parse(source)!;
+      editTree(tree, previous, source);
+      const incremental = parser.parse(source, tree)!;
+      try {
+        expect(fresh.rootNode.hasError, source).toBe(false);
+        const alternatives = fresh.rootNode
+          .descendantsOfType('conditional_expression')
+          .filter((node) => node.startIndex === prefix.length);
+        expect(alternatives, source).toHaveLength(1);
+        const alternative = alternatives[0]!;
+        expect(alternative.endIndex, source).toBe(prefix.length + tail.length - 1);
+        const expected = [condition, 'f', 'g'].map((text) => {
+          const start = source.indexOf(text, prefix.length);
+          return [text, start, start + text.length];
+        });
+        expect(
+          ['condition', 'consequence', 'alternative'].map((field) => {
+            const node = alternative.childForFieldName(field)!;
+            return [node.text, node.startIndex, node.endIndex];
+          }),
+          source
+        ).toEqual(expected);
+        expect(ownershipCaptures(query, alternative), source).toEqual(
+          expected
+            .map(([, start, end], index) => `${['condition', 'consequence', 'alternative'][index]}:${start}:${end}`)
+            .toSorted()
+        );
+        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        expect(ownershipCaptures(query, incremental.rootNode), source).toEqual(
+          ownershipCaptures(query, fresh.rootNode)
+        );
+        const declaration = fresh.rootNode.descendantsOfType('class_declaration')[0]!;
+        expect(
+          [declaration.text, declaration.parent?.type, declaration.startIndex, declaration.endIndex],
+          source
+        ).toEqual(['class Following {}', 'compilation_unit', source.indexOf('class Following {}'), source.length]);
+      } finally {
+        fresh.delete();
+        tree.delete();
+        tree = incremental;
+        previous = source;
+      }
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
 test('retains explicit nullable ref lambda return types and their complete bodies', () => {
   const parser = new Parser().setLanguage(language);
   try {
