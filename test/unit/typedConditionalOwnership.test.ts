@@ -18,6 +18,7 @@ interface LambdaFields {
   parameters: string;
   body: string;
   bodyType: string;
+  attributes?: readonly string[];
 }
 
 beforeAll(async () => {
@@ -364,7 +365,7 @@ test('preserves nested and block lambda return fields through edits', () => {
   const parser = new Parser().setLanguage(language);
   const query = new Query(
     language,
-    '(lambda_expression type: (_) @return parameters: (_) @parameters body: (_) @body)'
+    '(expression/lambda_expression) @lambda (lambda_expression type: (_) @return parameters: (_) @parameters body: (_) @body)'
   );
   const samples = [
     {
@@ -386,6 +387,14 @@ test('preserves nested and block lambda return fields through edits', () => {
     {
       source: 'var r = a ? b ? [1] : int? (k) => k : c;',
       fields: [{ type: 'int?', parameters: '(k)', body: 'k', bodyType: 'identifier' }],
+    },
+    {
+      source: 'var r = c ? [A] Foo? (int k) => k : 1;',
+      fields: [{ type: 'Foo?', parameters: '(int k)', body: 'k', bodyType: 'identifier', attributes: ['[A]'] }],
+    },
+    {
+      source: 'var r = Foo? (x) => y is T[] ? a : b;',
+      fields: [{ type: 'Foo?', parameters: '(x)', body: 'y is T[] ? a : b', bodyType: 'conditional_expression' }],
     },
   ];
   const following = 'class Following { int Value => 1; }';
@@ -431,6 +440,19 @@ function expectLambdaFields(root: Node, source: string, expected: readonly Lambd
     expect(lambda.childForFieldName('type')?.type, source).toBe('nullable_type');
     expect(lambda.childForFieldName('parameters')?.type, source).toBe('parameter_list');
     expect(lambda.childForFieldName('body')?.type, source).toBe(fields.bodyType);
+    const attributes = lambda.namedChildren.filter((node) => node.type === 'attribute_list');
+    expect(
+      attributes.map((node) => node.text),
+      source
+    ).toEqual(fields.attributes ?? []);
+    for (const attribute of attributes) {
+      const start = source.indexOf(attribute.text, lambda.startIndex);
+      expect([attribute.startIndex, attribute.endIndex], source).toEqual([start, start + attribute.text.length]);
+    }
+    const start = source.indexOf(fields.attributes?.[0] ?? fields.type, lambda.startIndex);
+    const end = source.indexOf(fields.body, source.indexOf('=>', lambda.startIndex) + 2) + fields.body.length;
+    expect([lambda.startIndex, lambda.endIndex], source).toEqual([start, end]);
+    captures.push(`lambda:${start}:${end}`);
     for (const field of ['type', 'parameters', 'body'] as const) {
       const node = lambda.childForFieldName(field)!;
       const text = fields[field];

@@ -2867,4 +2867,20 @@ export const ownershipSamples = [
     source: "var r = a ? b ? [1] : int[]? (int? k) => k : c;",
     ranges: [[[8,9],[12,42],[45,46]],[[12,13],[16,19],[22,42]]],
   },
+  {
+    source: "var r = c ? [A] Foo? (k) => k : null;",
+    ranges: [[[8,9],[12,29],[32,36]]],
+  },
+  {
+    source: "var r = c ? [A] Foo? (int k) => k : 1;",
+    ranges: [[[8,9],[12,33],[36,37]]],
+  },
+  {
+    source: "class C { void M() { var r = a?[0]?.c ? a?[0]?.c == null ? c : d : e?[0] is A.B?; } }",
+    ranges: [[[29,37],[40,64],[67,80]],[[40,56],[59,60],[63,64]]],
+  },
+  {
+    source: "class C { void M() { var r = Foo? (x) => y is T[] ? a : b; } }",
+    ranges: [[[41,49],[52,53],[56,57]]],
+  },
 ];

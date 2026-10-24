@@ -1081,7 +1081,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     QuestionFollowing next = consumed_division ? (QuestionFollowing){.token = '/'} : question_following(lexer);
     bool known_ternary = false;
     if (next.member) scanner->question_type_uncertain = false;
-    bool known_nullable = next.token == ')' || next.token == ',' || next.token == ':' ||
+    bool known_nullable = next.token == ')' || next.token == ',' || next.token == ':' || next.token == ';' ||
         (valid_symbols[QUESTION_NULLABLE] &&
          (consumed_division || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
     bool dimension_expression = false;

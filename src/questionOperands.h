@@ -286,6 +286,25 @@ static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, Questio
     return creation ? question_walk_creation_prefix(lexer, walk) : QUESTION_WALK_CONTINUE;
 }
 
+static void question_walk_attributed_lambda(TSLexer *lexer, QuestionWalk *walk) {
+    if (!walk->role_active || !walk->context_known || walk->known_nullable || walk->nullable_only) return;
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    bool valid = rank_read_delimited(lexer, '[', RANK_BODY_EXPRESSION, NULL);
+    while (valid && question_skip_separators(lexer) == '[') {
+        advance(lexer);
+        valid = rank_read_delimited(lexer, '[', RANK_BODY_EXPRESSION, NULL);
+    }
+    RankTypeRead read = {0};
+    valid = valid && question_read_nullable_lambda_header(lexer, walk->input, &read, NULL);
+    question_input_restore(walk->input, start);
+    if (valid) {
+        walk->known_ternary = true;
+        walk->definite_ternary = true;
+        walk->cache_shaped = false;
+        walk->suffix.regular = false;
+    }
+}
+
 static bool question_walk_future_lambda(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, const QuestionCheckpoint *word_start) {
     static const char *const modifiers[] = {"ref", "static", "async"};
     if (walk->depth || !walk->role_active || !identifier->keyword) return false;
@@ -520,6 +539,7 @@ static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
 }
 
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
+    if (walk->recording && !walk->depth) question_walk_attributed_lambda(lexer, walk);
     int32_t first = question_skip_separators(lexer);
     if (first == '#' || first == -2) return QUESTION_WALK_UNKNOWN;
     if (!question_walk_multidimensional_rank(lexer, walk, &first)) return QUESTION_WALK_UNKNOWN;
