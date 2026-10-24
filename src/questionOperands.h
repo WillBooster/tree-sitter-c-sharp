@@ -143,6 +143,8 @@ static bool question_walk_nullable_marker(QuestionWalk *walk, QuestionFollowing 
     return true;
 }
 
+enum { QUESTION_OWN_BINDING_OPEN = 1, QUESTION_OWN_BINDING_COMPETES };
+
 // A binding closed by a colon, or followed by another `?[`, can also be read as a ternary consequence.
 static bool question_own_binding_competes(TSLexer *lexer, QuestionInput *input) {
     int32_t next = question_skip_separators(lexer);
@@ -163,7 +165,7 @@ static void question_walk_finish_binding_chain(QuestionWalk *walk) {
 static void question_walk_access_chain(QuestionWalk *walk, QuestionFollowing following) {
     if (!walk->recording && walk->reserved && walk->root_colons && walk->later_ordinary_operand &&
         walk->mandatory && walk->access_chain_value && !walk->type_operand && following.token == '[') {
-        if (walk->own_binding_competes) walk->ambiguous_binding_chain = true;
+        if (walk->own_binding == QUESTION_OWN_BINDING_COMPETES) walk->ambiguous_binding_chain = true;
         walk->cache_shaped = false;
         walk->suffix.regular = false;
     }
@@ -523,7 +525,7 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
         if (step != QUESTION_WALK_CONTINUE) return step;
     }
     walk->binding = first >= 0 && first != ']' && first != ',' && !lexer->eof(lexer);
-    walk->own_binding_open = walk->binding;
+    if (walk->binding) walk->own_binding = QUESTION_OWN_BINDING_OPEN;
     bool nullable_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
     bool expression_rank = walk->rank_phase == RANK_TERNARY || walk->rank_phase == RANK_AFTER_NULLABLE;
     bool rank_separator = first == ']' || first == ',';
@@ -571,6 +573,8 @@ static bool question_walk_operand_group(TSLexer *lexer, QuestionWalk *walk, int3
     }
     if (constructor) array_push(&walk->groups, 'p');
     else if (!question_walk_group(lexer, walk, c)) return false;
+    if (c == ']' && walk->own_binding == QUESTION_OWN_BINDING_OPEN && walk->depth == 1)
+        walk->own_binding = question_own_binding_competes(lexer, walk->input) ? QUESTION_OWN_BINDING_COMPETES : 0;
     if (walk->role_active && walk->binding && c == ']' && walk->binding_chain_depth == (unsigned)walk->depth) {
         walk->access_chain_value = true;
         walk->binding_chain_depth = 0;

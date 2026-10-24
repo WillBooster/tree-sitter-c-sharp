@@ -25,50 +25,55 @@ beforeAll(async () => {
   language = await Language.load('tree-sitter-c_sharp.wasm');
 });
 
-test('preserves typed conditional fields, ranges and captures across local edits', () => {
-  const parser = new Parser().setLanguage(language);
-  const query = new Query(
-    language,
-    '(conditional_expression condition: (_) @condition consequence: (_) @consequence alternative: (_) @alternative)'
-  );
-  const fields = ['condition', 'consequence', 'alternative'];
-  let previous = 'var r = 0;';
-  let tree = parser.parse(previous)!;
-  try {
-    for (const sample of [...ownershipSamples, ...ownershipSamples.toReversed()]) {
-      const fresh = parser.parse(sample.source)!;
-      editTree(tree, previous, sample.source);
-      const incremental = parser.parse(sample.source, tree)!;
-      try {
-        expect(fresh.rootNode.hasError, sample.source).toBe(false);
-        expect(
-          fresh.rootNode.descendantsOfType('conditional_expression').map((node) =>
-            fields.map((field) => {
-              const child = node.childForFieldName(field)!;
-              return [child.startIndex, child.endIndex];
-            })
-          ),
-          sample.source
-        ).toEqual(sample.ranges);
-        const expected = sample.ranges
-          .flatMap((ranges) => ranges.map(([start, end], index) => `${fields[index]}:${start}:${end}`))
-          .toSorted();
-        expect(ownershipCaptures(query, fresh.rootNode), sample.source).toEqual(expected);
-        expect(ownershipCaptures(query, incremental.rootNode), sample.source).toEqual(expected);
-        expect(syntaxSnapshot(incremental.rootNode), sample.source).toEqual(syntaxSnapshot(fresh.rootNode));
-      } finally {
-        fresh.delete();
-        tree.delete();
-        tree = incremental;
-        previous = sample.source;
+test(
+  'preserves typed conditional fields, ranges and captures across local edits',
+  // Every fixture sample is parsed fresh and incrementally in both orders, which exceeds five seconds on the Intel CI runner.
+  { timeout: 30_000 },
+  () => {
+    const parser = new Parser().setLanguage(language);
+    const query = new Query(
+      language,
+      '(conditional_expression condition: (_) @condition consequence: (_) @consequence alternative: (_) @alternative)'
+    );
+    const fields = ['condition', 'consequence', 'alternative'];
+    let previous = 'var r = 0;';
+    let tree = parser.parse(previous)!;
+    try {
+      for (const sample of [...ownershipSamples, ...ownershipSamples.toReversed()]) {
+        const fresh = parser.parse(sample.source)!;
+        editTree(tree, previous, sample.source);
+        const incremental = parser.parse(sample.source, tree)!;
+        try {
+          expect(fresh.rootNode.hasError, sample.source).toBe(false);
+          expect(
+            fresh.rootNode.descendantsOfType('conditional_expression').map((node) =>
+              fields.map((field) => {
+                const child = node.childForFieldName(field)!;
+                return [child.startIndex, child.endIndex];
+              })
+            ),
+            sample.source
+          ).toEqual(sample.ranges);
+          const expected = sample.ranges
+            .flatMap((ranges) => ranges.map(([start, end], index) => `${fields[index]}:${start}:${end}`))
+            .toSorted();
+          expect(ownershipCaptures(query, fresh.rootNode), sample.source).toEqual(expected);
+          expect(ownershipCaptures(query, incremental.rootNode), sample.source).toEqual(expected);
+          expect(syntaxSnapshot(incremental.rootNode), sample.source).toEqual(syntaxSnapshot(fresh.rootNode));
+        } finally {
+          fresh.delete();
+          tree.delete();
+          tree = incremental;
+          previous = sample.source;
+        }
       }
+    } finally {
+      tree.delete();
+      query.delete();
+      parser.delete();
     }
-  } finally {
-    tree.delete();
-    query.delete();
-    parser.delete();
   }
-});
+);
 
 test('retains explicit nullable ref lambda return types and their complete bodies', () => {
   const parser = new Parser().setLanguage(language);
