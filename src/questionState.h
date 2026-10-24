@@ -12,13 +12,14 @@ static bool question_read_rank(Scanner *scanner, unsigned flags, const char *buf
 
 typedef struct { bool unknown, extended, rank, cache, depths, confirmation, transfers; } QuestionSerialization;
 
-static uint8_t question_take_rank(Scanner *scanner, bool *known_nullable) {
+static uint8_t question_take_rank(Scanner *scanner, bool *known_nullable, bool *dimension_expression) {
     if (scanner->question_rank_role == RANK_ALLOCATION_PREFIX) {
         *known_nullable = true;
         if (!--scanner->question_rank_prefix_questions) clear_question_rank(scanner);
         return RANK_NONE;
     }
     if (scanner->question_rank_role == RANK_ALLOCATION_MIXED) {
+        *dimension_expression = !(scanner->question_rank_prefix_questions & 1);
         *known_nullable |= scanner->question_rank_prefix_questions & 1;
         scanner->question_rank_prefix_questions >>= 1;
         if (scanner->question_rank_prefix_questions == 1) clear_question_rank(scanner);

@@ -1084,11 +1084,13 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     bool known_nullable = next.token == ')' || next.token == ',' || next.token == ':' ||
         (valid_symbols[QUESTION_NULLABLE] &&
          (consumed_division || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
-    uint8_t rank_phase = question_take_rank(scanner, &known_nullable);
+    bool dimension_expression = false;
+    uint8_t rank_phase = question_take_rank(scanner, &known_nullable, &dimension_expression);
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown || frame->unknown || next.token != '[')
         rank_phase = RANK_NONE;
-    unsigned context_flags = (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
+    unsigned context_flags = (dimension_expression ? QUESTION_DIMENSION_EXPRESSION : 0) |
+        (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
         (valid_symbols[QUESTION_ELEMENT_ACCESS] ? QUESTION_ACCESS_ALTERNATIVE : 0) |
         (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
         (valid_symbols[QUESTION_NULLABLE] ? QUESTION_NULLABLE_ALLOWED : 0) |

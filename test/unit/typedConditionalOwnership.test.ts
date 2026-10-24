@@ -301,6 +301,8 @@ test('preserves complete stack allocation types and nullable lambda headers thro
     typedAllocationSample('int?*[a?[0]][b]', '[b]'),
     typedAllocationSample('G<T?>?[]?[a?[0]]', '[a?[0]]'),
     typedAllocationSample('G<T?[a?[0]]>[b?[0]]', '[b?[0]]'),
+    typedAllocationSample('G<T[a?[0] + b?[0]]>?[z]', '[z]'),
+    typedAllocationSample('G<T[a?[b?[0]]]>?[z]', '[z]'),
     {
       source: 'class C { void M() { switch (v) { case 1 when a ? stackalloc int?[2]?*[1] ? [1] : c : b: break; } } }',
       type: 'int?[2]?*[1] ? [1]',

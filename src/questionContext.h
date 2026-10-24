@@ -119,6 +119,7 @@ typedef enum {
     QUESTION_NULLABLE_ONLY = 4,
     QUESTION_ACCESS_ALTERNATIVE = 8,
     QUESTION_NULLABLE_ALLOWED = 16,
+    QUESTION_DIMENSION_EXPRESSION = 32,
 } QuestionContextFlags;
 
 typedef struct {
@@ -345,7 +346,8 @@ static bool question_suffix_context(const Scanner *scanner, bool known, bool kno
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     bool context_known = !scanner->question_unknown && !frame->unknown;
-    bool known = context_known && (!scanner->question_type_uncertain || (context_flags & QUESTION_EXPRESSION_RECEIVER));
+    bool type_context = scanner->question_type_uncertain && !(context_flags & QUESTION_DIMENSION_EXPRESSION);
+    bool known = context_known && (!type_context || (context_flags & QUESTION_EXPRESSION_RECEIVER));
     const Interpolation *interpolation = question_interpolation(scanner);
     bool ternary_only = rank_phase == RANK_PATTERN_COMPLETE;
     bool cached = scanner->question_access_cache && following.token == '[' && !ternary_only &&
@@ -360,7 +362,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .suffix = {.role = suffix_role, .regular = !suffix_role && following.token == '[' && suffix_context},
         .following = following,
         .interpolation_depth = interpolation && interpolation->question_depth != UINT16_MAX ? interpolation->question_depth : -1,
-        .nullable_context = scanner->question_type_uncertain || rank_phase != RANK_NONE,
+        .nullable_context = type_context || rank_phase != RANK_NONE,
         .access_alternative = context_flags & QUESTION_ACCESS_ALTERNATIVE,
         .cached_count = scanner->question_access_cache,
         .reserved = frame->pending,
@@ -684,9 +686,12 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
 }
 
 static void question_walk_coalescing(TSLexer *lexer, QuestionWalk *walk) {
-    if (!walk->depth) walk->is_name_pending = false;
-    if (!walk->depth) walk->as_operand = false;
-    if (!walk->depth) { walk->allocation_type = false; walk->allocation_rank = false; }
+    if (!walk->depth) {
+        walk->is_name_pending = false;
+        walk->as_operand = false;
+        walk->allocation_type = false;
+        walk->allocation_rank = false;
+    }
     if (walk->is_as_phase) walk->is_eligible = false;
     if (!walk->depth && walk->binding && !walk->cache_colon) walk->root_binary = true;
     advance(lexer);
