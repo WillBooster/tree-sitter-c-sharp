@@ -2511,8 +2511,8 @@ module.exports = grammar({
       prec(
         -1,
         choice(
-          seq($._lambda_expression_init, '=>', field('body', choice($.block, $.expression))),
-          prec.dynamic(-1, seq($._typed_lambda_expression_init, '=>', field('body', choice($.block, $.expression))))
+          prec.dynamic(1, seq($._lambda_expression_init, '=>', field('body', choice($.block, $.expression)))),
+          seq($._typed_lambda_expression_init, '=>', field('body', choice($.block, $.expression)))
         )
       ),
 

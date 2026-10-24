@@ -2859,4 +2859,24 @@ export const ownershipSamples = [
     source: "var r = g(Foo? (k) => { return (a?[0] is Foo? ? x : a?[0]); });",
     ranges: [[[32,45],[48,49],[52,57]]],
   },
+  {
+    source: "F(T? (k) => k < n, Make<int>(x));",
+    ranges: [],
+  },
+  {
+    source: "F(T? (k) => k < n, Make<int>);",
+    ranges: [],
+  },
+  {
+    source: "var r = (T? (k) => k < n, Make<int>(x));",
+    ranges: [],
+  },
+  {
+    source: "var r = new[] { T? (k) => k < n, Make<int>(x) };",
+    ranges: [],
+  },
+  {
+    source: "F(List<int>? (k) => k < n, y.Make<int>(x));",
+    ranges: [],
+  },
 ];

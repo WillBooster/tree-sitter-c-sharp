@@ -17444,44 +17444,14 @@
         "type": "CHOICE",
         "members": [
           {
-            "type": "SEQ",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "_lambda_expression_init"
-              },
-              {
-                "type": "STRING",
-                "value": "=>"
-              },
-              {
-                "type": "FIELD",
-                "name": "body",
-                "content": {
-                  "type": "CHOICE",
-                  "members": [
-                    {
-                      "type": "SYMBOL",
-                      "name": "block"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "expression"
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
             "type": "PREC_DYNAMIC",
-            "value": -1,
+            "value": 1,
             "content": {
               "type": "SEQ",
               "members": [
                 {
                   "type": "SYMBOL",
-                  "name": "_typed_lambda_expression_init"
+                  "name": "_lambda_expression_init"
                 },
                 {
                   "type": "STRING",
@@ -17506,6 +17476,36 @@
                 }
               ]
             }
+          },
+          {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "_typed_lambda_expression_init"
+              },
+              {
+                "type": "STRING",
+                "value": "=>"
+              },
+              {
+                "type": "FIELD",
+                "name": "body",
+                "content": {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "block"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "expression"
+                    }
+                  ]
+                }
+              }
+            ]
           }
         ]
       }
