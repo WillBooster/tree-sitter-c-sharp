@@ -1,11 +1,11 @@
-import { expect, test } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-import { generationInputMtime } from '../helpers/generationInputs.js';
-
 import { Language, Parser } from '@willbooster/web-tree-sitter';
+import { expect, test } from 'vitest';
+
+import { generationInputMtime } from '../helpers/generationInputs.js';
 
 const Root = path.join(import.meta.dirname, '../..');
 const WasmPath = path.join(Root, 'tree-sitter-c_sharp.wasm');
