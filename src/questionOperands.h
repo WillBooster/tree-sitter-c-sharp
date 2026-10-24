@@ -150,7 +150,7 @@ static void question_walk_finish_binding_chain(QuestionWalk *walk) {
 }
 
 static void question_walk_access_chain(QuestionWalk *walk, QuestionFollowing following) {
-    if (!walk->recording && walk->root_colons && walk->later_ordinary_operand &&
+    if (!walk->recording && walk->reserved && walk->root_colons && walk->later_ordinary_operand &&
         walk->mandatory && walk->access_chain_value && !walk->type_operand && following.token == '[') {
         walk->ambiguous_binding_chain = true;
         walk->cache_shaped = false;
