@@ -275,7 +275,9 @@ static bool question_walk_operand_group(TSLexer *lexer, QuestionWalk *walk, int3
 static void question_walk_creation_operator(QuestionWalk *, int32_t);
 static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c);
 static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk);
-static bool question_walk_type_designation(TSLexer *lexer, QuestionWalk *walk);
+static bool question_walk_type_pattern(TSLexer *lexer, QuestionWalk *walk);
+static bool question_walk_pattern_suffix(TSLexer *lexer, bool *nullable);
+static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable);
 static bool question_walk_type_follows(TSLexer *, QuestionWalk *);
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_leading_commas(TSLexer *lexer, QuestionWalk *walk);

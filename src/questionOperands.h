@@ -626,7 +626,7 @@ static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk) {
     walk->type_rank = false;
     int32_t next = question_skip_separators(lexer);
     bool terminal = next == ';' || next == ',' || question_closing_group(next) || lexer->eof(lexer);
-    if (terminal || (walk->case_boundary && question_walk_type_designation(lexer, walk))) {
+    if (terminal || (walk->case_boundary && question_walk_type_pattern(lexer, walk))) {
         if (walk->optional) walk->optional--;
     } else if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;
     else walk->is_optional++;
@@ -637,17 +637,42 @@ static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk) {
     if (!walk->prefix_ordinary && question_walk_type_follows(lexer, walk)) walk->future_root_question = false;
 }
 
-static bool question_walk_type_designation(TSLexer *lexer, QuestionWalk *walk) {
+static bool question_walk_type_pattern(TSLexer *lexer, QuestionWalk *walk) {
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
-    RankTypeRead read = {0};
+    bool nullable = false;
+    bool type = question_walk_pattern_suffix(lexer, &nullable);
+    QuestionCheckpoint tail = {walk->input->cursor, start.capturing};
+    bool pattern = type && question_walk_pattern_tail(lexer, nullable);
+    question_input_restore(walk->input, pattern && !walk->recording ? tail : start);
+    return pattern;
+}
+
+static bool question_walk_pattern_suffix(TSLexer *lexer, bool *nullable) {
+    for (;;) {
+        int32_t c = question_skip_separators(lexer);
+        if (c < 0) return false;
+        if (c == '[') {
+            if (!rank_read_as_rank(lexer)) return false;
+            *nullable = false;
+        } else if (c == '?' && !*nullable) {
+            advance(lexer);
+            *nullable = true;
+        } else return c != '?';
+    }
+}
+
+static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable) {
+    if (lexer->lookahead == '{') return true;
+    if (nullable) return false;
+    if (lexer->lookahead == '(') {
+        advance(lexer);
+        if (!rank_read_delimited(lexer, '(', RANK_BODY_EXPRESSION, NULL)) return false;
+        if (question_skip_separators(lexer) == '{') return true;
+    }
     QuestionIdentifier word;
-    bool designation = rank_read_type_suffix(lexer, &read, false, false) &&
-        !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
-        rank_read_identifier(lexer, &word) &&
+    return rank_read_identifier(lexer, &word) &&
         (rank_identifier_allowed(&word, true) || (word.keyword && (!strcmp(word.word, "await") || !strcmp(word.word, "var")))) &&
         (!word.keyword || strcmp(word.word, "with") || question_skip_separators(lexer) != '{');
-    question_input_restore(walk->input, start);
-    return designation;
 }
 
 static bool question_walk_type_follows(TSLexer *lexer, QuestionWalk *walk) {
