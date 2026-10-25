@@ -384,6 +384,7 @@ module.exports = grammar({
     sym('_conditional_consequence_start'),
     sym('_expression_generic_start'),
     sym('_stackalloc_context'),
+    sym('_case_guard_when'),
   ],
 
   extras: ($) => [
@@ -1468,7 +1469,10 @@ module.exports = grammar({
     switch_section: ($) =>
       prec.left(
         seq(
-          choice(seq('case', choice($.expression, seq($.pattern, optional($.when_clause)))), 'default'),
+          choice(
+            seq('case', choice($.expression, seq($.pattern, optional(alias($._case_when_clause, $.when_clause))))),
+            'default'
+          ),
           alias(sym('_case_label_colon'), ':'),
           repeat(choice($.statement, $._preproc_if_in_switch_body))
         )
@@ -2414,6 +2418,8 @@ module.exports = grammar({
       ),
 
     switch_expression_arm: ($) => seq($.pattern, optional($.when_clause), '=>', $.expression),
+
+    _case_when_clause: ($) => seq(alias(sym('_case_guard_when'), 'when'), $.expression),
 
     when_clause: ($) => seq('when', $.expression),
 

@@ -1,11 +1,130 @@
 import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
+import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
+
 let language: Language;
 
 beforeAll(async () => {
   await Parser.init();
   language = await Language.load('tree-sitter-c_sharp.wasm');
+});
+
+test('preserves case patterns, guards and statement labels across clause edits', () => {
+  const samples = [
+    {
+      source: 'switch (x) { case T?[] y when a ? b : c: label: break; case 2: break; }',
+      pattern: 'declaration_pattern',
+      guards: ['when a ? b : c'],
+      labels: ['label'],
+    },
+    {
+      source: 'switch (x) { case y when a ? [1] : b is T?[]? and not null: break; case 2: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a ? [1] : b is T?[]? and not null'],
+      labels: [],
+    },
+    { source: 'switch (x) { case a ? [1] : b: break; }', pattern: 'type_pattern', guards: [], labels: ['b'] },
+    { source: 'switch (x) { case a ? [] : b: break; }', pattern: 'type_pattern', guards: [], labels: ['b'] },
+    { source: 'switch (x) { case A.B ? [1] : b: break; }', pattern: 'type_pattern', guards: [], labels: ['b'] },
+    {
+      source: 'switch (x) { case T?[] y when /* guard */ (a ? [1] : b): label: break; }',
+      pattern: 'declaration_pattern',
+      guards: ['when /* guard */ (a ? [1] : b)'],
+      labels: ['label'],
+    },
+    {
+      source: 'switch (x) { case T whenfoo: label: break; case T @when: other: break; }',
+      pattern: 'declaration_pattern',
+      guards: [],
+      labels: ['label', 'other'],
+    },
+    {
+      source:
+        'switch (x) { case y when a ? [1] : b: outer: switch (z) { case T?[] q when c ? [] : d: inner: break; case A.B ? [1] : last: break; } break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a ? [1] : b', 'when c ? [] : d'],
+      labels: ['outer', 'inner', 'last'],
+    },
+    {
+      source:
+        'switch (x) { case y when F(() => { switch (z) { case q when ready: break; } return a; }) ? [1] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when F(() => { switch (z) { case q when ready: break; } return a; }) ? [1] : b', 'when ready'],
+      labels: [],
+    },
+    {
+      source:
+        'switch (x) { case y when F(() => { switch (z) { case q when c ? d : e: break; } return a; }) ? [1] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when F(() => { switch (z) { case q when c ? d : e: break; } return a; }) ? [1] : b', 'when c ? d : e'],
+      labels: [],
+    },
+    { source: 'var r = x switch { T?[] y when a ? [1] : b => 1, _ => 0 };', guards: ['when a ? [1] : b'], labels: [] },
+  ];
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(when_clause) @guard (labeled_statement (identifier) @label)');
+  let previous = 'var r = 0;';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const sample of [...samples, ...samples.toReversed()]) {
+      const fresh = parser.parse(sample.source)!;
+      editTree(tree, previous, sample.source);
+      const incremental = parser.parse(sample.source, tree)!;
+      try {
+        expect(fresh.rootNode.hasError, sample.source).toBe(false);
+        if (sample.pattern) {
+          expect(fresh.rootNode.descendantsOfType('switch_section')[0]?.firstNamedChild?.type, sample.source).toBe(
+            sample.pattern
+          );
+        }
+        const captures = query.captures(fresh.rootNode);
+        expect(
+          captures.filter(({ name }) => name === 'guard').map(({ node }) => node.text),
+          sample.source
+        ).toEqual(sample.guards);
+        expect(
+          captures.filter(({ name }) => name === 'guard').map(({ node }) => [node.startIndex, node.endIndex]),
+          sample.source
+        ).toEqual(
+          sample.guards.map((guard) => [sample.source.indexOf(guard), sample.source.indexOf(guard) + guard.length])
+        );
+        expect(
+          captures.filter(({ name }) => name === 'label').map(({ node }) => node.text),
+          sample.source
+        ).toEqual(sample.labels);
+        expect(syntaxSnapshot(incremental.rootNode), sample.source).toEqual(syntaxSnapshot(fresh.rootNode));
+      } finally {
+        fresh.delete();
+        tree.delete();
+      }
+      tree = incremental;
+      previous = sample.source;
+    }
+    for (const incomplete of [
+      'switch (x) { case y when',
+      'switch (x) { case T?[] y when a ?',
+      'switch (x) { case y when a ? [1] : b:',
+      'switch (x) { case T?[] y:',
+    ]) {
+      editTree(tree, previous, incomplete);
+      const incremental = parser.parse(incomplete, tree)!;
+      const fresh = parser.parse(incomplete)!;
+      try {
+        expect(fresh.rootNode.hasError, incomplete).toBe(true);
+        expect(syntaxSnapshot(incremental.rootNode), incomplete).toEqual(syntaxSnapshot(fresh.rootNode));
+      } finally {
+        fresh.delete();
+        tree.delete();
+      }
+      tree = incremental;
+      previous = incomplete;
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
 });
 
 test('retains function-pointer types on positional recursive patterns', () => {

@@ -71,6 +71,7 @@ static bool question_rank_scope(Scanner *context, QuestionInput *input, Question
             context->question_frames[i].pending = original.pending;
             context->question_frames[i].unknown = original.unknown;
             context->question_frames[i].case_colon = original.case_colon;
+            context->question_frames[i].case_guard = original.case_guard;
         }
         context->question_frame_count = local.question_frame_count;
         array_assign(&context->interpolation_stack, &local.interpolation_stack);
@@ -518,7 +519,13 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
     bool nullable_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
     bool expression_rank = walk->rank_phase == RANK_TERNARY || walk->rank_phase == RANK_AFTER_NULLABLE;
     bool rank_separator = first == ']' || first == ',';
-    if ((nullable_rank && rank_separator) || (expression_rank && (walk->binding || first == ']'))) {
+    bool pattern_rank = rank_separator && walk->case_boundary && walk->nullable_allowed &&
+        question_walk_current_type_pattern(lexer, walk);
+    if (pattern_rank) {
+        walk->known_nullable = true;
+        walk->known_ternary = false;
+        walk->role_active = false;
+    } else if ((nullable_rank && rank_separator) || (expression_rank && (walk->binding || first == ']'))) {
         walk->known_nullable = nullable_rank;
         walk->known_ternary = !walk->known_nullable;
         if (walk->known_ternary) scanner->question_type_uncertain = false;
@@ -647,6 +654,23 @@ static bool question_walk_type_pattern(TSLexer *lexer, QuestionWalk *walk) {
     return pattern;
 }
 
+static bool question_walk_current_type_pattern(TSLexer *lexer, QuestionWalk *walk) {
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    int32_t first = lexer->lookahead;
+    while (first == ',') {
+        advance(lexer);
+        first = question_skip_separators(lexer);
+    }
+    bool pattern = false;
+    if (first == ']') {
+        advance(lexer);
+        bool nullable = false;
+        pattern = question_walk_pattern_suffix(lexer, &nullable) && question_walk_pattern_tail(lexer, nullable);
+    }
+    question_input_restore(walk->input, start);
+    return pattern;
+}
+
 static bool question_walk_pattern_suffix(TSLexer *lexer, bool *nullable) {
     for (;;) {
         int32_t c = question_skip_separators(lexer);
@@ -663,7 +687,11 @@ static bool question_walk_pattern_suffix(TSLexer *lexer, bool *nullable) {
 
 static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable) {
     if (lexer->lookahead == '{') return true;
-    if (nullable) return false;
+    if (nullable) {
+        QuestionIdentifier logical;
+        return rank_read_identifier(lexer, &logical) && logical.keyword &&
+            (!strcmp(logical.word, "and") || !strcmp(logical.word, "or"));
+    }
     if (lexer->lookahead == '(') {
         advance(lexer);
         if (!rank_read_delimited(lexer, '(', RANK_BODY_EXPRESSION, NULL)) return false;
