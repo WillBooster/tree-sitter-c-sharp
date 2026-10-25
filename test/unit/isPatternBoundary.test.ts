@@ -54,6 +54,20 @@ test('preserves case patterns, guards and statement labels across clause edits',
       guards: ['when $"{a:x}" == ready'],
       labels: ['b'],
     },
+    {
+      source: 'switch (x) { case y when new T?[1] ? [b ? c : d] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when new T?[1] ? [b ? c : d]'],
+      guardKinds: ['array_creation_expression'],
+      labels: ['b'],
+    },
+    {
+      source: 'switch (x) { case y when new T[1] ? [b ? c : d] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when new T[1] ? [b ? c : d]'],
+      guardKinds: ['array_creation_expression'],
+      labels: ['b'],
+    },
     { source: 'switch (x) { case a ? [1] : b: break; }', pattern: 'type_pattern', guards: [], labels: ['b'] },
     { source: 'switch (x) { case a ? [] : b: break; }', pattern: 'type_pattern', guards: [], labels: ['b'] },
     { source: 'switch (x) { case A.B ? [1] : b: break; }', pattern: 'type_pattern', guards: [], labels: ['b'] },
@@ -109,6 +123,12 @@ test('preserves case patterns, guards and statement labels across clause edits',
           );
         }
         const captures = query.captures(fresh.rootNode);
+        if (sample.guardKinds) {
+          expect(
+            fresh.rootNode.descendantsOfType('when_clause').map((node) => node.firstNamedChild?.type),
+            sample.source
+          ).toEqual(sample.guardKinds);
+        }
         expect(
           captures.filter(({ name }) => name === 'guard').map(({ node }) => node.text),
           sample.source

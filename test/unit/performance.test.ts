@@ -135,6 +135,22 @@ function stackedCaseGuards(count: number): string {
   );
 }
 
+test('bounds repeated nullable type-pattern suffix proofs', { timeout: 60_000 }, () => {
+  const large = nullablePatternSuffixes(1000);
+  expectBoundedGrowth(nullablePatternSuffixes(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1001);
+    expect(tree.rootNode.descendantsOfType('array_type')).toHaveLength(1000);
+  } finally {
+    tree.delete();
+  }
+});
+
+function nullablePatternSuffixes(count: number): string {
+  return 'switch(x) { case y when a ? [1] : b is T?' + '[]?'.repeat(count) + ' and not null: break; }';
+}
+
 test('bounds nullable relational suffix lookahead', { timeout: 60_000 }, () => {
   expectBoundedGrowth(nullableRelationalSource(100), nullableRelationalSource(1000), false);
 });

@@ -521,7 +521,7 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
     bool nullable_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
     bool expression_rank = walk->rank_phase == RANK_TERNARY || walk->rank_phase == RANK_AFTER_NULLABLE;
     bool rank_separator = first == ']' || first == ',';
-    bool pattern_rank = rank_separator && walk->case_boundary && walk->nullable_allowed &&
+    bool pattern_rank = !walk->known_nullable && rank_separator && walk->case_boundary && walk->nullable_allowed &&
         question_walk_current_type_pattern(lexer, walk);
     if (pattern_rank) {
         walk->known_nullable = true;
@@ -650,7 +650,7 @@ static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk) {
 static bool question_walk_type_pattern(TSLexer *lexer, QuestionWalk *walk) {
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
     bool nullable = false;
-    bool type = question_walk_pattern_suffix(lexer, &nullable);
+    bool type = question_walk_pattern_suffix(lexer, &nullable, NULL);
     QuestionCheckpoint tail = {walk->input->cursor, start.capturing};
     bool pattern = type && question_walk_pattern_tail(lexer, nullable);
     question_input_restore(walk->input, pattern && !walk->recording ? tail : start);
@@ -668,13 +668,15 @@ static bool question_walk_current_type_pattern(TSLexer *lexer, QuestionWalk *wal
     if (first == ']') {
         advance(lexer);
         bool nullable = false;
-        pattern = question_walk_pattern_suffix(lexer, &nullable) && question_walk_pattern_tail(lexer, nullable);
+        uint32_t questions = 0;
+        pattern = question_walk_pattern_suffix(lexer, &nullable, &questions) && question_walk_pattern_tail(lexer, nullable);
+        if (pattern) walk->proven_nullable_questions = questions;
     }
     question_input_restore(walk->input, start);
     return pattern;
 }
 
-static bool question_walk_pattern_suffix(TSLexer *lexer, bool *nullable) {
+static bool question_walk_pattern_suffix(TSLexer *lexer, bool *nullable, uint32_t *questions) {
     for (;;) {
         int32_t c = question_skip_separators(lexer);
         if (c < 0) return false;
@@ -682,6 +684,7 @@ static bool question_walk_pattern_suffix(TSLexer *lexer, bool *nullable) {
             if (!rank_read_as_rank(lexer)) return false;
             *nullable = false;
         } else if (c == '?' && !*nullable) {
+            if (questions) (*questions)++;
             advance(lexer);
             *nullable = true;
         } else return c != '?';
@@ -779,7 +782,7 @@ static uint8_t stackalloc_prefix_role(TSLexer *lexer, uint32_t *questions) {
     if (!valid || !read.questions) return RANK_NONE;
     if (!read.expression_questions) {
         *questions = read.questions;
-        return RANK_ALLOCATION_PREFIX;
+        return RANK_NULLABLE_PREFIX;
     }
     if (read.expression_questions > 31 || read.questions > 31 - read.expression_questions) return RANK_NONE;
     *questions = read.question_bits | (1U << (read.questions + read.expression_questions));

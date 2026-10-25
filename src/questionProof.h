@@ -26,6 +26,10 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     if (walk.known_nullable && rank_phase == RANK_NULLABLE_NEXT && !scanner->question_unknown &&
         !scanner->question_frames[scanner->question_frame_count - 1].unknown)
         scanner->question_rank_role = RANK_AFTER_NULLABLE;
+    if (walk.proven_nullable_questions) {
+        scanner->question_rank_role = RANK_NULLABLE_PREFIX;
+        scanner->question_rank_prefix_questions = walk.proven_nullable_questions;
+    }
     *known_ternary = walk.known_ternary;
     question_walk_dispose(&walk);
     array_delete(&input.characters);
