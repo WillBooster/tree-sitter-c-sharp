@@ -3,6 +3,7 @@
 
 static QuestionWalkStep question_walk_read(Scanner *, TSLexer *, QuestionWalk *, bool);
 static bool question_prepare_guard(Scanner *, TSLexer *);
+static bool question_guard_colon(TSLexer *, QuestionInput *);
 static enum TokenType question_access_symbol(const bool *, const QuestionFollowing *);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
@@ -89,6 +90,7 @@ static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, Que
         int32_t c = question_skip_separators(lexer);
         if (c == -2) return QUESTION_WALK_UNKNOWN;
         if (lexer->eof(lexer)) break;
+        if (prefix && !walk->depth && c == ':' && question_guard_colon(lexer, walk->input)) break;
         QuestionWalkStep step = question_walk_step(scanner, lexer, walk, c);
         walk->previous_token = walk->consumed_token ? walk->consumed_token : c;
         walk->consumed_token = 0;
@@ -96,6 +98,14 @@ static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, Que
         if (prefix && walk->found_next_question) break;
     }
     return QUESTION_WALK_STOP;
+}
+
+static bool question_guard_colon(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    advance(lexer);
+    bool boundary = lexer->lookahead != ':';
+    question_input_restore(input, start);
+    return boundary;
 }
 
 static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable, bool known_ternary) {

@@ -137,7 +137,9 @@ static bool question_suffix_ordinary(QuestionFollowing next) {
 static bool question_walk_nullable_marker(QuestionWalk *walk, QuestionFollowing following) {
     bool allocation = walk->allocation_type &&
         (following.token == '[' || (following.token == '(' && !walk->allocation_rank));
-    if (following.token != '>' && !allocation && !(walk->type_operand && following.token == '{')) return false;
+    bool guard_type = walk->case_boundary && walk->type_operand &&
+        (following.token == '{' || following.token == ':' || following.token == '?');
+    if (following.token != '>' && !allocation && !guard_type) return false;
     if (allocation && following.token == '[') question_suffix_add(&walk->suffix, false);
     else walk->suffix.regular = false;
     walk->cache_shaped = false;

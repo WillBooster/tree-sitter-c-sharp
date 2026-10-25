@@ -118,6 +118,23 @@ function repeatedGenericConditionalSource(count: number): string {
   return 'var r = ' + 'x ? a?[0] : G<B,C> ? a : d ? [b] : '.repeat(count) + 'c;';
 }
 
+test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
+  const large = stackedCaseGuards(1000);
+  expectBoundedGrowth(stackedCaseGuards(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('when_clause')).toHaveLength(1000);
+  } finally {
+    tree.delete();
+  }
+});
+
+function stackedCaseGuards(count: number): string {
+  return (
+    'switch (x) { ' + Array.from({ length: count }, (_, index) => `case ${index} when ready: `).join('') + 'break; }'
+  );
+}
+
 test('bounds nullable relational suffix lookahead', { timeout: 60_000 }, () => {
   expectBoundedGrowth(nullableRelationalSource(100), nullableRelationalSource(1000), false);
 });
