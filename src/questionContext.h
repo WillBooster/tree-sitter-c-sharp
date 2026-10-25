@@ -361,7 +361,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
     bool suffix_context = question_suffix_context(scanner, known, known_nullable, rank_phase);
     unsigned suffix_role = question_suffix_take(&scanner->suffix, following.token == '[',
         suffix_context && (following.token == '[' || question_suffix_ordinary(following)), scanner->question_frame_count, frame->pending);
-    bool case_boundary = (frame->case_colon && !(context_flags & QUESTION_CASE_COLON));
+    bool case_boundary = frame->case_colon;
     bool ordinary = following.token != '[' && !following.member;
     bool definite_ternary = ternary_only || (ordinary && !known_nullable && following.token >= '0' && following.token <= '9');
     QuestionWalk walk = {
@@ -908,16 +908,15 @@ static void question_walk_colon(QuestionWalk *walk) {
 }
 
 static void question_walk_complete_colon(QuestionWalk *walk) {
-    if (walk->case_boundary && walk->nullable_allowed && !walk->mandatory && walk->following.token == '[' && !walk->access_alternative) walk->role_active = false;
+    if (walk->case_boundary && !walk->case_colon_possible && walk->nullable_allowed && !walk->mandatory && walk->following.token == '[' && !walk->access_alternative) walk->role_active = false;
     bool known_ordinary = walk->ordinary && question_walk_role_known(walk) && !walk->nullable_only;
     bool nullable_group = walk->nullable_allowed && walk->following.token == '(' && walk->reserved;
     bool ordinary_complete = known_ordinary && !nullable_group && !walk->optional && walk->mandatory == walk->reserved;
     if (ordinary_complete || ((walk->recording || walk->ordinary) && !walk->mandatory && !walk->optional)) {
-        if (walk->case_colon_possible && !walk->known_ternary) walk->role_known = false;
         if (known_ordinary && question_walk_role_known(walk)) walk->known_ternary = true;
         walk->role_active = false;
     }
-    if (question_walk_role_known(walk) && walk->proved_ternary && !walk->binding) walk->known_ternary = true;
+    if (question_walk_role_known(walk) && walk->proved_ternary && (!walk->binding || walk->case_boundary)) walk->known_ternary = true;
 }
 
 static void question_walk_future_question(QuestionWalk *walk, QuestionFollowing next) {

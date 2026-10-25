@@ -1077,13 +1077,12 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     lexer->mark_end(lexer);
     if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
     scanner->question_frames[scanner->question_frame_count - 1].case_colon |= valid_symbols[CASE_LABEL_COLON];
-    bool consumed_division = question_skip_separators(lexer) == -1;
-    QuestionFollowing next = consumed_division ? (QuestionFollowing){.token = '/'} : question_following(lexer);
+    QuestionFollowing next = question_skip_separators(lexer) == -1 ? (QuestionFollowing){.token = '/'} : question_following(lexer);
     bool known_ternary = false;
     if (next.member) scanner->question_type_uncertain = false;
     bool known_nullable = next.token == ')' || next.token == ',' || next.token == ':' || next.token == ';' ||
         (valid_symbols[QUESTION_NULLABLE] &&
-         (consumed_division || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
+         (next.token == '/' || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
     bool dimension_expression = false;
     uint8_t rank_phase = question_take_rank(scanner, &known_nullable, &dimension_expression);
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
@@ -1097,7 +1096,6 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
         (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
     unsigned role = prepare_question_context(scanner, lexer, next, &known_nullable,
         context_flags, rank_phase, &known_ternary);
-    if (known_ternary && valid_symbols[CASE_LABEL_COLON]) role = 0;
     if (next.member) role = 1;
     if (lexer->log) lexer->log(lexer, "question_role role=%u access=%d ternary=%d nullable=%d unknown=%d", role,
         (valid_symbols[QUESTION_MEMBER_ACCESS] || valid_symbols[QUESTION_ELEMENT_ACCESS]), valid_symbols[QUESTION_TERNARY],
@@ -1115,7 +1113,6 @@ static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *val
         symbol = QUESTION_NULLABLE;
     } else if (role == 2) {
         bool nullable_fallback = !known_ternary && (!valid_symbols[QUESTION_TERNARY] || valid_symbols[CASE_LABEL_COLON]);
-        if (valid_symbols[CASE_LABEL_COLON] && !nullable_fallback) return QUESTION_MISMATCHED;
         symbol = nullable_fallback ? QUESTION_NULLABLE : QUESTION_TERNARY;
     } else if (role == 1 || role == 3) {
         symbol = question_access_symbol(valid_symbols, next);

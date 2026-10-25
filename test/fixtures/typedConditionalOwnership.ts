@@ -2943,4 +2943,84 @@ export const ownershipSamples = [
     source: "var r = a?[0] is T ? b ? y is T : z?[0] : c ? [1] : 1;",
     ranges: [[[8,18],[21,39],[42,53]],[[21,22],[25,31],[34,39]],[[42,43],[46,49],[52,53]]],
   },
+  {
+    source: "switch (x) { case y when a ? [1] : b: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 32], [35, 36]]],
+  },
+  {
+    source: "switch (x) { case T y when a ? [1] : b: break; case 2: break; }",
+    ranges: [[[27, 28], [31, 34], [37, 38]]],
+  },
+  {
+    source: "switch (x) { case 1 when a ? [1] : b: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 32], [35, 36]]],
+  },
+  {
+    source: "switch (x) { case T?[] y when a ? [1] : b: break; case 2: break; }",
+    ranges: [[[30, 31], [34, 37], [40, 41]]],
+  },
+  {
+    source: "switch (x) { case y when a ? [] : b ? [2] : c: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 31], [34, 45]], [[34, 35], [38, 41], [44, 45]]],
+  },
+  {
+    source: "switch (x) { case y when a ? [1, 2] : b: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 35], [38, 39]]],
+  },
+  {
+    source: "switch (x) { case y when a ? [..xs] : b ? [2] : c: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 35], [38, 49]], [[38, 39], [42, 45], [48, 49]]],
+  },
+  {
+    source: "switch (x) { case y when a ? [x ? y : z] : b: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 40], [43, 44]], [[30, 31], [34, 35], [38, 39]]],
+  },
+  {
+    source: "switch (x) { case T y when a ? [] : b ? [2] : c: break; case 2: break; }",
+    ranges: [[[27, 28], [31, 33], [36, 47]], [[36, 37], [40, 43], [46, 47]]],
+  },
+  {
+    source: "switch (x) { case T y when a ? [1, 2] : b: break; case 2: break; }",
+    ranges: [[[27, 28], [31, 37], [40, 41]]],
+  },
+  {
+    source: "switch (x) { case T y when a ? [..xs] : b ? [2] : c: break; case 2: break; }",
+    ranges: [[[27, 28], [31, 37], [40, 51]], [[40, 41], [44, 47], [50, 51]]],
+  },
+  {
+    source: "switch (x) { case T y when a ? [x ? y : z] : b: break; case 2: break; }",
+    ranges: [[[27, 28], [31, 42], [45, 46]], [[32, 33], [36, 37], [40, 41]]],
+  },
+  {
+    source: "switch (x) { case 1 when a ? [] : b ? [2] : c: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 31], [34, 45]], [[34, 35], [38, 41], [44, 45]]],
+  },
+  {
+    source: "switch (x) { case 1 when a ? [1, 2] : b: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 35], [38, 39]]],
+  },
+  {
+    source: "switch (x) { case 1 when a ? [..xs] : b ? [2] : c: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 35], [38, 49]], [[38, 39], [42, 45], [48, 49]]],
+  },
+  {
+    source: "switch (x) { case 1 when a ? [x ? y : z] : b: break; case 2: break; }",
+    ranges: [[[25, 26], [29, 40], [43, 44]], [[30, 31], [34, 35], [38, 39]]],
+  },
+  {
+    source: "switch (x) { case T?[] y when a ? [] : b ? [2] : c: break; case 2: break; }",
+    ranges: [[[30, 31], [34, 36], [39, 50]], [[39, 40], [43, 46], [49, 50]]],
+  },
+  {
+    source: "switch (x) { case T?[] y when a ? [1, 2] : b: break; case 2: break; }",
+    ranges: [[[30, 31], [34, 40], [43, 44]]],
+  },
+  {
+    source: "switch (x) { case T?[] y when a ? [..xs] : b ? [2] : c: break; case 2: break; }",
+    ranges: [[[30, 31], [34, 40], [43, 54]], [[43, 44], [47, 50], [53, 54]]],
+  },
+  {
+    source: "switch (x) { case T?[] y when a ? [x ? y : z] : b: break; case 2: break; }",
+    ranges: [[[30, 31], [34, 45], [48, 49]], [[35, 36], [39, 40], [43, 44]]],
+  },
 ];
