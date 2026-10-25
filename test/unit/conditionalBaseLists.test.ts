@@ -1,9 +1,25 @@
 import fs from 'node:fs';
 
 import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
-import { expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test } from 'vitest';
 
 import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
+
+let language: Language;
+let highlightQuery: Query;
+let tagQuery: Query;
+
+beforeAll(async () => {
+  await Parser.init();
+  language = await Language.load('tree-sitter-c_sharp.wasm');
+  highlightQuery = new Query(language, fs.readFileSync('queries/highlights.scm', 'utf8'));
+  tagQuery = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
+});
+
+afterAll(() => {
+  highlightQuery?.delete();
+  tagQuery?.delete();
+});
 
 const cases: string[] = [];
 for (const [header, base] of [
@@ -123,9 +139,7 @@ cases.push(
   'enum C :\n#if A\n#if X\n#endif\n#if Y\n#endif\n#else\nbyte\n#endif\n#if A\nint\n#endif\n{}\nclass Following {}'
 );
 
-test('retains conditional base lists and declaration bodies through edits', async () => {
-  await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+test('retains conditional base lists and declaration bodies through edits', () => {
   const parser = new Parser().setLanguage(language);
   const query = new Query(language, '(base_list) @base');
   let previous: Tree | undefined;
@@ -172,9 +186,7 @@ test('retains conditional base lists and declaration bodies through edits', asyn
   }
 });
 
-test('rejects base clauses with no physical type while retaining following declarations through edits', async () => {
-  await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+test('rejects base clauses with no physical type while retaining following declarations through edits', () => {
   const parser = new Parser().setLanguage(language);
   const sources = ['class', 'struct', 'interface', 'record', 'record struct', 'enum'].flatMap((kind) =>
     [
@@ -213,12 +225,10 @@ test('rejects base clauses with no physical type while retaining following decla
   }
 });
 
-test('highlights nested conditional base types without treating conditions as types', async () => {
-  await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+test('highlights nested conditional base types without treating conditions as types', () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(language, fs.readFileSync('queries/highlights.scm', 'utf8'));
-  const tags = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
+  const query = highlightQuery;
+  const tags = tagQuery;
   const sources = [1, 4, 16]
     .flatMap((depth) => [
       `class C\n${nestedBase(': B', ': D', depth)}\n{}\nclass Following {}`,
@@ -298,17 +308,13 @@ test('highlights nested conditional base types without treating conditions as ty
     }
   } finally {
     previous?.delete();
-    query.delete();
-    tags.delete();
     parser.delete();
   }
 });
 
-test('tags only actual base types across qualified, generic, and constructor bases', async () => {
-  await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+test('tags only actual base types across qualified, generic, and constructor bases', () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
+  const query = tagQuery;
   const sources = [
     ['class C(int x) : A.B<T>(x), I<T> {}', ['A.B<T>', 'I<T>']],
     ['class C() : object() {}', ['object']],
@@ -353,16 +359,13 @@ test('tags only actual base types across qualified, generic, and constructor bas
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
 
-test('does not tag enum underlying types as class references through edits', async () => {
-  await Parser.init();
-  const language = await Language.load('tree-sitter-c_sharp.wasm');
+test('does not tag enum underlying types as class references through edits', () => {
   const parser = new Parser().setLanguage(language);
-  const tags = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
+  const tags = tagQuery;
   const sources = [
     ...['byte', 'sbyte', 'short', 'ushort', 'int', 'uint', 'long', 'ulong', 'System.Byte', 'MyByte'].map(
       (type) => `enum E : ${type} {}`
@@ -397,7 +400,6 @@ test('does not tag enum underlying types as class references through edits', asy
     }
   } finally {
     previous?.delete();
-    tags.delete();
     parser.delete();
   }
 });
