@@ -19,6 +19,7 @@
         "src/questionContext.h",
         "src/questionLiterals.h",
         "src/questionOperands.h",
+        "src/questionProof.h",
         "src/questionState.h",
         "src/questionSuffix.h",
         "src/tree_sitter/alloc.h",

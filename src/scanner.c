@@ -1091,7 +1091,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     if (next.member) scanner->question_type_uncertain = false;
     bool known_nullable = next.token == ')' || next.token == ',' || next.token == ':' || next.token == ';' ||
         (valid_symbols[QUESTION_NULLABLE] &&
-         (next.token == '>' || next.token == '/' || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
+         (next.token == '>' || next.token == '{' || next.token == '/' || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
     bool dimension_expression = false;
     uint8_t rank_phase = question_take_rank(scanner, &known_nullable, &dimension_expression);
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];

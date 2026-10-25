@@ -137,7 +137,7 @@ static bool question_suffix_ordinary(QuestionFollowing next) {
 static bool question_walk_nullable_marker(QuestionWalk *walk, QuestionFollowing following) {
     bool allocation = walk->allocation_type &&
         (following.token == '[' || (following.token == '(' && !walk->allocation_rank));
-    if (following.token != '>' && !allocation) return false;
+    if (following.token != '>' && !allocation && !(walk->type_operand && following.token == '{')) return false;
     if (allocation && following.token == '[') question_suffix_add(&walk->suffix, false);
     else walk->suffix.regular = false;
     walk->cache_shaped = false;
@@ -632,7 +632,8 @@ static bool question_walk_operand_group(TSLexer *lexer, QuestionWalk *walk, int3
 static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk) {
     walk->type_rank = false;
     int32_t next = question_skip_separators(lexer);
-    bool terminal = next == ';' || next == ',' || question_closing_group(next) || lexer->eof(lexer);
+    bool terminal = next == ';' || next == ',' || question_closing_group(next) || lexer->eof(lexer) ||
+        (next == ':' && walk->case_boundary && walk->as_operand);
     if (terminal || (walk->case_boundary && question_walk_type_pattern(lexer, walk))) {
         if (walk->optional) walk->optional--;
     } else if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;

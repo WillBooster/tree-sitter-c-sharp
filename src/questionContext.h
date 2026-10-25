@@ -571,10 +571,10 @@ static bool question_walk_type_keyword(QuestionWalk *walk, const QuestionIdentif
     bool is_keyword = !strcmp(identifier->word, "is");
     bool root_is = is_keyword && !walk->depth;
     bool root_as = is_or_as && !walk->depth && !root_is;
+    bool as_context = walk->case_boundary || (!walk->is_later_alternative && !walk->proved_ternary);
     if (!walk->depth) {
         walk->is_name_pending = root_is;
-        walk->as_operand = root_as && walk->root_colons &&
-            !walk->is_later_alternative && !walk->proved_ternary;
+        walk->as_operand = root_as && walk->root_colons && as_context;
     }
     bool independent_type = question_walk_independent_type(walk, is_or_as, root_is);
     if (root_is && independent_type && walk->prefix_ordinary) {
