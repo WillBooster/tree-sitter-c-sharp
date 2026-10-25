@@ -118,6 +118,14 @@ function repeatedGenericConditionalSource(count: number): string {
   return 'var r = ' + 'x ? a?[0] : G<B,C> ? a : d ? [b] : '.repeat(count) + 'c;';
 }
 
+test('bounds nullable relational suffix lookahead', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(nullableRelationalSource(100), nullableRelationalSource(1000), false);
+});
+
+function nullableRelationalSource(count: number): string {
+  return `var result = x is T?[] ? [0] : ${'a as int? > '.repeat(count)}b ? [1] : [2];`;
+}
+
 test('bounds repeated omitted stack allocation ranks', { timeout: 60_000 }, () => {
   expectBoundedGrowth(omittedStackAllocationRanks(100), omittedStackAllocationRanks(1000), false);
 });
