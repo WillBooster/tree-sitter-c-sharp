@@ -2,19 +2,26 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { Edit, Language, type Node, Parser, Query } from '@willbooster/web-tree-sitter';
-import { expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test } from 'vitest';
 
 const wasmPath = path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm');
 
-test('preserves file directive fields and following source across line endings', async () => {
+let language: Language;
+let query: Query;
+
+beforeAll(async () => {
   await Parser.init();
-  const language = await Language.load(wasmPath);
+  language = await Language.load(wasmPath);
+  query = new Query(language, await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8'));
+});
+
+afterAll(() => {
+  query?.delete();
+});
+
+test('preserves file directive fields and following source across line endings', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(
-    language,
-    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
-  );
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const ending of ['', '\n']) {
@@ -105,20 +112,13 @@ test('preserves file directive fields and following source across line endings',
       tree.delete();
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
 
-test('keeps unknown directive payloads opaque and ends ranges on their own line', async () => {
-  await Parser.init();
-  const language = await Language.load(wasmPath);
+test('keeps unknown directive payloads opaque and ends ranges on their own line', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(
-    language,
-    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
-  );
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const line of [
@@ -169,20 +169,13 @@ test('keeps unknown directive payloads opaque and ends ranges on their own line'
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
 
-test('keeps incomplete SDK payloads on their ignored directive line', async () => {
-  await Parser.init();
-  const language = await Language.load(wasmPath);
+test('keeps incomplete SDK payloads on their ignored directive line', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(
-    language,
-    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
-  );
   try {
     for (const kind of ['sdk', 'package', 'property', 'project', 'ref', 'include', 'exclude']) {
       for (const payload of ['', ' ', ' K', ' PublishAot false', ' "unfinished', ' =', ' @']) {
@@ -209,15 +202,13 @@ test('keeps incomplete SDK payloads on their ignored directive line', async () =
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
 
-test('preserves surrounding declarations when directives are inserted after code', async () => {
-  await Parser.init();
+test('preserves surrounding declarations when directives are inserted after code', () => {
   const parser = new Parser();
-  parser.setLanguage(await Language.load(wasmPath));
+  parser.setLanguage(language);
   try {
     for (const prefix of [
       'class Q {}',
@@ -244,10 +235,9 @@ test('preserves surrounding declarations when directives are inserted after code
   }
 });
 
-test('does not open multiline comments inside directive payloads', async () => {
-  await Parser.init();
+test('does not open multiline comments inside directive payloads', () => {
   const parser = new Parser();
-  parser.setLanguage(await Language.load(wasmPath));
+  parser.setLanguage(language);
   try {
     for (const line of ['#:tool /*a', '#:project /*a', '#:sdk A /*a', '#:property A= /*a']) {
       for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
@@ -274,10 +264,9 @@ test('does not open multiline comments inside directive payloads', async () => {
   }
 });
 
-test('keeps file-directive-looking text inside preprocessor arguments', async () => {
-  await Parser.init();
+test('keeps file-directive-looking text inside preprocessor arguments', () => {
   const parser = new Parser();
-  parser.setLanguage(await Language.load(wasmPath));
+  parser.setLanguage(language);
   try {
     for (const kind of ['region', 'endregion', 'define', 'undef', 'error', 'warning']) {
       for (const argument of ['#:foo', '#:sdk X', '#:package Humanizer', '#:/ is not valid here']) {
@@ -304,9 +293,8 @@ test('keeps file-directive-looking text inside preprocessor arguments', async ()
   }
 });
 
-test('preserves classes after directive-looking preprocessor arguments containing comments', async () => {
-  await Parser.init();
-  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+test('preserves classes after directive-looking preprocessor arguments containing comments', () => {
+  const parser = new Parser().setLanguage(language);
   try {
     for (const kind of ['region', 'endregion', 'define', 'undef', 'error', 'warning']) {
       for (const argument of ['#:sdk/*b*/', '#:a/*b*/ more', '#:Newtonsoft.Json/*/x more']) {
@@ -328,9 +316,8 @@ test('preserves classes after directive-looking preprocessor arguments containin
   }
 });
 
-test('keeps slash-containing standalone directive kinds opaque', async () => {
-  await Parser.init();
-  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+test('keeps slash-containing standalone directive kinds opaque', () => {
+  const parser = new Parser().setLanguage(language);
   try {
     for (const kind of ['foo/bar', 'foo/', 'foo/*b*/', 'sdk/*b*/', 'foo//', 'foo/*', 'foo/a/']) {
       const source = `#:${kind} X\nclass C{}`;
@@ -355,9 +342,7 @@ test('keeps slash-containing standalone directive kinds opaque', async () => {
   }
 });
 
-test('separates and trims Unicode horizontal whitespace without changing interior payload text', async () => {
-  await Parser.init();
-  const language = await Language.load(wasmPath);
+test('separates and trims Unicode horizontal whitespace without changing interior payload text', () => {
   const parser = new Parser().setLanguage(language);
   try {
     for (const separator of [
@@ -388,9 +373,8 @@ test(
   'preserves ordinary preprocessor argument boundaries for directive-looking text',
   // This exhaustive matrix can take nearly nine seconds on the Intel CI runner.
   { timeout: 30_000 },
-  async () => {
-    await Parser.init();
-    const parser = new Parser().setLanguage(await Language.load(wasmPath));
+  () => {
+    const parser = new Parser().setLanguage(language);
     try {
       for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
         const separate = parser.parse(`#region${newline}#:package Example${newline}class C{}`)!;
@@ -467,9 +451,8 @@ test(
   }
 );
 
-test('preserves declarations and standalone directives after malformed preprocessor tails', async () => {
-  await Parser.init();
-  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+test('preserves declarations and standalone directives after malformed preprocessor tails', () => {
+  const parser = new Parser().setLanguage(language);
   const declarations = ['class C { void M() { var a = 1; } }', 'class E { /* later */ }'];
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
@@ -514,19 +497,9 @@ test('preserves declarations and standalone directives after malformed preproces
   }
 });
 
-test('updates recovered directives and declarations after preprocessor-tail edits', async () => {
-  await Parser.init();
-  const language = await Language.load(wasmPath);
+test('updates recovered directives and declarations after preprocessor-tail edits', () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(
-    language,
-    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
-  );
   const prefix = '#pragma warning disable CS0618';
-  const captures = (root: Node): unknown[] =>
-    query
-      .captures(root)
-      .map(({ name, node }) => ({ name, text: node.text, start: node.startIndex, end: node.endIndex }));
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       const suffix = `${newline}#nullable enable${newline}#:package Good${newline}class C { void M() {} }`;
@@ -552,7 +525,7 @@ test('updates recovered directives and declarations after preprocessor-tail edit
           try {
             expect(tree.rootNode.hasError).toBe(Boolean(nextTail));
             expect(tree.rootNode.toString()).toBe(fresh.rootNode.toString());
-            expect(captures(tree.rootNode)).toEqual(captures(fresh.rootNode));
+            expect(highlightSnapshot(tree.rootNode)).toEqual(highlightSnapshot(fresh.rootNode));
             expect(
               tree.rootNode.descendantsOfType('file_directive').map((node) => node.childForFieldName('name')?.text)
             ).toEqual(['Good']);
@@ -569,14 +542,12 @@ test('updates recovered directives and declarations after preprocessor-tail edit
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
 
-test('keeps directive-looking text inside literals and directive filenames', async () => {
-  await Parser.init();
-  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+test('keeps directive-looking text inside literals and directive filenames', () => {
+  const parser = new Parser().setLanguage(language);
   try {
     for (const literal of [
       '"#:x"',
@@ -621,9 +592,8 @@ test('keeps directive-looking text inside literals and directive filenames', asy
   }
 });
 
-test('preserves standalone directives after consumed preprocessor newlines during recovery', async () => {
-  await Parser.init();
-  const parser = new Parser().setLanguage(await Language.load(wasmPath));
+test('preserves standalone directives after consumed preprocessor newlines during recovery', () => {
+  const parser = new Parser().setLanguage(language);
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const middle of ['#nullable enable', '#region r', '#:weird v']) {
@@ -648,13 +618,8 @@ test('preserves standalone directives after consumed preprocessor newlines durin
   }
 });
 
-test('keeps recovery trees and highlights consistent after editing a trailing directive', async () => {
-  await Parser.init();
-  const parser = new Parser().setLanguage(await Language.load(wasmPath));
-  const query = new Query(
-    parser.language!,
-    await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8')
-  );
+test('keeps recovery trees and highlights consistent after editing a trailing directive', () => {
+  const parser = new Parser().setLanguage(language);
   const source = [
     '#:package Before',
     'class C {',
@@ -688,21 +653,20 @@ test('keeps recovery trees and highlights consistent after editing a trailing di
     try {
       expect(incremental.rootNode.hasError).toBe(true);
       expect(incremental.rootNode.toString()).toBe(fresh.rootNode.toString());
-      const captures = (node: Node): unknown =>
-        query
-          .captures(node)
-          .map(({ name, node: capture }) => [name, capture.type, capture.text, capture.startIndex, capture.endIndex]);
-      expect(captures(incremental.rootNode)).toEqual(captures(fresh.rootNode));
+      expect(highlightSnapshot(incremental.rootNode)).toEqual(highlightSnapshot(fresh.rootNode));
     } finally {
       incremental.delete();
       fresh.delete();
     }
   } finally {
     old.delete();
-    query.delete();
     parser.delete();
   }
 });
+
+function highlightSnapshot(root: Node): unknown[] {
+  return query.captures(root).map(({ name, node }) => [name, node.type, node.text, node.startIndex, node.endIndex]);
+}
 
 function point(text: string): { row: number; column: number } {
   const lines = text.split('\n');

@@ -2943,4 +2943,12 @@ export const ownershipSamples = [
     source: "var r = a?[0] is T ? b ? y is T : z?[0] : c ? [1] : 1;",
     ranges: [[[8,18],[21,39],[42,53]],[[21,22],[25,31],[34,39]],[[42,43],[46,49],[52,53]]],
   },
+  {
+    source: "var r = flag ? a as int? > b is T?[] ? [1] : c : c;",
+    ranges: [[[8, 12], [15, 46], [49, 50]], [[15, 33], [34, 42], [45, 46]]],
+  },
+  {
+    source: "var r = $\"{(a as int? > b as T? > c ? d : e):X}\";",
+    ranges: [[[12, 35], [38, 39], [42, 43]]],
+  },
 ];
