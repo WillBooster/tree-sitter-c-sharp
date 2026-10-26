@@ -118,7 +118,7 @@ function repeatedGenericConditionalSource(count: number): string {
   return 'var r = ' + 'x ? a?[0] : G<B,C> ? a : d ? [b] : '.repeat(count) + 'c;';
 }
 
-test.each(['a ? b : ', 'a is T z ? b : '])(
+test.each(['a ? b : ', 'a is T z ? b : ', 'a is T[] z ? [1] : ', 'a is T?[] z ? [1] : ', 'a is (T,U)[] z ? [1] : '])(
   'bounds conditional chain proofs in case guards: %s',
   { timeout: 60_000 },
   (link) => {

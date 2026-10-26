@@ -909,7 +909,7 @@ static void question_walk_complete_colon(QuestionWalk *walk) {
         if (known_ordinary && question_walk_role_known(walk)) walk->known_ternary = true;
         walk->role_active = false;
     }
-    bool guard_complete = walk->case_boundary && walk->context_known && !walk->mandatory && !walk->optional && !walk->nullable_only;
+    bool guard_complete = walk->case_boundary && walk->context_known && !walk->mandatory && !walk->optional && !walk->nullable_allowed;
     if ((question_walk_role_known(walk) || guard_complete) && walk->proved_ternary && (!walk->binding || walk->case_boundary)) walk->known_ternary = true;
 }
 

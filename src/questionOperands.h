@@ -423,7 +423,17 @@ static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWa
 
 static unsigned question_walk_constructor_cursor(TSLexer *lexer, QuestionWalk *walk) {
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    bool tuple_candidate = question_skip_separators(lexer) == '(';
     unsigned cursor = rank_read_creation_prefix(lexer) == '(' ? walk->input->cursor : 0;
+    if (cursor && tuple_candidate) {
+        RankGroups groups = array_new();
+        array_push(&groups, '(');
+        RankTypeRead read = {.groups = &groups};
+        advance(lexer);
+        bool tuple = rank_read_as_arguments(lexer, ')', &read) && read.root_comma;
+        array_delete(&groups);
+        if (tuple) cursor = rank_read_creation_suffix(lexer) == '(' ? walk->input->cursor : 0;
+    }
     question_input_restore(walk->input, start);
     return cursor;
 }

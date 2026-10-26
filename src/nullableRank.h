@@ -75,6 +75,7 @@ static bool rank_read_rhs_generic(TSLexer *lexer, bool *colon, bool *generic, bo
 static bool rank_read_terminal(TSLexer *lexer, bool *colon);
 static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static void rank_evaluate_modes(const RankTokens *tokens, unsigned target, RankParse modes[2]);
+
 static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next, RankScopeRead *);
 static void rank_complete_modes(TSLexer *, Scanner *, RankParse [2], RankScopeRead *);
 
@@ -86,6 +87,7 @@ static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo,
 static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result);
 
 static uint8_t rank_stream_input(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
+static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
 
 static uint8_t rank_stream_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions) {
     QuestionInput input = question_input_create(lexer);
@@ -97,7 +99,9 @@ static uint8_t rank_stream_role(TSLexer *lexer, Scanner *scanner, uint32_t *ques
 static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
     QuestionCheckpoint prefix = question_input_checkpoint(input);
     uint32_t prior_questions = *questions;
-    uint32_t pending = scanner->question_frames[scanner->question_frame_count - 1].pending;
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (frame->case_guard && rank_guard_designation(lexer, questions, input)) return RANK_PATTERN_COMPLETE;
+    uint32_t pending = frame->pending;
     int32_t first = question_skip_separators(lexer);
     if (first == '(' || first == '[' || first == '{') {
         advance(lexer);
@@ -145,6 +149,21 @@ static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *que
     array_delete(&tail);
     return result;
 }
+
+static bool rank_guard_designation(TSLexer *lexer, uint32_t *questions, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    RankTypeRead read = {0};
+    QuestionIdentifier designation;
+    bool valid = rank_read_as_type(lexer, &read) && !read.colon && !read.division &&
+        !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
+        rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true) &&
+        question_skip_separators(lexer) == '?' && question_read_single_question(lexer) &&
+        UINT32_MAX - *questions >= read.questions;
+    if (valid) *questions += read.questions;
+    else question_input_restore(input, start);
+    return valid;
+}
+
 
 static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next, RankScopeRead *scope) {
     RankParse modes[2];

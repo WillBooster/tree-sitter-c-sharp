@@ -116,6 +116,18 @@ test('preserves case patterns, guards and statement labels across clause edits',
       guards: ['when a?[0] ? a : new T[1] ? [1] : d'],
       labels: ['label'],
     },
+    {
+      source: 'switch(x) { case y when a?[0] ? b : G<A,B> ? [new (int,int)?()] : 0: label: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a?[0] ? b : G<A,B> ? [new (int,int)?()] : 0: label'],
+      labels: [],
+    },
+    {
+      source: 'switch (x) { case n when p && y as T ? [3] : c: label: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when p && y as T ? [3]'],
+      labels: ['c', 'label'],
+    },
     { source: 'var r = x switch { T?[] y when a ? [1] : b => 1, _ => 0 };', guards: ['when a ? [1] : b'], labels: [] },
   ];
   const parser = new Parser().setLanguage(language);
