@@ -3,6 +3,7 @@
 
 static QuestionWalkStep question_walk_read(Scanner *, TSLexer *, QuestionWalk *, bool);
 static bool question_prepare_guard(Scanner *, TSLexer *);
+static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
 static enum TokenType question_access_symbol(const bool *, const QuestionFollowing *);
 
@@ -37,6 +38,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
         scanner->question_rank_prefix_questions = walk.proven_nullable_questions;
     }
     *known_ternary = walk.known_ternary;
+    question_save_allocation_prefix(scanner, &walk);
     question_walk_dispose(&walk);
     array_delete(&input.characters);
     return result;
@@ -90,10 +92,7 @@ static bool question_prepare_guard(Scanner *scanner, TSLexer *lexer) {
     apply_question_events(scanner, walk.events.contents, walk.events.size);
     scanner->question_unknown |= !known;
     bool found = known && walk.found_next_question;
-    if (found && question_allocation_nullable(&walk, question_skip_separators(&input.lexer))) {
-        scanner->question_rank_role = RANK_NULLABLE_PREFIX;
-        scanner->question_rank_prefix_questions = 1;
-    }
+    if (known) question_save_allocation_prefix(scanner, &walk);
     question_walk_dispose(&walk);
     array_delete(&input.characters);
     return found;
@@ -112,6 +111,13 @@ static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, Que
         if (prefix && walk->found_next_question) break;
     }
     return QUESTION_WALK_STOP;
+}
+
+static void question_save_allocation_prefix(Scanner *scanner, const QuestionWalk *walk) {
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (!walk->next_allocation_nullable || !frame->case_guard) return;
+    scanner->question_rank_role = RANK_NULLABLE_PREFIX;
+    scanner->question_rank_prefix_questions = 1;
 }
 
 static bool question_guard_colon(TSLexer *lexer, QuestionInput *input) {

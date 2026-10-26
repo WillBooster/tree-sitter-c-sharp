@@ -153,6 +153,7 @@ typedef struct {
     bool as_operand;
     bool is_name_pending;
     bool allocation_type;
+    bool next_allocation_nullable;
     bool allocation_rank;
     bool type_rank;
     bool is_later_alternative;
@@ -662,6 +663,8 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
         if (first == '#' || first == -2) return QUESTION_WALK_UNKNOWN;
         if (first != '>' && first != ',' && first != '.' && !question_expression_start(lexer, first)) return QUESTION_WALK_INVALID;
     }
+    if (walk->recording && !walk->depth && walk->case_boundary && walk->allocation_type)
+        walk->next_allocation_nullable = question_allocation_nullable(walk, question_walk_following(lexer, walk).token);
     bool later_nullable = false;
     if (walk->role_active && walk->depth) walk->cache_shaped = false;
     if (walk->role_active && !walk->depth) later_nullable = question_walk_root_question(lexer, walk);
@@ -703,7 +706,6 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     walk->future_root_question = true;
     question_walk_access_chain(walk, following);
     walk->allocation_type = false;
-    walk->allocation_rank = false;
     bool as_question = walk->as_operand && !following.member &&
         (following.token == '[' || following.token == '(' || following.token == '?' || question_type_boundary(following.token));
     if (as_question && walk->optional == 1) walk->pending_as_role = true;
@@ -711,15 +713,14 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     if (following.token == '[') question_suffix_add(&walk->suffix, true);
     else if (!question_suffix_ordinary(following)) walk->suffix.regular = false;
     walk->future_first_token = following.token != '[' && !following.member;
-    if (walk->recording && walk->root_colons && walk->binding && !walk->type_operand && !walk->allocation_type && following.token != '[' && !following.member) {
+    if (walk->recording && walk->root_colons && walk->binding && !walk->type_operand && following.token != '[' && !following.member) {
         walk->is_eligible &= !walk->is_seen;
     }
     if (following.token == '.' && !following.member && walk->binding && !walk->cache_colon)
         walk->root_binary = true;
-    bool allocation_nullable = walk->allocation_type && (following.token == '[' || following.token == '(');
-    bool later_nullable = allocation_nullable || (walk->is_later_alternative &&
+    bool later_nullable = walk->is_later_alternative &&
         (following.token == '?' || following.token == ':' || question_closing_group(following.token) ||
-         following.token == ',' || following.token == ';'));
+         following.token == ',' || following.token == ';');
     if (later_nullable) {
         walk->cache_shaped = false;
         walk->is_as_phase = false;
