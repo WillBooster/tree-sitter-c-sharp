@@ -90,6 +90,10 @@ static bool question_prepare_guard(Scanner *scanner, TSLexer *lexer) {
     apply_question_events(scanner, walk.events.contents, walk.events.size);
     scanner->question_unknown |= !known;
     bool found = known && walk.found_next_question;
+    if (found && question_allocation_nullable(&walk, question_skip_separators(&input.lexer))) {
+        scanner->question_rank_role = RANK_NULLABLE_PREFIX;
+        scanner->question_rank_prefix_questions = 1;
+    }
     question_walk_dispose(&walk);
     array_delete(&input.characters);
     return found;
