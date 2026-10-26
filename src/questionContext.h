@@ -809,6 +809,7 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
         advance(lexer);
         return QUESTION_WALK_CONTINUE;
     }
+    if (c == ':' && !walk->depth) walk->allocation_type = walk->allocation_rank = false;
     if (walk->role_active && c == ':') question_walk_colon(walk);
     if (walk->entering_binding && c == '[') {
         QuestionWalkStep step = question_walk_enter_binding(scanner, lexer, walk);
@@ -895,8 +896,6 @@ static void question_walk_colon(QuestionWalk *walk) {
     walk->is_as_phase = false;
     if (!walk->future_root_question) walk->typed_ordinary_snapshot = false;
     walk->type_operand = false;
-    walk->allocation_type = false;
-    walk->allocation_rank = false;
     walk->confirmation_operand = false;
     if (walk->root_colons < 2) walk->root_colons++;
     bool later_obligation = walk->mandatory > walk->is_reserved ||

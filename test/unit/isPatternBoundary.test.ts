@@ -169,6 +169,13 @@ test('preserves case patterns, guards and statement labels across clause edits',
       labels: ['L'],
       nodeCounts: { nullable_type: 1, tuple_type: 1, conditional_expression: 1 },
     },
+    {
+      source: 'switch (x) { case y when f() ? new T[2] : a?[0] is T[] : L: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when f() ? new T[2] : a?[0] is T[] : L'],
+      labels: [],
+      nodeCounts: { conditional_access_expression: 0, conditional_expression: 2 },
+    },
     { source: 'var r = x switch { T?[] y when a ? [1] : b => 1, _ => 0 };', guards: ['when a ? [1] : b'], labels: [] },
   ];
   const parser = new Parser().setLanguage(language);

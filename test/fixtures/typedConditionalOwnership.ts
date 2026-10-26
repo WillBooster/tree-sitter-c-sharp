@@ -3182,4 +3182,7 @@ export const ownershipSamples = [
   {"source": "class C { void M() { switch (x) { case y when a ? b : new (T,U)?(1) == z : L: break; } } }", "ranges": [[[46, 47], [50, 51], [54, 72]]]},
   {"source": "switch (x) { case y when a ? [1] : new (T,U)?(1): L: break; }", "ranges": [[[25, 26], [29, 32], [35, 48]]]},
   {"source": "switch (x) { case y when a ? new (T,U)?(1) : b: L: break; }", "ranges": [[[25, 26], [29, 42], [45, 46]]]},
+  {"source": "class C { void M() { switch (x) { case y when f() ? new T[2] : a?[0] is T[] : L: break; } } }", "ranges": [[[46, 49], [52, 60], [63, 79]], [[63, 64], [65, 75], [78, 79]]]},
+  {"source": "class C { void M() { switch (x) { case y when f(x) ? new T[2] : a?[0] is T[] : L: break; } } }", "ranges": [[[46, 50], [53, 61], [64, 80]], [[64, 65], [66, 76], [79, 80]]]},
+  {"source": "class C { void M() { switch (x) { case y when f() ? new T[2] : a?[0] : L: break; } } }", "ranges": [[[46, 49], [52, 60], [63, 72]], [[63, 64], [65, 68], [71, 72]]]},
 ];
