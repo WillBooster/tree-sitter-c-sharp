@@ -1,5 +1,37 @@
 export const ownershipSamples = [
   {
+    source: "switch(x){case y when a is T?[] is T && a ? [1] : b: x switch { _ => L }: break;}",
+    ranges: [[[22,28],[29,51],[53,72]],[[29,41],[44,47],[50,51]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: x switch { _ => L }: L1: switch(z){case 1: var r=a ? b : c; break;} break;}",
+    ranges: [[[22,28],[29,90],[92,94]],[[29,46],[47,69],[71,90]],[[47,59],[62,65],[68,69]],[[120,121],[124,125],[128,129]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] is T && a ? [1] : b: L0: break;}",
+    ranges: [[[22,28],[29,51],[53,55]],[[29,41],[44,47],[50,51]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;}",
+    ranges: [[[22,28],[29,73],[75,77]],[[29,46],[47,69],[71,73]],[[47,59],[62,65],[68,69]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: L2: L3: L4: break;}",
+    ranges: [[[22,28],[29,139],[141,143]],[[29,46],[47,135],[137,139]],[[47,64],[65,131],[133,135]],[[65,82],[83,127],[129,131]],[[83,100],[101,123],[125,127]],[[101,113],[116,119],[122,123]]],
+  },
+  {
+    source: "namespace N { class C { void M(){ switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} } } }",
+    ranges: [[[56,62],[63,107],[109,111]],[[63,80],[81,103],[105,107]],[[81,93],[96,99],[102,103]]],
+  },
+  {
+    source: "switch(x){case { P: var p } when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;}",
+    ranges: [[[33,39],[40,84],[86,88]],[[40,57],[58,80],[82,84]],[[58,70],[73,76],[79,80]]],
+  },
+  {
+    source: "switch(x){case y when F(() => { switch(z){case q when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} return a; }) ? [1] : b: break;}",
+    ranges: [[[22,131],[134,137],[140,141]],[[54,60],[61,105],[107,109]],[[61,78],[79,101],[103,105]],[[79,91],[94,97],[100,101]]],
+  },
+  {
     source: "class C { void M() { switch (x) { case T y when a as int?[] is int?[]: L: break; } } }",
     ranges: [[[48,66],[67,69],[71,72]]],
   },

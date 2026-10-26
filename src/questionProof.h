@@ -41,6 +41,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     }
     *known_ternary = walk.known_ternary;
     question_save_allocation_prefix(scanner, &walk);
+    question_save_guard_summary(scanner, &walk.guard, walk.reserved);
     question_walk_dispose(&walk);
     array_delete(&input.characters);
     return result;
@@ -68,10 +69,15 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
         question_scope_init(&context, scanner);
         bool nullable = false, ternary = false;
         unsigned role = prepare_question_context(&context, lexer, (QuestionFollowing){.token = '['}, &nullable,
-            QUESTION_PATTERN_TYPE | QUESTION_NULLABLE_ALLOWED | QUESTION_CASE_COLON, RANK_NONE, &ternary);
+            QUESTION_PATTERN_TYPE | QUESTION_NULLABLE_ALLOWED | QUESTION_CASE_COLON |
+                (!prefix ? QUESTION_GUARD_SUMMARY : 0), RANK_NONE, &ternary);
         if (role == 2 && ternary && !nullable && UINT32_MAX - *questions >= prefix) {
             *questions += prefix;
             result = RANK_PATTERN_COMPLETE;
+        }
+        if (rank_guard_prefix(context.question_rank_role)) {
+            result = context.question_rank_role;
+            *questions = context.question_rank_prefix_questions;
         }
         array_delete(&context.interpolation_stack);
     }
@@ -145,7 +151,11 @@ static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, Que
         QuestionWalkStep step = question_walk_step(scanner, lexer, walk, c);
         walk->previous_token = walk->consumed_token ? walk->consumed_token : c;
         walk->consumed_token = 0;
-        if (step != QUESTION_WALK_CONTINUE) return step;
+        if (step != QUESTION_WALK_CONTINUE) {
+            bool summary_tail = step == QUESTION_WALK_STOP && walk->guard.eligible && walk->guard.keyword_tail && !walk->guard.complete && walk->depth >= 0;
+            if (summary_tail) question_read_guard_tail(lexer, walk->input, &walk->guard, walk->reserved);
+            return step;
+        }
         if (prefix && walk->found_next_question) break;
     }
     return QUESTION_WALK_STOP;

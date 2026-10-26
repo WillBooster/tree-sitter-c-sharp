@@ -112,6 +112,7 @@ static bool question_apply_event(Scanner *, char);
 static void question_end_lambda(QuestionFrame *);
 static void question_clear_rank_from(Scanner *, unsigned);
 #include "nullableRank.h"
+#include "questionGuard.h"
 
 typedef enum {
     QUESTION_EXPRESSION_RECEIVER = 1,
@@ -121,11 +122,13 @@ typedef enum {
     QUESTION_NULLABLE_ALLOWED = 16,
     QUESTION_DIMENSION_EXPRESSION = 32,
     QUESTION_PATTERN_TYPE = 64,
+    QUESTION_GUARD_SUMMARY = 128,
 } QuestionContextFlags;
 
 static const char *const question_predefined_types[] = {"bool", "byte", "sbyte", "char", "decimal", "double", "float", "int", "uint", "long", "ulong", "short", "ushort", "string", "object", "void"};
 
 typedef struct {
+    QuestionGuardSummary guard;
     QuestionFollowing following;
     QuestionInput *input;
     bool syntax_only;
@@ -344,6 +347,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
     bool definite_ternary = ternary_only || question_ordinary_ternary(scanner, following, context_flags, known_nullable);
     QuestionWalk walk = {
         .suffix = {.role = suffix_role, .regular = !suffix_role && following.token == '[' && suffix_context},
+        .guard = {.type_questions = 1, .eligible = context_flags & QUESTION_GUARD_SUMMARY},
         .following = following,
         .interpolation_depth = interpolation && interpolation->question_depth != UINT16_MAX ? interpolation->question_depth : -1,
         .nullable_context = type_context || rank_phase != RANK_NONE,
@@ -652,6 +656,7 @@ static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *wal
         }
         return QUESTION_WALK_CONTINUE;
     }
+    if (walk->depth || walk->root_colons) walk->guard.eligible = false;
     if (walk->cache_type_uncertain) walk->cache_shaped = false;
     if (walk->depth) walk->suffix.regular = false;
     if (walk->known_nullable || walk->known_ternary) walk->role_active = false;
@@ -698,6 +703,7 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     lexer->get_position(lexer, &position);
     bool owned_as = walk->as_type_end && position.bytes < walk->as_type_end;
     QuestionFollowing following = question_walk_following(lexer, walk);
+    question_guard_question(&walk->guard, walk->root_colons, position.bytes);
     walk->is_name_pending = false;
     if (owned_as) {
         walk->suffix.regular = false;
@@ -813,6 +819,7 @@ static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer
         return QUESTION_WALK_CONTINUE;
     }
     if (c == ':' && !walk->depth) walk->allocation_type = walk->allocation_rank = false;
+    question_guard_delimiter(&walk->guard, c, walk->depth);
     if (walk->role_active && c == ':') question_walk_colon(walk);
     if (walk->entering_binding && c == '[') {
         QuestionWalkStep step = question_walk_enter_binding(scanner, lexer, walk);

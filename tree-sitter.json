@@ -17,6 +17,7 @@
         "src/nullableRank.h",
         "src/nullableTypes.h",
         "src/questionContext.h",
+        "src/questionGuard.h",
         "src/questionLiterals.h",
         "src/questionOperands.h",
         "src/questionProof.h",

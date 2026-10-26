@@ -474,6 +474,45 @@ test('recovers from deeply incomplete conditional operands without poisoning the
   }
 });
 
+test.each([
+  { operator: '&&', completeGuard: false },
+  { operator: '||', completeGuard: false },
+  { operator: '&&', completeGuard: true },
+  { operator: '||', completeGuard: true },
+])(
+  'bounds repeated type-operator guards $operator / $completeGuard',
+  { timeout: 60_000 },
+  ({ operator, completeGuard }) => {
+    const source = (count: number): string =>
+      `switch (x) { case y when ${`a is T?[] is T ${operator} `.repeat(count)}a ? [1] : b:${completeGuard ? Array.from({ length: count }, (_, index) => ` L${index}:`).join('') : ''} break; }`;
+    expectBoundedGrowth(source(100), source(1000), false);
+    const text = source(1000);
+    const tree = parser.parse(text)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(completeGuard ? 0 : 1000);
+      expect(tree.rootNode.descendantsOfType('is_pattern_expression')).toHaveLength(2000);
+      expect(tree.rootNode.descendantsOfType('labeled_statement')).toHaveLength(0);
+      const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
+      expect(conditionals).toHaveLength(completeGuard ? 1001 : 1);
+      const outer = conditionals[0]!;
+      if (completeGuard) {
+        expect(outer.childForFieldName('condition')!.endIndex).toBe(text.indexOf('?[]'));
+        expect(outer.childForFieldName('consequence')!.startIndex).toBe(text.indexOf('?[]') + 1);
+        expect(outer.childForFieldName('alternative')!.text).toBe('L999');
+        expect(conditionals.at(-1)!.childForFieldName('condition')!.text).toBe(`[] is T ${operator} a`);
+        expect(conditionals.at(-1)!.childForFieldName('consequence')!.text).toBe('[1]');
+        expect(conditionals.at(-1)!.childForFieldName('alternative')!.text).toBe('b');
+      } else {
+        expect(outer.childForFieldName('consequence')!.text).toBe('[1]');
+        expect(outer.childForFieldName('alternative')!.text).toBe('b');
+      }
+    } finally {
+      tree.delete();
+    }
+  }
+);
+
 test.each(['call', 'array', 'collection'])(
   'parses long %s lists of relational comparisons in linear time',
   { timeout: 60_000 },

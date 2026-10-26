@@ -1208,12 +1208,14 @@ static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *l
     int32_t next = lexer->lookahead;
     if (!matched || next == '\\' || (next > 0x7F && !is_directive_horizontal(next) && !is_line_terminator(next)))
         return QUESTION_MISMATCHED;
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    bool guard_prefix = symbol == TYPE_CONTEXT_IS && frame->case_guard && !frame->unknown && !scanner->question_unknown &&
+        scanner->question_rank_prefix_questions && (rank_guard_prefix(scanner->question_rank_role));
     scanner->question_type_uncertain = true;
     question_clear_access_cache(scanner);
-    clear_question_rank(scanner);
+    if (!guard_prefix) clear_question_rank(scanner);
     lexer->mark_end(lexer);
-    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    if (!scanner->question_unknown && !frame->unknown) {
+    if (!guard_prefix && !scanner->question_unknown && !frame->unknown) {
         if (symbol == TYPE_CONTEXT_IS)
             scanner->question_rank_role = rank_stream_role(lexer, scanner, &scanner->question_rank_prefix_questions);
         else if (frame->case_guard)

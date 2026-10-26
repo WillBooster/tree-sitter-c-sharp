@@ -264,6 +264,55 @@ test('preserves case patterns, guards and statement labels across clause edits',
       labels: [],
       nodeCounts: { conditional_expression: 3 },
     },
+    {
+      source: 'switch(x){case y when a is T?[] is T && a ? [1] : b: L0: break;}',
+      guards: ['when a is T?[] is T && a ? [1] : b: L0'],
+      labels: [],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;}',
+      guards: ['when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1'],
+      labels: [],
+    },
+    {
+      source:
+        'switch(x){case y when a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: L2: L3: L4: break;}',
+      guards: [
+        'when a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: L2: L3: L4',
+      ],
+      labels: [],
+    },
+    {
+      source:
+        'namespace N { class C { void M(){ switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} } } }',
+      guards: ['when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1'],
+      labels: [],
+    },
+    {
+      source: 'switch(x){case { P: var p } when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;}',
+      guards: ['when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1'],
+      labels: [],
+    },
+    {
+      source:
+        'switch(x){case y when F(() => { switch(z){case q when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} return a; }) ? [1] : b: break;}',
+      guards: [
+        'when F(() => { switch(z){case q when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} return a; }) ? [1] : b',
+        'when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1',
+      ],
+      labels: [],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is T && a ? [1] : b: x switch { _ => L }: break;}',
+      guards: ['when a is T?[] is T && a ? [1] : b: x switch { _ => L }'],
+      labels: [],
+    },
+    {
+      source:
+        'switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: x switch { _ => L }: L1: switch(z){case 1: var r=a ? b : c; break;} break;}',
+      guards: ['when a is T?[] is T && a is T?[] is T && a ? [1] : b: x switch { _ => L }: L1'],
+      labels: [],
+    },
     { source: 'var r = x switch { T?[] y when a ? [1] : b => 1, _ => 0 };', guards: ['when a ? [1] : b'], labels: [] },
   ];
   const parser = new Parser().setLanguage(language);
