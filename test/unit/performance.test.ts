@@ -118,6 +118,23 @@ function repeatedGenericConditionalSource(count: number): string {
   return 'var r = ' + 'x ? a?[0] : G<B,C> ? a : d ? [b] : '.repeat(count) + 'c;';
 }
 
+test.each(['a ? b : ', 'a is T z ? b : '])(
+  'bounds conditional chain proofs in case guards: %s',
+  { timeout: 60_000 },
+  (link) => {
+    const source = (count: number): string => `switch (x) { case y when ${link.repeat(count)}b: break; }`;
+    const large = source(1000);
+    expectBoundedGrowth(source(100), large, false);
+    const tree = parser.parse(large)!;
+    try {
+      expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1000);
+      expect(tree.rootNode.descendantsOfType('when_clause')[0]!.text).toBe(`when ${link.repeat(1000)}b`);
+    } finally {
+      tree.delete();
+    }
+  }
+);
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);

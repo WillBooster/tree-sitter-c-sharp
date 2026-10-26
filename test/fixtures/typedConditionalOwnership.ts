@@ -3155,4 +3155,11 @@ export const ownershipSamples = [
   {"source": "switch(x) { case y when a ? [1] : b is T?[]?[]?[] { Length: > 0 } item: break; case 2: break; }", "ranges": [[[24, 25], [28, 31], [34, 70]]]},
   {"source": "switch (x) { case y when new T?[] {a} ? [b ? c : d] : b: break; }", "ranges": [[[25, 37], [40, 51], [54, 55]], [[41, 42], [45, 46], [49, 50]]]},
   {"source": "switch (x) { case y when new T?() ? [b ? c : d] : b: break; }", "ranges": [[[25, 33], [36, 47], [50, 51]], [[37, 38], [41, 42], [45, 46]]]},
+  {"source": "switch(x) { case y when a?[0] ? b : G<A,B> ? [new T?()] : 0: label: break; }", "ranges": [[[24, 25], [26, 59], [61, 66]], [[26, 29], [32, 33], [36, 59]], [[36, 42], [45, 55], [58, 59]]]},
+  {"source": "switch(x) { case y when a?[0] ? a : new T[1] ? [1] : d: label: break; }", "ranges": [[[24, 25], [26, 50], [53, 54]], [[26, 29], [32, 33], [36, 50]]]},
+  {"source": "switch (x) { case n when s ? [x] : y is int? && a: break; }", "ranges": [[[25, 26], [29, 32], [35, 49]]]},
+  {"source": "switch (x) { case n when s ? [x] : (y is T) ? [a] : b: break; }", "ranges": [[[25, 26], [29, 32], [35, 53]], [[35, 43], [46, 49], [52, 53]]]},
+  {"source": "switch (x) { case n when s ? [x] : y as T? && a: break; }", "ranges": [[[25, 26], [29, 32], [35, 47]]]},
+  {"source": "switch (x) { case n when s ? [x] : p && y is T? && a: label: break; }", "ranges": [[[25, 26], [29, 32], [35, 52]]]},
+  {"source": "switch (x) { case n when s ? [x] : y is not A.B? || a: label: break; }", "ranges": [[[25, 26], [29, 32], [35, 53]]]},
 ];

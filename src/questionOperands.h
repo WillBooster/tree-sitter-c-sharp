@@ -134,11 +134,18 @@ static bool question_suffix_ordinary(QuestionFollowing next) {
         !question_type_boundary(next.token) && next.token != '?' && next.token != '}' && next.token > 0;
 }
 
-static bool question_walk_nullable_marker(QuestionWalk *walk, QuestionFollowing following) {
+static bool question_walk_nullable_marker(TSLexer *lexer, QuestionWalk *walk, QuestionFollowing following) {
     bool allocation = walk->allocation_type &&
         (following.token == '[' || (following.token == '(' && !walk->allocation_rank));
+    bool binary = false;
+    if (following.token == '&' || following.token == '|') {
+        QuestionCheckpoint start = question_input_checkpoint(walk->input);
+        advance(lexer);
+        binary = lexer->lookahead == following.token;
+        question_input_restore(walk->input, start);
+    }
     bool guard_type = walk->case_boundary && walk->type_operand &&
-        (following.token == '{' || following.token == ':' || following.token == '?');
+        (following.token == '{' || following.token == ':' || following.token == '?' || binary);
     if (following.token != '>' && !allocation && !guard_type) return false;
     if (allocation && following.token == '[') question_suffix_add(&walk->suffix, false);
     else walk->suffix.regular = false;
@@ -394,7 +401,10 @@ static void question_walk_type_operand(QuestionWalk *walk, bool future_identifie
 
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWalk *walk) {
     if (walk->depth && !walk->recording) return question_walk_creation_child(lexer, walk);
-    if (walk->depth) return QUESTION_WALK_CONTINUE;
+    if (walk->depth) {
+        walk->constructor_cursor = question_walk_constructor_cursor(lexer, walk);
+        return QUESTION_WALK_CONTINUE;
+    }
     int32_t next = question_skip_separators(lexer);
     if (walk->recording && next != '(') return QUESTION_WALK_CONTINUE;
     if (next == '[' || next == '{') return QUESTION_WALK_CONTINUE;
@@ -409,6 +419,13 @@ static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWa
         if (read.questions || read.prefix_done) walk->suffix.regular = false;
     }
     return QUESTION_WALK_CONTINUE;
+}
+
+static unsigned question_walk_constructor_cursor(TSLexer *lexer, QuestionWalk *walk) {
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    unsigned cursor = rank_read_creation_prefix(lexer) == '(' ? walk->input->cursor : 0;
+    question_input_restore(walk->input, start);
+    return cursor;
 }
 
 static QuestionWalkStep question_walk_creation_child(TSLexer *lexer, QuestionWalk *walk) {
@@ -495,7 +512,8 @@ static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
         // `!` is also the postfix null-forgiving operator, so `f!()` is an empty-argument invocation.
         bool expression = question_opening_group(previous) || (question_operator(previous) && previous != '!') ||
             previous == ',' || previous == ':' || previous == '?' || previous == '=';
-        array_push(&walk->groups, c == '(' && !expression ? 'p' : (char)c);
+        bool constructor = c == '(' && walk->constructor_cursor && walk->input->cursor == walk->constructor_cursor + 1;
+        array_push(&walk->groups, c == '(' && (!expression || constructor) ? 'p' : (char)c);
         return true;
     }
     if (!question_closing_group(c) || !walk->groups.size) return true;
