@@ -226,7 +226,8 @@ typedef enum { QUESTION_WALK_CONTINUE, QUESTION_WALK_STOP, QUESTION_WALK_UNKNOWN
 
 static bool question_walk_role_known(const QuestionWalk *walk);
 
-static bool question_array_type_boundary(const Scanner *, const QuestionWalk *, unsigned);
+static bool question_array_type_boundary(const Scanner *, const QuestionWalk *);
+static bool question_nullable_rank_branch(const QuestionWalk *);
 static bool question_ordinary_ternary(const Scanner *, QuestionFollowing, unsigned, bool);
 
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase);
@@ -372,7 +373,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .first_word = true,
         .ordinary_first_token = ordinary && following.token != '/',
     };
-    walk.array_type_boundary = question_array_type_boundary(scanner, &walk, context_flags);
+    walk.array_type_boundary = question_array_type_boundary(scanner, &walk);
     if (walk.suffix.regular) array_push(&walk.suffix.live, UINT32_MAX);
     scanner->question_access_cache = 0;
     return walk;
@@ -386,10 +387,13 @@ static bool question_ordinary_ternary(const Scanner *scanner, QuestionFollowing 
     return expression_only || (following.token >= '0' && following.token <= '9');
 }
 
-static bool question_array_type_boundary(const Scanner *scanner, const QuestionWalk *walk, unsigned context_flags) {
-    return walk->case_boundary && walk->rank_phase != RANK_PATTERN_COMPLETE && walk->following.token == '[' &&
-        !scanner->question_type_uncertain &&
-        (context_flags & (QUESTION_NULLABLE_ALLOWED | QUESTION_ACCESS_ALTERNATIVE)) == QUESTION_NULLABLE_ALLOWED;
+static bool question_array_type_boundary(const Scanner *scanner, const QuestionWalk *walk) {
+    return walk->case_boundary && walk->rank_phase != RANK_PATTERN_COMPLETE &&
+        !scanner->question_type_uncertain && question_nullable_rank_branch(walk);
+}
+
+static bool question_nullable_rank_branch(const QuestionWalk *walk) {
+    return walk->following.token == '[' && walk->nullable_allowed && !walk->access_alternative;
 }
 
 
@@ -909,7 +913,7 @@ static void question_walk_complete_colon(QuestionWalk *walk) {
         if (known_ordinary && question_walk_role_known(walk)) walk->known_ternary = true;
         walk->role_active = false;
     }
-    bool guard_complete = walk->case_boundary && walk->context_known && !walk->mandatory && !walk->optional && !walk->nullable_allowed;
+    bool guard_complete = walk->case_boundary && walk->context_known && !walk->mandatory && !walk->optional && !question_nullable_rank_branch(walk);
     if ((question_walk_role_known(walk) || guard_complete) && walk->proved_ternary && (!walk->binding || walk->case_boundary)) walk->known_ternary = true;
 }
 

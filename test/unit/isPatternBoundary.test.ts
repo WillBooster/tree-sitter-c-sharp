@@ -128,6 +128,12 @@ test('preserves case patterns, guards and statement labels across clause edits',
       guards: ['when p && y as T ? [3]'],
       labels: ['c', 'label'],
     },
+    {
+      source: 'switch (x) { case n when y is T && z ? [a] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when y is T && z ? [a] : b'],
+      labels: [],
+    },
     { source: 'var r = x switch { T?[] y when a ? [1] : b => 1, _ => 0 };', guards: ['when a ? [1] : b'], labels: [] },
   ];
   const parser = new Parser().setLanguage(language);
