@@ -4,6 +4,7 @@
 static bool question_walk_scope_prefix(QuestionWalk *, unsigned, bool);
 static void question_walk_dispose(QuestionWalk *);
 static void question_walk_attributed_lambda(TSLexer *, QuestionWalk *);
+static bool question_nullable_designation(TSLexer *, QuestionInput *);
 
 static bool rank_prepare_arguments(const Scanner *scanner, RankScopeRead *scope, Scanner *context) {
     question_scope_init(context, scanner);
@@ -136,10 +137,11 @@ static bool question_suffix_ordinary(QuestionFollowing next) {
 
 static bool question_walk_nullable_marker(TSLexer *lexer, QuestionWalk *walk, QuestionFollowing following) {
     bool allocation = question_allocation_nullable(walk, following.token);
+    bool designation = walk->type_operand && !following.member && question_nullable_designation(lexer, walk->input);
     bool binary = question_type_binary_follower(lexer, walk->input, following);
     bool guard_type = walk->case_boundary && walk->type_operand &&
         (following.token == '{' || following.token == ':' || following.token == '?' || binary);
-    if (following.token != '>' && !allocation && !guard_type) return false;
+    if (following.token != '>' && !allocation && !guard_type && !designation) return false;
     if (allocation && following.token == '[') question_suffix_add(&walk->suffix, false);
     else walk->suffix.regular = false;
     walk->cache_shaped = false;
@@ -702,7 +704,7 @@ static bool question_walk_type_pattern(TSLexer *lexer, QuestionWalk *walk) {
     bool nullable = false;
     bool type = question_walk_pattern_suffix(lexer, &nullable, NULL);
     QuestionCheckpoint tail = {walk->input->cursor, start.capturing};
-    bool pattern = type && question_walk_pattern_tail(lexer, nullable, walk->case_boundary);
+    bool pattern = type && question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
     question_input_restore(walk->input, pattern && !walk->recording ? tail : start);
     return pattern;
 }
@@ -719,7 +721,7 @@ static bool question_walk_current_type_pattern(TSLexer *lexer, QuestionWalk *wal
         advance(lexer);
         bool nullable = false;
         uint32_t questions = 0;
-        pattern = question_walk_pattern_suffix(lexer, &nullable, &questions) && question_walk_pattern_tail(lexer, nullable, walk->case_boundary);
+        pattern = question_walk_pattern_suffix(lexer, &nullable, &questions) && question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
         if (pattern) walk->proven_nullable_questions = questions;
     }
     question_input_restore(walk->input, start);
@@ -741,10 +743,21 @@ static bool question_walk_pattern_suffix(TSLexer *lexer, bool *nullable, uint32_
     }
 }
 
-static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable, bool case_boundary) {
+static bool question_nullable_designation(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    QuestionIdentifier name;
+    bool valid = rank_read_identifier(lexer, &name) && rank_identifier_allowed(&name, true) &&
+        question_skip_separators(lexer) >= 0 && rank_read_identifier(lexer, &name) && name.keyword &&
+        (!strcmp(name.word, "and") || !strcmp(name.word, "or"));
+    question_input_restore(input, start);
+    return valid;
+}
+
+static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable, bool case_boundary, QuestionInput *input) {
     if (nullable && case_boundary && lexer->lookahead == ':') return true;
     if (lexer->lookahead == '{') return true;
     if (nullable) {
+        if (question_nullable_designation(lexer, input)) return true;
         QuestionIdentifier logical;
         return rank_read_identifier(lexer, &logical) && logical.keyword &&
             (!strcmp(logical.word, "and") || !strcmp(logical.word, "or"));

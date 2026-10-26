@@ -3185,4 +3185,9 @@ export const ownershipSamples = [
   {"source": "class C { void M() { switch (x) { case y when f() ? new T[2] : a?[0] is T[] : L: break; } } }", "ranges": [[[46, 49], [52, 60], [63, 79]], [[63, 64], [65, 75], [78, 79]]]},
   {"source": "class C { void M() { switch (x) { case y when f(x) ? new T[2] : a?[0] is T[] : L: break; } } }", "ranges": [[[46, 50], [53, 61], [64, 80]], [[64, 65], [66, 76], [79, 80]]]},
   {"source": "class C { void M() { switch (x) { case y when f() ? new T[2] : a?[0] : L: break; } } }", "ranges": [[[46, 49], [52, 60], [63, 72]], [[63, 64], [65, 68], [71, 72]]]},
+  {"source": "switch (x) { case y when (b ? c : d) | new (T,U)?(1) is int: L: break; }", "ranges": [[[26, 27], [30, 31], [34, 35]]]},
+  {"source": "switch (x) { case y when b is T?[]? z and not null: L: break; }", "ranges": []},
+  {"source": "switch (x) { case y when b is T & new (T,U)?(1): L: break; }", "ranges": []},
+  {"source": "switch(x){case y when b is T?[]? z and not null: var r = y ? c ? [a] : d ? [] : x is T? t and U : w; break;}", "ranges": [[[57, 58], [61, 95], [98, 99]], [[61, 62], [65, 68], [71, 95]], [[71, 72], [75, 77], [80, 95]]]},
+  {"source": "switch (x) { case y when f(new (T,U)?(1)) & new (T,U)?(1): L: break; }", "ranges": []},
 ];

@@ -11,6 +11,8 @@ static enum TokenType question_access_symbol(const bool *, const QuestionFollowi
 static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t rank_phase, bool *known_ternary) {
     QuestionInput input = question_input_create(lexer);
     lexer = &input.lexer;
+    if (!*known_nullable && !following.member && scanner->question_type_uncertain && (context_flags & QUESTION_NULLABLE_ALLOWED))
+        *known_nullable = question_nullable_designation(lexer, &input);
     QuestionWalk walk = question_walk_create(scanner, following, *known_nullable, context_flags, rank_phase);
     walk.input = &input;
     walk.scanner = scanner;

@@ -176,6 +176,31 @@ test('preserves case patterns, guards and statement labels across clause edits',
       labels: [],
       nodeCounts: { conditional_access_expression: 0, conditional_expression: 2 },
     },
+    {
+      source: 'switch (x) { case y when (b ? c : d) | new (T,U)?(1) is int: L: break; }',
+      guards: ['when (b ? c : d) | new (T,U)?(1) is int'],
+      labels: ['L'],
+      nodeCounts: { nullable_type: 1, tuple_type: 1, conditional_expression: 1 },
+    },
+    {
+      source: 'switch (x) { case y when b is T?[]? z and not null: L: break; }',
+      guards: ['when b is T?[]? z and not null'],
+      labels: ['L'],
+      nodeCounts: { nullable_type: 2, declaration_pattern: 1, conditional_expression: 0 },
+    },
+    {
+      source: 'switch (x) { case y when b is T & new (T,U)?(1): L: break; }',
+      guards: ['when b is T & new (T,U)?(1)'],
+      labels: ['L'],
+      nodeCounts: { nullable_type: 1, tuple_type: 1, conditional_expression: 0 },
+    },
+    {
+      source:
+        'switch(x){case y when b is T?[]? z and not null: var r = y ? c ? [a] : d ? [] : x is T? t and U : w; break;}',
+      guards: ['when b is T?[]? z and not null'],
+      labels: [],
+      nodeCounts: { conditional_expression: 3 },
+    },
     { source: 'var r = x switch { T?[] y when a ? [1] : b => 1, _ => 0 };', guards: ['when a ? [1] : b'], labels: [] },
   ];
   const parser = new Parser().setLanguage(language);

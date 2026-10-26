@@ -1103,10 +1103,12 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
         (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
         (valid_symbols[QUESTION_NULLABLE] ? QUESTION_NULLABLE_ALLOWED : 0) |
         (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
-    bool case_pattern = valid_symbols[CASE_LABEL_COLON] && !frame->case_guard;
+    bool preserve_unknown = frame->case_guard
+        ? valid_symbols[QUESTION_UNKNOWN] && !valid_symbols[QUESTION_NULLABLE] && next.token != '[' && !next.member
+        : valid_symbols[CASE_LABEL_COLON];
     unsigned role = prepare_question_context(scanner, lexer, next, &known_nullable,
         context_flags, rank_phase, &known_ternary);
-    if (known_ternary && case_pattern) role = 0;
+    if (known_ternary && preserve_unknown) role = 0;
     if (next.member) role = 1;
     if (lexer->log) lexer->log(lexer, "question_role role=%u access=%d ternary=%d nullable=%d unknown=%d", role,
         (valid_symbols[QUESTION_MEMBER_ACCESS] || valid_symbols[QUESTION_ELEMENT_ACCESS]), valid_symbols[QUESTION_TERNARY],
