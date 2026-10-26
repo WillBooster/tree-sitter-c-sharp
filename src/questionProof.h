@@ -3,6 +3,10 @@
 
 static QuestionWalkStep question_walk_read(Scanner *, TSLexer *, QuestionWalk *, bool);
 static bool question_prepare_guard(Scanner *, TSLexer *);
+static bool question_prepare_prefix(Scanner *, QuestionInput *, bool);
+static void question_save_type_handoff(Scanner *, const QuestionWalk *);
+static uint8_t question_guard_take(QuestionFrame *, uint32_t, uint32_t *);
+static uint8_t question_guard_save(QuestionFrame *, RankParse *);
 static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
 static enum TokenType question_access_symbol(const bool *, const QuestionFollowing *);
@@ -41,7 +45,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     }
     *known_ternary = walk.known_ternary;
     question_save_allocation_prefix(scanner, &walk);
-    question_save_guard_summary(scanner, &walk.guard, walk.reserved);
+    question_save_type_handoff(scanner, &walk);
     question_walk_dispose(&walk);
     array_delete(&input.characters);
     return result;
@@ -49,6 +53,7 @@ unknown:
     question_clear_access_cache(scanner);
     if (interpolation) interpolation->question_depth = UINT16_MAX;
     scanner->question_unknown = true;
+    question_clear_rank_from(scanner, 0);
     question_walk_dispose(&walk);
     array_delete(&input.characters);
     *known_nullable = walk.known_nullable;
@@ -57,44 +62,175 @@ unknown:
 }
 
 
+static bool question_guard_statement_start(const QuestionIdentifier *word) {
+    static const char *const statements[] = {"break", "continue", "return", "goto", "if", "for", "foreach", "while", "do", "try", "lock", "using", "fixed", "unsafe", "case"};
+    return word->keyword && question_word_in(word->word, statements, sizeof(statements) / sizeof(statements[0]));
+}
+
+typedef struct {
+    QuestionInput *input;
+    RankTokens *tail;
+    uint32_t pending;
+    unsigned scanned, mandatory, colons;
+} QuestionGuardRead;
+
+static RankParse question_guard_evaluate(const RankTokens *, unsigned, uint32_t);
+
+static bool question_guard_complete_prefix(QuestionGuardRead *guard) {
+    RankTokens *tail = guard->tail;
+    for (; guard->scanned < tail->size; guard->scanned++) {
+        unsigned i = guard->scanned;
+        RankToken token = tail->contents[i];
+        if (token.kind == RANK_COLON) guard->colons++;
+        if (token.kind == RANK_QUESTION && (!token.collection || (i &&
+            tail->contents[i - 1].guard_candidate && tail->contents[i - 1].kind == RANK_IS_TYPE)))
+            guard->mandatory++;
+    }
+    if ((uint64_t)guard->colons < (uint64_t)guard->pending + guard->mandatory + 2 ||
+        !tail->size || tail->contents[tail->size - 1].kind != RANK_COLON) return false;
+    RankParse parsed = question_guard_evaluate(tail, tail->size - 1, guard->pending);
+    return parsed.valid && parsed.types.runs == 1 && parsed.types.first == GUARD_TERNARY;
+}
+
+static bool question_guard_assignment(TSLexer *lexer) {
+    if (lexer->lookahead != '=') return false;
+    advance(lexer);
+    return lexer->lookahead != '=' && lexer->lookahead != '>';
+}
+
+static bool question_guard_stream_stop(TSLexer *lexer, void *context) {
+    QuestionGuardRead *guard = context;
+    QuestionInput *input = guard->input;
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    QuestionIdentifier word;
+    bool name = rank_read_identifier(lexer, &word);
+    bool stop = name && question_guard_statement_start(&word);
+    bool implicit = name && word.keyword && !strcmp(word.word, "var");
+    bool assignment = name && rank_identifier_allowed(&word, false) && question_skip_separators(lexer) >= 0 &&
+        question_guard_assignment(lexer);
+    question_input_restore(input, start);
+    if (!stop) {
+        RankTypeRead read = {.expression_ranks = true};
+        bool type = implicit ? rank_read_identifier(lexer, &word) : rank_read_as_type(lexer, &read) &&
+            !read.coalesce && !read.division && !read.binary && !read.colon;
+        bool identifier = type && (read.has_word ? rank_identifier_allowed(&read.word, false) :
+            question_skip_separators(lexer) >= 0 && rank_read_identifier(lexer, &word) && rank_identifier_allowed(&word, false));
+        int32_t next = identifier ? question_skip_separators(lexer) : 0;
+        bool declaration = identifier && (next == ';' || next == ',' || question_guard_assignment(lexer));
+        stop = declaration && (!read.conditional || question_guard_complete_prefix(guard));
+    }
+    if (!stop && assignment) stop = question_guard_complete_prefix(guard);
+    question_input_restore(input, start);
+    return stop;
+}
+
+static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit, uint32_t pending) {
+    RankTokens tokens = array_new();
+    for (uint32_t i = 0; i < pending; i++) {
+        array_push(&tokens, ((RankToken){RANK_ATOM, false}));
+        array_push(&tokens, ((RankToken){RANK_QUESTION, false}));
+    }
+    array_push(&tokens, ((RankToken){.kind = RANK_IS_TYPE, .guard_candidate = true}));
+    unsigned question = tokens.size;
+    array_push(&tokens, ((RankToken){RANK_QUESTION, true}));
+    array_push(&tokens, ((RankToken){RANK_ATOM, true}));
+    for (unsigned i = 0; i < limit; i++) array_push(&tokens, tail->contents[i]);
+    array_push(&tokens, ((RankToken){RANK_END, false}));
+    RankParse modes[2];
+    rank_evaluate_collected_modes(&tokens, question, modes, true);
+    RankParse parsed = modes[0];
+    parsed.valid &= parsed.end < tokens.size &&
+        (tokens.contents[parsed.end].kind == RANK_END || tokens.contents[parsed.end].kind == RANK_COLON);
+    array_delete(&tokens);
+    return parsed;
+}
+
 static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
     QuestionCheckpoint start = question_input_checkpoint(input);
     uint32_t prefix = 0;
     bool simple = false;
-    bool target = rank_read_prefix(lexer, &simple, &prefix) && question_read_single_question(lexer) &&
-        question_skip_separators(lexer) == '[';
     uint8_t result = RANK_NONE;
-    if (target) {
-        Scanner context;
-        question_scope_init(&context, scanner);
-        bool nullable = false, ternary = false;
-        unsigned role = prepare_question_context(&context, lexer, (QuestionFollowing){.token = '['}, &nullable,
-            QUESTION_PATTERN_TYPE | QUESTION_NULLABLE_ALLOWED | QUESTION_CASE_COLON |
-                (!prefix ? QUESTION_GUARD_SUMMARY : 0), RANK_NONE, &ternary);
-        if (role == 2 && ternary && !nullable && UINT32_MAX - *questions >= prefix) {
-            *questions += prefix;
-            result = RANK_PATTERN_COMPLETE;
-        }
-        if (rank_guard_prefix(context.question_rank_role)) {
-            result = context.question_rank_role;
-            *questions = context.question_rank_prefix_questions;
-        }
-        array_delete(&context.interpolation_stack);
+    RankTokens tail = array_new();
+    tail.input = input;
+    bool target = rank_read_prefix(lexer, &simple, &prefix) && question_read_single_question(lexer) && question_skip_separators(lexer) == '[';
+    if (!target) goto done;
+    advance(lexer);
+    int32_t first = question_skip_separators(lexer);
+    if (first != ']' && first != ',') goto done;
+    bool definite = false, division = false;
+    if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division)) goto done;
+    QuestionCheckpoint suffix = question_input_checkpoint(input);
+    bool nullable = false;
+    uint32_t suffix_questions = 0;
+    if (!division) {
+        bool type_suffix = question_walk_pattern_suffix(lexer, &nullable, &suffix_questions);
+        definite |= type_suffix && question_walk_pattern_tail(lexer, nullable, false, input);
     }
+    question_input_restore(input, suffix);
+    if (definite) {
+        question_input_restore(input, start);
+        if (rank_guard_designation(lexer, questions, input)) result = RANK_PATTERN_COMPLETE;
+        else {
+            *questions = prefix + 1 + suffix_questions;
+            result = RANK_OWNED_NULLABLE_PREFIX;
+        }
+        goto done;
+    }
+    QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (frame->guard.role) {
+        result = question_guard_take(frame, prefix, questions);
+        goto done;
+    }
+    unsigned colons = 0;
+    QuestionGuardRead guard = {.input = input, .tail = &tail, .pending = frame->pending};
+    bool read = rank_read_stream_after_rank(lexer, &tail, &colons, division, question_guard_stream_stop, &guard);
+    unsigned last_colon = 0;
+    for (unsigned i = 0; i < tail.size; i++) if (tail.contents[i].kind == RANK_COLON) last_colon = i;
+    if (!read || !colons || !last_colon) goto done;
+    RankParse parsed = question_guard_evaluate(&tail, last_colon, frame->pending);
+    if (parsed.valid) {
+        result = question_guard_save(frame, &parsed);
+        if (result) *questions = prefix + (result == RANK_OWNED_NULLABLE_PREFIX);
+    }
+done:
+    array_delete(&tail);
     question_input_restore(input, start);
     return result;
 }
 
-static uint8_t question_guard_as_role(TSLexer *lexer, uint32_t *questions) {
-    QuestionInput input = question_input_create(lexer);
-    RankTypeRead read = {0};
-    bool type = rank_read_as_type(&input.lexer, &read) && !read.conditional && !read.coalesce &&
-        !read.division && !read.colon && (!read.has_word || (read.word.keyword &&
+static uint8_t question_guard_take(QuestionFrame *frame, uint32_t prefix, uint32_t *questions) {
+    bool nullable = frame->guard.role == GUARD_NULLABLE;
+    *questions = prefix + nullable;
+    if (frame->guard.prefix && !--frame->guard.prefix)
+        frame->guard.role = nullable ? GUARD_TERNARY : GUARD_NULLABLE;
+    return nullable ? RANK_OWNED_NULLABLE_PREFIX : RANK_PATTERN_COMPLETE;
+}
+
+static uint8_t question_guard_save(QuestionFrame *frame, RankParse *parsed) {
+    if (parsed->types.runs == 2 && parsed->types.first == GUARD_NULLABLE) {
+        parsed->types.prefix = parsed->types.count - parsed->types.prefix;
+        parsed->types.first = GUARD_TERNARY;
+        parsed->types.last = GUARD_NULLABLE;
+        parsed->role = RANK_TERNARY;
+    }
+    if (parsed->types.runs && parsed->types.runs <= 2) {
+        frame->guard.role = parsed->types.first;
+        frame->guard.prefix = parsed->types.runs == 2 ? parsed->types.prefix - 1 : 0;
+        if (parsed->types.runs == 2 && !frame->guard.prefix) frame->guard.role = parsed->types.last;
+    }
+    return parsed->role == RANK_TERNARY ? RANK_PATTERN_COMPLETE :
+        parsed->role == RANK_NULLABLE_LAST ? RANK_OWNED_NULLABLE_PREFIX : RANK_NONE;
+}
+
+static uint8_t question_guard_as_role(QuestionInput *input, uint32_t *questions) {
+    RankTypeRead read = {.expression_ranks = true};
+    bool type = rank_read_as_type(&input->lexer, &read) && !read.conditional && !read.coalesce &&
+        !read.division && (!read.has_word || (read.word.keyword &&
             (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))));
-    array_delete(&input.characters);
-    if (!type || !read.questions) return RANK_NONE;
-    *questions = read.questions;
-    return RANK_NULLABLE_PREFIX;
+    uint32_t prefix = read.expression_questions ? read.prefix_questions : read.questions;
+    if (!type || !prefix) return RANK_NONE;
+    *questions = prefix;
+    return RANK_OWNED_NULLABLE_PREFIX;
 }
 
 
@@ -123,23 +259,70 @@ static QuestionScanResult scan_case_guard_when(Scanner *scanner, TSLexer *lexer)
 
 static bool question_prepare_guard(Scanner *scanner, TSLexer *lexer) {
     QuestionInput input = question_input_create(lexer);
+    bool found = question_prepare_prefix(scanner, &input, false);
+    array_delete(&input.characters);
+    return found;
+}
+
+static void question_prepare_type_prefix(Scanner *scanner, QuestionInput *input) {
+    bool handoff = false;
+    for (unsigned i = 0; i < scanner->question_frame_count; i++) {
+        QuestionFrame *frame = &scanner->question_frames[i];
+        handoff |= frame->case_guard && frame->guard.handoff;
+        frame->guard.handoff = false;
+    }
+    if (!handoff) return;
+    Scanner prefix;
+    question_scope_init(&prefix, scanner);
+    uint8_t role = scanner->question_rank_role;
+    uint32_t questions = scanner->question_rank_prefix_questions;
+    if (question_prepare_prefix(&prefix, input, true)) {
+        array_delete(&scanner->interpolation_stack);
+        *scanner = prefix;
+        if (role) {
+            scanner->question_rank_role = role;
+            scanner->question_rank_prefix_questions = questions;
+        }
+    } else {
+        array_delete(&prefix.interpolation_stack);
+        scanner->question_unknown = true;
+        question_clear_rank_from(scanner, 0);
+    }
+}
+
+static bool question_prepare_prefix(Scanner *scanner, QuestionInput *input, bool type_prefix) {
+    TSLexer *lexer = &input->lexer;
     QuestionWalk walk = question_walk_create(scanner, (QuestionFollowing){0}, true, 0, RANK_NONE);
-    walk.input = &input;
+    walk.input = input;
+    walk.type_prefix = type_prefix;
     walk.scanner = scanner;
     walk.role_active = false;
     walk.ordinary = false;
     walk.ordinary_first_token = false;
     walk.first_word = false;
-    QuestionWalkStep step = question_walk_read(scanner, &input.lexer, &walk, true);
+    QuestionWalkStep step = question_walk_read(scanner, lexer, &walk, true);
     bool known = step != QUESTION_WALK_INVALID && step != QUESTION_WALK_UNKNOWN;
     interpolation_question_events(scanner, walk.events.contents, walk.events.size);
-    apply_question_events(scanner, walk.events.contents, walk.events.size);
+    bool events = apply_question_events(scanner, walk.events.contents, walk.events.size);
+    known &= !type_prefix || events;
     scanner->question_unknown |= !known;
     bool found = known && walk.found_next_question;
-    if (known) question_save_allocation_prefix(scanner, &walk);
+    if (known) {
+        question_save_allocation_prefix(scanner, &walk);
+        question_save_type_handoff(scanner, &walk);
+    }
     question_walk_dispose(&walk);
-    array_delete(&input.characters);
-    return found;
+    return known && (type_prefix || found);
+}
+
+static void question_save_type_handoff(Scanner *scanner, const QuestionWalk *walk) {
+    if (!walk->type_handoff || scanner->question_unknown) return;
+    for (unsigned i = scanner->question_frame_count; i > 0; i--) {
+        QuestionFrame *frame = &scanner->question_frames[i - 1];
+        if (!frame->case_guard) continue;
+        if (!frame->unknown) frame->guard.handoff = true;
+        return;
+    }
 }
 
 static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool prefix) {
@@ -151,11 +334,7 @@ static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, Que
         QuestionWalkStep step = question_walk_step(scanner, lexer, walk, c);
         walk->previous_token = walk->consumed_token ? walk->consumed_token : c;
         walk->consumed_token = 0;
-        if (step != QUESTION_WALK_CONTINUE) {
-            bool summary_tail = step == QUESTION_WALK_STOP && walk->guard.eligible && walk->guard.keyword_tail && !walk->guard.complete && walk->depth >= 0;
-            if (summary_tail) question_read_guard_tail(lexer, walk->input, &walk->guard, walk->reserved);
-            return step;
-        }
+        if (step != QUESTION_WALK_CONTINUE) return step;
         if (prefix && walk->found_next_question) break;
     }
     return QUESTION_WALK_STOP;

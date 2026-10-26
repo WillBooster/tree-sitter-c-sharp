@@ -15,6 +15,7 @@
         "src/identifierCharacters.h",
         "src/ifAlternativeDirective.h",
         "src/nullableRank.h",
+        "src/nullableRankMemo.h",
         "src/nullableTypes.h",
         "src/questionContext.h",
         "src/questionGuard.h",

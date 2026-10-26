@@ -73,6 +73,7 @@ static bool question_rank_scope(Scanner *context, QuestionInput *input, Question
             context->question_frames[i].unknown = original.unknown;
             context->question_frames[i].case_colon = original.case_colon;
             context->question_frames[i].case_guard = original.case_guard;
+            context->question_frames[i].guard = original.guard;
         }
         context->question_frame_count = local.question_frame_count;
         array_assign(&context->interpolation_stack, &local.interpolation_stack);
@@ -259,13 +260,18 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
 static QuestionWalkStep question_walk_identifier_read(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier, const QuestionCheckpoint *word_start) {
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return QUESTION_WALK_UNKNOWN;
-    if (question_guard_stop(&walk->guard, &identifier, walk->depth)) return QUESTION_WALK_STOP;
+    bool type_boundary = identifier.keyword && (!strcmp(identifier.word, "is") || !strcmp(identifier.word, "as"));
+    if (type_boundary && walk->recording && !walk->depth && (walk->type_prefix ||
+        (walk->owned_type_prefix && walk->case_boundary && !walk->role_active && walk->known_nullable))) {
+        walk->type_handoff = true;
+        return QUESTION_WALK_STOP;
+    }
     question_walk_query(lexer, walk, &identifier);
     bool creation = identifier.keyword && (!strcmp(identifier.word, "new") || !strcmp(identifier.word, "stackalloc"));
     if (identifier.keyword && !walk->is_later_alternative && (creation || strcmp(identifier.word, "delegate") == 0 ||
         strcmp(identifier.word, "from") == 0)) walk->is_eligible = false;
     if (question_keyword_incomplete(lexer, walk, &identifier)) return QUESTION_WALK_UNKNOWN;
-    bool is_or_as = identifier.keyword && (strcmp(identifier.word, "is") == 0 || strcmp(identifier.word, "as") == 0);
+    bool is_or_as = type_boundary;
     question_walk_type_operand(walk, future_identifier, is_or_as, &identifier, creation);
     bool value_operator = is_or_as || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
     if (walk->logical_name_candidate && !walk->depth && !value_operator)
@@ -310,12 +316,8 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
 static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation, const QuestionCheckpoint *word_start) {
     if (question_walk_future_lambda(lexer, walk, identifier, word_start)) return QUESTION_WALK_CONTINUE;
     if (!question_walk_is_name(lexer, walk, identifier)) return QUESTION_WALK_UNKNOWN;
-    if (walk->guard.eligible && walk->guard.keyword_tail && !walk->depth && identifier->keyword && !strcmp(identifier->word, "is"))
-        question_guard_type(lexer, walk->input, &walk->guard);
     bool keyword_as = identifier->keyword && !strcmp(identifier->word, "as") && !walk->depth;
-    if (keyword_as || creation || (identifier->keyword && (!strcmp(identifier->word, "from") || !strcmp(identifier->word, "delegate"))))
-        walk->guard.eligible = false;
-    if (keyword_as && walk->case_boundary && walk->role_active) question_walk_as_type(lexer, walk);
+    if (keyword_as && walk->case_boundary) question_walk_as_type(lexer, walk);
     bool own_as_type = keyword_as && walk->binding && walk->recording && !walk->root_colons;
     if (own_as_type) return question_walk_as_prefix(lexer, walk);
     if (walk->as_operand && !walk->depth && !(identifier->keyword && !strcmp(identifier->word, "as"))) {
@@ -332,14 +334,14 @@ static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, Questio
 
 static void question_walk_as_type(TSLexer *lexer, QuestionWalk *walk) {
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
-    RankTypeRead read = {0};
-    bool type = rank_read_as_type(lexer, &read) && !read.conditional && !read.coalesce && !read.colon;
-    bool follows = read.binary || read.division || (read.has_word
+    RankTypeRead read = {.expression_ranks = true};
+    bool type = rank_read_as_type(lexer, &read) && !read.conditional && !read.coalesce;
+    bool follows = read.colon || read.binary || read.division || (read.has_word
         ? read.word.keyword && (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))
         : lexer->lookahead == ':' || question_type_operator_follower(lexer, walk->input, (QuestionFollowing){.token = lexer->lookahead}));
     TSLexerPosition end;
     lexer->get_position(lexer, &end);
-    walk->as_type_end = type && follows ? end.bytes : 0;
+    walk->as_type_end = type && follows ? (read.expression_questions ? read.expression_start : end.bytes) : 0;
     question_input_restore(walk->input, start);
 }
 
@@ -387,7 +389,6 @@ static bool question_walk_name_suffix(TSLexer *lexer, QuestionWalk *walk, const 
     read->prefix_all = walk->syntax_only;
     if (!rank_read_as_name_suffix(lexer, read, identifier)) return false;
     if (read->questions && !walk->syntax_only) {
-        walk->guard.eligible = false;
         walk->found_next_question = true;
         walk->recording = false;
         walk->cache_shaped = false;
@@ -597,8 +598,7 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
         walk->known_nullable = true;
         walk->role_active = false;
     }
-    bool guard_collection = first == ']' && walk->pattern_type && walk->case_boundary && walk->context_known && !walk->nullable_only;
-    if (!walk->binding && !question_walk_role_known(walk) && !guard_collection) walk->role_active = false;
+    if (!walk->binding && !question_walk_role_known(walk)) walk->role_active = false;
     walk->rank_phase = RANK_NONE;
     walk->entering_binding = false;
     if (question_binding_start(lexer, first)) return QUESTION_WALK_CONTINUE;
@@ -697,15 +697,8 @@ static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk) {
     int32_t next = question_skip_separators(lexer);
     bool terminal = next == ';' || next == ',' || question_closing_group(next) || lexer->eof(lexer) ||
         (next == ':' && walk->case_boundary && walk->as_operand);
-    bool single_rank = next != '[' && next != '?';
     bool pattern = walk->case_boundary && question_walk_type_pattern(lexer, walk);
-    if (walk->guard.eligible && pattern && question_type_keyword_follower(lexer, walk->input)) {
-        if (!single_rank || !walk->guard.last_is_type || walk->guard.type_questions == UINT32_MAX) walk->guard.eligible = false;
-        else {
-            walk->guard.type_questions++;
-            walk->guard.last_type = true;
-        }
-    }
+
     if (terminal || pattern) {
         if (walk->optional) walk->optional--;
     } else if (walk->is_optional == UINT64_MAX) walk->is_eligible = false;
@@ -722,7 +715,6 @@ static bool question_walk_type_pattern(TSLexer *lexer, QuestionWalk *walk) {
     bool nullable = false;
     uint32_t questions = 0;
     bool type = question_walk_pattern_suffix(lexer, &nullable, &questions);
-    if (questions) walk->guard.eligible = false;
     QuestionCheckpoint tail = {walk->input->cursor, start.capturing};
     bool pattern = type && question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
     question_input_restore(walk->input, pattern && !walk->recording ? tail : start);
@@ -739,17 +731,10 @@ static bool question_walk_current_type_pattern(TSLexer *lexer, QuestionWalk *wal
     bool pattern = false;
     if (first == ']') {
         advance(lexer);
-        QuestionCheckpoint suffix_start = question_input_checkpoint(walk->input);
-        int32_t next = question_skip_separators(lexer);
-        bool single_rank = next >= 0 && next != '[' && next != '?';
-        question_input_restore(walk->input, suffix_start);
         bool nullable = false;
         uint32_t questions = 0;
         bool suffix = question_walk_pattern_suffix(lexer, &nullable, &questions);
-        bool collection_tail = !nullable && walk->pattern_type && question_type_keyword_follower(lexer, walk->input);
-        walk->guard.keyword_tail = suffix && single_rank && collection_tail;
-        walk->guard.eligible &= walk->guard.keyword_tail;
-        pattern = suffix && !collection_tail && question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
+        pattern = suffix && question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
         if (pattern) walk->proven_nullable_questions = questions;
     }
     question_input_restore(walk->input, start);
@@ -812,7 +797,6 @@ static bool question_type_keyword_follower(TSLexer *lexer, QuestionInput *input)
 }
 
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier) {
-    walk->guard.eligible = false;
     bool verbatim = c == '@';
     if (verbatim) {
         advance(lexer);

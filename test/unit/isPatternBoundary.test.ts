@@ -13,6 +13,232 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source: 'switch(x){case y when a is T?[] is U && (c ? d : e) && a ? [1] : b: L0: break;}',
+      guards: ['when a is T?[] is U && (c ? d : e) && a ? [1] : b: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [22, 28],
+          [29, 66],
+          [68, 70],
+        ],
+        [
+          [29, 56],
+          [59, 62],
+          [65, 66],
+        ],
+        [
+          [41, 42],
+          [45, 46],
+          [49, 50],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when a is T?[] is U && a?.b && a ? [1] : b: L0: T? r = a ? b : c; break;case 2: break;}}}',
+      guards: ['when a is T?[] is U && a?.b && a ? [1] : b: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 76],
+          [78, 80],
+        ],
+        [
+          [46, 66],
+          [69, 72],
+          [75, 76],
+        ],
+        [
+          [89, 90],
+          [93, 94],
+          [97, 98],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when a is T?[] is U && a?.b && a ? [1] : b: L0: x = a ? b : c; break;case 2: break;}}}',
+      guards: ['when a is T?[] is U && a?.b && a ? [1] : b: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 76],
+          [78, 80],
+        ],
+        [
+          [46, 66],
+          [69, 72],
+          [75, 76],
+        ],
+        [
+          [86, 87],
+          [90, 91],
+          [94, 95],
+        ],
+      ],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is U && a ? [1] : x = a ? b : c: L0: break;}',
+      guards: ['when a is T?[] is U && a ? [1] : x = a ? b : c: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [22, 28],
+          [29, 63],
+          [65, 67],
+        ],
+        [
+          [29, 41],
+          [44, 47],
+          [50, 63],
+        ],
+        [
+          [54, 55],
+          [58, 59],
+          [62, 63],
+        ],
+      ],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is U && a ? x = b : c: L0: break;}',
+      guards: ['when a is T?[] is U && a ? x = b : c: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [22, 28],
+          [29, 53],
+          [55, 57],
+        ],
+        [
+          [29, 41],
+          [44, 49],
+          [52, 53],
+        ],
+      ],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is U && a ? T ? r = b : c : d: L0: break;}',
+      guards: ['when a is T?[] is U && a ? T ? r = b : c : d: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [22, 28],
+          [29, 61],
+          [63, 65],
+        ],
+        [
+          [29, 41],
+          [44, 57],
+          [60, 61],
+        ],
+        [
+          [44, 45],
+          [48, 53],
+          [56, 57],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] as U ? [1] : b: L: break;}}}',
+      guards: ['when a is T?[] as U ? [1] : b'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 59],
+          [62, 63],
+        ],
+      ],
+      asTypes: [['U ? [1]', 'array_type']],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is N.T?[] as N.U ? [x ? y : z] : b: L: break;}}}',
+      guards: ['when a is N.T?[] as N.U ? [x ? y : z] : b'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 47],
+          [48, 71],
+          [74, 75],
+        ],
+        [
+          [61, 62],
+          [65, 66],
+          [69, 70],
+        ],
+      ],
+      asTypes: [['N.U ? [x ? y : z]', 'array_type']],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is G<T?>?[] as G<U?> ? [a?[0]] : b: L: break;}}}',
+      guards: ['when a is G<T?>?[] as G<U?> ? [a?[0]] : b'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 49],
+          [50, 71],
+          [74, 75],
+        ],
+      ],
+      asTypes: [['G<U?> ? [a?[0]]', 'array_type']],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as T?[] is T < a ? [1] : b as U?[]: L: break;}}}',
+      guards: ['when a as T?[] is T < a ? [1] : b as U?[]'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 57],
+          [60, 63],
+          [66, 75],
+        ],
+      ],
+      asTypes: [
+        ['T?[]', 'array_type'],
+        ['U?[]', 'array_type'],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as N.T?[]? is T == a ? [1] : f(b) as U?[,]: L: break;}}}',
+      guards: ['when a as N.T?[]? is T == a ? [1] : f(b) as U?[,]'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 61],
+          [64, 67],
+          [70, 83],
+        ],
+      ],
+      asTypes: [
+        ['N.T?[]?', 'nullable_type'],
+        ['U?[,]', 'array_type'],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as G<T?>?[] is T / a ? [1] : b as U?[x ? y : z]: L: break;}}}',
+      guards: ['when a as G<T?>?[] is T / a ? [1] : b as U?[x ? y : z]'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 61],
+          [64, 67],
+          [70, 88],
+        ],
+        [
+          [78, 79],
+          [82, 83],
+          [86, 87],
+        ],
+      ],
+      asTypes: [
+        ['G<T?>?[]', 'array_type'],
+        ['U?[x ? y : z]', 'array_type'],
+      ],
+    },
+    {
       source: 'class C { void M() { switch (x) { case T y when a as int?[] is int?[]: L: break; } } }',
       guards: ['when a as int?[] is int?[]: L'],
       labels: [],
@@ -336,6 +562,26 @@ test('preserves case patterns, guards and statement labels across clause edits',
           for (const [type, count] of Object.entries(sample.nodeCounts)) {
             expect(fresh.rootNode.descendantsOfType(type), sample.source).toHaveLength(count);
           }
+        }
+        if (sample.asTypes) {
+          expect(
+            fresh.rootNode.descendantsOfType('as_expression').map((node) => {
+              const type = node.childForFieldName('right')!;
+              return [type.text, type.type];
+            }),
+            sample.source
+          ).toEqual(sample.asTypes);
+        }
+        if (sample.conditionalFields) {
+          expect(
+            fresh.rootNode.descendantsOfType('conditional_expression').map((node) =>
+              ['condition', 'consequence', 'alternative'].map((field) => {
+                const value = node.childForFieldName(field)!;
+                return [value.startIndex, value.endIndex];
+              })
+            ),
+            sample.source
+          ).toEqual(sample.conditionalFields);
         }
         if (sample.guardKinds) {
           expect(
@@ -1857,3 +2103,43 @@ test('retains await as a contextual type name in nonasync positional patterns', 
     parser.delete();
   }
 });
+
+test('restores mixed guard ownership in a fresh parser after suffix edits', () => {
+  let previous = mixedGuardSource(40);
+  let parser = new Parser().setLanguage(language);
+  let tree = parser.parse(previous)!;
+  parser.delete();
+  try {
+    for (const next of [
+      mixedGuardSource(40).replace('L39:', 'Z39:'),
+      mixedGuardSource(20),
+      mixedGuardSource(0),
+      mixedGuardSource(40),
+    ]) {
+      parser = new Parser().setLanguage(language);
+      const fresh = parser.parse(next)!;
+      editTree(tree, previous, next);
+      const incremental = parser.parse(next, tree)!;
+      try {
+        expect(fresh.rootNode.hasError, next).toBe(false);
+        expect(syntaxSnapshot(incremental.rootNode), next).toEqual(syntaxSnapshot(fresh.rootNode));
+        expect(fresh.rootNode.descendantsOfType('conditional_expression'), next).toHaveLength(
+          next.includes('Z39:') || next.includes('L39:') ? 41 : next.includes('L19:') ? 21 : 1
+        );
+        expect(fresh.rootNode.descendantsOfType('is_pattern_expression'), next).toHaveLength(80);
+      } finally {
+        tree.delete();
+        fresh.delete();
+        parser.delete();
+      }
+      tree = incremental;
+      previous = next;
+    }
+  } finally {
+    tree.delete();
+  }
+});
+
+function mixedGuardSource(labels: number): string {
+  return `switch(x){case y when ${'a is T?[] is U && a?.b && '.repeat(40)}a ? [1] : b:${Array.from({ length: labels }, (_, index) => ` L${index}:`).join('')} break;}`;
+}

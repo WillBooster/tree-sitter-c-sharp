@@ -513,6 +513,41 @@ test.each([
   }
 );
 
+test.each([
+  { name: 'member access', term: 'a is T?[] is U && a?.b && ', labels: false, body: 'break;', conditionals: 1 },
+  {
+    name: 'nested conditionals',
+    term: 'a is T?[] is U && (c ? d : e) && ',
+    labels: false,
+    body: 'break;',
+    conditionals: 1001,
+  },
+  { name: 'as operators and labels', term: 'a is T?[] as U && ', labels: true, body: 'break;', conditionals: 1001 },
+  {
+    name: 'declaration after guard',
+    term: 'a is T?[] is U && a?.b && ',
+    labels: false,
+    body: 'var r=a ? b : c; break;',
+    conditionals: 2,
+  },
+  { name: 'partial obligations', term: 'a is T?[] is U && ', labels: 'half', body: 'break;', conditionals: 501 },
+])('bounds mixed type-operator guards: $name', { timeout: 60_000 }, ({ term, labels, body, conditionals }) => {
+  const source = (count: number): string =>
+    `switch(x){case y when ${term.repeat(count)}a ? [1] : b:${labels ? Array.from({ length: labels === 'half' ? Math.floor(count / 2) : count }, (_, index) => ` L${index}:`).join('') : ''} ${body}}`;
+  expectBoundedGrowth(source(100), source(1000), false);
+  const tree = parser.parse(source(1000))!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(tree.rootNode.descendantsOfType('is_pattern_expression')).toHaveLength(term.includes(' is U') ? 2000 : 1000);
+    expect(tree.rootNode.descendantsOfType('as_expression')).toHaveLength(term.includes(' as U') ? 1000 : 0);
+    expect(tree.rootNode.descendantsOfType('break_statement')).toHaveLength(1);
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(conditionals);
+    expect(tree.rootNode.descendantsOfType('labeled_statement')).toHaveLength(0);
+  } finally {
+    tree.delete();
+  }
+});
+
 test.each(['call', 'array', 'collection'])(
   'parses long %s lists of relational comparisons in linear time',
   { timeout: 60_000 },
