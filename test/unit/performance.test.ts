@@ -51,8 +51,8 @@ test('recovers from an error on each line in linear time', { timeout: 60_000 }, 
   let smallFastest = Infinity;
   let largeFastest = Infinity;
   for (let run = 0; run < 5; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large));
+    smallFastest = Math.min(smallFastest, parseCpuTime(small).cpuMicroseconds);
+    largeFastest = Math.min(largeFastest, parseCpuTime(large).cpuMicroseconds);
   }
   expect(largeFastest / smallFastest).toBeLessThan(18);
   // process.threadCpuUsage reports microseconds.
@@ -70,8 +70,8 @@ test.each(['@ ) ', '@ # ', '@ #:x/*c*/ '])(
     let smallFastest = Infinity;
     let largeFastest = Infinity;
     for (let run = 0; run < 5; run++) {
-      smallFastest = Math.min(smallFastest, parseCpuTime(small));
-      largeFastest = Math.min(largeFastest, parseCpuTime(large));
+      smallFastest = Math.min(smallFastest, parseCpuTime(small).cpuMicroseconds);
+      largeFastest = Math.min(largeFastest, parseCpuTime(large).cpuMicroseconds);
     }
     expect(largeFastest / smallFastest).toBeLessThan(18);
     expect(largeFastest).toBeLessThan(5_000_000);
@@ -320,19 +320,34 @@ test.each(questionSources)('parses repeated $name in linear time', { timeout: 60
   expectBoundedGrowth(source(200), large, false);
 });
 
+interface ParseCpuSample {
+  cpuMicroseconds: number;
+  elapsedCpuMicroseconds: number;
+  wallMilliseconds: number;
+  iterations: number;
+}
+
 function expectBoundedGrowth(small: string, large: string, expectedErrors = true): void {
-  parseCpuTime(large, expectedErrors);
+  const warmup = parseCpuTime(large, expectedErrors);
+  const smallSamples: ParseCpuSample[] = [];
+  const largeSamples: ParseCpuSample[] = [];
   let smallFastest = Infinity;
   let largeFastest = Infinity;
   for (let run = 0; run < 3; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small, expectedErrors));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large, expectedErrors));
+    const smallSample = parseCpuTime(small, expectedErrors);
+    const largeSample = parseCpuTime(large, expectedErrors);
+    smallSamples.push(smallSample);
+    largeSamples.push(largeSample);
+    smallFastest = Math.min(smallFastest, smallSample.cpuMicroseconds);
+    largeFastest = Math.min(largeFastest, largeSample.cpuMicroseconds);
   }
-  expect(largeFastest / smallFastest).toBeLessThan(18);
-  expect(largeFastest).toBeLessThan(5_000_000);
+  const samples = JSON.stringify({ warmup, smallSamples, largeSamples });
+  expect(largeFastest / smallFastest, samples).toBeLessThan(18);
+  expect(largeFastest, samples).toBeLessThan(5_000_000);
 }
 
-function parseCpuTime(source: string, expectedErrors = true): number {
+function parseCpuTime(source: string, expectedErrors = true): ParseCpuSample {
+  const wallStart = performance.now();
   const start = process.threadCpuUsage();
   let samples = 0;
   let elapsed = 0;
@@ -347,8 +362,14 @@ function parseCpuTime(source: string, expectedErrors = true): number {
     const { system, user } = process.threadCpuUsage(start);
     elapsed = system + user;
   } while (elapsed < 50_000);
+  const wallMilliseconds = performance.now() - wallStart;
   expect(allMatchErrors).toBe(true);
-  return elapsed / samples;
+  return {
+    cpuMicroseconds: elapsed / samples,
+    elapsedCpuMicroseconds: elapsed,
+    wallMilliseconds,
+    iterations: samples,
+  };
 }
 
 test.each(
@@ -469,8 +490,8 @@ test.each(['call', 'array', 'collection'])(
     let smallFastest = Infinity;
     let largeFastest = Infinity;
     for (let run = 0; run < 3; run++) {
-      smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
-      largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+      smallFastest = Math.min(smallFastest, parseCpuTime(small, false).cpuMicroseconds);
+      largeFastest = Math.min(largeFastest, parseCpuTime(large, false).cpuMicroseconds);
     }
     expect(largeFastest / smallFastest).toBeLessThan(18);
     const tree = parser.parse(large)!;
