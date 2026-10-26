@@ -1,5 +1,29 @@
 export const ownershipSamples = [
   {
+    source: "class C { void M() { switch (x) { case T y when a as T?[]? is null && a ? [1] : b: L: break; } } }",
+    ranges: [[[48,71],[74,77],[80,81]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when p ? c : a as T?[]? as object == null && a ? [1] : b: L: break; } } }",
+    ranges: [[[48,49],[52,53],[56,99]],[[56,89],[92,95],[98,99]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as int? is null && a ? [1] : b: break; } } }",
+    ranges: [[[48,70],[73,76],[79,80]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as int? as object == null && a ? [1] : b: break; } } }",
+    ranges: [[[48,80],[83,86],[89,90]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as int? is not null && a ? [1] : b: break; } } }",
+    ranges: [[[48,74],[77,80],[83,84]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T? is null && a ? [1] : b: break; } } }",
+    ranges: [[[48,68],[71,74],[77,78]]],
+  },
+  {
     source: "var r = c is T ? f(a ? 1 : 2) : a?[0] is T ? b : c;",
     ranges: [[[8,14],[17,29],[32,50]],[[19,20],[23,24],[27,28]],[[32,42],[45,46],[49,50]]],
   },

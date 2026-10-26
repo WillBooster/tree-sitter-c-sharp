@@ -17,7 +17,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     walk.input = &input;
     walk.scanner = scanner;
     if (walk.case_boundary && walk.nullable_allowed && !walk.known_ternary &&
-        question_type_binary_follower(lexer, &input, following)) {
+        question_type_operator_follower(lexer, &input, following)) {
         walk.known_nullable = true;
         walk.known_ternary = false;
         walk.role_active = false;

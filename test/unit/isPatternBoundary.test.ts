@@ -13,6 +13,44 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[]? is null && a ? [1] : b: L: break; } } }',
+      guards: ['when a as T?[]? is null && a ? [1] : b'],
+      labels: ['L'],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 2 },
+    },
+    {
+      source:
+        'class C { void M() { switch (x) { case T y when p ? c : a as T?[]? as object == null && a ? [1] : b: L: break; } } }',
+      guards: ['when p ? c : a as T?[]? as object == null && a ? [1] : b'],
+      labels: ['L'],
+      nodeCounts: { conditional_expression: 2, conditional_access_expression: 0, nullable_type: 2 },
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as int? is null && a ? [1] : b: break; } } }',
+      guards: ['when a as int? is null && a ? [1] : b'],
+      labels: [],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 1 },
+    },
+    {
+      source:
+        'class C { void M() { switch (x) { case T y when a as int? as object == null && a ? [1] : b: break; } } }',
+      guards: ['when a as int? as object == null && a ? [1] : b'],
+      labels: [],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 1 },
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as int? is not null && a ? [1] : b: break; } } }',
+      guards: ['when a as int? is not null && a ? [1] : b'],
+      labels: [],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 1 },
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T? is null && a ? [1] : b: break; } } }',
+      guards: ['when a as T? is null && a ? [1] : b'],
+      labels: [],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 1 },
+    },
+    {
       source: 'switch (x) { case T?[] y when a ? b : c: label: break; case 2: break; }',
       pattern: 'declaration_pattern',
       guards: ['when a ? b : c'],

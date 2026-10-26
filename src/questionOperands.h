@@ -138,7 +138,7 @@ static bool question_suffix_ordinary(QuestionFollowing next) {
 static bool question_walk_nullable_marker(TSLexer *lexer, QuestionWalk *walk, QuestionFollowing following) {
     bool allocation = question_allocation_nullable(walk, following.token);
     bool designation = walk->type_operand && !following.member && question_nullable_designation(lexer, walk->input);
-    bool binary = question_type_binary_follower(lexer, walk->input, following);
+    bool binary = question_type_operator_follower(lexer, walk->input, following);
     bool guard_type = walk->case_boundary && walk->type_operand &&
         (following.token == '{' || following.token == ':' || following.token == '?' || binary);
     if (following.token != '>' && !allocation && !guard_type && !designation) return false;
@@ -153,8 +153,9 @@ static bool question_allocation_nullable(const QuestionWalk *walk, int32_t follo
     return walk->allocation_type && (following == '[' || (following == '(' && !walk->allocation_rank));
 }
 
-static bool question_type_binary_follower(TSLexer *lexer, QuestionInput *input, QuestionFollowing following) {
+static bool question_type_operator_follower(TSLexer *lexer, QuestionInput *input, QuestionFollowing following) {
     int32_t c = following.token;
+    if (is_id_start(c)) return question_type_keyword_follower(lexer, input);
     if (!question_operator(c) && c != '<' && c != '>' && c != '=') return false;
     if (c != '!' && c != '&') return !question_expression_start(lexer, c);
     QuestionCheckpoint start = question_input_checkpoint(input);
@@ -330,7 +331,7 @@ static void question_walk_as_type(TSLexer *lexer, QuestionWalk *walk) {
     bool type = rank_read_as_type(lexer, &read) && !read.conditional && !read.coalesce && !read.colon;
     bool follows = read.binary || read.division || (read.has_word
         ? read.word.keyword && (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))
-        : question_walk_type_follows(lexer, walk) || question_type_binary_follower(lexer, walk->input, (QuestionFollowing){.token = lexer->lookahead}));
+        : question_type_operator_follower(lexer, walk->input, (QuestionFollowing){.token = lexer->lookahead}));
     TSLexerPosition end;
     lexer->get_position(lexer, &end);
     walk->as_type_end = type && follows ? end.bytes : 0;
@@ -696,7 +697,7 @@ static void question_walk_type_rank_end(TSLexer *lexer, QuestionWalk *walk) {
         walk->ordinary_optionals = walk->optional;
         walk->typed_ordinary_snapshot = true;
     }
-    if (!walk->prefix_ordinary && question_walk_type_follows(lexer, walk)) walk->future_root_question = false;
+    if (!walk->prefix_ordinary && question_type_keyword_follower(lexer, walk->input)) walk->future_root_question = false;
 }
 
 static bool question_walk_type_pattern(TSLexer *lexer, QuestionWalk *walk) {
@@ -754,6 +755,7 @@ static bool question_nullable_designation(TSLexer *lexer, QuestionInput *input) 
 }
 
 static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable, bool case_boundary, QuestionInput *input) {
+    if (case_boundary && question_type_keyword_follower(lexer, input)) return true;
     if (nullable && case_boundary && lexer->lookahead == ':') return true;
     if (lexer->lookahead == '{') return true;
     if (nullable) {
@@ -773,12 +775,12 @@ static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable, bool case_
         (!word.keyword || strcmp(word.word, "with") || question_skip_separators(lexer) != '{');
 }
 
-static bool question_walk_type_follows(TSLexer *lexer, QuestionWalk *walk) {
-    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+static bool question_type_keyword_follower(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
     QuestionIdentifier word;
     bool type = rank_read_identifier(lexer, &word) && word.keyword &&
         (!strcmp(word.word, "is") || !strcmp(word.word, "as"));
-    question_input_restore(walk->input, start);
+    question_input_restore(input, start);
     return type;
 }
 

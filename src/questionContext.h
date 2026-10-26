@@ -269,7 +269,7 @@ static bool question_walk_name_suffix(TSLexer *, QuestionWalk *, const QuestionI
 static void question_walk_is_name_operator(QuestionWalk *, int32_t);
 static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_as_type(TSLexer *, QuestionWalk *);
-static bool question_type_binary_follower(TSLexer *, QuestionInput *, QuestionFollowing);
+static bool question_type_operator_follower(TSLexer *, QuestionInput *, QuestionFollowing);
 static QuestionFollowing question_walk_following(TSLexer *, QuestionWalk *);
 static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation, const QuestionCheckpoint *);
 static bool question_walk_future_lambda(TSLexer *, QuestionWalk *, const QuestionIdentifier *, const QuestionCheckpoint *);
@@ -295,7 +295,7 @@ static bool question_walk_current_type_pattern(TSLexer *lexer, QuestionWalk *wal
 static bool question_walk_pattern_suffix(TSLexer *lexer, bool *nullable, uint32_t *questions);
 static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable, bool case_boundary, QuestionInput *input);
 static bool question_allocation_nullable(const QuestionWalk *, int32_t);
-static bool question_walk_type_follows(TSLexer *, QuestionWalk *);
+static bool question_type_keyword_follower(TSLexer *, QuestionInput *);
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk);
 static QuestionWalkStep question_walk_leading_commas(TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_multidimensional_rank(TSLexer *lexer, QuestionWalk *walk, int32_t *first);
