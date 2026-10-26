@@ -13,6 +13,12 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     QuestionWalk walk = question_walk_create(scanner, following, *known_nullable, context_flags, rank_phase);
     walk.input = &input;
     walk.scanner = scanner;
+    if (walk.case_boundary && walk.nullable_allowed && !walk.known_ternary &&
+        question_type_binary_follower(lexer, &input, following)) {
+        walk.known_nullable = true;
+        walk.known_ternary = false;
+        walk.role_active = false;
+    }
     Interpolation *interpolation = question_interpolation(scanner);
     unsigned result = 0;
     QuestionWalkStep step = question_walk_read(scanner, lexer, &walk, false);

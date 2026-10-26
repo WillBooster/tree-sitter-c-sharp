@@ -139,6 +139,7 @@ typedef struct {
     uint32_t cached_count;
     uint32_t proven_nullable_questions;
     unsigned constructor_cursor;
+    uint32_t as_type_end;
     uint32_t reserved;
     uint64_t mandatory;
     uint64_t optional;
@@ -266,6 +267,9 @@ static bool question_walk_is_name(TSLexer *, QuestionWalk *, const QuestionIdent
 static bool question_walk_name_suffix(TSLexer *, QuestionWalk *, const QuestionIdentifier *, RankTypeRead *);
 static void question_walk_is_name_operator(QuestionWalk *, int32_t);
 static QuestionWalkStep question_walk_as_prefix(TSLexer *lexer, QuestionWalk *walk);
+static void question_walk_as_type(TSLexer *, QuestionWalk *);
+static bool question_type_binary_follower(TSLexer *, QuestionInput *, QuestionFollowing);
+static QuestionFollowing question_walk_following(TSLexer *, QuestionWalk *);
 static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation, const QuestionCheckpoint *);
 static bool question_walk_future_lambda(TSLexer *, QuestionWalk *, const QuestionIdentifier *, const QuestionCheckpoint *);
 static bool question_read_nullable_lambda_header(TSLexer *, QuestionInput *, RankTypeRead *, const QuestionCheckpoint *);
@@ -277,6 +281,7 @@ static bool question_walk_independent_type(const QuestionWalk *, bool, bool);
 static QuestionWalkStep question_walk_question(TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_coalescing(TSLexer *lexer, QuestionWalk *walk);
 static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk);
+
 static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *walk);
 static void question_walk_assignment_context(QuestionWalk *walk, bool comparison);
 static QuestionWalkStep question_walk_delimiter(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, int32_t c);
@@ -682,9 +687,17 @@ static void question_walk_coalescing(TSLexer *lexer, QuestionWalk *walk) {
 }
 
 static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
-    question_skip_separators(lexer);
-    QuestionFollowing following = question_following(lexer);
+    TSLexerPosition position;
+    lexer->get_position(lexer, &position);
+    bool owned_as = walk->as_type_end && position.bytes < walk->as_type_end;
+    QuestionFollowing following = question_walk_following(lexer, walk);
     walk->is_name_pending = false;
+    if (owned_as) {
+        walk->suffix.regular = false;
+        walk->cache_shaped = false;
+        walk->is_as_phase = false;
+        return true;
+    }
     if (question_walk_nullable_marker(lexer, walk, following)) return true;
     walk->future_root_question = true;
     question_walk_access_chain(walk, following);
@@ -722,6 +735,18 @@ static bool question_walk_root_question(TSLexer *lexer, QuestionWalk *walk) {
     }
     return later_nullable;
 }
+
+static QuestionFollowing question_walk_following(TSLexer *lexer, QuestionWalk *walk) {
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    if (question_skip_separators(lexer) == -1) {
+        question_input_restore(walk->input, start);
+        return (QuestionFollowing){.token = '/'};
+    }
+    QuestionFollowing following = question_following(lexer);
+    question_input_restore(walk->input, (QuestionCheckpoint){walk->input->cursor, start.capturing});
+    return following;
+}
+
 
 static QuestionWalkStep question_walk_assignment(TSLexer *lexer, QuestionWalk *walk) {
     advance(lexer);

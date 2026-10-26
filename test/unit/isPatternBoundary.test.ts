@@ -134,6 +134,13 @@ test('preserves case patterns, guards and statement labels across clause edits',
       guards: ['when y is T && z ? [a] : b'],
       labels: [],
     },
+    {
+      source: 'switch (x) { case y when a?[0] as T?[] is null: ready: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a?[0] as T?[] is null: ready'],
+      labels: [],
+      nodeCounts: { nullable_type: 1, array_type: 1, conditional_access_expression: 0, conditional_expression: 1 },
+    },
     { source: 'var r = x switch { T?[] y when a ? [1] : b => 1, _ => 0 };', guards: ['when a ? [1] : b'], labels: [] },
   ];
   const parser = new Parser().setLanguage(language);
@@ -153,6 +160,11 @@ test('preserves case patterns, guards and statement labels across clause edits',
           );
         }
         const captures = query.captures(fresh.rootNode);
+        if (sample.nodeCounts) {
+          for (const [type, count] of Object.entries(sample.nodeCounts)) {
+            expect(fresh.rootNode.descendantsOfType(type), sample.source).toHaveLength(count);
+          }
+        }
         if (sample.guardKinds) {
           expect(
             fresh.rootNode.descendantsOfType('when_clause').map((node) => node.firstNamedChild?.type),

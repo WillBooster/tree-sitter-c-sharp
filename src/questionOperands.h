@@ -137,13 +137,7 @@ static bool question_suffix_ordinary(QuestionFollowing next) {
 static bool question_walk_nullable_marker(TSLexer *lexer, QuestionWalk *walk, QuestionFollowing following) {
     bool allocation = walk->allocation_type &&
         (following.token == '[' || (following.token == '(' && !walk->allocation_rank));
-    bool binary = false;
-    if (following.token == '&' || following.token == '|') {
-        QuestionCheckpoint start = question_input_checkpoint(walk->input);
-        advance(lexer);
-        binary = lexer->lookahead == following.token;
-        question_input_restore(walk->input, start);
-    }
+    bool binary = question_type_binary_follower(lexer, walk->input, following);
     bool guard_type = walk->case_boundary && walk->type_operand &&
         (following.token == '{' || following.token == ':' || following.token == '?' || binary);
     if (following.token != '>' && !allocation && !guard_type) return false;
@@ -152,6 +146,17 @@ static bool question_walk_nullable_marker(TSLexer *lexer, QuestionWalk *walk, Qu
     walk->cache_shaped = false;
     walk->is_as_phase = false;
     return true;
+}
+
+static bool question_type_binary_follower(TSLexer *lexer, QuestionInput *input, QuestionFollowing following) {
+    int32_t c = following.token;
+    if (!question_operator(c) && c != '<' && c != '>' && c != '=') return false;
+    if (c != '!' && c != '&') return !question_expression_start(lexer, c);
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    advance(lexer);
+    bool binary = lexer->lookahead == (c == '!' ? '=' : '&');
+    question_input_restore(input, start);
+    return binary;
 }
 
 static void question_walk_finish_binding_chain(QuestionWalk *walk) {
@@ -298,8 +303,9 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
 static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation, const QuestionCheckpoint *word_start) {
     if (question_walk_future_lambda(lexer, walk, identifier, word_start)) return QUESTION_WALK_CONTINUE;
     if (!question_walk_is_name(lexer, walk, identifier)) return QUESTION_WALK_UNKNOWN;
-    bool own_as_type = identifier->keyword && !strcmp(identifier->word, "as") && !walk->depth &&
-        walk->binding && walk->recording && !walk->root_colons;
+    bool keyword_as = identifier->keyword && !strcmp(identifier->word, "as") && !walk->depth;
+    if (keyword_as && walk->case_boundary && walk->role_active) question_walk_as_type(lexer, walk);
+    bool own_as_type = keyword_as && walk->binding && walk->recording && !walk->root_colons;
     if (own_as_type) return question_walk_as_prefix(lexer, walk);
     if (walk->as_operand && !walk->depth && !(identifier->keyword && !strcmp(identifier->word, "as"))) {
         RankTypeRead read = {0};
@@ -311,6 +317,19 @@ static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, Questio
         (!strcmp(identifier->word, "out") || !strcmp(identifier->word, "case") || !strcmp(identifier->word, "is"));
     if (!creation) question_walk_generic(lexer, walk, identifier, declaration);
     return creation ? question_walk_creation_prefix(lexer, walk) : QUESTION_WALK_CONTINUE;
+}
+
+static void question_walk_as_type(TSLexer *lexer, QuestionWalk *walk) {
+    QuestionCheckpoint start = question_input_checkpoint(walk->input);
+    RankTypeRead read = {0};
+    bool type = rank_read_as_type(lexer, &read) && !read.conditional && !read.coalesce && !read.colon;
+    bool follows = read.binary || read.division || (read.has_word
+        ? read.word.keyword && (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))
+        : question_walk_type_follows(lexer, walk) || question_type_binary_follower(lexer, walk->input, (QuestionFollowing){.token = lexer->lookahead}));
+    TSLexerPosition end;
+    lexer->get_position(lexer, &end);
+    walk->as_type_end = type && follows ? end.bytes : 0;
+    question_input_restore(walk->input, start);
 }
 
 static bool question_walk_future_lambda(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, const QuestionCheckpoint *word_start) {
