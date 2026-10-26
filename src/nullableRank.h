@@ -182,22 +182,22 @@ static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTo
 }
 
 static void rank_complete_modes(TSLexer *lexer, Scanner *scanner, RankParse modes[2], RankScopeRead *scope) {
-    Scanner context;
     bool has_siblings = lexer->lookahead == ',';
     bool scope_attempted = scope && (has_siblings || lexer->lookahead == ')');
-    bool arguments_complete = scope_attempted && rank_prepare_arguments(scanner, scope, &context);
-    QuestionFrame *frame = arguments_complete ? &context.question_frames[context.question_frame_count - 1] : NULL;
+    Scanner *context = scope_attempted ? ts_malloc(sizeof(*context)) : NULL;
+    bool arguments_complete = context && rank_prepare_arguments(scanner, scope, context);
+    QuestionFrame *frame = arguments_complete ? &context->question_frames[context->question_frame_count - 1] : NULL;
     RankParse original[2] = {modes[0], modes[1]};
-    bool transferable = frame && context.question_frame_count - 1 >
-        rank_enclosing_boundary(&context, context.question_frame_count - 1);
+    bool transferable = frame && context->question_frame_count - 1 >
+        rank_enclosing_boundary(context, context->question_frame_count - 1);
     bool cached = transferable && rank_apply_transfer(frame, modes);
     if (!cached) {
-        arguments_complete = arguments_complete && has_siblings && rank_complete_arguments(lexer, scope, &context);
-        rank_enclosing_modes(lexer, arguments_complete ? &context : scanner, modes, arguments_complete);
+        arguments_complete = arguments_complete && has_siblings && rank_complete_arguments(lexer, scope, context);
+        rank_enclosing_modes(lexer, arguments_complete ? context : scanner, modes, arguments_complete);
         if (arguments_complete && transferable)
-            rank_save_transfer(&scanner->question_frames[context.question_frame_count - 1], original, modes);
+            rank_save_transfer(&scanner->question_frames[context->question_frame_count - 1], original, modes);
     }
-    if (scope_attempted) array_delete(&context.interpolation_stack);
+    if (context) question_scope_delete(context);
 }
 
 static bool rank_apply_transfer(const QuestionFrame *frame, RankParse modes[2]) {

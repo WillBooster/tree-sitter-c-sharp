@@ -239,20 +239,20 @@ static QuestionScanResult scan_case_guard_when(Scanner *scanner, TSLexer *lexer)
     if (lexer->lookahead != 'w') return QUESTION_NOT_STARTED;
     QuestionIdentifier word;
     if (!question_identifier(lexer, false, &word) || !word.keyword || strcmp(word.word, "when")) return QUESTION_MISMATCHED;
-    Scanner guard;
-    question_scope_init(&guard, scanner);
-    QuestionFrame *frame = &guard.question_frames[guard.question_frame_count - 1];
+    Scanner *guard = question_scope_create(scanner);
+    QuestionFrame *frame = &guard->question_frames[guard->question_frame_count - 1];
     *frame = (QuestionFrame){.group = frame->group, .case_colon = true, .case_guard = true};
-    guard.question_unknown = false;
-    guard.question_type_uncertain = false;
-    guard.ternary_confirmation.valid = false;
-    question_clear_access_cache(&guard);
-    clear_question_rank(&guard);
+    guard->question_unknown = false;
+    guard->question_type_uncertain = false;
+    guard->ternary_confirmation.valid = false;
+    question_clear_access_cache(guard);
+    clear_question_rank(guard);
     lexer->mark_end(lexer);
-    if (question_prepare_guard(&guard, lexer)) {
+    if (question_prepare_guard(guard, lexer)) {
         array_delete(&scanner->interpolation_stack);
-        *scanner = guard;
-    } else array_delete(&guard.interpolation_stack);
+        *scanner = *guard;
+        ts_free(guard);
+    } else question_scope_delete(guard);
     lexer->result_symbol = CASE_GUARD_WHEN;
     return QUESTION_MATCHED;
 }
@@ -272,19 +272,19 @@ static void question_prepare_type_prefix(Scanner *scanner, QuestionInput *input)
         frame->guard.handoff = false;
     }
     if (!handoff) return;
-    Scanner prefix;
-    question_scope_init(&prefix, scanner);
+    Scanner *prefix = question_scope_create(scanner);
     uint8_t role = scanner->question_rank_role;
     uint32_t questions = scanner->question_rank_prefix_questions;
-    if (question_prepare_prefix(&prefix, input, true)) {
+    if (question_prepare_prefix(prefix, input, true)) {
         array_delete(&scanner->interpolation_stack);
-        *scanner = prefix;
+        *scanner = *prefix;
+        ts_free(prefix);
         if (role) {
             scanner->question_rank_role = role;
             scanner->question_rank_prefix_questions = questions;
         }
     } else {
-        array_delete(&prefix.interpolation_stack);
+        question_scope_delete(prefix);
         scanner->question_unknown = true;
         question_clear_rank_from(scanner, 0);
     }

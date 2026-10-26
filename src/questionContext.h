@@ -107,6 +107,17 @@ static void question_scope_init(Scanner *scope, const Scanner *source) {
     array_assign(&scope->interpolation_stack, &source->interpolation_stack);
 }
 
+static Scanner *question_scope_create(const Scanner *source) {
+    Scanner *scope = ts_malloc(sizeof(*scope));
+    question_scope_init(scope, source);
+    return scope;
+}
+
+static void question_scope_delete(Scanner *scope) {
+    array_delete(&scope->interpolation_stack);
+    ts_free(scope);
+}
+
 static bool question_rank_scope(Scanner *, QuestionInput *, QuestionCheckpoint, unsigned, bool);
 static bool question_apply_event(Scanner *, char);
 static void question_end_lambda(QuestionFrame *);
@@ -533,13 +544,13 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
     bool confirmation_proved = walk->depth > 0 || walk->root_colons < 2 || !walk->optional ||
         (walk->optional == 1 && walk->confirmation_type);
     bool confirmable = !walk->lambda_boundary && !role && walk->ordinary && !walk->known_nullable && !walk->assignment_possible && confirmation_proved;
-    Scanner confirmed;
+    Scanner *confirmed = confirmable ? ts_malloc(sizeof(*confirmed)) : NULL;
     if (confirmable) {
-        confirmed = *scanner;
+        *confirmed = *scanner;
         QuestionWalk ternary = *walk;
         ternary.known_ternary = true;
-        question_walk_pending(&ternary, &confirmed.question_frames[confirmed.question_frame_count - 1], false);
-        apply_question_events(&confirmed, walk->events.contents, walk->events.size);
+        question_walk_pending(&ternary, &confirmed->question_frames[confirmed->question_frame_count - 1], false);
+        apply_question_events(confirmed, walk->events.contents, walk->events.size);
     }
     question_walk_pending(walk, frame, role == 1 || role == 3);
     apply_question_events(scanner, walk->events.contents, walk->events.size);
@@ -547,8 +558,9 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
     question_complete_context(scanner, walk->found_next_question, preserve_unknown);
     question_walk_cache(scanner, walk, role);
     if (!confirmable) return role;
-    question_complete_context(&confirmed, walk->found_next_question, preserve_unknown);
-    question_save_confirmation(scanner, &confirmed);
+    question_complete_context(confirmed, walk->found_next_question, preserve_unknown);
+    question_save_confirmation(scanner, confirmed);
+    ts_free(confirmed);
     return role;
 }
 

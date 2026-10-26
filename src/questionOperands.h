@@ -47,11 +47,10 @@ static bool rank_complete_sibling(TSLexer *lexer, Scanner *context, QuestionInpu
 static bool question_rank_scope(Scanner *context, QuestionInput *input, QuestionCheckpoint start, unsigned end, bool normalize) {
     QuestionCheckpoint restore = {.cursor = input->cursor, .capturing = input->capturing};
     question_input_restore(input, (QuestionCheckpoint){start.cursor, true});
-    Scanner local;
-    question_scope_init(&local, context);
-    QuestionWalk walk = question_walk_create(&local, (QuestionFollowing){0}, false, 0, RANK_NONE);
+    Scanner *local = question_scope_create(context);
+    QuestionWalk walk = question_walk_create(local, (QuestionFollowing){0}, false, 0, RANK_NONE);
     walk.input = input;
-    walk.scanner = &local;
+    walk.scanner = local;
     walk.syntax_only = true;
     walk.discard_to_question = normalize;
     walk.role_active = false;
@@ -59,27 +58,27 @@ static bool question_rank_scope(Scanner *context, QuestionInput *input, Question
     walk.first_word = false;
     bool valid = question_walk_scope_prefix(&walk, end, normalize);
     if (valid) {
-        valid = apply_question_events(&local, walk.events.contents, walk.events.size);
-        if (valid) interpolation_question_events(&local, walk.events.contents, walk.events.size);
+        valid = apply_question_events(local, walk.events.contents, walk.events.size);
+        if (valid) interpolation_question_events(local, walk.events.contents, walk.events.size);
     }
-    valid = valid && local.question_frame_count <= context->question_frame_count;
-    if (!normalize) valid = valid && local.question_frame_count == context->question_frame_count &&
-        !local.question_frames[local.question_frame_count - 1].generic_pending;
+    valid = valid && local->question_frame_count <= context->question_frame_count;
+    if (!normalize) valid = valid && local->question_frame_count == context->question_frame_count &&
+        !local->question_frames[local->question_frame_count - 1].generic_pending;
     if (valid) {
-        for (unsigned i = 0; i < local.question_frame_count; i++) {
+        for (unsigned i = 0; i < local->question_frame_count; i++) {
             QuestionFrame original = context->question_frames[i];
-            context->question_frames[i] = local.question_frames[i];
+            context->question_frames[i] = local->question_frames[i];
             context->question_frames[i].pending = original.pending;
             context->question_frames[i].unknown = original.unknown;
             context->question_frames[i].case_colon = original.case_colon;
             context->question_frames[i].case_guard = original.case_guard;
             context->question_frames[i].guard = original.guard;
         }
-        context->question_frame_count = local.question_frame_count;
-        array_assign(&context->interpolation_stack, &local.interpolation_stack);
+        context->question_frame_count = local->question_frame_count;
+        array_assign(&context->interpolation_stack, &local->interpolation_stack);
     }
     question_walk_dispose(&walk);
-    array_delete(&local.interpolation_stack);
+    question_scope_delete(local);
     question_input_restore(input, restore);
     return valid;
 }
