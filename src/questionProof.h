@@ -56,6 +56,42 @@ unknown:
 }
 
 
+static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    uint32_t prefix = 0;
+    bool simple = false;
+    bool target = rank_read_prefix(lexer, &simple, &prefix) && question_read_single_question(lexer) &&
+        question_skip_separators(lexer) == '[';
+    uint8_t result = RANK_NONE;
+    if (target) {
+        Scanner context;
+        question_scope_init(&context, scanner);
+        bool nullable = false, ternary = false;
+        unsigned role = prepare_question_context(&context, lexer, (QuestionFollowing){.token = '['}, &nullable,
+            QUESTION_PATTERN_TYPE | QUESTION_NULLABLE_ALLOWED | QUESTION_CASE_COLON, RANK_NONE, &ternary);
+        if (role == 2 && ternary && !nullable && UINT32_MAX - *questions >= prefix) {
+            *questions += prefix;
+            result = RANK_PATTERN_COMPLETE;
+        }
+        array_delete(&context.interpolation_stack);
+    }
+    question_input_restore(input, start);
+    return result;
+}
+
+static uint8_t question_guard_as_role(TSLexer *lexer, uint32_t *questions) {
+    QuestionInput input = question_input_create(lexer);
+    RankTypeRead read = {0};
+    bool type = rank_read_as_type(&input.lexer, &read) && !read.conditional && !read.coalesce &&
+        !read.division && !read.colon && (!read.has_word || (read.word.keyword &&
+            (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))));
+    array_delete(&input.characters);
+    if (!type || !read.questions) return RANK_NONE;
+    *questions = read.questions;
+    return RANK_NULLABLE_PREFIX;
+}
+
+
 static QuestionScanResult scan_case_guard_when(Scanner *scanner, TSLexer *lexer) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     if (lexer->lookahead != 'w') return QUESTION_NOT_STARTED;

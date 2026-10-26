@@ -1213,8 +1213,12 @@ static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *l
     clear_question_rank(scanner);
     lexer->mark_end(lexer);
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    if (symbol == TYPE_CONTEXT_IS && !scanner->question_unknown && !frame->unknown)
-        scanner->question_rank_role = rank_stream_role(lexer, scanner, &scanner->question_rank_prefix_questions);
+    if (!scanner->question_unknown && !frame->unknown) {
+        if (symbol == TYPE_CONTEXT_IS)
+            scanner->question_rank_role = rank_stream_role(lexer, scanner, &scanner->question_rank_prefix_questions);
+        else if (frame->case_guard)
+            scanner->question_rank_role = question_guard_as_role(lexer, &scanner->question_rank_prefix_questions);
+    }
     if (!scanner->question_rank_role) scanner->question_rank_prefix_questions = 0;
     lexer->result_symbol = symbol;
     return QUESTION_MATCHED;

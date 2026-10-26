@@ -88,6 +88,7 @@ static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo
 
 static uint8_t rank_stream_input(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
 static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
+static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
 
 static uint8_t rank_stream_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions) {
     QuestionInput input = question_input_create(lexer);
@@ -100,7 +101,11 @@ static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *que
     QuestionCheckpoint prefix = question_input_checkpoint(input);
     uint32_t prior_questions = *questions;
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    if (frame->case_guard && rank_guard_designation(lexer, questions, input)) return RANK_PATTERN_COMPLETE;
+    if (frame->case_guard) {
+        uint8_t role = question_guard_rank_role(lexer, scanner, questions, input);
+        if (role) return role;
+        if (rank_guard_designation(lexer, questions, input)) return RANK_PATTERN_COMPLETE;
+    }
     uint32_t pending = frame->pending;
     int32_t first = question_skip_separators(lexer);
     if (first == '(' || first == '[' || first == '{') {

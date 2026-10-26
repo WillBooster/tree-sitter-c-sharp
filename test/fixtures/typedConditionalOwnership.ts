@@ -1,5 +1,25 @@
 export const ownershipSamples = [
   {
+    source: "class C { void M() { switch (x) { case T y when a as int?[] is int?[]: L: break; } } }",
+    ranges: [[[48,66],[67,69],[71,72]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T?[] is N.T?[]: L: break; } } }",
+    ranges: [[[48,64],[65,67],[69,70]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T?[] is not T?[]: L: break; } } }",
+    ranges: [[[48,66],[67,69],[71,72]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T?[] is T?[] as T?[]: L: break; } } }",
+    ranges: [[[48,62],[63,73],[75,76]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T?[] as T?[]: L: break; } } }",
+    ranges: [],
+  },
+  {
     source: "class C { void M() { switch (x) { case T y when a as T?[]? is null && a ? [1] : b: L: break; } } }",
     ranges: [[[48,71],[74,77],[80,81]]],
   },

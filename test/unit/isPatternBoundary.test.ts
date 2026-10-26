@@ -13,6 +13,31 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source: 'class C { void M() { switch (x) { case T y when a as int?[] is int?[]: L: break; } } }',
+      guards: ['when a as int?[] is int?[]: L'],
+      labels: [],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[] is N.T?[]: L: break; } } }',
+      guards: ['when a as T?[] is N.T?[]: L'],
+      labels: [],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[] is not T?[]: L: break; } } }',
+      guards: ['when a as T?[] is not T?[]: L'],
+      labels: [],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[] is T?[] as T?[]: L: break; } } }',
+      guards: ['when a as T?[] is T?[] as T?[]: L'],
+      labels: [],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[] as T?[]: L: break; } } }',
+      guards: ['when a as T?[] as T?[]'],
+      labels: ['L'],
+    },
+    {
       source: 'class C { void M() { switch (x) { case T y when a as T?[]? is null && a ? [1] : b: L: break; } } }',
       guards: ['when a as T?[]? is null && a ? [1] : b'],
       labels: ['L'],

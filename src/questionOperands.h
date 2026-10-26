@@ -331,7 +331,7 @@ static void question_walk_as_type(TSLexer *lexer, QuestionWalk *walk) {
     bool type = rank_read_as_type(lexer, &read) && !read.conditional && !read.coalesce && !read.colon;
     bool follows = read.binary || read.division || (read.has_word
         ? read.word.keyword && (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))
-        : question_type_operator_follower(lexer, walk->input, (QuestionFollowing){.token = lexer->lookahead}));
+        : lexer->lookahead == ':' || question_type_operator_follower(lexer, walk->input, (QuestionFollowing){.token = lexer->lookahead}));
     TSLexerPosition end;
     lexer->get_position(lexer, &end);
     walk->as_type_end = type && follows ? end.bytes : 0;
@@ -571,16 +571,18 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
         if (step != QUESTION_WALK_CONTINUE) return step;
     }
     walk->binding = first >= 0 && first != ']' && first != ',' && !lexer->eof(lexer);
-    bool nullable_rank = walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT;
-    bool expression_rank = walk->rank_phase == RANK_TERNARY || walk->rank_phase == RANK_AFTER_NULLABLE;
     bool rank_separator = first == ']' || first == ',';
-    bool pattern_rank = !walk->known_nullable && rank_separator && walk->case_boundary && walk->nullable_allowed &&
+    bool nullable_rank = rank_separator &&
+        (walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT);
+    bool expression_rank = (walk->binding || first == ']') &&
+        (walk->rank_phase == RANK_TERNARY || walk->rank_phase == RANK_AFTER_NULLABLE);
+    bool pattern_rank = !walk->known_ternary && !walk->known_nullable && rank_separator && walk->case_boundary && walk->nullable_allowed &&
         question_walk_current_type_pattern(lexer, walk);
     if (pattern_rank) {
         walk->known_nullable = true;
         walk->known_ternary = false;
         walk->role_active = false;
-    } else if ((nullable_rank && rank_separator) || (expression_rank && (walk->binding || first == ']'))) {
+    } else if (nullable_rank || expression_rank) {
         walk->known_nullable = nullable_rank;
         walk->known_ternary = !walk->known_nullable;
         if (walk->known_ternary) scanner->question_type_uncertain = false;
@@ -589,13 +591,13 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
         walk->known_nullable = true;
         walk->role_active = false;
     }
-    if (!walk->binding && !question_walk_role_known(walk)) walk->role_active = false;
+    bool guard_collection = first == ']' && walk->pattern_type && walk->case_boundary && walk->context_known && !walk->nullable_only;
+    if (!walk->binding && !question_walk_role_known(walk) && !guard_collection) walk->role_active = false;
     walk->rank_phase = RANK_NONE;
     walk->entering_binding = false;
     if (question_binding_start(lexer, first)) return QUESTION_WALK_CONTINUE;
-    if (first == ';' && walk->nullable_context && question_invalid_binding_has_clause(lexer, walk))
-        return QUESTION_WALK_UNKNOWN;
-    return QUESTION_WALK_INVALID;
+    return first == ';' && walk->nullable_context && question_invalid_binding_has_clause(lexer, walk)
+        ? QUESTION_WALK_UNKNOWN : QUESTION_WALK_INVALID;
 }
 
 static void question_walk_attributed_lambda(TSLexer *lexer, QuestionWalk *walk) {
@@ -722,7 +724,9 @@ static bool question_walk_current_type_pattern(TSLexer *lexer, QuestionWalk *wal
         advance(lexer);
         bool nullable = false;
         uint32_t questions = 0;
-        pattern = question_walk_pattern_suffix(lexer, &nullable, &questions) && question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
+        bool suffix = question_walk_pattern_suffix(lexer, &nullable, &questions);
+        bool collection_tail = !nullable && walk->pattern_type && question_type_keyword_follower(lexer, walk->input);
+        pattern = suffix && !collection_tail && question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
         if (pattern) walk->proven_nullable_questions = questions;
     }
     question_input_restore(walk->input, start);

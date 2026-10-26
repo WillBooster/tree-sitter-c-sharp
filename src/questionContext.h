@@ -120,6 +120,7 @@ typedef enum {
     QUESTION_ACCESS_ALTERNATIVE = 8,
     QUESTION_NULLABLE_ALLOWED = 16,
     QUESTION_DIMENSION_EXPRESSION = 32,
+    QUESTION_PATTERN_TYPE = 64,
 } QuestionContextFlags;
 
 static const char *const question_predefined_types[] = {"bool", "byte", "sbyte", "char", "decimal", "double", "float", "int", "uint", "long", "ulong", "short", "ushort", "string", "object", "void"};
@@ -178,6 +179,7 @@ typedef struct {
     bool entering_binding;
     bool nullable_only;
     bool nullable_allowed;
+    bool pattern_type;
     bool omitted_rank_candidate;
     bool nullable_name_candidate;
     bool logical_name_candidate;
@@ -358,6 +360,7 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
         .entering_binding = following.token == '[',
         .nullable_only = context_flags & QUESTION_NULLABLE_ONLY,
         .nullable_allowed = context_flags & QUESTION_NULLABLE_ALLOWED,
+        .pattern_type = context_flags & QUESTION_PATTERN_TYPE,
         .omitted_rank_candidate = following.token == '[',
         .role_known = known,
         .context_known = context_known,
@@ -939,7 +942,7 @@ static void question_walk_complete_colon(QuestionWalk *walk) {
         if (known_ordinary && question_walk_role_known(walk)) walk->known_ternary = true;
         walk->role_active = false;
     }
-    bool guard_complete = walk->case_boundary && walk->context_known && !walk->mandatory && !walk->optional && !question_nullable_rank_branch(walk);
+    bool guard_complete = walk->case_boundary && walk->context_known && !walk->mandatory && !walk->optional && (!question_nullable_rank_branch(walk) || walk->pattern_type);
     if ((question_walk_role_known(walk) || guard_complete) && walk->proved_ternary && (!walk->binding || walk->case_boundary)) walk->known_ternary = true;
 }
 
