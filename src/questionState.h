@@ -13,7 +13,7 @@ static bool question_read_rank(Scanner *scanner, unsigned flags, const char *buf
 typedef struct { bool unknown, extended, rank, cache, depths, confirmation, transfers; } QuestionSerialization;
 
 static uint8_t question_take_rank(Scanner *scanner, bool *known_nullable, bool *dimension_expression) {
-    if (scanner->question_rank_role == RANK_ALLOCATION_PREFIX) {
+    if (scanner->question_rank_role == RANK_NULLABLE_PREFIX) {
         *known_nullable = true;
         if (!--scanner->question_rank_prefix_questions) clear_question_rank(scanner);
         return RANK_NONE;
@@ -52,8 +52,8 @@ static QuestionSerialization question_serialization_plan(const Scanner *scanner,
         available += extension_size;
         extended = false;
     }
-    bool allocation = (scanner->question_rank_role == RANK_ALLOCATION_PREFIX || scanner->question_rank_role == RANK_ALLOCATION_MIXED) && scanner->question_rank_prefix_questions;
-    bool rank = (allocation || (!unknown && scanner->question_rank_role &&
+    bool type_prefix = (scanner->question_rank_role == RANK_NULLABLE_PREFIX || scanner->question_rank_role == RANK_ALLOCATION_MIXED) && scanner->question_rank_prefix_questions;
+    bool rank = (type_prefix || (!unknown && scanner->question_rank_role &&
         (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE))) && available >= 5;
     if (rank) available -= 5;
     bool cache = !rank && (unknown || !scanner->question_type_uncertain) && scanner->question_access_cache && available >= 4;
@@ -116,7 +116,10 @@ static bool question_apply_event(Scanner *scanner, char event) {
     if (!question_apply_scope_event(frame, event)) return false;
     if (event == ':') {
         if (frame->pending) frame->pending--;
-        else if (!frame->unknown && !scanner->question_unknown) frame->case_colon = false;
+        else if (!frame->unknown && !scanner->question_unknown) {
+            frame->case_colon = false;
+            frame->case_guard = false;
+        }
     }
     if (event != ';') return true;
     frame->pending = 0;
@@ -128,6 +131,7 @@ static bool question_apply_event(Scanner *scanner, char event) {
     frame->lambda_result = false;
     frame->unknown = false;
     frame->case_colon = false;
+    frame->case_guard = false;
     if (scanner->question_frame_count == 1) reset_question_context(scanner);
     return true;
 }
@@ -232,7 +236,7 @@ static void question_save_confirmation(Scanner *scanner, const Scanner *confirme
     for (unsigned i = 0; i < scanner->question_frame_count; i++) {
         QuestionFrame actual = scanner->question_frames[i];
         QuestionFrame next = confirmed->question_frames[i];
-        if (actual.group != next.group || actual.case_colon != next.case_colon || actual.force_barrier != next.force_barrier ||
+        if (actual.group != next.group || actual.case_colon != next.case_colon || actual.case_guard != next.case_guard || actual.force_barrier != next.force_barrier ||
             actual.query_pending != next.query_pending || actual.query_result != next.query_result ||
             actual.lambda_query != next.lambda_query || actual.lambda_result != next.lambda_result ||
             actual.generic_pending != next.generic_pending) return;
@@ -249,11 +253,11 @@ static void question_save_confirmation(Scanner *scanner, const Scanner *confirme
 
 static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size) {
     if (flags & QUESTION_STATE_UNKNOWN) {
-        bool allocation = (flags & QUESTION_STATE_RANK_ROLE) && *size + 5 <= length &&
-            ((uint8_t)buffer[*size] == RANK_ALLOCATION_PREFIX || (uint8_t)buffer[*size] == RANK_ALLOCATION_MIXED);
-        if (!(flags & (QUESTION_STATE_ACCESS_CACHE | QUESTION_STATE_CONFIRMATION)) && !allocation) return false;
+        bool type_prefix = (flags & QUESTION_STATE_RANK_ROLE) && *size + 5 <= length &&
+            ((uint8_t)buffer[*size] == RANK_NULLABLE_PREFIX || (uint8_t)buffer[*size] == RANK_ALLOCATION_MIXED);
+        if (!(flags & (QUESTION_STATE_ACCESS_CACHE | QUESTION_STATE_CONFIRMATION)) && !type_prefix) return false;
         if (((flags & QUESTION_STATE_EXTENDED) && !(flags & QUESTION_STATE_CONFIRMATION)) ||
-            (flags & QUESTION_STATE_TYPE_UNCERTAIN) || ((flags & QUESTION_STATE_RANK_ROLE) && !allocation)) return false;
+            (flags & QUESTION_STATE_TYPE_UNCERTAIN) || ((flags & QUESTION_STATE_RANK_ROLE) && !type_prefix)) return false;
         scanner->question_unknown = true;
     }
     scanner->question_type_uncertain = (flags & QUESTION_STATE_TYPE_UNCERTAIN) != 0;
@@ -272,7 +276,7 @@ static bool question_read_rank(Scanner *scanner, unsigned flags, const char *buf
     scanner->question_rank_role = (uint8_t)buffer[(*size)++];
     for (unsigned byte = 0; byte < 4; byte++) scanner->question_rank_prefix_questions |=
         (uint32_t)(unsigned char)buffer[(*size)++] << (byte * 8);
-    if (scanner->question_rank_role == RANK_ALLOCATION_PREFIX) return scanner->question_rank_prefix_questions != 0;
+    if (scanner->question_rank_role == RANK_NULLABLE_PREFIX) return scanner->question_rank_prefix_questions != 0;
     if (scanner->question_rank_role == RANK_ALLOCATION_MIXED) return scanner->question_rank_prefix_questions > 1;
     if (!scanner->question_rank_role || scanner->question_rank_role > RANK_PATTERN_COMPLETE) return false;
     if (!scanner->question_type_uncertain && scanner->question_rank_role != RANK_PATTERN_COMPLETE) return false;
@@ -297,7 +301,7 @@ static unsigned question_serialized_size(const Scanner *scanner, bool transfers)
     unsigned size = 2;
     for (unsigned i = 0; i < scanner->question_frame_count; i++) {
         QuestionFrame frame = scanner->question_frames[i];
-        size += 1 + question_varint_size(frame.pending);
+        size += 1 + frame.case_colon + question_varint_size(frame.pending);
         unsigned mask = transfers ? question_rank_mask(&frame) : 0;
         if (frame.query_pending || frame.lambda_query || frame.generic_pending || mask) {
             size += 1 + question_varint_size(frame.query_pending) + question_varint_size(frame.lambda_query) + question_varint_size(frame.generic_pending);
@@ -317,6 +321,7 @@ static void question_serialize(const Scanner *scanner, char *buffer, unsigned *s
         bool extra = frame.query_pending || frame.lambda_query || frame.generic_pending || mask;
         if (extra) buffer[(*size)++] = mask ? 6 : 7;
         buffer[(*size)++] = (char)question_frame_modes(frame);
+        if (frame.case_colon) buffer[(*size)++] = (char)frame.case_guard;
         question_write_varint(buffer, size, frame.pending);
         if (extra) {
             question_write_varint(buffer, size, frame.query_pending);
@@ -359,6 +364,12 @@ static bool question_read_frame(QuestionFrame *frame, unsigned index, const char
     *frame = (QuestionFrame){.group = groups[kind], .unknown = (group & 8) != 0,
         .case_colon = (group & 16) != 0, .force_barrier = (group & 32) != 0,
         .query_result = (group & 64) != 0, .lambda_result = (group & 128) != 0};
+    if (frame->case_colon) {
+        if (*size == length) return false;
+        unsigned guard = (unsigned char)buffer[(*size)++];
+        if (guard > 1) return false;
+        frame->case_guard = guard;
+    }
     if (!question_read_varint(buffer, length, size, &frame->pending)) return false;
     if (extra && (!question_read_varint(buffer, length, size, &frame->query_pending) ||
         !question_read_varint(buffer, length, size, &frame->lambda_query) ||

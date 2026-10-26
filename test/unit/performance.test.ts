@@ -51,8 +51,8 @@ test('recovers from an error on each line in linear time', { timeout: 60_000 }, 
   let smallFastest = Infinity;
   let largeFastest = Infinity;
   for (let run = 0; run < 5; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large));
+    smallFastest = Math.min(smallFastest, parseCpuTime(small).cpuMicroseconds);
+    largeFastest = Math.min(largeFastest, parseCpuTime(large).cpuMicroseconds);
   }
   expect(largeFastest / smallFastest).toBeLessThan(18);
   // process.threadCpuUsage reports microseconds.
@@ -70,8 +70,8 @@ test.each(['@ ) ', '@ # ', '@ #:x/*c*/ '])(
     let smallFastest = Infinity;
     let largeFastest = Infinity;
     for (let run = 0; run < 5; run++) {
-      smallFastest = Math.min(smallFastest, parseCpuTime(small));
-      largeFastest = Math.min(largeFastest, parseCpuTime(large));
+      smallFastest = Math.min(smallFastest, parseCpuTime(small).cpuMicroseconds);
+      largeFastest = Math.min(largeFastest, parseCpuTime(large).cpuMicroseconds);
     }
     expect(largeFastest / smallFastest).toBeLessThan(18);
     expect(largeFastest).toBeLessThan(5_000_000);
@@ -116,6 +116,56 @@ test.each([{ name: 'generic alternatives', source: repeatedGenericConditionalSou
 
 function repeatedGenericConditionalSource(count: number): string {
   return 'var r = ' + 'x ? a?[0] : G<B,C> ? a : d ? [b] : '.repeat(count) + 'c;';
+}
+
+test.each(['a ? b : ', 'a is T z ? b : ', 'a is T[] z ? [1] : ', 'a is T?[] z ? [1] : ', 'a is (T,U)[] z ? [1] : '])(
+  'bounds conditional chain proofs in case guards: %s',
+  { timeout: 60_000 },
+  (link) => {
+    const source = (count: number): string => `switch (x) { case y when ${link.repeat(count)}b: break; }`;
+    const large = source(1000);
+    expectBoundedGrowth(source(100), large, false);
+    const tree = parser.parse(large)!;
+    try {
+      expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1000);
+      expect(tree.rootNode.descendantsOfType('when_clause')[0]!.text).toBe(`when ${link.repeat(1000)}b`);
+    } finally {
+      tree.delete();
+    }
+  }
+);
+
+test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
+  const large = stackedCaseGuards(1000);
+  expectBoundedGrowth(stackedCaseGuards(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('when_clause')).toHaveLength(1000);
+  } finally {
+    tree.delete();
+  }
+});
+
+function stackedCaseGuards(count: number): string {
+  return (
+    'switch (x) { ' + Array.from({ length: count }, (_, index) => `case ${index} when ready: `).join('') + 'break; }'
+  );
+}
+
+test('bounds repeated nullable type-pattern suffix proofs', { timeout: 60_000 }, () => {
+  const large = nullablePatternSuffixes(1000);
+  expectBoundedGrowth(nullablePatternSuffixes(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1001);
+    expect(tree.rootNode.descendantsOfType('array_type')).toHaveLength(1000);
+  } finally {
+    tree.delete();
+  }
+});
+
+function nullablePatternSuffixes(count: number): string {
+  return 'switch(x) { case y when a ? [1] : b is T?' + '[]?'.repeat(count) + ' and not null: break; }';
 }
 
 test('bounds nullable relational suffix lookahead', { timeout: 60_000 }, () => {
@@ -270,19 +320,34 @@ test.each(questionSources)('parses repeated $name in linear time', { timeout: 60
   expectBoundedGrowth(source(200), large, false);
 });
 
+interface ParseCpuSample {
+  cpuMicroseconds: number;
+  elapsedCpuMicroseconds: number;
+  wallMilliseconds: number;
+  iterations: number;
+}
+
 function expectBoundedGrowth(small: string, large: string, expectedErrors = true): void {
-  parseCpuTime(large, expectedErrors);
+  const warmup = parseCpuTime(large, expectedErrors);
+  const smallSamples: ParseCpuSample[] = [];
+  const largeSamples: ParseCpuSample[] = [];
   let smallFastest = Infinity;
   let largeFastest = Infinity;
   for (let run = 0; run < 3; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small, expectedErrors));
-    largeFastest = Math.min(largeFastest, parseCpuTime(large, expectedErrors));
+    const smallSample = parseCpuTime(small, expectedErrors);
+    const largeSample = parseCpuTime(large, expectedErrors);
+    smallSamples.push(smallSample);
+    largeSamples.push(largeSample);
+    smallFastest = Math.min(smallFastest, smallSample.cpuMicroseconds);
+    largeFastest = Math.min(largeFastest, largeSample.cpuMicroseconds);
   }
-  expect(largeFastest / smallFastest).toBeLessThan(18);
-  expect(largeFastest).toBeLessThan(5_000_000);
+  const samples = JSON.stringify({ warmup, smallSamples, largeSamples });
+  expect(largeFastest / smallFastest, samples).toBeLessThan(18);
+  expect(largeFastest, samples).toBeLessThan(5_000_000);
 }
 
-function parseCpuTime(source: string, expectedErrors = true): number {
+function parseCpuTime(source: string, expectedErrors = true): ParseCpuSample {
+  const wallStart = performance.now();
   const start = process.threadCpuUsage();
   let samples = 0;
   let elapsed = 0;
@@ -297,8 +362,14 @@ function parseCpuTime(source: string, expectedErrors = true): number {
     const { system, user } = process.threadCpuUsage(start);
     elapsed = system + user;
   } while (elapsed < 50_000);
+  const wallMilliseconds = performance.now() - wallStart;
   expect(allMatchErrors).toBe(true);
-  return elapsed / samples;
+  return {
+    cpuMicroseconds: elapsed / samples,
+    elapsedCpuMicroseconds: elapsed,
+    wallMilliseconds,
+    iterations: samples,
+  };
 }
 
 test.each(
@@ -419,8 +490,8 @@ test.each(['call', 'array', 'collection'])(
     let smallFastest = Infinity;
     let largeFastest = Infinity;
     for (let run = 0; run < 3; run++) {
-      smallFastest = Math.min(smallFastest, parseCpuTime(small, false));
-      largeFastest = Math.min(largeFastest, parseCpuTime(large, false));
+      smallFastest = Math.min(smallFastest, parseCpuTime(small, false).cpuMicroseconds);
+      largeFastest = Math.min(largeFastest, parseCpuTime(large, false).cpuMicroseconds);
     }
     expect(largeFastest / smallFastest).toBeLessThan(18);
     const tree = parser.parse(large)!;

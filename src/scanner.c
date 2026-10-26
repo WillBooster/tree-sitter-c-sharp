@@ -66,6 +66,7 @@ enum TokenType {
     CONDITIONAL_CONSEQUENCE_START,
     EXPRESSION_GENERIC_START,
     STACKALLOC_CONTEXT,
+    CASE_GUARD_WHEN,
 };
 
 typedef enum {
@@ -101,6 +102,7 @@ typedef struct {
     bool lambda_result;
     bool unknown;
     bool case_colon;
+    bool case_guard;
     bool force_barrier;
 } QuestionFrame;
 
@@ -237,6 +239,7 @@ typedef enum {
 
 #include "questionContext.h"
 #include "questionState.h"
+#include "questionProof.h"
 
 void *tree_sitter_c_sharp_external_scanner_create() {
     Scanner *scanner = ts_calloc(1, sizeof(Scanner));
@@ -503,8 +506,6 @@ static bool scan_pragma_text(TSLexer *lexer);
 #include "ifAlternativeDirective.h"
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
-static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable, bool known_ternary);
-static enum TokenType question_access_symbol(const bool *valid_symbols, const QuestionFollowing *next);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
@@ -532,6 +533,10 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         return scan_recovery(scanner, lexer, next_file_directive);
     }
 
+    if (valid_symbols[CASE_GUARD_WHEN]) {
+        QuestionScanResult guard = scan_case_guard_when(scanner, lexer);
+        if (guard != QUESTION_NOT_STARTED) return guard == QUESTION_MATCHED;
+    }
     if (valid_symbols[CONDITIONAL_CONSEQUENCE_START]) return scan_conditional_consequence(scanner, lexer);
     scanner->ternary_confirmation.valid = false;
 
@@ -605,7 +610,11 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             advance(lexer);
             if (lexer->lookahead == ':') return false;
             lexer->mark_end(lexer);
-            scanner->question_frames[scanner->question_frame_count - 1].case_colon = false;
+            QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+            if (!frame->case_guard || scanner->question_unknown) {
+                frame->case_colon = false;
+                frame->case_guard = false;
+            }
             lexer->result_symbol = CASE_LABEL_COLON;
             return true;
         }
@@ -1077,16 +1086,15 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     lexer->mark_end(lexer);
     if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
     scanner->question_frames[scanner->question_frame_count - 1].case_colon |= valid_symbols[CASE_LABEL_COLON];
-    bool consumed_division = question_skip_separators(lexer) == -1;
-    QuestionFollowing next = consumed_division ? (QuestionFollowing){.token = '/'} : question_following(lexer);
+    QuestionFollowing next = question_skip_separators(lexer) == -1 ? (QuestionFollowing){.token = '/'} : question_following(lexer);
     bool known_ternary = false;
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (next.member) scanner->question_type_uncertain = false;
-    bool known_nullable = next.token == ')' || next.token == ',' || next.token == ':' || next.token == ';' ||
+    bool known_nullable = (next.token == '{' && frame->case_guard) || next.token == ')' || next.token == ',' || next.token == ':' || next.token == ';' ||
         (valid_symbols[QUESTION_NULLABLE] &&
-         (next.token == '>' || consumed_division || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
+         (next.token == '>' || next.token == '/' || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
     bool dimension_expression = false;
     uint8_t rank_phase = question_take_rank(scanner, &known_nullable, &dimension_expression);
-    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown || frame->unknown || next.token != '[')
         rank_phase = RANK_NONE;
     unsigned context_flags = (dimension_expression ? QUESTION_DIMENSION_EXPRESSION : 0) |
@@ -1095,9 +1103,12 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
         (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
         (valid_symbols[QUESTION_NULLABLE] ? QUESTION_NULLABLE_ALLOWED : 0) |
         (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
+    bool preserve_unknown = frame->case_guard
+        ? valid_symbols[QUESTION_UNKNOWN] && !valid_symbols[QUESTION_NULLABLE] && next.token != '[' && !next.member
+        : valid_symbols[CASE_LABEL_COLON];
     unsigned role = prepare_question_context(scanner, lexer, next, &known_nullable,
         context_flags, rank_phase, &known_ternary);
-    if (known_ternary && valid_symbols[CASE_LABEL_COLON]) role = 0;
+    if (known_ternary && preserve_unknown) role = 0;
     if (next.member) role = 1;
     if (lexer->log) lexer->log(lexer, "question_role role=%u access=%d ternary=%d nullable=%d unknown=%d", role,
         (valid_symbols[QUESTION_MEMBER_ACCESS] || valid_symbols[QUESTION_ELEMENT_ACCESS]), valid_symbols[QUESTION_TERNARY],
@@ -1106,33 +1117,6 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     if (result == QUESTION_MATCHED && lexer->result_symbol == QUESTION_TERNARY)
         scanner->question_type_uncertain = false;
     return result;
-}
-
-static QuestionScanResult select_question_symbol(TSLexer *lexer, const bool *valid_symbols, const QuestionFollowing *next, unsigned role, bool known_nullable, bool known_ternary) {
-    if (role == QUESTION_ROLE_INVALID) return QUESTION_MISMATCHED;
-    enum TokenType symbol;
-    if (known_nullable) {
-        symbol = QUESTION_NULLABLE;
-    } else if (role == 2) {
-        bool nullable_fallback = !known_ternary && (!valid_symbols[QUESTION_TERNARY] || valid_symbols[CASE_LABEL_COLON]);
-        if (valid_symbols[CASE_LABEL_COLON] && !nullable_fallback) return QUESTION_MISMATCHED;
-        symbol = nullable_fallback ? QUESTION_NULLABLE : QUESTION_TERNARY;
-    } else if (role == 1 || role == 3) {
-        symbol = question_access_symbol(valid_symbols, next);
-    } else if (!role) {
-        symbol = QUESTION_UNKNOWN;
-    } else return QUESTION_MISMATCHED;
-    if (!valid_symbols[symbol]) return QUESTION_MISMATCHED;
-    lexer->result_symbol = symbol;
-    return QUESTION_MATCHED;
-}
-
-static enum TokenType question_access_symbol(const bool *valid_symbols, const QuestionFollowing *next) {
-    if (next->token == '[' && valid_symbols[QUESTION_NULLABLE] && valid_symbols[QUESTION_UNKNOWN]) return QUESTION_UNKNOWN;
-    if ((next->member || next->token == '[') && valid_symbols[QUESTION_DEFINITE_ACCESS]) return QUESTION_DEFINITE_ACCESS;
-    if (next->member && valid_symbols[QUESTION_MEMBER_ACCESS]) return QUESTION_MEMBER_ACCESS;
-    if (next->token == '[' && valid_symbols[QUESTION_ELEMENT_ACCESS]) return QUESTION_ELEMENT_ACCESS;
-    return QUESTION_NULLABLE;
 }
 
 static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {

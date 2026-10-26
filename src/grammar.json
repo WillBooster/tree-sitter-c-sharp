@@ -7801,8 +7801,13 @@
                             "type": "CHOICE",
                             "members": [
                               {
-                                "type": "SYMBOL",
-                                "name": "when_clause"
+                                "type": "ALIAS",
+                                "content": {
+                                  "type": "SYMBOL",
+                                  "name": "_case_when_clause"
+                                },
+                                "named": true,
+                                "value": "when_clause"
                               },
                               {
                                 "type": "BLANK"
@@ -17515,6 +17520,24 @@
         {
           "type": "STRING",
           "value": "=>"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "expression"
+        }
+      ]
+    },
+    "_case_when_clause": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_case_guard_when"
+          },
+          "named": false,
+          "value": "when"
         },
         {
           "type": "SYMBOL",
@@ -33563,6 +33586,10 @@
     {
       "type": "SYMBOL",
       "name": "_stackalloc_context"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_case_guard_when"
     }
   ],
   "inline": [

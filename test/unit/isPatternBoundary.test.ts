@@ -1,11 +1,282 @@
 import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
+import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
+
 let language: Language;
 
 beforeAll(async () => {
   await Parser.init();
   language = await Language.load('tree-sitter-c_sharp.wasm');
+});
+
+test('preserves case patterns, guards and statement labels across clause edits', () => {
+  const samples = [
+    {
+      source: 'switch (x) { case T?[] y when a ? b : c: label: break; case 2: break; }',
+      pattern: 'declaration_pattern',
+      guards: ['when a ? b : c'],
+      labels: ['label'],
+    },
+    {
+      source: 'switch (x) { case y when a ? [1] : b is T?[]? and not null: break; case 2: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a ? [1] : b is T?[]? and not null'],
+      labels: [],
+    },
+    {
+      source: 'switch (x) { case 1 when c ? x is T? { } : d: case a ? [1] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when c ? x is T? { } : d'],
+      labels: ['b'],
+    },
+    {
+      source: 'switch (x) { case 1 when c ? x is T? { P: 1 } : d: case A.B ? [] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when c ? x is T? { P: 1 } : d'],
+      labels: ['b'],
+    },
+    {
+      source: 'switch (x) { case 1 when global::A.Ready: case a ? [1] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when global::A.Ready'],
+      labels: ['b'],
+    },
+    {
+      source: 'switch (x) { case 1 when F(global::A.Ready): case a ? [1] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when F(global::A.Ready)'],
+      labels: ['b'],
+    },
+    {
+      source: 'switch (x) { case 1 when $"{a:x}" == ready: case a ? [1] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when $"{a:x}" == ready'],
+      labels: ['b'],
+    },
+    {
+      source: 'switch (x) { case y when new T?[1] ? [b ? c : d] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when new T?[1] ? [b ? c : d]'],
+      guardKinds: ['array_creation_expression'],
+      labels: ['b'],
+    },
+    {
+      source: 'switch (x) { case y when new T[1] ? [b ? c : d] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when new T[1] ? [b ? c : d]'],
+      guardKinds: ['array_creation_expression'],
+      labels: ['b'],
+    },
+    { source: 'switch (x) { case a ? [1] : b: break; }', pattern: 'type_pattern', guards: [], labels: ['b'] },
+    { source: 'switch (x) { case a ? [] : b: break; }', pattern: 'type_pattern', guards: [], labels: ['b'] },
+    { source: 'switch (x) { case A.B ? [1] : b: break; }', pattern: 'type_pattern', guards: [], labels: ['b'] },
+    {
+      source: 'switch (x) { case T?[] y when /* guard */ (a ? [1] : b): label: break; }',
+      pattern: 'declaration_pattern',
+      guards: ['when /* guard */ (a ? [1] : b)'],
+      labels: ['label'],
+    },
+    {
+      source: 'switch (x) { case T whenfoo: label: break; case T @when: other: break; }',
+      pattern: 'declaration_pattern',
+      guards: [],
+      labels: ['label', 'other'],
+    },
+    {
+      source:
+        'switch (x) { case y when a ? [1] : b: outer: switch (z) { case T?[] q when c ? [] : d: inner: break; case A.B ? [1] : last: break; } break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a ? [1] : b', 'when c ? [] : d'],
+      labels: ['outer', 'inner', 'last'],
+    },
+    {
+      source:
+        'switch (x) { case y when F(() => { switch (z) { case q when ready: break; } return a; }) ? [1] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when F(() => { switch (z) { case q when ready: break; } return a; }) ? [1] : b', 'when ready'],
+      labels: [],
+    },
+    {
+      source:
+        'switch (x) { case y when F(() => { switch (z) { case q when c ? d : e: break; } return a; }) ? [1] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when F(() => { switch (z) { case q when c ? d : e: break; } return a; }) ? [1] : b', 'when c ? d : e'],
+      labels: [],
+    },
+    {
+      source: 'switch(x) { case y when a?[0] ? b : G<A,B> ? [new T?()] : 0: label: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a?[0] ? b : G<A,B> ? [new T?()] : 0: label'],
+      labels: [],
+    },
+    {
+      source: 'switch(x) { case y when a?[0] ? a : new T[1] ? [1] : d: label: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a?[0] ? a : new T[1] ? [1] : d'],
+      labels: ['label'],
+    },
+    {
+      source: 'switch(x) { case y when a?[0] ? b : G<A,B> ? [new (int,int)?()] : 0: label: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a?[0] ? b : G<A,B> ? [new (int,int)?()] : 0: label'],
+      labels: [],
+    },
+    {
+      source: 'switch (x) { case n when p && y as T ? [3] : c: label: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when p && y as T ? [3]'],
+      labels: ['c', 'label'],
+    },
+    {
+      source: 'switch (x) { case n when y is T && z ? [a] : b: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when y is T && z ? [a] : b'],
+      labels: [],
+    },
+    {
+      source: 'switch (x) { case y when a?[0] as T?[] is null: ready: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a?[0] as T?[] is null: ready'],
+      labels: [],
+      nodeCounts: { nullable_type: 1, array_type: 1, conditional_access_expression: 0, conditional_expression: 1 },
+    },
+    {
+      source: 'switch (x) { case y when new (T,U)?(1): L: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when new (T,U)?(1)'],
+      guardKinds: ['object_creation_expression'],
+      labels: ['L'],
+      nodeCounts: { nullable_type: 1, tuple_type: 1, conditional_expression: 0 },
+    },
+    {
+      source: 'switch (x) { case var q when a ? [1] : b is T?[]?: break; }',
+      guards: ['when a ? [1] : b is T?[]?'],
+      labels: [],
+      nodeCounts: { nullable_type: 2, array_type: 1, conditional_access_expression: 0, conditional_expression: 1 },
+    },
+    {
+      source: 'switch (x) { case y when a ? b : new (T,U)?(1): L: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a ? b : new (T,U)?(1)'],
+      labels: ['L'],
+      nodeCounts: { nullable_type: 1, tuple_type: 1, conditional_expression: 1 },
+    },
+    {
+      source: 'switch (x) { case y when a ? [1] : new (T,U)?(1): L: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when a ? [1] : new (T,U)?(1)'],
+      labels: ['L'],
+      nodeCounts: { nullable_type: 1, tuple_type: 1, conditional_expression: 1 },
+    },
+    {
+      source: 'switch (x) { case y when f() ? new T[2] : a?[0] is T[] : L: break; }',
+      pattern: 'constant_pattern',
+      guards: ['when f() ? new T[2] : a?[0] is T[] : L'],
+      labels: [],
+      nodeCounts: { conditional_access_expression: 0, conditional_expression: 2 },
+    },
+    {
+      source: 'switch (x) { case y when (b ? c : d) | new (T,U)?(1) is int: L: break; }',
+      guards: ['when (b ? c : d) | new (T,U)?(1) is int'],
+      labels: ['L'],
+      nodeCounts: { nullable_type: 1, tuple_type: 1, conditional_expression: 1 },
+    },
+    {
+      source: 'switch (x) { case y when b is T?[]? z and not null: L: break; }',
+      guards: ['when b is T?[]? z and not null'],
+      labels: ['L'],
+      nodeCounts: { nullable_type: 2, declaration_pattern: 1, conditional_expression: 0 },
+    },
+    {
+      source: 'switch (x) { case y when b is T & new (T,U)?(1): L: break; }',
+      guards: ['when b is T & new (T,U)?(1)'],
+      labels: ['L'],
+      nodeCounts: { nullable_type: 1, tuple_type: 1, conditional_expression: 0 },
+    },
+    {
+      source:
+        'switch(x){case y when b is T?[]? z and not null: var r = y ? c ? [a] : d ? [] : x is T? t and U : w; break;}',
+      guards: ['when b is T?[]? z and not null'],
+      labels: [],
+      nodeCounts: { conditional_expression: 3 },
+    },
+    { source: 'var r = x switch { T?[] y when a ? [1] : b => 1, _ => 0 };', guards: ['when a ? [1] : b'], labels: [] },
+  ];
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(when_clause) @guard (labeled_statement (identifier) @label)');
+  let previous = 'var r = 0;';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const sample of [...samples, ...samples.toReversed()]) {
+      const fresh = parser.parse(sample.source)!;
+      editTree(tree, previous, sample.source);
+      const incremental = parser.parse(sample.source, tree)!;
+      try {
+        expect(fresh.rootNode.hasError, sample.source).toBe(false);
+        if (sample.pattern) {
+          expect(fresh.rootNode.descendantsOfType('switch_section')[0]?.firstNamedChild?.type, sample.source).toBe(
+            sample.pattern
+          );
+        }
+        const captures = query.captures(fresh.rootNode);
+        if (sample.nodeCounts) {
+          for (const [type, count] of Object.entries(sample.nodeCounts)) {
+            expect(fresh.rootNode.descendantsOfType(type), sample.source).toHaveLength(count);
+          }
+        }
+        if (sample.guardKinds) {
+          expect(
+            fresh.rootNode.descendantsOfType('when_clause').map((node) => node.firstNamedChild?.type),
+            sample.source
+          ).toEqual(sample.guardKinds);
+        }
+        expect(
+          captures.filter(({ name }) => name === 'guard').map(({ node }) => node.text),
+          sample.source
+        ).toEqual(sample.guards);
+        expect(
+          captures.filter(({ name }) => name === 'guard').map(({ node }) => [node.startIndex, node.endIndex]),
+          sample.source
+        ).toEqual(
+          sample.guards.map((guard) => [sample.source.indexOf(guard), sample.source.indexOf(guard) + guard.length])
+        );
+        expect(
+          captures.filter(({ name }) => name === 'label').map(({ node }) => node.text),
+          sample.source
+        ).toEqual(sample.labels);
+        expect(syntaxSnapshot(incremental.rootNode), sample.source).toEqual(syntaxSnapshot(fresh.rootNode));
+      } finally {
+        fresh.delete();
+        tree.delete();
+      }
+      tree = incremental;
+      previous = sample.source;
+    }
+    for (const incomplete of [
+      'switch (x) { case y when',
+      'switch (x) { case T?[] y when a ?',
+      'switch (x) { case y when a ? [1] : b:',
+      'switch (x) { case T?[] y:',
+    ]) {
+      editTree(tree, previous, incomplete);
+      const incremental = parser.parse(incomplete, tree)!;
+      const fresh = parser.parse(incomplete)!;
+      try {
+        expect(fresh.rootNode.hasError, incomplete).toBe(true);
+        expect(syntaxSnapshot(incremental.rootNode), incomplete).toEqual(syntaxSnapshot(fresh.rootNode));
+      } finally {
+        fresh.delete();
+        tree.delete();
+      }
+      tree = incremental;
+      previous = incomplete;
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
 });
 
 test('retains function-pointer types on positional recursive patterns', () => {
