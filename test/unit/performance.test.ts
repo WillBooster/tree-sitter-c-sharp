@@ -168,6 +168,21 @@ function nullablePatternSuffixes(count: number): string {
   return 'switch(x) { case y when a ? [1] : b is T?' + '[]?'.repeat(count) + ' and not null: break; }';
 }
 
+test('bounds repeated nullable-rank successors in a malformed case guard', { timeout: 60_000 }, () => {
+  const large = repeatedRankSuccessors(1000);
+  expectBoundedGrowth(repeatedRankSuccessors(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('break_statement').map((node) => node.text)).toEqual(['break;']);
+  } finally {
+    tree.delete();
+  }
+});
+
+function repeatedRankSuccessors(count: number): string {
+  return `switch(x){case y when ${'a is T?[] is U && a is T?[] ? [1] : b && '.repeat(count)}a ? [1] : b: break;}`;
+}
+
 test('bounds nullable relational suffix lookahead', { timeout: 60_000 }, () => {
   expectBoundedGrowth(nullableRelationalSource(100), nullableRelationalSource(1000), false);
 });

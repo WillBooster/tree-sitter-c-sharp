@@ -27,6 +27,7 @@ typedef enum { RANK_HEADER_START, RANK_HEADER_MODIFIER, RANK_HEADER_NAME, RANK_H
 typedef struct { unsigned token; RankLambdaHeader header; bool content; bool primary; bool type_pending; bool type_complete; bool pattern; bool member; bool colon; bool conditional; bool nullable_type; bool division; bool has_word; QuestionIdentifier word; unsigned nullable_event; bool guard_candidate; } RankExpression;
 
 static bool question_type_boundary(int32_t c);
+static bool question_type_operator_follower(TSLexer *, QuestionInput *, QuestionFollowing);
 static bool rank_numeric_type_chain(const RankTokens *tokens);
 static RankCertificate rank_certify_character(RankCertificate certificate, int32_t c);
 static RankCertificate rank_certify_word(RankCertificate certificate, const QuestionIdentifier *name);
@@ -778,6 +779,7 @@ static RankReadStep rank_read_pattern_word(TSLexer *lexer, RankTokens *tokens, c
         if (tokens->input) question_input_restore(tokens->input, (QuestionCheckpoint){tokens->input->cursor, start.capturing});
         if (*certificate == RANK_CERT_TYPE && read.initial_suffix != '?') *certificate = RANK_CERT_INVALID;
         expression->colon = read.colon;
+        expression->division = read.division;
         return expression->type_complete ? RANK_READ_MORE : RANK_READ_UNKNOWN;
     }
     return RANK_READ_TOKEN;
@@ -845,7 +847,8 @@ static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *to
     bool collection = lexer->lookahead == '[';
     if (!collection) expression->guard_candidate = false;
     if (expression->type_complete && !expression->nullable_type && !collection &&
-        (lexer->lookahead == '?' || question_type_boundary(lexer->lookahead) || lexer->eof(lexer))) {
+        (lexer->lookahead == '?' || question_type_boundary(lexer->lookahead) || lexer->eof(lexer) ||
+            (tokens->input && (lexer->lookahead == '{' || question_type_operator_follower(lexer, tokens->input, (QuestionFollowing){.token = lexer->lookahead}))))) {
         expression->nullable_type = true;
         return RANK_READ_MORE;
     }

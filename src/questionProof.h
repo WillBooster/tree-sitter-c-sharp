@@ -7,6 +7,7 @@ static bool question_prepare_prefix(Scanner *, QuestionInput *, bool);
 static void question_save_type_handoff(Scanner *, const QuestionWalk *);
 static uint8_t question_guard_take(QuestionFrame *, uint32_t, uint32_t *);
 static uint8_t question_guard_save(QuestionFrame *, RankParse *);
+static uint8_t question_guard_rank_successor(uint8_t, bool, uint32_t, uint32_t *);
 static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
 static enum TokenType question_access_symbol(const bool *, const QuestionFollowing *);
@@ -150,6 +151,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     uint32_t prefix = 0;
     bool simple = false;
     uint8_t result = RANK_NONE;
+    bool has_next = false;
     RankTokens tail = array_new();
     tail.input = input;
     bool target = rank_read_prefix(lexer, &simple, &prefix) && question_read_single_question(lexer) && question_skip_separators(lexer) == '[';
@@ -160,11 +162,15 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     bool definite = false, division = false;
     if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division)) goto done;
     QuestionCheckpoint suffix = question_input_checkpoint(input);
+    has_next = question_skip_separators(lexer) == '?' && question_read_single_question(lexer);
+    question_input_restore(input, suffix);
     bool nullable = false;
     uint32_t suffix_questions = 0;
     if (!division) {
         bool type_suffix = question_walk_pattern_suffix(lexer, &nullable, &suffix_questions);
-        definite |= type_suffix && question_walk_pattern_tail(lexer, nullable, false, input);
+        bool pattern = type_suffix && question_walk_pattern_tail(lexer, nullable, false, input);
+        definite |= pattern;
+        if (!pattern) suffix_questions = 0;
     }
     question_input_restore(input, suffix);
     if (definite) {
@@ -195,7 +201,15 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
 done:
     array_delete(&tail);
     question_input_restore(input, start);
-    return result;
+    return question_guard_rank_successor(result, has_next, prefix, questions);
+}
+
+static uint8_t question_guard_rank_successor(uint8_t role, bool has_next, uint32_t prefix, uint32_t *questions) {
+    if (role == RANK_OWNED_NULLABLE_PREFIX && has_next && *questions && *questions - 1 == prefix) {
+        (*questions)--;
+        return RANK_NULLABLE_NEXT;
+    }
+    return role;
 }
 
 static uint8_t question_guard_take(QuestionFrame *frame, uint32_t prefix, uint32_t *questions) {
@@ -224,9 +238,7 @@ static uint8_t question_guard_save(QuestionFrame *frame, RankParse *parsed) {
 
 static uint8_t question_guard_as_role(QuestionInput *input, uint32_t *questions) {
     RankTypeRead read = {.expression_ranks = true};
-    bool type = rank_read_as_type(&input->lexer, &read) && !read.conditional && !read.coalesce &&
-        !read.division && (!read.has_word || (read.word.keyword &&
-            (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))));
+    bool type = rank_read_as_type(&input->lexer, &read);
     uint32_t prefix = read.expression_questions ? read.prefix_questions : read.questions;
     if (!type || !prefix) return RANK_NONE;
     *questions = prefix;

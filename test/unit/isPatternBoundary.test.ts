@@ -13,6 +13,124 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source: 'class C{void M(){switch(x){case y when a is T?[] is U / a ? [1] : b as U?[]: L: break;}}}',
+      guards: ['when a is T?[] is U / a ? [1] : b as U?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 75],
+          [77, 78],
+        ],
+        [
+          [46, 57],
+          [60, 63],
+          [66, 75],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] as U?[] ? x : y: L0: L1: break;}}}',
+      guards: ['when a is T?[] as U?[] ? x : y: L0'],
+      labels: ['L1'],
+      labelRanges: [[70, 72]],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 64],
+          [66, 68],
+        ],
+        [
+          [46, 56],
+          [59, 60],
+          [63, 64],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as U?[c ? d : e] ? b : a is T?[] ? [1] : b: L0: L1: break;}}}',
+      guards: ['when a as U?[c ? d : e] ? b : a is T?[] ? [1] : b: L0'],
+      labels: ['L1'],
+      labelRanges: [[89, 91]],
+      conditionalFields: [
+        [
+          [39, 57],
+          [60, 61],
+          [64, 87],
+        ],
+        [
+          [47, 48],
+          [51, 52],
+          [55, 56],
+        ],
+        [
+          [64, 70],
+          [71, 83],
+          [85, 87],
+        ],
+        [
+          [71, 73],
+          [76, 79],
+          [82, 83],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object y, object a, object b) { switch (y) { case int when x is int?[,] ? [1] : y: L: break; } } }',
+      guards: ['when x is int?[,] ? [1] : y'],
+      labels: ['L'],
+      labelRanges: [[100, 101]],
+      conditionalFields: [
+        [
+          [76, 88],
+          [91, 94],
+          [97, 98],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object y, object a, object b) { switch (y) { case int when x is int?[] ? 1 : y is int? {}: L: break; } } }',
+      guards: ['when x is int?[] ? 1 : y is int? {}: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [76, 84],
+          [85, 106],
+          [108, 109],
+        ],
+        [
+          [85, 87],
+          [90, 91],
+          [94, 106],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object y, object a, object b) { switch (y) { case int when b is T?[] || a is int? || y as T ? [1] : (a): break; } } }',
+      guards: ['when b is T?[] || a is int? || y as T ? [1] : (a)'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [76, 82],
+          [83, 114],
+          [117, 120],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as T?[] ? [1] : b: break;}}}',
+      guards: ['when a as T?[] ? [1]'],
+      labels: ['b'],
+      labelRanges: [[57, 58]],
+      conditionalFields: [],
+    },
+    {
       source: 'switch(x){case y when a is T?[] is U && (c ? d : e) && a ? [1] : b: L0: break;}',
       guards: ['when a is T?[] is U && (c ? d : e) && a ? [1] : b: L0'],
       labels: [],
@@ -603,6 +721,12 @@ test('preserves case patterns, guards and statement labels across clause edits',
           captures.filter(({ name }) => name === 'label').map(({ node }) => node.text),
           sample.source
         ).toEqual(sample.labels);
+        if (sample.labelRanges) {
+          expect(
+            captures.filter(({ name }) => name === 'label').map(({ node }) => [node.startIndex, node.endIndex]),
+            sample.source
+          ).toEqual(sample.labelRanges);
+        }
         expect(syntaxSnapshot(incremental.rootNode), sample.source).toEqual(syntaxSnapshot(fresh.rootNode));
       } finally {
         fresh.delete();
