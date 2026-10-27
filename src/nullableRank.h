@@ -20,21 +20,20 @@ typedef struct { QuestionInput *input; QuestionCheckpoint prefix, tail; unsigned
 
 typedef enum { RANK_ATOM, RANK_NONPRIMARY_ATOM, RANK_LAMBDA, RANK_IS_TYPE, RANK_DEFINITE_TYPE, RANK_QUESTION, RANK_COLON, RANK_CONTINUATION, RANK_AS, RANK_SWITCH, RANK_BINARY, RANK_BINARY_PRIMARY, RANK_NESTED_ATOM, RANK_END } RankTokenKind;
 typedef enum { RANK_CERT_START, RANK_CERT_INVALID, RANK_CERT_DECIMAL, RANK_CERT_NAME, RANK_CERT_IS, RANK_CERT_TYPE } RankCertificate;
-typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid; RankTypeSummary types; } RankParse;
-typedef struct { RankTokenKind kind; bool collection; bool force_unsafe; RankCertificate certificate; RankParse nested[2]; bool guard_candidate; } RankToken;
-typedef struct { RankToken *contents; uint32_t size, capacity; QuestionInput *input; } RankTokens;
+enum { RANK_SUFFIX_CONDITIONAL = 1, RANK_SUFFIX_INVALID = 2 };
+typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid; uint8_t suffix_flags; RankTypeSummary types; } RankParse;
+typedef struct { RankTokenKind kind; bool collection; bool force_unsafe; RankCertificate certificate; RankParse nested[2]; bool guard_candidate; uint8_t suffix_flags; } RankToken;
+typedef struct { RankToken *contents; uint32_t size, capacity; QuestionInput *input; bool format_boundary; bool suffix_modes; } RankTokens;
 typedef enum { RANK_HEADER_START, RANK_HEADER_MODIFIER, RANK_HEADER_NAME, RANK_HEADER_PARAMETERS, RANK_HEADER_DELEGATE, RANK_HEADER_DELEGATE_PARAMETERS, RANK_HEADER_INVALID } RankLambdaHeader;
 typedef struct { unsigned token; RankLambdaHeader header; bool content; bool primary; bool type_pending; bool type_complete; bool pattern; bool member; bool colon; bool conditional; bool nullable_type; bool division; bool has_word; QuestionIdentifier word; unsigned nullable_event; bool guard_candidate; } RankExpression;
 
 static bool question_type_boundary(int32_t c);
 static bool question_type_operator_follower(TSLexer *, QuestionInput *, QuestionFollowing);
+static bool question_nullable_pattern_tail(TSLexer *, QuestionInput *);
+static bool question_type_keyword_follower(TSLexer *, QuestionInput *);
 static bool rank_numeric_type_chain(const RankTokens *tokens);
-static RankCertificate rank_certify_character(RankCertificate certificate, int32_t c);
-static RankCertificate rank_certify_word(RankCertificate certificate, const QuestionIdentifier *name);
 static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite, bool *division);
-static bool rank_read_bracket(TSLexer *lexer);
-static bool rank_read_stream(TSLexer *lexer, RankTokens *tokens, unsigned *colons);
-static bool rank_read_stream_from(TSLexer *, RankTokens *, unsigned *, bool);
+static bool rank_read_stream_until(TSLexer *, RankTokens *, unsigned *, bool, bool (*)(TSLexer *, void *), void *);
 static bool rank_read_stream_after_rank(TSLexer *, RankTokens *, unsigned *, bool, bool (*)(TSLexer *, void *), void *);
 static bool rank_complete_arguments(TSLexer *, RankScopeRead *, Scanner *);
 static bool rank_complete_sibling(TSLexer *, Scanner *, QuestionInput *);
@@ -50,12 +49,10 @@ static bool rank_read_switch(TSLexer *lexer, bool *force_unsafe);
 static bool rank_read_binary(TSLexer *lexer, int32_t c, RankTokens *tokens, bool *colon);
 static bool rank_binary_start(int32_t c);
 static bool rank_skip_binary_operator(TSLexer *lexer, int32_t c, bool *postfix, bool updates, bool *high);
-static RankReadStep rank_start_binary_rhs(TSLexer *lexer, int32_t c, RankTokens *tokens, RankExpression *expression);
 static void rank_mark_nonprimary(RankTokens *tokens, unsigned expression);
 static bool rank_read_expression(TSLexer *lexer, RankTokens *tokens, bool *colon, RankTokenKind kind);
 static bool rank_read_is(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static bool rank_read_expression_tail(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression);
-static RankReadStep rank_start_conditional_operand(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
 static RankReadStep rank_read_expression_name(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression);
 static RankReadStep rank_read_expression_verbatim(TSLexer *, RankTokens *, bool *, RankExpression *);
 static bool rank_read_expression_word(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
@@ -64,7 +61,6 @@ static bool rank_read_creation(TSLexer *lexer, bool *force_unsafe);
 static int32_t rank_read_creation_prefix(TSLexer *lexer);
 static int32_t rank_read_creation_suffix(TSLexer *lexer);
 static RankReadStep rank_read_pattern_word(TSLexer *lexer, RankTokens *tokens, const QuestionIdentifier *name, RankExpression *expression, RankCertificate *certificate);
-static void rank_start_lambda(RankTokens *tokens, unsigned *expression);
 static bool rank_read_lambda_arrow(TSLexer *lexer, RankTokens *tokens, unsigned *expression, RankLambdaHeader *header, bool *content, bool *primary);
 static RankLambdaHeader rank_expression_group(RankTokens *tokens, unsigned *expression, RankLambdaHeader header, int32_t c, bool *primary);
 static RankReadStep rank_read_expression_token(TSLexer *lexer, RankTokens *tokens, bool *colon, int32_t c, RankExpression *expression);
@@ -90,7 +86,6 @@ static RankParse rank_atom_summary(RankToken atom, bool force);
 static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result, bool collect);
 static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result, bool collect);
 
-static uint8_t rank_stream_input(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
 static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
 static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
 
@@ -120,6 +115,8 @@ static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *que
     if (bracket_first < 0 || lexer->eof(lexer)) return RANK_NONE;
     if (bracket_first != ']' && bracket_first != ',') return RANK_TERNARY;
     RankTokens tail = array_new();
+    const Interpolation *interpolation = scanner->interpolation_stack.size ? array_back(&scanner->interpolation_stack) : NULL;
+    tail.format_boundary = interpolation && interpolation->open_brace_count && !interpolation->question_depth;
     bool definite = false, division = false;
     unsigned colons = 0;
     if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division)) { array_delete(&tail); return RANK_NONE; }
@@ -241,7 +238,7 @@ static void rank_enclosing_modes(TSLexer *lexer, Scanner *scanner, RankParse mod
         RankTokens tail = array_new();
         array_push(&tail, ((RankToken){.kind = RANK_NESTED_ATOM, .nested = {modes[0], modes[1]}}));
         unsigned colons = 0;
-        bool read = rank_read_stream(lexer, &tail, &colons);
+        bool read = rank_read_stream_until(lexer, &tail, &colons, false, NULL, NULL);
         if (arguments_complete && lexer->lookahead == ',') { array_delete(&tail); return; }
         if (!read || parent->pending > colons) {
             if (read) { parent->unknown = true; question_clear_rank_from(scanner, frame); }
@@ -343,16 +340,6 @@ static bool rank_read_bracket(TSLexer *lexer) {
     advance(lexer);
     if (question_skip_separators(lexer) < 0) return false;
     return rank_read_delimited(lexer, '[', RANK_BODY_BRACKET, NULL);
-}
-
-static bool rank_read_stream(TSLexer *lexer, RankTokens *tokens, unsigned *colons) {
-    return rank_read_stream_from(lexer, tokens, colons, false);
-}
-
-static bool rank_read_stream_until(TSLexer *lexer, RankTokens *tokens, unsigned *colons, bool atom, bool (*stop)(TSLexer *, void *), void *context);
-
-static bool rank_read_stream_from(TSLexer *lexer, RankTokens *tokens, unsigned *colons, bool atom) {
-    return rank_read_stream_until(lexer, tokens, colons, atom, NULL, NULL);
 }
 
 static bool rank_read_stream_until(TSLexer *lexer, RankTokens *tokens, unsigned *colons, bool atom, bool (*stop)(TSLexer *, void *), void *context) {
@@ -626,11 +613,7 @@ static bool rank_read_guard_assignment(TSLexer *lexer, int32_t c, RankTokens *to
     } else if (c != '=') assignment = lexer->lookahead == '=';
     if (!assignment) { question_input_restore(tokens->input, start); return false; }
     if (c != '=') advance(lexer);
-    rank_mark_nonprimary(tokens, expression->token);
-    *expression = (RankExpression){.token = tokens->size, .header = RANK_HEADER_INVALID,
-        .primary = true, .nullable_event = ((unsigned)-1)};
-    array_push(tokens, ((RankToken){RANK_BINARY, false}));
-    return true;
+    return rank_start_binary_rhs(lexer, -1, tokens, expression) == RANK_READ_MORE;
 }
 
 static RankReadStep rank_read_expression_verbatim(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression) {
@@ -693,7 +676,7 @@ static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankE
     }
     if (name.keyword && !strcmp(name.word, "as")) {
         expression->guard_candidate = false;
-        RankTypeRead read = {.expression_ranks = true};
+        RankTypeRead read = {.expression_ranks = !tokens->format_boundary};
         if (!rank_read_as_type(lexer, &read)) return false;
         expression->pattern = false;
         expression->primary = read.coalesce;
@@ -752,6 +735,7 @@ static RankReadStep rank_read_pattern_word(TSLexer *lexer, RankTokens *tokens, c
     bool type_test = name->keyword && !strcmp(name->word, "is");
     if (type_test || (expression->pattern && logical)) {
         expression->guard_candidate |= type_test;
+        if (type_test) { expression->nullable_type = false; expression->nullable_event = ((unsigned)-1); }
         expression->pattern = true;
         expression->type_pending = true;
         expression->type_complete = false;
@@ -848,7 +832,14 @@ static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *to
     if (!collection) expression->guard_candidate = false;
     if (expression->type_complete && !expression->nullable_type && !collection &&
         (lexer->lookahead == '?' || question_type_boundary(lexer->lookahead) || lexer->eof(lexer) ||
-            (tokens->input && (lexer->lookahead == '{' || question_type_operator_follower(lexer, tokens->input, (QuestionFollowing){.token = lexer->lookahead}))))) {
+            (tokens->input && (lexer->lookahead == '{' || question_type_operator_follower(lexer, tokens->input, (QuestionFollowing){.token = lexer->lookahead}) ||
+                (expression->pattern && question_nullable_pattern_tail(lexer, tokens->input)))))) {
+        if (tokens->suffix_modes && expression->pattern && expression->nullable_event != ((unsigned)-1) &&
+            question_type_keyword_follower(lexer, tokens->input)) {
+            array_push(tokens, ((RankToken){.kind = RANK_IS_TYPE, .suffix_flags = RANK_SUFFIX_CONDITIONAL | RANK_SUFFIX_INVALID}));
+            array_push(tokens, ((RankToken){RANK_QUESTION, false}));
+            array_push(tokens, ((RankToken){RANK_ATOM, false}));
+        }
         expression->nullable_type = true;
         return RANK_READ_MORE;
     }
@@ -871,6 +862,7 @@ static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *to
 
 static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankTokens *tokens, RankExpression *expression) {
     bool guard_candidate = expression->guard_candidate;
+    bool suffix_candidate = tokens->suffix_modes && expression->nullable_event != ((unsigned)-1);
     expression->guard_candidate = false;
     advance(lexer);
     int32_t first = question_skip_separators(lexer);
@@ -890,13 +882,14 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
         uint32_t questions = 0;
         bool type = question_walk_pattern_suffix(lexer, &nullable, &questions);
         QuestionCheckpoint suffix = {tokens->input->cursor, start.capturing};
+        suffix_candidate |= type && questions && question_type_keyword_follower(lexer, tokens->input);
         bool pattern = type && question_walk_pattern_tail(lexer, nullable, false, tokens->input);
         definite |= pattern;
         question_input_restore(tokens->input, pattern ? suffix : start);
     }
     if (definite || ranks.size) tokens->contents[expression->token].certificate = RANK_CERT_INVALID;
     expression->nullable_event = tokens->size;
-    array_push(tokens, ((RankToken){.kind=definite ? RANK_DEFINITE_TYPE : RANK_IS_TYPE, .guard_candidate=guard_candidate && !definite}));
+    array_push(tokens, ((RankToken){.kind=definite ? RANK_DEFINITE_TYPE : RANK_IS_TYPE, .guard_candidate=guard_candidate && !definite, .suffix_flags=suffix_candidate ? RANK_SUFFIX_CONDITIONAL : 0}));
     array_push(tokens, ((RankToken){RANK_QUESTION, true}));
     array_push(tokens, ((RankToken){RANK_ATOM, true}));
     for (unsigned i = 0; i < ranks.size; i++) array_push(tokens, ranks.contents[i]);

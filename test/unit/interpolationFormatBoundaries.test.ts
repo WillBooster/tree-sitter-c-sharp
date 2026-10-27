@@ -1,6 +1,9 @@
-import { Language, Parser } from '@willbooster/web-tree-sitter';
+import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 
+import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
+
+let language: Language;
 let parser: Parser;
 
 const wrappers = [
@@ -12,10 +15,57 @@ const wrappers = [
 
 beforeAll(async () => {
   await Parser.init();
-  parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
+  language = await Language.load('tree-sitter-c_sharp.wasm');
+  parser = new Parser().setLanguage(language);
 });
 
 afterAll(() => parser.delete());
+
+test.each(wrappers)(
+  'retains sized AS ranks and $name format boundaries across parentheses edits',
+  ({ open, close }) => {
+    const expression = 'a is T?[] || b as T ? [1] : c';
+    const query = new Query(language, '(interpolation_format_clause) @format (conditional_expression) @conditional');
+    let previous = 'var r = 0;';
+    let tree = parser.parse(previous)!;
+    try {
+      for (const parenthesized of [false, true, false]) {
+        const source = `var r = ${open}${parenthesized ? `(${expression})` : expression}${close};`;
+        editTree(tree, previous, source);
+        const incremental = parser.parse(source, tree)!;
+        tree.delete();
+        tree = incremental;
+        previous = source;
+        const fresh = parser.parse(source)!;
+        try {
+          expect(fresh.rootNode.hasError, source).toBe(false);
+          expect(fresh.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(
+            parenthesized ? 1 : 0
+          );
+          expect(
+            fresh.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text),
+            source
+          ).toEqual(parenthesized ? [] : [': c']);
+          const formats = query.captures(fresh.rootNode).filter(({ name }) => name === 'format');
+          expect(
+            formats.map(({ node }) => [node.startIndex, node.endIndex]),
+            source
+          ).toEqual(parenthesized ? [] : [[source.indexOf(': c'), source.indexOf(': c') + 3]]);
+          expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+          expect(
+            query.captures(incremental.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]),
+            source
+          ).toEqual(query.captures(fresh.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]));
+        } finally {
+          fresh.delete();
+        }
+      }
+    } finally {
+      query.delete();
+      tree.delete();
+    }
+  }
+);
 
 test.each(wrappers)('retains nullable declarations before $name interpolation formats', ({ open, close }) => {
   for (const type of ['T', 'int', 'List<int>']) {

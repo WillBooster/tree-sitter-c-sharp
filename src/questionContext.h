@@ -998,6 +998,7 @@ static bool question_expression_keyword(const QuestionIdentifier *identifier) {
 static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool proved_access) {
     if (walk->known_nullable || proved_access) return;
     if (walk->known_ternary) {
+        frame->guard.role &= GUARD_ROLE_MASK;
         if (frame->pending == UINT32_MAX) frame->unknown = true;
         else frame->pending++;
         return;
@@ -1005,6 +1006,7 @@ static void question_walk_pending(QuestionWalk *walk, QuestionFrame *frame, bool
     bool ordinary_pending = walk->ordinary && walk->definite_ternary && !walk->assignment_possible && !walk->nullable_terminator;
     bool known_access = walk->following.token == '[' && (question_walk_role_known(walk) || walk->cached_access);
     if (ordinary_pending || (known_access && walk->proved_ternary)) {
+        frame->guard.role &= GUARD_ROLE_MASK;
         if (frame->pending == UINT32_MAX) frame->unknown = true;
         else frame->pending++;
     } else if (!known_access && !walk->following.member) frame->unknown = true;

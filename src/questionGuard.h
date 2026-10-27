@@ -3,6 +3,8 @@
 
 typedef enum { GUARD_NONE, GUARD_NULLABLE, GUARD_TERNARY } QuestionGuardRole;
 
+enum { GUARD_ROLE_MASK = 3, GUARD_SUFFIX_COMPLETE = 4 };
+
 typedef struct {
     uint8_t role;
     bool handoff;

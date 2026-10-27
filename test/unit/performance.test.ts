@@ -528,6 +528,41 @@ test.each([
   }
 );
 
+test('bounds repeated added nullable suffixes before later type operators', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(addedSuffixGuardSource(100), addedSuffixGuardSource(1000), false);
+  const tree = parser.parse(addedSuffixGuardSource(1000))!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(2);
+    expect(tree.rootNode.descendantsOfType('labeled_statement')).toHaveLength(0);
+    expect(tree.rootNode.lastNamedChild?.text).toBe('var following = a?[0];');
+    expect(tree.rootNode.lastNamedChild?.hasError).toBe(false);
+  } finally {
+    tree.delete();
+  }
+});
+
+function addedSuffixGuardSource(count: number): string {
+  return `switch(x){case y when ${'a is T?[]? is U && '.repeat(count)}a ? [1] : b is V?[]: L: break;} var following = a?[0];`;
+}
+
+test.each([
+  { name: 'AS then nullable IS then AS', term: 'a as T?[] is T?[] as U && ' },
+  { name: 'scalar logical patterns', term: 'a is T?[] as U || a is T? and not null || ' },
+  { name: 'array logical patterns', term: 'a is T?[] as U || a is T?[] and not null || ' },
+])('bounds mixed nullable operands with $name', { timeout: 60_000 }, ({ term }) => {
+  const source = (count: number): string =>
+    `switch(x){case y when ${term.repeat(count)}a ? [1] : b: break;} var following = a?[0];`;
+  expectBoundedGrowth(source(100), source(1000), false);
+  const tree = parser.parse(source(1000))!;
+  try {
+    expect(tree.rootNode.descendantsOfType('break_statement').map((node) => node.text)).toEqual(['break;']);
+    expect(tree.rootNode.lastNamedChild?.text).toBe('var following = a?[0];');
+    expect(tree.rootNode.lastNamedChild?.hasError).toBe(false);
+  } finally {
+    tree.delete();
+  }
+});
+
 test.each([
   { name: 'member access', term: 'a is T?[] is U && a?.b && ', labels: false, body: 'break;', conditionals: 1 },
   {

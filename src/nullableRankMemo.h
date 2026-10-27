@@ -41,6 +41,7 @@ static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, uns
             RankParse suffix = memo[pos * 2 + force];
             result.valid &= suffix.valid;
             result.collection_ternary |= suffix.collection_ternary;
+            result.suffix_flags |= suffix.suffix_flags;
             result.types = rank_type_merge(result.types, suffix.types);
             if (suffix.role) result.role = suffix.role;
             result.end = suffix.end;
@@ -81,6 +82,7 @@ static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo,
         RankParse after = memo[(question + 1) * 2 + force];
         if (!after.valid) { result->valid = false; return after.end; }
         if (tokens->contents[after.end].kind == RANK_COLON) {
+            result->suffix_flags |= tokens->contents[pos].suffix_flags;
             if (collect && tokens->contents[pos].guard_candidate) result->types = rank_type_merge(result->types, rank_type_role(GUARD_TERNARY));
             return question;
         }
@@ -98,6 +100,7 @@ static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo
     }
     if (pos == target) result->role = RANK_TERNARY;
     result->types = rank_type_merge(result->types, when_true.types);
+    result->suffix_flags |= when_true.suffix_flags;
     if (when_true.role) result->role = when_true.role;
     result->collection_ternary |= tokens->contents[pos + 1].kind == RANK_ATOM && tokens->contents[pos + 1].collection;
     result->collection_ternary |= when_true.collection_ternary;
@@ -105,6 +108,7 @@ static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo
     if (tokens->contents[when_true.end].kind == RANK_COLON) {
         RankParse alternative = memo[(when_true.end + 1) * 2 + force];
         result->types = rank_type_merge(result->types, alternative.types);
+        result->suffix_flags |= alternative.suffix_flags;
         if (alternative.role) result->role = alternative.role;
         result->collection_ternary |= alternative.collection_ternary;
         result->valid &= alternative.valid;

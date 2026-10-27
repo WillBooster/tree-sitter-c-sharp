@@ -34,7 +34,7 @@ static bool rank_complete_sibling(TSLexer *lexer, Scanner *context, QuestionInpu
     QuestionCheckpoint start = {.cursor = input->cursor, .capturing = input->capturing};
     RankTokens sibling = array_new();
     unsigned colons = 0;
-    bool read = rank_read_stream_from(lexer, &sibling, &colons, true);
+    bool read = rank_read_stream_until(lexer, &sibling, &colons, true, NULL, NULL);
     RankParse summary[2] = {0};
     if (read) rank_evaluate_modes(&sibling, ((unsigned)-1), summary);
     bool valid = read && summary[0].valid && summary[0].end == sibling.size - 1;
@@ -340,7 +340,7 @@ static void question_walk_as_type(TSLexer *lexer, QuestionWalk *walk) {
         : lexer->lookahead == ':' || question_type_operator_follower(lexer, walk->input, (QuestionFollowing){.token = lexer->lookahead}));
     TSLexerPosition end;
     lexer->get_position(lexer, &end);
-    walk->as_type_end = type && follows ? (read.expression_questions ? read.expression_start : end.bytes) : 0;
+    walk->as_type_end = type && follows ? end.bytes : 0;
     question_input_restore(walk->input, start);
 }
 
@@ -784,6 +784,13 @@ static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable, bool case_
     return rank_read_identifier(lexer, &word) &&
         (rank_identifier_allowed(&word, true) || (word.keyword && (!strcmp(word.word, "await") || !strcmp(word.word, "var")))) &&
         (!word.keyword || strcmp(word.word, "with") || question_skip_separators(lexer) != '{');
+}
+
+static bool question_nullable_pattern_tail(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    bool pattern = question_walk_pattern_tail(lexer, true, false, input);
+    question_input_restore(input, start);
+    return pattern;
 }
 
 static bool question_type_keyword_follower(TSLexer *lexer, QuestionInput *input) {

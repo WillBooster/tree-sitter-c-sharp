@@ -124,6 +124,7 @@ static bool question_apply_event(Scanner *scanner, char event) {
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (!question_apply_scope_event(frame, event)) return false;
     if (event == ':') {
+        frame->guard.role &= GUARD_ROLE_MASK;
         if (frame->pending) frame->pending--;
         else if (!frame->unknown && !scanner->question_unknown) {
             frame->case_colon = false;
@@ -355,9 +356,10 @@ static void question_serialize(const Scanner *scanner, char *buffer, unsigned *s
 
 static void question_write_guard(const QuestionFrame *frame, bool unknown, char *buffer, unsigned *size, bool counts) {
     bool proof = !unknown && !frame->unknown && frame->case_guard && (!frame->guard.prefix || counts);
-    buffer[(*size)++] = (char)(frame->case_guard ? 1 | (proof ? frame->guard.role << 1 : 0) |
+    buffer[(*size)++] = (char)(frame->case_guard ? 1 | (proof ? (frame->guard.role & GUARD_ROLE_MASK) << 1 : 0) |
         (proof && frame->guard.prefix ? 8 : 0) |
-        (!unknown && !frame->unknown && frame->guard.handoff ? 16 : 0) : 0);
+        (!unknown && !frame->unknown && frame->guard.handoff ? 16 : 0) |
+        (!unknown && !frame->unknown && (frame->guard.role & GUARD_SUFFIX_COMPLETE) ? 32 : 0) : 0);
     if (proof && frame->guard.prefix) question_write_varint(buffer, size, frame->guard.prefix);
 }
 
@@ -405,10 +407,10 @@ static bool question_read_frame(QuestionFrame *frame, unsigned index, const char
 static bool question_read_guard(QuestionFrame *frame, const char *buffer, unsigned length, unsigned *size) {
     if (*size == length) return false;
     unsigned guard = (unsigned char)buffer[(*size)++];
-    if (guard > 29 || ((guard & 6) == 6) || (guard && !(guard & 1)) || ((guard & 8) && !(guard & 6))) return false;
-    if (frame->unknown && (guard & 22)) return false;
+    if (guard > 61 || ((guard & 6) == 6) || (guard && !(guard & 1)) || ((guard & 8) && !(guard & 6))) return false;
+    if (frame->unknown && (guard & 54)) return false;
     frame->case_guard = guard & 1;
-    frame->guard.role = (guard >> 1) & 3;
+    frame->guard.role = ((guard >> 1) & 3) | ((guard & 32) ? GUARD_SUFFIX_COMPLETE : 0);
     frame->guard.handoff = (guard & 16) != 0;
     if (guard & 8) {
         if (!question_read_varint(buffer, length, size, &frame->guard.prefix) || !frame->guard.prefix) return false;

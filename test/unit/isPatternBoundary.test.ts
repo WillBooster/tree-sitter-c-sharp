@@ -13,6 +13,107 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source: 'class C{void M(){switch(x){case y when a is T?[]? is U * a ? [1] : b is V?[]: L: break;}}}',
+      guards: ['when a is T?[]? is U * a ? [1] : b is V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 58],
+          [61, 64],
+          [67, 79],
+        ],
+        [
+          [67, 73],
+          [74, 76],
+          [78, 79],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[]?[,] is U && a ? [1] : b is V?[]: L: break;}}}',
+      guards: ['when a is T?[]?[,] is U && a ? [1] : b is V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 62],
+          [65, 68],
+          [71, 83],
+        ],
+        [
+          [71, 77],
+          [78, 80],
+          [82, 83],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when p is P?[]? is P && a is T?[]?[] is U && a ? [1] : b as V?[]: L0: L1: break;}}}',
+      guards: ['when p is P?[]? is P && a is T?[]?[] is U && a ? [1] : b as V?[]: L0: L1'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 64],
+          [65, 102],
+          [104, 106],
+        ],
+        [
+          [65, 67],
+          [68, 98],
+          [100, 102],
+        ],
+        [
+          [68, 80],
+          [83, 86],
+          [89, 98],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[]? is U && a ? [1] : b is V?[]: L: break;}}}',
+      guards: ['when a is T?[]? is U && a ? [1] : b is V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 59],
+          [62, 65],
+          [68, 80],
+        ],
+        [
+          [68, 74],
+          [75, 77],
+          [79, 80],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] ? [1] : b as U?[x ? y : z] : e: break;}}}',
+      guards: ['when a is T?[] ? [1] : b as U?[x ? y : z] : e'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 75],
+          [78, 79],
+        ],
+        [
+          [46, 48],
+          [51, 54],
+          [57, 75],
+        ],
+        [
+          [65, 66],
+          [69, 70],
+          [73, 74],
+        ],
+      ],
+    },
+    {
       source: 'class C{void M(){switch(x){case y when a is T?[] is U * a ? [1] : b as V?[]: L: break;}}}',
       guards: ['when a is T?[] is U * a ? [1] : b as V?[]: L'],
       labels: [],
@@ -2303,3 +2404,50 @@ test('restores mixed guard ownership in a fresh parser after suffix edits', () =
 function mixedGuardSource(labels: number): string {
   return `switch(x){case y when ${'a is T?[] is U && a?.b && '.repeat(40)}a ? [1] : b:${Array.from({ length: labels }, (_, index) => ` L${index}:`).join('')} break;}`;
 }
+
+test('preserves errors and following declarations when added nullable suffixes cannot complete a guard', () => {
+  const samples = [
+    'class C{void M(){switch(x){case y when a is T?[]? as U && a ? [1] : b is V?[]: L0: L1: break;}}}',
+    'class C{void M(){switch(x){case y when p is P?[] && a is T?[]? as U && a ? [1] : b is V?[]: L0: L1: break;}}}',
+    'class C{void M(){switch(x){case y when p is P?[]? is P && a is T?[]? as U && a ? [1] : b is V?[]: L0: L1: break;}}}',
+    'class C{void M(){switch(x){case y when p is P?[]? is P && a is T?[]? as U && a ? [1] : b as V?[]: L: break;}}}',
+  ];
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(
+    language,
+    '(when_clause) @guard (labeled_statement (identifier) @label) (class_declaration) @class'
+  );
+  let previous = 'class Following {}';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const source of [...samples, ...samples.toReversed()]) {
+      const next = `${source} class Following {}`;
+      const fresh = parser.parse(next)!;
+      editTree(tree, previous, next);
+      const incremental = parser.parse(next, tree)!;
+      try {
+        expect(fresh.rootNode.hasError, next).toBe(true);
+        expect(fresh.rootNode.lastNamedChild?.text, next).toBe('class Following {}');
+        expect(fresh.rootNode.lastNamedChild?.hasError, next).toBe(false);
+        expect(syntaxSnapshot(incremental.rootNode), next).toEqual(syntaxSnapshot(fresh.rootNode));
+        expect(
+          query
+            .captures(incremental.rootNode)
+            .map(({ name, node }) => [name, node.text, node.startIndex, node.endIndex]),
+          next
+        ).toEqual(
+          query.captures(fresh.rootNode).map(({ name, node }) => [name, node.text, node.startIndex, node.endIndex])
+        );
+      } finally {
+        tree.delete();
+        fresh.delete();
+      }
+      tree = incremental;
+      previous = next;
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
