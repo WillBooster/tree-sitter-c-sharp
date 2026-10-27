@@ -21,6 +21,47 @@ beforeAll(async () => {
 
 afterAll(() => parser.delete());
 
+test.each(wrappers)('retains IS and coalescing operands before $name interpolation formats', ({ open, close }) => {
+  const query = new Query(language, '(interpolation_format_clause) @format (conditional_expression) @conditional');
+  let previous = 'var r = 0;';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const { expression, format } of [
+      { expression: 'x is T?[] ?? y as T is T?[] t', format: ': c' },
+      { expression: 'a is T?[] is U ?? c ? [1]', format: ': d :x' },
+      { expression: 'f(a) is T?[]? || b?[i] as T?[]?[] is U ?? a ? [1]', format: ': c:X' },
+    ]) {
+      for (const parenthesized of [false, true, false]) {
+        const source = `var r = ${open}${parenthesized ? `(${expression})` : expression}${format}${close};`;
+        editTree(tree, previous, source);
+        const incremental = parser.parse(source, tree)!;
+        tree.delete();
+        tree = incremental;
+        previous = source;
+        const fresh = parser.parse(source)!;
+        try {
+          expect(fresh.rootNode.hasError, source).toBe(false);
+          expect(fresh.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(0);
+          expect(
+            query.captures(fresh.rootNode).map(({ name, node }) => [name, node.text, node.startIndex, node.endIndex]),
+            source
+          ).toEqual([['format', format, source.indexOf(format), source.indexOf(format) + format.length]]);
+          expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+          expect(
+            query.captures(incremental.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]),
+            source
+          ).toEqual(query.captures(fresh.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]));
+        } finally {
+          fresh.delete();
+        }
+      }
+    }
+  } finally {
+    query.delete();
+    tree.delete();
+  }
+});
+
 test.each(wrappers)(
   'retains sized AS ranks and $name format boundaries across parentheses edits',
   ({ open, close }) => {

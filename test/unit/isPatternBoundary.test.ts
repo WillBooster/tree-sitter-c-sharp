@@ -13,6 +13,72 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source: 'class C{void M(){switch(x){case var y when c is T?[]? || a?[0] ? [1] : b : L: break;}}} class F{}',
+      guards: ['when c is T?[]? || a?[0] ? [1] : b : L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [43, 58],
+          [59, 72],
+          [75, 76],
+        ],
+        [
+          [59, 62],
+          [65, 68],
+          [71, 72],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case var y when x is T? t * q is T?[] ?? a ? [] : b : L0: L1: break;}}} class F{}',
+      guards: ['when x is T? t * q is T?[] ?? a ? [] : b : L0: L1'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [43, 49],
+          [51, 83],
+          [85, 87],
+        ],
+        [
+          [51, 61],
+          [62, 78],
+          [81, 83],
+        ],
+        [
+          [62, 69],
+          [72, 74],
+          [77, 78],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case var y when f(a) is T?[]?[]? && a ? [] : b : x = a ? [1] : b; break;}}} class F{}',
+      guards: ['when f(a) is T?[]?[]? && a ? [] : b'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [43, 64],
+          [67, 69],
+          [72, 73],
+        ],
+        [
+          [80, 81],
+          [84, 87],
+          [90, 91],
+        ],
+      ],
+      nodeCounts: {
+        expression_statement: 1,
+        break_statement: 1,
+        class_declaration: 2,
+      },
+    },
+    {
       source:
         'class C{void M(){switch(x){case y when z is T?[] ?? a as T ?? a is T?[] ?? a ? [1] : b: L0: L1: break;}}} class F{}',
       guards: ['when z is T?[] ?? a as T ?? a is T?[] ?? a ? [1] : b: L0: L1'],
@@ -921,6 +987,7 @@ test('preserves case patterns, guards and statement labels across clause edits',
       previous = sample.source;
     }
     for (const incomplete of [
+      'class C{void M(){switch(x){case var y when c is T?[]? || a?[0] ? [1] : b : x = a ? [1] : b; break;}}} class F{}',
       'switch (x) { case y when',
       'switch (x) { case T?[] y when a ?',
       'switch (x) { case y when a ? [1] : b:',

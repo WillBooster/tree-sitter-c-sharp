@@ -508,7 +508,7 @@ static bool question_walk_operator_context(TSLexer *lexer, QuestionWalk *walk, i
     question_walk_is_name_operator(walk, c);
     if (!walk->depth && (question_operator(c) || c == -1)) walk->as_operand = false;
     if (walk->ordinary_name_candidate && walk->recording && !walk->depth && !walk->nullable_only &&
-        (question_operator(c) || c == '(' || c == '[' || c == '.' || c == '<' || c == '>' || c == -1)) {
+        (question_operator(c) || c == '*' || c == '(' || c == '[' || c == '.' || c == '<' || c == '>' || c == -1)) {
         walk->known_ternary = true;
         walk->known_nullable = false;
         walk->definite_ternary = true;

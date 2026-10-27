@@ -335,15 +335,8 @@ static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *defi
     }
 }
 
-static bool rank_read_bracket(TSLexer *lexer) {
-    if (question_skip_separators(lexer) != '[') return false;
-    advance(lexer);
-    if (question_skip_separators(lexer) < 0) return false;
-    return rank_read_delimited(lexer, '[', RANK_BODY_BRACKET, NULL);
-}
-
 static bool rank_read_stream_until(TSLexer *lexer, RankTokens *tokens, unsigned *colons, bool atom, bool (*stop)(TSLexer *, void *), void *context) {
-    while (!lexer->eof(lexer)) {
+    while (!lexer->eof(lexer) && (!tokens->format_boundary || !*colons)) {
         int32_t c = question_skip_separators(lexer);
         bool division = c == -1;
         if (c < 0 && (!division || atom)) return false;
@@ -359,6 +352,11 @@ static bool rank_read_stream_until(TSLexer *lexer, RankTokens *tokens, unsigned 
         } else if (!rank_read_operator(lexer, tokens, colons, &atom, division)) {
             return false;
         }
+    }
+    if (tokens->format_boundary && *colons) {
+        array_pop(tokens);
+        (*colons)--;
+        atom = false;
     }
     if (atom && !stop) return false;
     array_push(tokens, ((RankToken){RANK_END, false}));
@@ -420,7 +418,10 @@ static bool rank_read_collection(TSLexer *lexer, RankTokens *tokens) {
 }
 
 static bool rank_read_postfix(TSLexer *lexer, int32_t c) {
-    if (c == '[') return rank_read_bracket(lexer);
+    if (c == '[') {
+        advance(lexer);
+        return question_skip_separators(lexer) >= 0 && rank_read_delimited(lexer, '[', RANK_BODY_BRACKET, NULL);
+    }
     if (c == '(') {
         advance(lexer);
         return rank_read_delimited(lexer, '(', RANK_BODY_EXPRESSION, NULL);
