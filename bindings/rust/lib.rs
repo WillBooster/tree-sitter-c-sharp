@@ -14,9 +14,9 @@
 //! assert!(!tree.root_node().has_error());
 //! ```
 //!
-//! Use `willbooster-tree-sitter` 15.0.0 or later within major version 15; upstream's `tree-sitter` crate rejects this parser.
+//! Use `willbooster-tree-sitter` 15.0.3 or later within major version 15; upstream's `tree-sitter` crate rejects this parser.
 //!
-//! [`Parser`]: https://docs.rs/willbooster-tree-sitter/15.0.0/tree_sitter/struct.Parser.html
+//! [`Parser`]: https://docs.rs/willbooster-tree-sitter/15.0.3/tree_sitter/struct.Parser.html
 //! [tree-sitter]: https://tree-sitter.github.io/
 
 use tree_sitter_language::LanguageFn;
