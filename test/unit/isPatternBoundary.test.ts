@@ -13,6 +13,54 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source:
+        'class C{void M(){switch(x){case y when z is T?[] ?? a as T ?? a is T?[] ?? a ? [1] : b: L0: L1: break;}}} class F{}',
+      guards: ['when z is T?[] ?? a as T ?? a is T?[] ?? a ? [1] : b: L0: L1'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 90],
+          [92, 94],
+        ],
+        [
+          [46, 68],
+          [69, 86],
+          [88, 90],
+        ],
+        [
+          [69, 76],
+          [79, 82],
+          [85, 86],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when z is T?[] ?? a as T?[] ?? a is T?[] ?? a ? [1] : b: L0: L1: break;}}} class F{}',
+      guards: ['when z is T?[] ?? a as T?[] ?? a is T?[] ?? a ? [1] : b: L0: L1'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 93],
+          [95, 97],
+        ],
+        [
+          [46, 71],
+          [72, 89],
+          [91, 93],
+        ],
+        [
+          [72, 79],
+          [82, 85],
+          [88, 89],
+        ],
+      ],
+    },
+    {
       source: 'class C{void M(){switch(x){case y when a is T?[]? is U * a ? [1] : b is V?[]: L: break;}}}',
       guards: ['when a is T?[]? is U * a ? [1] : b is V?[]: L'],
       labels: [],

@@ -549,19 +549,35 @@ test.each([
   { name: 'AS then nullable IS then AS', term: 'a as T?[] is T?[] as U && ' },
   { name: 'scalar logical patterns', term: 'a is T?[] as U || a is T? and not null || ' },
   { name: 'array logical patterns', term: 'a is T?[] as U || a is T?[] and not null || ' },
-])('bounds mixed nullable operands with $name', { timeout: 60_000 }, ({ term }) => {
-  const source = (count: number): string =>
-    `switch(x){case y when ${term.repeat(count)}a ? [1] : b: break;} var following = a?[0];`;
-  expectBoundedGrowth(source(100), source(1000), false);
-  const tree = parser.parse(source(1000))!;
-  try {
-    expect(tree.rootNode.descendantsOfType('break_statement').map((node) => node.text)).toEqual(['break;']);
-    expect(tree.rootNode.lastNamedChild?.text).toBe('var following = a?[0];');
-    expect(tree.rootNode.lastNamedChild?.hasError).toBe(false);
-  } finally {
-    tree.delete();
+  {
+    name: 'coalescing IS/AS operands',
+    term: 'a as T ?? ',
+    prefix: 'z is T?[] ?? ',
+    suffix: 'a is T?[] ?? ',
+    labels: ': L0: L1',
+    conditionals: 3,
+  },
+])(
+  'bounds mixed nullable operands with $name',
+  { timeout: 60_000 },
+  ({ term, prefix = '', suffix = '', labels = '', conditionals }) => {
+    const source = (count: number): string =>
+      `switch(x){case y when ${prefix}${term.repeat(count)}${suffix}a ? [1] : b${labels}: break;} var following = a?[0];`;
+    expectBoundedGrowth(source(100), source(1000), false);
+    const tree = parser.parse(source(1000))!;
+    try {
+      if (conditionals !== undefined) {
+        expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(conditionals);
+        expect(tree.rootNode.descendantsOfType('labeled_statement')).toHaveLength(0);
+      }
+      expect(tree.rootNode.descendantsOfType('break_statement').map((node) => node.text)).toEqual(['break;']);
+      expect(tree.rootNode.lastNamedChild?.text).toBe('var following = a?[0];');
+      expect(tree.rootNode.lastNamedChild?.hasError).toBe(false);
+    } finally {
+      tree.delete();
+    }
   }
-});
+);
 
 test.each([
   { name: 'member access', term: 'a is T?[] is U && a?.b && ', labels: false, body: 'break;', conditionals: 1 },

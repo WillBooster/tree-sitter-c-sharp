@@ -684,7 +684,7 @@ static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankE
         expression->nullable_type = true;
         expression->colon = read.colon;
         expression->conditional = read.conditional;
-        expression->division = read.division || read.binary;
+        expression->division = read.division || read.binary || read.coalesce;
         expression->has_word = read.has_word;
         expression->word = read.word;
         expression->header = RANK_HEADER_INVALID;
@@ -819,9 +819,8 @@ static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *to
     advance(lexer);
     if (lexer->lookahead == '?') {
         tokens->contents[binary].certificate = RANK_CERT_INVALID;
-        expression->pattern = false;
         advance(lexer);
-        return lexer->lookahead != '=' ? RANK_READ_MORE : RANK_READ_UNKNOWN;
+        return lexer->lookahead != '=' ? rank_start_binary_rhs(lexer, -1, tokens, expression) : RANK_READ_UNKNOWN;
     }
     if (question_skip_separators(lexer) == '.') {
         expression->guard_candidate = false;
