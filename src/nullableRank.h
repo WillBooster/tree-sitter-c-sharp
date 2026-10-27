@@ -604,7 +604,7 @@ static RankReadStep rank_read_guard_operator(TSLexer *lexer, int32_t c, RankToke
     if (expression->content && rank_read_guard_assignment(lexer, c, tokens, expression)) return RANK_READ_MORE;
     if (expression->content && c == -1) return rank_start_binary_rhs(lexer, -1, tokens, expression);
     if (expression->type_pending || !rank_binary_start(c) ||
-        (c == '*' && expression->pattern && expression->type_complete) || (c == '<' && !expression->type_complete)) return RANK_READ_TOKEN;
+        (c == '<' && !expression->type_complete)) return RANK_READ_TOKEN;
     QuestionCheckpoint start = question_input_checkpoint(tokens->input);
     bool postfix = false, high = false;
     bool binary = rank_skip_binary_operator(lexer, c, &postfix, false, &high) && !postfix;

@@ -13,6 +13,42 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source: 'class C{void M(){switch(x){case y when a is T?[] is U * a ? [1] : b as V?[]: L: break;}}}',
+      guards: ['when a is T?[] is U * a ? [1] : b as V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 75],
+          [77, 78],
+        ],
+        [
+          [46, 57],
+          [60, 63],
+          [66, 75],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] is U** p ? [1] : b as V?[]: L: break;}}}',
+      guards: ['when a is T?[] is U** p ? [1] : b as V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 75],
+          [77, 78],
+        ],
+        [
+          [46, 57],
+          [60, 63],
+          [66, 75],
+        ],
+      ],
+    },
+    {
       source: 'class C{void M(){switch(x){case y when a is T?[] is U / a ? [1] : b as U?[]: L: break;}}}',
       guards: ['when a is T?[] is U / a ? [1] : b as U?[]: L'],
       labels: [],
