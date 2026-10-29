@@ -807,7 +807,7 @@ static bool question_type_keyword_follower(TSLexer *lexer, QuestionInput *input)
 static bool rank_type_suffix_follows(TSLexer *lexer, const RankTokens *tokens, const RankExpression *expression) {
     if (lexer->lookahead == '?' || question_type_boundary(lexer->lookahead) || lexer->eof(lexer)) return true;
     if (!tokens->input) {
-        return tokens->peek && expression->nullable_event != ((unsigned)-1) && (question_type_keyword_follower(lexer, tokens->peek) ||
+        return tokens->peek && ((expression->nullable_event != ((unsigned)-1) && question_type_keyword_follower(lexer, tokens->peek)) ||
             (expression->pattern && question_nullable_pattern_tail(lexer, tokens->peek)));
     }
     return lexer->lookahead == '{' || question_type_operator_follower(lexer, tokens->input, (QuestionFollowing){.token = lexer->lookahead}) ||
