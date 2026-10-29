@@ -163,7 +163,7 @@ test('captures initializer member names without coloring collection assignments 
   });
 });
 
-test('captures member access names and parses other member expressions', async () => {
+test('captures member and call names', async () => {
   await withHighlights(async (parser, query) => {
     for (const expression of [
       'target.Value',
@@ -178,10 +178,15 @@ test('captures member access names and parses other member expressions', async (
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
-        if (expression === 'target.Value') {
-          expectCaptures(query, tree, source, 'variable.member', ['Value']);
-          expectCaptures(query, tree, source, 'function.method.call', []);
-        }
+        const name = expression.includes('Conditional')
+          ? 'Conditional'
+          : expression.includes('Generic')
+            ? 'Generic'
+            : expression.includes('Call')
+              ? 'Call'
+              : 'Value';
+        expectCaptures(query, tree, source, 'variable.member', [name]);
+        expectCaptures(query, tree, source, 'function.method.call', expression.endsWith('()') ? [name] : []);
       } finally {
         tree.delete();
       }
