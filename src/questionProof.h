@@ -10,6 +10,9 @@ static uint8_t question_guard_save(QuestionFrame *, RankParse *);
 static uint8_t question_guard_rank_successor(uint8_t, bool, uint32_t, uint32_t *);
 static bool question_guard_suffix(TSLexer *, Scanner *, QuestionInput *, uint32_t *);
 static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
+static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
+static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
+static bool question_input_multi_rank(const QuestionInput *, uint32_t);
 static bool question_guard_suffix_complete(TSLexer *, Scanner *, QuestionInput *, uint32_t);
 static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
@@ -156,6 +159,18 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
     return parsed;
 }
 
+static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (frame->case_guard) {
+        uint8_t role = question_guard_rank_role(lexer, scanner, questions, input);
+        if (role) return role;
+        if (rank_guard_designation(lexer, questions, input)) return RANK_PATTERN_COMPLETE;
+    }
+    const Interpolation *interpolation = scanner->interpolation_stack.size ? array_back(&scanner->interpolation_stack) : NULL;
+    return rank_stream_ranked(lexer, scanner, questions, input,
+        interpolation && interpolation->open_brace_count && !interpolation->question_depth);
+}
+
 static bool rank_guard_designation(TSLexer *lexer, uint32_t *questions, QuestionInput *input) {
     QuestionCheckpoint start = question_input_checkpoint(input);
     QuestionCheckpoint type = question_input_checkpoint(input);
@@ -164,9 +179,17 @@ static bool rank_guard_designation(TSLexer *lexer, uint32_t *questions, Question
         prefix.keyword && !strcmp(prefix.word, "not"))
         type = question_input_checkpoint(input);
     question_input_restore(input, type);
+    uint32_t type_start = input->cursor;
     RankTypeRead read = {0};
+    bool parsed = rank_read_as_type(lexer, &read);
+    // Like released parsing, `not T?[]` reads `not` as the type unless a multi-rank or second suffix proves `T?[...]`.
+    if (type.cursor != start.cursor && read.questions < 2 && !question_input_multi_rank(input, type_start)) {
+        question_input_restore(input, start);
+        read = (RankTypeRead){0};
+        parsed = rank_read_as_type(lexer, &read);
+    }
     QuestionIdentifier designation;
-    bool valid = rank_read_as_type(lexer, &read) && !read.colon && !read.division &&
+    bool valid = parsed && !read.colon && !read.division &&
         !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
         rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true) &&
         question_skip_separators(lexer) == '?' && question_read_single_question(lexer) &&
@@ -174,6 +197,16 @@ static bool rank_guard_designation(TSLexer *lexer, uint32_t *questions, Question
     if (valid) *questions += read.questions;
     else question_input_restore(input, start);
     return valid;
+}
+
+static bool question_input_multi_rank(const QuestionInput *input, uint32_t start) {
+    bool open = false;
+    for (uint32_t i = start; i < input->cursor; i++) {
+        int32_t c = input->characters.contents[i].value;
+        if (open && c == ',') return true;
+        if (c != ' ' && c != '\t') open = c == '[';
+    }
+    return false;
 }
 
 static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {

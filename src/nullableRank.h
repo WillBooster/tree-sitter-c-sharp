@@ -88,21 +88,6 @@ static RankParse rank_atom_summary(RankToken atom, bool force);
 static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result, bool collect);
 static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result, bool collect);
 
-static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
-static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
-static uint8_t rank_stream_ranked(TSLexer *, Scanner *, uint32_t *, QuestionInput *, bool);
-
-static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
-    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    if (frame->case_guard) {
-        uint8_t role = question_guard_rank_role(lexer, scanner, questions, input);
-        if (role) return role;
-        if (rank_guard_designation(lexer, questions, input)) return RANK_PATTERN_COMPLETE;
-    }
-    const Interpolation *interpolation = scanner->interpolation_stack.size ? array_back(&scanner->interpolation_stack) : NULL;
-    return rank_stream_ranked(lexer, scanner, questions, input,
-        interpolation && interpolation->open_brace_count && !interpolation->question_depth);
-}
 
 static uint8_t rank_stream_ranked(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input, bool boundary) {
     QuestionCheckpoint prefix = question_input_checkpoint(input);
@@ -821,7 +806,9 @@ static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *to
     if (lexer->lookahead == '?') {
         tokens->contents[binary].certificate = RANK_CERT_INVALID;
         advance(lexer);
-        return lexer->lookahead != '=' ? rank_start_binary_rhs(lexer, -1, tokens, expression) : RANK_READ_UNKNOWN;
+        if (lexer->lookahead == '=') return RANK_READ_UNKNOWN;
+        expression->pattern = false;
+        return tokens->input ? rank_start_binary_rhs(lexer, -1, tokens, expression) : RANK_READ_MORE;
     }
     if (question_skip_separators(lexer) == '.') {
         expression->guard_candidate = false;
