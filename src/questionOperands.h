@@ -616,6 +616,8 @@ static void question_walk_attributed_lambda(TSLexer *lexer, QuestionWalk *walk) 
     RankTypeRead read = {0};
     valid = valid && question_read_nullable_lambda_header(lexer, walk->input, &read, NULL);
     question_input_restore(walk->input, start);
+    if (valid && walk->nullable_context && walk->case_boundary && walk->nullable_allowed &&
+        walk->rank_phase == RANK_NONE && question_walk_current_type_pattern(lexer, walk)) return;
     if (valid) {
         walk->known_ternary = true;
         walk->definite_ternary = true;

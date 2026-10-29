@@ -33,7 +33,7 @@ static bool question_type_operator_follower(TSLexer *, QuestionInput *, Question
 static bool question_nullable_pattern_tail(TSLexer *, QuestionInput *);
 static bool question_type_keyword_follower(TSLexer *, QuestionInput *);
 static bool rank_numeric_type_chain(const RankTokens *tokens);
-static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite, bool *division);
+static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite, bool *division, bool guard);
 static bool rank_read_stream_until(TSLexer *, RankTokens *, unsigned *, bool, bool (*)(TSLexer *, void *), void *);
 static bool rank_read_stream_after_rank(TSLexer *, RankTokens *, unsigned *, bool, bool (*)(TSLexer *, void *), void *);
 static bool rank_complete_arguments(TSLexer *, RankScopeRead *, Scanner *);
@@ -116,7 +116,7 @@ static uint8_t rank_stream_ranked(TSLexer *lexer, Scanner *scanner, uint32_t *qu
     RankTokens tail = {.peek = scanner->question_frames[scanner->question_frame_count - 1].case_guard ? NULL : input, .format_boundary = boundary};
     bool definite = false, division = false;
     unsigned colons = 0;
-    if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division)) { array_delete(&tail); return RANK_NONE; }
+    if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division, scanner->question_frames[scanner->question_frame_count - 1].case_guard)) { array_delete(&tail); return RANK_NONE; }
     if (!scanner->question_frames[scanner->question_frame_count - 1].case_guard && rank_local_pattern_reset(input, buffered_prefix, questions)) {
         array_delete(&tail);
         return RANK_TERNARY;
@@ -306,7 +306,7 @@ static RankCertificate rank_certify_word(RankCertificate certificate, const Ques
     return RANK_CERT_INVALID;
 }
 
-static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite, bool *division) {
+static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *definite, bool *division, bool guard) {
     unsigned count = 0;
     for (;;) {
         int32_t first = question_skip_separators(lexer);
@@ -323,7 +323,7 @@ static bool rank_read_omitted_ranks(TSLexer *lexer, RankTokens *tail, bool *defi
         if (lexer->lookahead != ']') return false;
         advance(lexer);
         count++;
-        *definite |= comma || count > 1;
+        *definite |= comma || (!guard && count > 1);
         int32_t next = question_skip_separators(lexer);
         if (next == -1) *division = true;
         if (next != '[') return true;
@@ -871,7 +871,7 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
     }
     RankTokens ranks = array_new();
     bool definite = false, division = false;
-    if (!rank_read_omitted_ranks(lexer, &ranks, &definite, &division)) { array_delete(&ranks); return RANK_READ_UNKNOWN; }
+    if (!rank_read_omitted_ranks(lexer, &ranks, &definite, &division, tokens->input != NULL)) { array_delete(&ranks); return RANK_READ_UNKNOWN; }
     // Every rank of an ordinary chain reaches the same suffix end, so one walk decides the whole chain.
     bool chain = !tokens->input && expression->nullable_event != ((unsigned)-1);
     bool proved = chain && !expression->chain_unproved && tokens->contents[expression->nullable_event].kind == RANK_DEFINITE_TYPE;

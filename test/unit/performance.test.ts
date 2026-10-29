@@ -184,6 +184,14 @@ function collectionArithmeticConsequences(count: number): string {
   return `var r = ${'value is T?[] ? [] + x : '.repeat(count)}fallback;`;
 }
 
+test('bounds invalid nullable guard alternative chains', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(incompleteNullableGuardAlternatives(100), incompleteNullableGuardAlternatives(1000), true);
+});
+
+function incompleteNullableGuardAlternatives(count: number): string {
+  return `class C { void M(object a, bool x) { switch(a) { case int when ${'a is int?[] ? x : '.repeat(count)}x: break; } } }`;
+}
+
 test('bounds repeated nullable ranks in ordinary type-test chains', { timeout: 60_000 }, () => {
   expectBoundedGrowth(ordinaryNullableChain(1000), ordinaryNullableChain(10_000), false);
 });

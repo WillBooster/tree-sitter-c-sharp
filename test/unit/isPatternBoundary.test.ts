@@ -2671,6 +2671,9 @@ test('retains await as a contextual type name in nonasync positional patterns', 
 
 test('rejects incomplete nullable guard conditionals', () => {
   const samples = [
+    'class C { void M(object a, bool x) { switch (a) { case int when a is int?[] ? x : a is int?[] ? x : x: break; } } }',
+    'class C { void M(object o, bool b) { switch(o){ case int when x is not T?[][] ? o : x: break; } } }',
+    'class C { void M(object o, bool b) { switch(o){ case int when x is not T?[][] || y: break; } } }',
     'class C { void M(object a) { switch (a) { case int when a is not int?[] is bool: break; } } }',
     'class C { void M(object a, bool x) { switch (a) { case int when a is A.B?[] ? x : x: break; } } }',
     'class C { void M(object a, bool x) { switch (a) { case int when a is List<int?>?[] is var v: break; } } }',

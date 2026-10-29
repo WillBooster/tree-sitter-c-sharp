@@ -3582,4 +3582,8 @@ export const ownershipSamples = [
     source: "class C { void M() { switch (o) { case int when a is T?[]? is U ? [1] : b ? [2] : [3]: break; } } }",
     ranges: [[[48, 63], [66, 69], [72, 85]], [[72, 73], [76, 79], [82, 85]]],
   },
+  {
+    source: "class C { void M(object o, bool b) { switch(o){ case int when x is {} and T?[,] w ? (q) => 1 : 2: break; } } }",
+    ranges: [[[62, 81], [84, 92], [95, 96]]],
+  },
 ];
