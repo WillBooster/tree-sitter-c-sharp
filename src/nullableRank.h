@@ -734,7 +734,9 @@ static RankReadStep rank_read_pattern_word(TSLexer *lexer, RankTokens *tokens, c
     bool type_test = name->keyword && !strcmp(name->word, "is");
     if (type_test || (expression->pattern && logical)) {
         expression->guard_candidate |= type_test;
-        if (type_test) { expression->nullable_type = false; expression->nullable_event = ((unsigned)-1); }
+        // Each type-test or logical-pattern operand starts its own nullable type chain.
+        expression->nullable_event = ((unsigned)-1);
+        if (type_test) expression->nullable_type = false;
         expression->pattern = true;
         expression->type_pending = true;
         expression->type_complete = false;
