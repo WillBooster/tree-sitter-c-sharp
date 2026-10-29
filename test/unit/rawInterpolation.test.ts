@@ -53,7 +53,7 @@ test('accepts format newlines only in verbatim interpolated strings', async () =
   await Parser.init();
   const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
   try {
-    for (const newline of ['\n', '\r\n', '\r', '\u0085', ' ', ' ']) {
+    for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       for (const verbatim of [false, true]) {
         const source = `class C { string value = $${verbatim ? '@' : ''}"{1:a${newline}b}"; }`;
         const tree = parser.parse(source)!;
