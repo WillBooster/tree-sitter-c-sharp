@@ -182,6 +182,14 @@ function nullableChainBeforeColon(count: number): string {
   return `var r = x is T?[]?[] ? d : x ? [] || 1 is T?${'[]?'.repeat(count)} : e;`;
 }
 
+test('bounds nested nullable chains before binary conditional followers', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(nestedNullableBinaryFollower(1000), nestedNullableBinaryFollower(10_000), false);
+});
+
+function nestedNullableBinaryFollower(count: number): string {
+  return `var r = x is T?[]?[] ? d : x ? [] || 1 is T?${'[]?'.repeat(count)} == y : e;`;
+}
+
 test('bounds repeated omitted stack allocation ranks', { timeout: 60_000 }, () => {
   expectBoundedGrowth(omittedStackAllocationRanks(100), omittedStackAllocationRanks(1000), false);
 });

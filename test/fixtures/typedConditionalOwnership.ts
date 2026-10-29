@@ -3434,4 +3434,28 @@ export const ownershipSamples = [
     source: 'class C { void M() { var r = x is T?[]?[] is T?[,]?[] ? d : x ? [] || 1 is T?[]?[]? : e; } }',
     ranges: [[[29, 53], [56, 57], [60, 87]], [[60, 61], [64, 83], [86, 87]]],
   },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] ? d : x ? [] || 1 is T?[]?[]? == y : e; } }',
+    ranges: [[[29, 41], [44, 45], [48, 80]], [[48, 49], [52, 76], [79, 80]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] ? d : x ? [] || 1 is T?[]?[]? is U : e; } }',
+    ranges: [[[29, 41], [44, 45], [48, 80]], [[48, 49], [52, 76], [79, 80]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] ? d : x ? [] || 1 is T?[]?[]? as U : e; } }',
+    ranges: [[[29, 41], [44, 45], [48, 80]], [[48, 49], [52, 76], [79, 80]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[,]?[]? ? b : c: break;}',
+    ranges: [[[22, 36], [39, 40], [43, 44]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[,]?[]? ? [1] : c: break;}',
+    ranges: [[[22, 36], [39, 42], [45, 46]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[,,]?[]? ? b : c: break;}',
+    ranges: [[[22, 37], [40, 41], [44, 45]]],
+  },
 ];

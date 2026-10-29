@@ -823,7 +823,7 @@ static void rank_apply_type_suffix(TSLexer *lexer, RankTokens *tokens, RankExpre
         array_push(tokens, ((RankToken){RANK_ATOM, false}));
     }
     if (!tokens->input && expression->nullable_event != ((unsigned)-1)) {
-        unsigned first = lexer->lookahead == ':' ? expression->nullable_event : expression->type_chain;
+        unsigned first = expression->token == 0 && lexer->lookahead != ':' ? expression->type_chain : expression->nullable_event;
         for (unsigned i = first; i <= expression->nullable_event; i++)
             if (tokens->contents[i].kind == RANK_IS_TYPE) tokens->contents[i].kind = RANK_DEFINITE_TYPE;
         expression->type_chain = expression->nullable_event;

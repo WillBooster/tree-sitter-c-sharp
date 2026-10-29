@@ -276,7 +276,8 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (definite && !(frame->pending && question_guard_type_operator_follows(lexer, input))) {
         question_input_restore(input, start);
-        if (rank_guard_designation(lexer, questions, input)) result = RANK_PATTERN_COMPLETE;
+        if (has_next && !suffix_questions && question_guard_nullable_question(lexer, input, questions)) result = RANK_OWNED_NULLABLE_PREFIX;
+        else if (rank_guard_designation(lexer, questions, input)) result = RANK_PATTERN_COMPLETE;
         else {
             *questions = prefix + 1 + suffix_questions;
             result = RANK_OWNED_NULLABLE_PREFIX;
