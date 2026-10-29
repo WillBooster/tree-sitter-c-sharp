@@ -9,6 +9,7 @@ static uint8_t question_guard_take(QuestionFrame *, uint32_t, uint32_t *);
 static uint8_t question_guard_save(QuestionFrame *, RankParse *);
 static uint8_t question_guard_rank_successor(uint8_t, bool, uint32_t, uint32_t *);
 static bool question_guard_suffix(TSLexer *, Scanner *, QuestionInput *, uint32_t *);
+static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
 static bool question_guard_suffix_complete(TSLexer *, Scanner *, QuestionInput *, uint32_t);
 static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
@@ -177,7 +178,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     if (!division) definite |= question_guard_suffix(lexer, scanner, input, &suffix_questions);
     question_input_restore(input, suffix);
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    if (definite && !frame->pending) {
+    if (definite && !(frame->pending && question_guard_type_operator_follows(lexer, input))) {
         question_input_restore(input, start);
         if (rank_guard_designation(lexer, questions, input)) result = RANK_PATTERN_COMPLETE;
         else {
@@ -205,6 +206,15 @@ done:
     array_delete(&tail);
     question_input_restore(input, start);
     return question_guard_rank_successor(result, has_next, prefix, questions);
+}
+
+// Inside a pending conditional, a type operator after a definite type leaves the role to the guard stream evaluation.
+static bool question_guard_type_operator_follows(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    bool nullable = false;
+    bool follows = question_walk_pattern_suffix(lexer, &nullable, NULL) && question_type_keyword_follower(lexer, input);
+    question_input_restore(input, start);
+    return follows;
 }
 
 static bool question_guard_suffix(TSLexer *lexer, Scanner *scanner, QuestionInput *input, uint32_t *questions) {
