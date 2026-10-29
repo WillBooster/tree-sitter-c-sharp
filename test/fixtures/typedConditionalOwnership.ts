@@ -3486,4 +3486,16 @@ export const ownershipSamples = [
     source: 'var r = a is T?[] as U : d;',
     ranges: [[[8, 14], [15, 22], [25, 26]]],
   },
+  {
+    source: 'class C { void M() { var s = x is T?[] ? [] || a is T?[,]?[] : x; } }',
+    ranges: [[[29, 57], [58, 60], [63, 64]]],
+  },
+  {
+    source: 'class C { void M() { var s = x is T?[] ? [] && a is T?[,]?[] : x; } }',
+    ranges: [[[29, 57], [58, 60], [63, 64]]],
+  },
+  {
+    source: 'class C { void M() { var s = $"{(x is T?[] ? [] || a.b is T?[,]?[] : x),5}"; } }',
+    ranges: [[[33, 63], [64, 66], [69, 70]]],
+  },
 ];
