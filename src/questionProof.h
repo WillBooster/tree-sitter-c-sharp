@@ -157,7 +157,6 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
     RankParse modes[2];
     rank_evaluate_collected_modes(&tokens, question, modes, true);
     RankParse parsed = modes[0];
-    if (definite) parsed.types = rank_type_merge(rank_type_role(GUARD_NULLABLE), parsed.types);
     parsed.valid &= parsed.end < tokens.size &&
         (tokens.contents[parsed.end].kind == RANK_END || tokens.contents[parsed.end].kind == RANK_COLON);
     array_delete(&tokens);

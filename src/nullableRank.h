@@ -878,7 +878,7 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
     if (definite || ranks.size) tokens->contents[expression->token].certificate = RANK_CERT_INVALID;
     if (expression->nullable_event == ((unsigned)-1)) expression->type_chain = tokens->size;
     expression->nullable_event = tokens->size;
-    array_push(tokens, ((RankToken){.kind=definite ? RANK_DEFINITE_TYPE : RANK_IS_TYPE, .guard_candidate=guard_candidate && !definite, .suffix_flags=suffix_candidate ? RANK_SUFFIX_CONDITIONAL : 0}));
+    array_push(tokens, ((RankToken){.kind=definite ? RANK_DEFINITE_TYPE : RANK_IS_TYPE, .guard_candidate=guard_candidate, .suffix_flags=suffix_candidate ? RANK_SUFFIX_CONDITIONAL : 0}));
     array_push(tokens, ((RankToken){RANK_QUESTION, true}));
     array_push(tokens, ((RankToken){RANK_ATOM, true}));
     for (unsigned i = 0; i < ranks.size; i++) array_push(tokens, ranks.contents[i]);

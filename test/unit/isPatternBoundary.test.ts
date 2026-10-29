@@ -13,6 +13,62 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source:
+        'class C { void M() { switch (y) { case int when a ?? b is T?[]? && a ?? b is T?[] || a?.b is T?[] v ? a as T?[] is T : a?.b is T?[] v && (a) is T?[] v || a is T?[,] || a?.b is T? ? [1] : b: L: break; } } }',
+      guards: [
+        'when a ?? b is T?[]? && a ?? b is T?[] || a?.b is T?[] v ? a as T?[] is T : a?.b is T?[] v && (a) is T?[] v || a is T?[,] || a?.b is T? ? [1] : b: L',
+      ],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [48, 78],
+          [79, 188],
+          [190, 191],
+        ],
+        [
+          [79, 99],
+          [102, 116],
+          [119, 188],
+        ],
+        [
+          [119, 178],
+          [181, 184],
+          [187, 188],
+        ],
+      ],
+      nodeCounts: {
+        break_statement: 1,
+      },
+    },
+    {
+      source:
+        'class C { void M() { switch (y) { case int when a is T?[] ? d : c is T?[] v && e ? f : b: L: break; } } }',
+      guards: ['when a is T?[] ? d : c is T?[] v && e ? f : b: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [48, 54],
+          [55, 88],
+          [90, 91],
+        ],
+        [
+          [55, 57],
+          [60, 61],
+          [64, 88],
+        ],
+        [
+          [64, 80],
+          [83, 84],
+          [87, 88],
+        ],
+      ],
+      nodeCounts: {
+        break_statement: 1,
+      },
+    },
+    {
       source: 'switch(x){case y when c ? a is T?[,] && a is T?[] t && a ? [1] : [2] : d: break;}',
       guards: ['when c ? a is T?[,] && a is T?[] t && a ? [1] : [2] : d'],
       labels: [],

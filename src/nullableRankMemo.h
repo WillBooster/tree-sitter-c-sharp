@@ -87,7 +87,7 @@ static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo,
             return question;
         }
     }
-    if (collect && tokens->contents[pos].guard_candidate && tokens->contents[pos].kind == RANK_IS_TYPE) result->types = rank_type_merge(result->types, rank_type_role(GUARD_NULLABLE));
+    if (collect && tokens->contents[pos].guard_candidate) result->types = rank_type_merge(result->types, rank_type_role(GUARD_NULLABLE));
     if (question == target) result->role = RANK_NULLABLE_LAST;
     return question + 2;
 }
