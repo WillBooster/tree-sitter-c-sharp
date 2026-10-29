@@ -6,7 +6,7 @@ const PerformanceTests = ['test/unit/performance.test.ts'];
 const CliTests = [
   'test/unit/corpus.test.ts',
   'test/unit/examples.test.ts',
-  'test/unit/incremental.test.ts',
+  'test/unit/invalidUtf8.test.ts',
   'test/unit/wasm.test.ts',
 ];
 

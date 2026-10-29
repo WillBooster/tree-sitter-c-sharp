@@ -115,7 +115,7 @@ bun run test
 cargo test
 ```
 
-- [Parser generation and validation](docs/development.md): read before changing grammar inputs, runtime versions, examples, or reproducing an incremental parsing failure.
+- [Parser generation and validation](docs/development.md): read before changing grammar inputs, runtime versions, or examples.
 
 ## References
 

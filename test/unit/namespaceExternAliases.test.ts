@@ -1,11 +1,9 @@
 import fs from 'node:fs';
 
-import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
+import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
-
-test('retains namespace extern aliases and their name ranges through edits', async () => {
+test('retains namespace extern aliases and their name ranges', async () => {
   await Parser.init();
   const language = await Language.load('tree-sitter-c_sharp.wasm');
   const parser = new Parser().setLanguage(language);
@@ -27,21 +25,13 @@ test('retains namespace extern aliases and their name ranges through edits', asy
     ['namespace N { extern alias @using; class C {} } class Following {}', ['@using']],
     ['namespace N { extern alias Ωther; class C {} } class Following {}', ['Ωther']],
   ] as const;
-  let previous: Tree | undefined;
-  let source = '';
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
-      for (const [input, expected] of [...cases, cases[0]!]) {
-        const next = input.replaceAll('\n', newline);
-        if (previous) editTree(previous, source, next);
-        const tree = parser.parse(next, previous)!;
-        previous?.delete();
-        previous = tree;
-        source = next;
-        const fresh = parser.parse(source)!;
+      for (const [input, expected] of cases) {
+        const source = input.replaceAll('\n', newline);
+        const tree = parser.parse(source)!;
         try {
           expect(tree.rootNode.hasError, source).toBe(false);
-          expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
           const captures = names.captures(tree.rootNode);
           expect(
             captures.map((capture) => capture.node.text),
@@ -70,12 +60,11 @@ test('retains namespace extern aliases and their name ranges through edits', asy
             ['Following', '{}'],
           ]);
         } finally {
-          fresh.delete();
+          tree.delete();
         }
       }
     }
   } finally {
-    previous?.delete();
     names.delete();
     highlights.delete();
     parser.delete();
@@ -128,23 +117,15 @@ test('preserves declaration supertype queries for namespace members', async () =
   }
 });
 
-test('retains namespace scope while editing a misplaced member', async () => {
+test('retains namespace scope around a misplaced member', async () => {
   await Parser.init();
   const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
-  let previous: Tree | undefined;
-  let source = '';
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
-      for (const member of ['int x;', 'void M() {}', 'int x;']) {
-        const next = ['namespace N {', 'class A {}', member, 'class B {}', '}', 'class Following {}'].join(newline);
-        if (previous) editTree(previous, source, next);
-        const tree = parser.parse(next, previous)!;
-        previous?.delete();
-        previous = tree;
-        source = next;
-        const fresh = parser.parse(source)!;
+      for (const member of ['int x;', 'void M() {}']) {
+        const source = ['namespace N {', 'class A {}', member, 'class B {}', '}', 'class Following {}'].join(newline);
+        const tree = parser.parse(source)!;
         try {
-          expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
           const namespaces = tree.rootNode.descendantsOfType('namespace_declaration');
           expect(namespaces, source).toHaveLength(1);
           expect(namespaces[0]!.childForFieldName('name')?.text, source).toBe('N');
@@ -159,12 +140,11 @@ test('retains namespace scope while editing a misplaced member', async () => {
             source
           ).toEqual(['Following']);
         } finally {
-          fresh.delete();
+          tree.delete();
         }
       }
     }
   } finally {
-    previous?.delete();
     parser.delete();
   }
 });

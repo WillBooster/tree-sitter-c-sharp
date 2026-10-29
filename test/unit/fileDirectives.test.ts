@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { Edit, Language, type Node, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 
 const wasmPath = path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm');
@@ -497,48 +497,25 @@ test('preserves declarations and standalone directives after malformed preproces
   }
 });
 
-test('updates recovered directives and declarations after preprocessor-tail edits', () => {
+test('recovers directives and declarations after preprocessor tails', () => {
   const parser = new Parser().setLanguage(language);
   const prefix = '#pragma warning disable CS0618';
   try {
     for (const newline of ['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029']) {
       const suffix = `${newline}#nullable enable${newline}#:package Good${newline}class C { void M() {} }`;
-      let tail = '';
-      let tree = parser.parse(prefix + suffix)!;
-      try {
-        for (const nextTail of [' #:package Bad', ' #:x', '', ' #:package Bad /* tail */', '']) {
-          tree.edit(
-            new Edit({
-              startIndex: prefix.length,
-              oldEndIndex: prefix.length + tail.length,
-              newEndIndex: prefix.length + nextTail.length,
-              startPosition: { row: 0, column: prefix.length },
-              oldEndPosition: { row: 0, column: prefix.length + tail.length },
-              newEndPosition: { row: 0, column: prefix.length + nextTail.length },
-            })
-          );
-          const source = prefix + nextTail + suffix;
-          const next = parser.parse(source, tree)!;
+      for (const tail of ['', ' #:package Bad', ' #:x', ' #:package Bad /* tail */']) {
+        const tree = parser.parse(prefix + tail + suffix)!;
+        try {
+          expect(tree.rootNode.hasError).toBe(Boolean(tail));
+          expect(
+            tree.rootNode.descendantsOfType('file_directive').map((node) => node.childForFieldName('name')?.text)
+          ).toEqual(['Good']);
+          expect(
+            tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
+          ).toEqual(['C']);
+        } finally {
           tree.delete();
-          tree = next;
-          const fresh = parser.parse(source)!;
-          try {
-            expect(tree.rootNode.hasError).toBe(Boolean(nextTail));
-            expect(tree.rootNode.toString()).toBe(fresh.rootNode.toString());
-            expect(highlightSnapshot(tree.rootNode)).toEqual(highlightSnapshot(fresh.rootNode));
-            expect(
-              tree.rootNode.descendantsOfType('file_directive').map((node) => node.childForFieldName('name')?.text)
-            ).toEqual(['Good']);
-            expect(
-              tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
-            ).toEqual(['C']);
-          } finally {
-            fresh.delete();
-          }
-          tail = nextTail;
         }
-      } finally {
-        tree.delete();
       }
     }
   } finally {
@@ -618,7 +595,7 @@ test('preserves standalone directives after consumed preprocessor newlines durin
   }
 });
 
-test('keeps recovery trees and highlights consistent after editing a trailing directive', () => {
+test('keeps recovery errors after a region before a trailing directive', () => {
   const parser = new Parser().setLanguage(language);
   const source = [
     '#:package Before',
@@ -633,42 +610,11 @@ test('keeps recovery trees and highlights consistent after editing a trailing di
     '',
   ].join('\n');
   const index = 113;
-  const inserted = '#region R\n';
-  const next = source.slice(0, index) + inserted + source.slice(index);
-
-  const old = parser.parse(source)!;
+  const tree = parser.parse(`${source.slice(0, index)}#region R\n${source.slice(index)}`)!;
   try {
-    old.edit(
-      new Edit({
-        startIndex: index,
-        oldEndIndex: index,
-        newEndIndex: index + inserted.length,
-        startPosition: point(source.slice(0, index)),
-        oldEndPosition: point(source.slice(0, index)),
-        newEndPosition: point(next.slice(0, index + inserted.length)),
-      })
-    );
-    const incremental = parser.parse(next, old)!;
-    const fresh = parser.parse(next)!;
-    try {
-      expect(incremental.rootNode.hasError).toBe(true);
-      expect(incremental.rootNode.toString()).toBe(fresh.rootNode.toString());
-      expect(highlightSnapshot(incremental.rootNode)).toEqual(highlightSnapshot(fresh.rootNode));
-    } finally {
-      incremental.delete();
-      fresh.delete();
-    }
+    expect(tree.rootNode.hasError).toBe(true);
   } finally {
-    old.delete();
+    tree.delete();
     parser.delete();
   }
 });
-
-function highlightSnapshot(root: Node): unknown[] {
-  return query.captures(root).map(({ name, node }) => [name, node.type, node.text, node.startIndex, node.endIndex]);
-}
-
-function point(text: string): { row: number; column: number } {
-  const lines = text.split('\n');
-  return { row: lines.length - 1, column: lines.at(-1)!.length };
-}

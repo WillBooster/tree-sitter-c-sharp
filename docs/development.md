@@ -18,12 +18,6 @@ The script's cloned checkouts are disposable; keep local work elsewhere.
 The tracked `examples/JsonWriter.cs` and `examples/JsonSerializerInternalWriter.cs` are verbatim MIT-licensed snapshots from Newtonsoft.Json commit `52fa3aef1f2cadcd3a3f874251eddc98d3efbbaa`, under `Src/Newtonsoft.Json/` and its `Serialization/` directory respectively.
 Refresh these training inputs independently of the clone pins in `script/parse-examples` so changing a test checkout does not change profile training.
 
-## Reproduce incremental failures
-
-Run `TREE_SITTER_SEED=<seed> bun run test test/unit/incremental.test.ts`.
-`TREE_SITTER_ITERATIONS` and `TREE_SITTER_EDITS` control the number of random edits.
-Run `cargo test` for the saved native edit regressions.
-
 ## Browser and Workers checks
 
 Install Chromium once with `bun playwright install chromium` before running `test/unit/browser.test.ts`.

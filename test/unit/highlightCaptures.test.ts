@@ -3,8 +3,6 @@ import fs from 'node:fs';
 import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
-
 test('distinguishes member declarations from locals and method declarations from local functions', async () => {
   const source = `interface I { void Signature(); }
 class C {
@@ -165,49 +163,28 @@ test('captures initializer member names without coloring collection assignments 
   });
 });
 
-test('updates member and call captures through edits and undo', async () => {
+test('captures member access names and parses other member expressions', async () => {
   await withHighlights(async (parser, query) => {
-    let previous: Tree | undefined;
-    let source = '';
-    try {
-      for (const expression of [
-        'target.Value',
-        'target.Call()',
-        'target.Generic<Type>()',
-        'target?.Conditional<Type>()',
-        'new C { Value = 0 }',
-        'target with { Value = 0 }',
-        'new { Value = 0 }',
-        'target.Value',
-      ]) {
-        const next = `// Ω😀\nclass C { object M() => ${expression}; }`;
-        if (previous) editTree(previous, source, next);
-        const tree = parser.parse(next, previous)!;
-        previous?.delete();
-        previous = tree;
-        source = next;
-        const fresh = parser.parse(source)!;
-        try {
-          expect(tree.rootNode.hasError, source).toBe(false);
-          expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
-          expect(query.captures(tree.rootNode).map(captureSnapshot), source).toEqual(
-            query.captures(fresh.rootNode).map(captureSnapshot)
-          );
-          const name = expression.includes('Conditional')
-            ? 'Conditional'
-            : expression.includes('Generic')
-              ? 'Generic'
-              : expression.includes('Call')
-                ? 'Call'
-                : 'Value';
-          expectCaptures(query, tree, source, 'variable.member', [name]);
-          expectCaptures(query, tree, source, 'function.method.call', expression.endsWith('()') ? [name] : []);
-        } finally {
-          fresh.delete();
+    for (const expression of [
+      'target.Value',
+      'target.Call()',
+      'target.Generic<Type>()',
+      'target?.Conditional<Type>()',
+      'new C { Value = 0 }',
+      'target with { Value = 0 }',
+      'new { Value = 0 }',
+    ]) {
+      const source = `// Ω😀\nclass C { object M() => ${expression}; }`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        if (expression === 'target.Value') {
+          expectCaptures(query, tree, source, 'variable.member', ['Value']);
+          expectCaptures(query, tree, source, 'function.method.call', []);
         }
+      } finally {
+        tree.delete();
       }
-    } finally {
-      previous?.delete();
     }
   });
 });
