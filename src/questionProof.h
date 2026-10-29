@@ -10,6 +10,7 @@ static uint8_t question_guard_save(QuestionFrame *, RankParse *);
 static uint8_t question_guard_rank_successor(uint8_t, bool, uint32_t, uint32_t *);
 static bool question_guard_suffix(TSLexer *, Scanner *, QuestionInput *, uint32_t *);
 static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
+static bool question_input_omitted_rank(const QuestionInput *, uint32_t);
 static bool question_guard_suffix_complete(TSLexer *, Scanner *, QuestionInput *, uint32_t);
 static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
@@ -302,12 +303,25 @@ static uint8_t question_guard_save(QuestionFrame *frame, RankParse *parsed) {
 }
 
 static uint8_t question_guard_as_role(QuestionInput *input, uint32_t *questions, bool pending) {
+    uint32_t start = input->cursor;
     RankTypeRead read = {.expression_ranks = true};
     bool type = rank_read_as_type(&input->lexer, &read);
     uint32_t prefix = read.expression_questions ? read.prefix_questions : read.questions;
-    if (!type || !prefix || (pending && question_type_keyword_follower(&input->lexer, input))) return RANK_NONE;
+    // Like a definite is type, an omitted-rank as type leaves a following type operator to the guard stream; sized ranks keep their prefix.
+    if (!type || !prefix || (pending && question_input_omitted_rank(input, start) && question_type_keyword_follower(&input->lexer, input)))
+        return RANK_NONE;
     *questions = prefix;
     return RANK_OWNED_NULLABLE_PREFIX;
+}
+
+static bool question_input_omitted_rank(const QuestionInput *input, uint32_t start) {
+    bool open = false;
+    for (uint32_t i = start; i < input->cursor; i++) {
+        int32_t c = input->characters.contents[i].value;
+        if (open && (c == ',' || c == ']')) return true;
+        if (c != ' ' && c != '\t') open = c == '[';
+    }
+    return false;
 }
 
 

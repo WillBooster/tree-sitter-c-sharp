@@ -869,16 +869,17 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
     RankTokens ranks = array_new();
     bool definite = false, division = false;
     if (!rank_read_omitted_ranks(lexer, &ranks, &definite, &division)) { array_delete(&ranks); return RANK_READ_UNKNOWN; }
-    if (tokens->input && !division) {
-        QuestionCheckpoint start = question_input_checkpoint(tokens->input);
+    QuestionInput *probe = tokens->input ? tokens->input : tokens->peek;
+    if (probe && !division) {
+        QuestionCheckpoint start = question_input_checkpoint(probe);
         bool nullable = false;
         uint32_t questions = 0;
         bool type = question_walk_pattern_suffix(lexer, &nullable, &questions);
-        QuestionCheckpoint suffix = {tokens->input->cursor, start.capturing};
-        suffix_candidate |= type && questions && question_type_keyword_follower(lexer, tokens->input);
-        bool pattern = type && question_walk_pattern_tail(lexer, nullable, false, tokens->input);
+        QuestionCheckpoint suffix = {probe->cursor, start.capturing};
+        suffix_candidate |= tokens->input && type && questions && question_type_keyword_follower(lexer, probe);
+        bool pattern = type && question_walk_pattern_tail(lexer, nullable, false, probe);
         definite |= pattern;
-        question_input_restore(tokens->input, pattern ? suffix : start);
+        question_input_restore(probe, pattern && tokens->input ? suffix : start);
     }
     if (definite || ranks.size) tokens->contents[expression->token].certificate = RANK_CERT_INVALID;
     if (expression->nullable_event == ((unsigned)-1)) expression->type_chain = tokens->size;
