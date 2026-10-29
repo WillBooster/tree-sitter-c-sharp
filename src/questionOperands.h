@@ -825,6 +825,7 @@ static void rank_apply_type_suffix(TSLexer *lexer, RankTokens *tokens, RankExpre
     if (!tokens->input && expression->nullable_event != ((unsigned)-1)) {
         for (unsigned i = expression->type_chain; i <= expression->nullable_event; i++)
             if (tokens->contents[i].kind == RANK_IS_TYPE) tokens->contents[i].kind = RANK_DEFINITE_TYPE;
+        expression->type_chain = expression->nullable_event;
     }
     expression->nullable_type = true;
 }

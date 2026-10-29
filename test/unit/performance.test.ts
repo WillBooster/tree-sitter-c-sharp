@@ -166,6 +166,14 @@ function nullableRelationalSource(count: number): string {
   return `var result = x is T?[] ? [0] : ${'a as int? > '.repeat(count)}b ? [1] : [2];`;
 }
 
+test('bounds repeated nullable ranks in ordinary type-test chains', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(ordinaryNullableChain(1000), ordinaryNullableChain(10_000), false);
+});
+
+function ordinaryNullableChain(count: number): string {
+  return `var r = f(a is T?[] / a is T?${'[]?'.repeat(count)} is U ? [1] : b: L);`;
+}
+
 test('bounds repeated omitted stack allocation ranks', { timeout: 60_000 }, () => {
   expectBoundedGrowth(omittedStackAllocationRanks(100), omittedStackAllocationRanks(1000), false);
 });
