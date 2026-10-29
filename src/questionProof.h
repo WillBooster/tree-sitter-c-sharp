@@ -294,7 +294,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     for (unsigned i = 0; i < tail.size; i++) if (tail.contents[i].kind == RANK_COLON) last_colon = i;
     if (!read || !colons || !last_colon) goto done;
     RankParse parsed = question_guard_evaluate(&tail, last_colon, frame->pending, definite);
-    if (parsed.valid) {
+    if (parsed.valid && !(parsed.suffix_flags & RANK_SUFFIX_INVALID)) {
         result = question_guard_save(frame, &parsed);
         if (result) *questions = prefix + (result == RANK_OWNED_NULLABLE_PREFIX);
     }

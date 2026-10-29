@@ -3410,4 +3410,16 @@ export const ownershipSamples = [
     source: 'switch(x){case y when a is not T?[,]?[] = b: L0: L1: break;}',
     ranges: [[[22, 36], [37, 43], [45, 47]]],
   },
+  {
+    source: 'class C { void M() { var r = b is T?[]?[] && c is T?[]?[] v ? n ? [] : d : x; } }',
+    ranges: [[[29, 59], [62, 72], [75, 76]], [[62, 63], [66, 68], [71, 72]]],
+  },
+  {
+    source: 'class C { void M() { var r = b is T?[]?[] && c is T?[]?[] v ? n ? [1] : d : x; } }',
+    ranges: [[[29, 59], [62, 73], [76, 77]], [[62, 63], [66, 69], [72, 73]]],
+  },
+  {
+    source: 'class C { void M() { F(b is T?[]?[] && c is T?[]?[] v ? n ? [] : d : x); } }',
+    ranges: [[[23, 53], [56, 66], [69, 70]], [[56, 57], [60, 62], [65, 66]]],
+  },
 ];

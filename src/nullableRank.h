@@ -851,7 +851,8 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
     if (first != ',' && first != ']') {
         bool force_unsafe = false;
         if (first < 0 || !rank_read_delimited(lexer, '[', RANK_BODY_EXPRESSION, &force_unsafe)) return RANK_READ_UNKNOWN;
-        array_push(tokens, ((RankToken){RANK_QUESTION, true}));
+        array_push(tokens, ((RankToken){.kind = RANK_QUESTION, .collection = true,
+            .suffix_flags = tokens->input && guard_candidate ? RANK_SUFFIX_INVALID : 0}));
         array_push(tokens, ((RankToken){RANK_ATOM, true, force_unsafe}));
         return RANK_READ_DONE;
     }
@@ -870,7 +871,8 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
         bool type = question_walk_pattern_suffix(lexer, &nullable, &questions);
         QuestionCheckpoint suffix = {probe->cursor, start.capturing};
         suffix_candidate |= tokens->input && type && questions && question_type_keyword_follower(lexer, probe);
-        bool pattern = type && question_walk_pattern_tail(lexer, nullable, false, probe);
+        bool pattern = type && (tokens->input ? question_walk_pattern_tail(lexer, nullable, false, probe) :
+            question_nullable_pattern_tail(lexer, probe));
         definite |= pattern;
         expression->chain_unproved = !pattern;
         question_input_restore(probe, pattern && tokens->input ? suffix : start);

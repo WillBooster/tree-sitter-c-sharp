@@ -1230,7 +1230,6 @@ test('preserves case patterns, guards and statement labels across clause edits',
       previous = sample.source;
     }
     for (const incomplete of [
-      'class C{void M(){switch(x){case var y when c is T?[]? || a?[0] ? [1] : b : x = a ? [1] : b; break;}}} class F{}',
       'switch (x) { case y when',
       'switch (x) { case T?[] y when a ?',
       'switch (x) { case y when a ? [1] : b:',
@@ -2823,6 +2822,7 @@ test('preserves later conditional fields after malformed guard operands across e
         ],
       ],
       ranges: [[78, 89]],
+      following: 'class Following {}',
     },
     {
       source:
@@ -2843,6 +2843,20 @@ test('preserves later conditional fields after malformed guard operands across e
         [78, 99],
         [88, 99],
       ],
+      following: 'class Following {}',
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case var y when c is T?[]? || a?[0] ? [1] : b : x = a ? [1] : b; break;}}} class F{}',
+      fields: [
+        [
+          [79, 80],
+          [83, 86],
+          [89, 90],
+        ],
+      ],
+      ranges: [[79, 90]],
+      following: 'class F{}',
     },
   ];
   const parser = new Parser().setLanguage(language);
@@ -2880,7 +2894,7 @@ test('preserves later conditional fields after malformed guard operands across e
         const following = fresh.rootNode.lastNamedChild!;
         expect([following.type, following.text, following.hasError], sample.source).toEqual([
           'class_declaration',
-          'class Following {}',
+          sample.following,
           false,
         ]);
         expect(fresh.rootNode.descendantsOfType('break_statement'), sample.source).toHaveLength(1);
@@ -2896,6 +2910,53 @@ test('preserves later conditional fields after malformed guard operands across e
   } finally {
     tree.delete();
     query.delete();
+    parser.delete();
+  }
+});
+
+test('retains nested conditional fields when later type tests borrow the case colon', () => {
+  const samples = [
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[]?[] is U ? [1] : b as V?[]?: break; default: break;}}}',
+      range: [49, 75],
+      fields: [
+        [49, 56],
+        [59, 62],
+        [65, 75],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] is U ? [1] : b: break; default: break;}}}',
+      range: [46, 63],
+      fields: [
+        [46, 53],
+        [56, 59],
+        [62, 63],
+      ],
+    },
+  ];
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const sample of samples) {
+      const tree = parser.parse(sample.source)!;
+      try {
+        expect(tree.rootNode.hasError, sample.source).toBe(true);
+        const inner = tree.rootNode
+          .descendantsOfType('conditional_expression')
+          .find((node) => node.startIndex === sample.range[0] && node.endIndex === sample.range[1]);
+        expect(inner, sample.source).toBeDefined();
+        expect(
+          ['condition', 'consequence', 'alternative'].map((name) => {
+            const child = inner!.childForFieldName(name)!;
+            return [child.startIndex, child.endIndex];
+          }),
+          sample.source
+        ).toEqual(sample.fields);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
     parser.delete();
   }
 });

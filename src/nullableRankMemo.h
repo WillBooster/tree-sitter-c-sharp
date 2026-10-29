@@ -99,6 +99,7 @@ static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo
         if (retry.valid && tokens->contents[retry.end].kind == RANK_COLON) when_true = retry;
     }
     if (pos == target) result->role = RANK_TERNARY;
+    result->suffix_flags |= tokens->contents[pos].suffix_flags;
     result->types = rank_type_merge(result->types, when_true.types);
     result->suffix_flags |= when_true.suffix_flags;
     if (when_true.role) result->role = when_true.role;
