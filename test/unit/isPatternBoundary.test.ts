@@ -13,6 +13,44 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source: 'switch(x){case y when c ? a is T?[,] && a is T?[] t && a ? [1] : [2] : d: break;}',
+      guards: ['when c ? a is T?[,] && a is T?[] t && a ? [1] : [2] : d'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 68],
+          [71, 72],
+        ],
+        [
+          [26, 56],
+          [59, 62],
+          [65, 68],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when c ? a is T?[] t && a is T?[,] && b is T?[] u && a ? [1] : [2] : d: break;}',
+      guards: ['when c ? a is T?[] t && a is T?[,] && b is T?[] u && a ? [1] : [2] : d'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 83],
+          [86, 87],
+        ],
+        [
+          [26, 71],
+          [74, 77],
+          [80, 83],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
       source:
         'class C { void M() { switch (y) { case int when a as T?[] is T? ? [1] : d is T?[]? ? b : c is T?[]: L: break; } } }',
       guards: ['when a as T?[] is T? ? [1] : d is T?[]? ? b : c is T?[]: L'],
@@ -2708,6 +2746,96 @@ test('preserves errors and following declarations when added nullable suffixes c
       }
       tree = incremental;
       previous = next;
+    }
+  } finally {
+    tree.delete();
+    query.delete();
+    parser.delete();
+  }
+});
+
+test('preserves later conditional fields after malformed guard operands across edits', () => {
+  const cases = [
+    {
+      source:
+        'class C{void M(){switch(x){case y when a is T?[]? % a ? [1] : b is V?[]?: x = a ? [1] : b; break;}}} class Following {}',
+      fields: [
+        [
+          [78, 79],
+          [82, 85],
+          [88, 89],
+        ],
+      ],
+      ranges: [[78, 89]],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when a is T?[]? % a ? [1] : b is V?[]?: x = a ? [1] : b ? [2] : c; break;}}} class Following {}',
+      fields: [
+        [
+          [78, 79],
+          [82, 85],
+          [88, 99],
+        ],
+        [
+          [88, 89],
+          [92, 95],
+          [98, 99],
+        ],
+      ],
+      ranges: [
+        [78, 99],
+        [88, 99],
+      ],
+    },
+  ];
+  const parser = new Parser().setLanguage(language);
+  const query = new Query(language, '(conditional_expression) @conditional');
+  let previous = 'class Following {}';
+  let tree = parser.parse(previous)!;
+  try {
+    for (const sample of [...cases, ...cases.toReversed()]) {
+      editTree(tree, previous, sample.source);
+      const incremental = parser.parse(sample.source, tree)!;
+      const fresh = parser.parse(sample.source)!;
+      tree.delete();
+      tree = incremental;
+      previous = sample.source;
+      try {
+        expect(
+          fresh.rootNode
+            .descendantsOfType('conditional_expression')
+            .filter((node) => node.startIndex >= 78)
+            .map((node) =>
+              ['condition', 'consequence', 'alternative'].map((name) => {
+                const child = node.childForFieldName(name)!;
+                return [child.startIndex, child.endIndex];
+              })
+            ),
+          sample.source
+        ).toEqual(sample.fields);
+        expect(
+          query
+            .captures(fresh.rootNode)
+            .filter(({ node }) => node.startIndex >= 78)
+            .map(({ node }) => [node.startIndex, node.endIndex]),
+          sample.source
+        ).toEqual(sample.ranges);
+        const following = fresh.rootNode.lastNamedChild!;
+        expect([following.type, following.text, following.hasError], sample.source).toEqual([
+          'class_declaration',
+          'class Following {}',
+          false,
+        ]);
+        expect(fresh.rootNode.descendantsOfType('break_statement'), sample.source).toHaveLength(1);
+        expect(syntaxSnapshot(incremental.rootNode), sample.source).toEqual(syntaxSnapshot(fresh.rootNode));
+        expect(
+          query.captures(incremental.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]),
+          sample.source
+        ).toEqual(query.captures(fresh.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]));
+      } finally {
+        fresh.delete();
+      }
     }
   } finally {
     tree.delete();

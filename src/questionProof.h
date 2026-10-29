@@ -85,7 +85,7 @@ typedef struct {
     unsigned scanned, mandatory, colons;
 } QuestionGuardRead;
 
-static RankParse question_guard_evaluate(const RankTokens *, unsigned, uint32_t);
+static RankParse question_guard_evaluate(const RankTokens *, unsigned, uint32_t, bool);
 
 static bool question_guard_complete_prefix(QuestionGuardRead *guard) {
     RankTokens *tail = guard->tail;
@@ -100,7 +100,7 @@ static bool question_guard_complete_prefix(QuestionGuardRead *guard) {
     }
     if ((uint64_t)guard->colons < (uint64_t)guard->pending + guard->mandatory + (tail->suffix_modes ? 1 : 2) ||
         !tail->size || tail->contents[tail->size - 1].kind != RANK_COLON) return false;
-    RankParse parsed = question_guard_evaluate(tail, tail->size - 1, guard->pending);
+    RankParse parsed = question_guard_evaluate(tail, tail->size - 1, guard->pending, false);
     if (!tail->suffix_modes) return parsed.valid && parsed.types.runs == 1 && parsed.types.first == GUARD_TERNARY;
     unsigned prefix = 0;
     for (unsigned i = 0; i + 2 < tail->size && tail->contents[i].kind == RANK_IS_TYPE &&
@@ -142,13 +142,13 @@ static bool question_guard_stream_stop(TSLexer *lexer, void *context) {
     return stop;
 }
 
-static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit, uint32_t pending) {
+static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit, uint32_t pending, bool definite) {
     RankTokens tokens = array_new();
     for (uint32_t i = 0; i < pending; i++) {
         array_push(&tokens, ((RankToken){RANK_ATOM, false}));
         array_push(&tokens, ((RankToken){RANK_QUESTION, false}));
     }
-    array_push(&tokens, ((RankToken){.kind = RANK_IS_TYPE, .guard_candidate = true}));
+    array_push(&tokens, ((RankToken){.kind = definite ? RANK_DEFINITE_TYPE : RANK_IS_TYPE, .guard_candidate = true}));
     unsigned question = tokens.size;
     array_push(&tokens, ((RankToken){RANK_QUESTION, true}));
     array_push(&tokens, ((RankToken){RANK_ATOM, true}));
@@ -157,6 +157,7 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
     RankParse modes[2];
     rank_evaluate_collected_modes(&tokens, question, modes, true);
     RankParse parsed = modes[0];
+    if (definite) parsed.types = rank_type_merge(rank_type_role(GUARD_NULLABLE), parsed.types);
     parsed.valid &= parsed.end < tokens.size &&
         (tokens.contents[parsed.end].kind == RANK_END || tokens.contents[parsed.end].kind == RANK_COLON);
     array_delete(&tokens);
@@ -273,7 +274,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     unsigned last_colon = 0;
     for (unsigned i = 0; i < tail.size; i++) if (tail.contents[i].kind == RANK_COLON) last_colon = i;
     if (!read || !colons || !last_colon) goto done;
-    RankParse parsed = question_guard_evaluate(&tail, last_colon, frame->pending);
+    RankParse parsed = question_guard_evaluate(&tail, last_colon, frame->pending, definite);
     if (parsed.valid) {
         result = question_guard_save(frame, &parsed);
         if (result) *questions = prefix + (result == RANK_OWNED_NULLABLE_PREFIX);
@@ -345,7 +346,7 @@ static bool question_guard_suffix_complete(TSLexer *lexer, Scanner *scanner, Que
     for (unsigned i = 0; i < tail.size; i++) if (tail.contents[i].kind == RANK_COLON) last_colon = i;
     RankParse parsed = {0};
     if (read && colons && last_colon && last_colon + 2 == tail.size)
-        parsed = question_guard_evaluate(&tail, last_colon, frame->pending);
+        parsed = question_guard_evaluate(&tail, last_colon, frame->pending, false);
     bool complete = parsed.valid && !(parsed.suffix_flags & RANK_SUFFIX_INVALID) && parsed.role == RANK_NULLABLE_LAST &&
         parsed.end == (uint64_t)frame->pending * 2 + 3 + last_colon &&
         parsed.types.first == GUARD_NULLABLE && parsed.types.prefix > questions;
@@ -500,7 +501,10 @@ static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, Que
         int32_t c = question_skip_separators(lexer);
         if (c == -2) return QUESTION_WALK_UNKNOWN;
         if (lexer->eof(lexer)) break;
-        if (prefix && !walk->depth && c == ':' && question_guard_colon(lexer, walk->input)) break;
+        if (prefix && !walk->depth && c == ':' && question_guard_colon(lexer, walk->input)) {
+            const QuestionFrame *frame = question_walk_prefix_frame(walk);
+            if (scanner->question_unknown || !frame || frame->unknown || !frame->pending) break;
+        }
         QuestionWalkStep step = question_walk_step(scanner, lexer, walk, c);
         walk->previous_token = walk->consumed_token ? walk->consumed_token : c;
         walk->consumed_token = 0;

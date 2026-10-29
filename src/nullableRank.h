@@ -28,6 +28,7 @@ typedef enum { RANK_HEADER_START, RANK_HEADER_MODIFIER, RANK_HEADER_NAME, RANK_H
 typedef struct { unsigned token; RankLambdaHeader header; bool content; bool primary; bool type_pending; bool type_complete; bool pattern; bool member; bool colon; bool conditional; bool nullable_type; bool division; bool has_word; QuestionIdentifier word; unsigned nullable_event, type_chain; bool guard_candidate; bool chain_unproved; } RankExpression;
 
 static bool question_type_boundary(int32_t c);
+static bool question_expression_start(TSLexer *, int32_t);
 static bool question_type_operator_follower(TSLexer *, QuestionInput *, QuestionFollowing);
 static bool question_nullable_pattern_tail(TSLexer *, QuestionInput *);
 static bool question_type_keyword_follower(TSLexer *, QuestionInput *);
@@ -573,6 +574,7 @@ static RankReadStep rank_read_expression_token(TSLexer *lexer, RankTokens *token
 
 static RankReadStep rank_read_guard_operator(TSLexer *lexer, int32_t c, RankTokens *tokens, RankExpression *expression) {
     if (!tokens->input) return RANK_READ_TOKEN;
+    if (!expression->content && !expression->type_pending && c == -1) return RANK_READ_UNKNOWN;
     if (expression->content && rank_read_guard_assignment(lexer, c, tokens, expression)) return RANK_READ_MORE;
     if (expression->content && c == -1) return rank_start_binary_rhs(lexer, -1, tokens, expression);
     if (expression->type_pending || !rank_binary_start(c) ||
@@ -581,6 +583,7 @@ static RankReadStep rank_read_guard_operator(TSLexer *lexer, int32_t c, RankToke
     bool postfix = false, high = false;
     bool binary = rank_skip_binary_operator(lexer, c, &postfix, false, &high) && !postfix;
     question_input_restore(tokens->input, start);
+    if (binary && high && !expression->content && !question_expression_start(lexer, c)) return RANK_READ_UNKNOWN;
     return binary ? rank_start_binary_rhs(lexer, c, tokens, expression) : RANK_READ_TOKEN;
 }
 
