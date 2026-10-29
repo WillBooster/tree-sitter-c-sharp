@@ -768,7 +768,8 @@ static bool question_nullable_designation(TSLexer *lexer, QuestionInput *input) 
 }
 
 static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable, bool case_boundary, QuestionInput *input) {
-    if (case_boundary && question_type_keyword_follower(lexer, input)) return true;
+    // A suffix ending in a rank can still open a collection conditional (`T?[,] ? [] is U : b`).
+    if (case_boundary && nullable && question_type_keyword_follower(lexer, input)) return true;
     if (nullable && case_boundary && lexer->lookahead == ':') return true;
     if (lexer->lookahead == '{') return true;
     if (nullable) {
