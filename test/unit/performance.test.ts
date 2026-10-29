@@ -302,6 +302,10 @@ interface ParseCpuSample {
   iterations: number;
 }
 
+const MaxGrowth = 18;
+// process.threadCpuUsage reports microseconds.
+const MaxLargeMicroseconds = 5_000_000;
+
 // Thread CPU time excludes competing test files and background compilation. The growth limit permits roughly n^1.25
 // scaling across a tenfold input increase; the absolute limit also catches a uniformly slow parser.
 function expectBoundedGrowth(small: string, large: string, expectedErrors = true): void {
@@ -320,12 +324,11 @@ function expectBoundedGrowth(small: string, large: string, expectedErrors = true
     largeSamples.push(largeSample);
     smallFastest = Math.min(smallFastest, smallSample.cpuMicroseconds);
     largeFastest = Math.min(largeFastest, largeSample.cpuMicroseconds);
-    if (round >= 3 && largeFastest / smallFastest < 18 && largeFastest < 5_000_000) return;
+    if (round >= 3 && largeFastest / smallFastest < MaxGrowth && largeFastest < MaxLargeMicroseconds) return;
   }
   const samples = JSON.stringify({ warmup, smallSamples, largeSamples });
-  expect(largeFastest / smallFastest, samples).toBeLessThan(18);
-  // process.threadCpuUsage reports microseconds.
-  expect(largeFastest, samples).toBeLessThan(5_000_000);
+  expect(largeFastest / smallFastest, samples).toBeLessThan(MaxGrowth);
+  expect(largeFastest, samples).toBeLessThan(MaxLargeMicroseconds);
 }
 
 function parseCpuTime(source: string, expectedErrors = true): ParseCpuSample {
