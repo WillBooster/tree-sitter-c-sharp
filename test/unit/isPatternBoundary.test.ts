@@ -2749,6 +2749,54 @@ function mixedGuardSource(labels: number): string {
 test('retains proven nullable patterns before recursive, binary and lambda boundaries', () => {
   const samples = [
     {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is string ? [] is T? < z : 1: break; } } }',
+      nullable: ['T?'],
+      fields: [
+        [
+          [62, 73],
+          [76, 88],
+          [91, 92],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is string ? [] is T? | z : 1: break; } } }',
+      nullable: ['T?'],
+      fields: [
+        [
+          [62, 73],
+          [76, 88],
+          [91, 92],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is string ? [] is T? == z : [] is T? == w: break; } } }',
+      nullable: ['T?', 'T?'],
+      fields: [
+        [
+          [62, 73],
+          [76, 89],
+          [92, 105],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T[] ? [] is T[]? < z : 1: break; } } }',
+      nullable: ['T[]?'],
+      fields: [
+        [
+          [62, 70],
+          [73, 87],
+          [90, 91],
+        ],
+      ],
+    },
+    {
       source: 'class C{void M(){switch(x){case y when b is not T?[](1) {}: break;}}}',
       nullable: ['T?'],
       fields: [],

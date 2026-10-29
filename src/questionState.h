@@ -412,7 +412,7 @@ static bool question_read_frame(QuestionFrame *frame, unsigned index, const char
 static bool question_read_guard(QuestionFrame *frame, const char *buffer, unsigned length, unsigned *size) {
     if (*size == length) return false;
     unsigned guard = (unsigned char)buffer[(*size)++];
-    if (guard > 61 || ((guard & 6) == 6) || (guard && !(guard & 1)) || ((guard & 8) && !(guard & 6))) return false;
+    if (guard > 63 || ((guard & 6) == 6 && !(guard & 8)) || (guard && !(guard & 1)) || ((guard & 8) && !(guard & 6))) return false;
     if (frame->unknown && (guard & 54)) return false;
     frame->case_guard = guard & 1;
     frame->guard.role = ((guard >> 1) & 3) | ((guard & 32) ? GUARD_SUFFIX_COMPLETE : 0);

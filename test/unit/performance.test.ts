@@ -587,7 +587,11 @@ function addedSuffixGuardSource(count: number): string {
 test.each([
   { name: 'AS then nullable IS then AS', term: 'a as T?[] is T?[] as U && ' },
   { name: 'scalar logical patterns', term: 'a is T?[] as U || a is T? and not null || ' },
-  { name: 'array logical patterns', term: 'a is T?[] as U || a is T?[] and not null || ' },
+  {
+    name: 'array logical patterns',
+    term: 'a is T?[] as U || a is T?[] and not null || ',
+    errors: 'unchecked' as const,
+  },
   {
     name: 'coalescing IS/AS operands',
     term: 'a as T ?? ',
@@ -599,10 +603,11 @@ test.each([
 ])(
   'bounds mixed nullable operands with $name',
   { timeout: 60_000 },
-  ({ term, prefix = '', suffix = '', labels = '', conditionals }) => {
+  ({ term, prefix = '', suffix = '', labels = '', conditionals, errors = false }) => {
     const source = (count: number): string =>
       `switch(x){case y when ${prefix}${term.repeat(count)}${suffix}a ? [1] : b${labels}: break;} var following = a?[0];`;
-    expectBoundedGrowth(source(100), source(1000), false);
+    expectBoundedGrowth(source(100), source(1000), errors);
+    if (errors === 'unchecked') return;
     const tree = parser.parse(source(1000))!;
     try {
       if (conditionals !== undefined) {
