@@ -733,7 +733,9 @@ static bool question_walk_current_type_pattern(TSLexer *lexer, QuestionWalk *wal
         bool nullable = false;
         uint32_t questions = 0;
         bool suffix = question_walk_pattern_suffix(lexer, &nullable, &questions);
-        pattern = suffix && question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
+        // A bare name before `?[]` is not a proven type, so a following is/as can belong to a collection consequence.
+        pattern = suffix && !question_type_keyword_follower(lexer, walk->input) &&
+            question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
         if (pattern) walk->proven_nullable_questions = questions;
     }
     question_input_restore(walk->input, start);
