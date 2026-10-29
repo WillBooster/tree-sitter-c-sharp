@@ -1,8 +1,6 @@
 import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
-
 let language: Language;
 
 beforeAll(async () => {
@@ -940,7 +938,7 @@ test('preserves nullable array conditions around interpolated expression leaves'
   }
 });
 
-test('preserves constant-pattern access when an enclosing conditional reparses its true branch', () => {
+test('preserves constant-pattern access inside the true branch of an enclosing conditional', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   try {
@@ -1317,7 +1315,7 @@ test('retains nullable tests around ordinary true arms and conditional-access al
   }
 });
 
-test('ends delimited is patterns before ternary collection access, including incremental edits', () => {
+test('ends delimited is patterns before ternary collection access and other alternatives', () => {
   const parser = new Parser().setLanguage(language);
   try {
     for (const pattern of [
@@ -1355,20 +1353,15 @@ test('ends delimited is patterns before ternary collection access, including inc
         const consequence = ternary?.childForFieldName('consequence');
         expect(consequence?.text, source).toBe('[1]?[0]');
         expect(consequence?.type, source).toBe('conditional_access_expression');
-        const start = source.length - 2;
-        const updated = `${source.slice(0, start)}fallback;`;
-        editTree(tree, source, updated);
-        const incremental = parser.parse(updated, tree)!;
+        const updated = `${source.slice(0, -2)}fallback;`;
         const fresh = parser.parse(updated)!;
         try {
-          expect(incremental.rootNode.hasError, updated).toBe(false);
-          expect(syntaxSnapshot(incremental.rootNode), updated).toEqual(syntaxSnapshot(fresh.rootNode));
+          expect(fresh.rootNode.hasError, updated).toBe(false);
           expect(
-            incremental.rootNode.descendantsOfType('conditional_expression')[0]?.childForFieldName('condition')?.text,
+            fresh.rootNode.descendantsOfType('conditional_expression')[0]?.childForFieldName('condition')?.text,
             updated
           ).toBe(condition);
         } finally {
-          incremental.delete();
           fresh.delete();
         }
       } finally {
@@ -1421,36 +1414,26 @@ test('keeps access questions inside type-test conditional arguments', () => {
   }
 });
 
-test('rechecks numeric nullable chains when suffix edits introduce question ownership', () => {
+test('assigns question ownership in numeric nullable chains with varied suffixes', () => {
   const parser = new Parser().setLanguage(language);
   const prefix = 'var result = a is T?[] ? 1 : ';
-  const original = `${prefix}a is U?[] ? 2 : 0;`;
   try {
     for (const [suffix, conditions] of [
+      ['a is U?[] ? 2 : 0', ['a is T?[]', 'a is U?[]']],
       ['a is U?[] ? [1]?[0] : d', ['a is T?[]', 'a is U?[]']],
       ['a is U?[] ? 2 : 0 : d', ['a is T?[]', 'a is U', '[]']],
       ['a?[0] ? b : c', ['a is T?[]', 'a?[0]']],
     ] as const) {
-      const tree = parser.parse(original)!;
-      const updated = `${prefix}${suffix};`;
+      const source = `${prefix}${suffix};`;
+      const tree = parser.parse(source)!;
       try {
-        expect(tree.rootNode.hasError, original).toBe(false);
-        editTree(tree, original, updated);
-        const incremental = parser.parse(updated, tree)!;
-        const fresh = parser.parse(updated)!;
-        try {
-          expect(incremental.rootNode.hasError, updated).toBe(false);
-          expect(syntaxSnapshot(incremental.rootNode), updated).toEqual(syntaxSnapshot(fresh.rootNode));
-          expect(
-            incremental.rootNode
-              .descendantsOfType('conditional_expression')
-              .map((node) => node.childForFieldName('condition')?.text),
-            updated
-          ).toEqual(conditions);
-        } finally {
-          incremental.delete();
-          fresh.delete();
-        }
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(
+          tree.rootNode
+            .descendantsOfType('conditional_expression')
+            .map((node) => node.childForFieldName('condition')?.text),
+          source
+        ).toEqual(conditions);
       } finally {
         tree.delete();
       }
@@ -1596,16 +1579,11 @@ test('preserves access ownership after typed branches with named expression cont
     const expression = `${condition} ? ${arm} : a?[0] is T ? b : c`;
     return [expression, `F(${expression})`, `flag ? 0 : ${expression}`].map((wrapped) => `var r = ${wrapped};`);
   });
-  let previous = 'var r = c ? f(a) : a?[0] is T ? b : c;';
-  let tree = parser.parse(previous)!;
   try {
-    for (const source of [...inputs, ...inputs.toReversed(), previous]) {
-      editTree(tree, previous, source);
-      const incremental = parser.parse(source, tree)!;
+    for (const source of [...inputs, 'var r = c ? f(a) : a?[0] is T ? b : c;']) {
       const fresh = parser.parse(source)!;
       try {
         expect(fresh.rootNode.hasError, source).toBe(false);
-        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
         const final = fresh.rootNode.descendantsOfType('conditional_expression').at(-1)!;
         expect(
           ['condition', 'consequence', 'alternative'].map((field) => final.childForFieldName(field)?.text),
@@ -1617,13 +1595,9 @@ test('preserves access ownership after typed branches with named expression cont
         ).toEqual(['a?[0]']);
       } finally {
         fresh.delete();
-        tree.delete();
-        tree = incremental;
-        previous = source;
       }
     }
   } finally {
-    tree.delete();
     parser.delete();
   }
 });

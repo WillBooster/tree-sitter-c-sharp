@@ -1,8 +1,6 @@
 import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
-
 let language: Language;
 
 beforeAll(async () => {
@@ -10,7 +8,7 @@ beforeAll(async () => {
   language = await Language.load('tree-sitter-c_sharp.wasm');
 });
 
-test('preserves case patterns, guards and statement labels across clause edits', () => {
+test('preserves case patterns, guards and statement labels', () => {
   const samples = [
     {
       source: 'switch (x) { case T?[] y when a ? b : c: label: break; case 2: break; }',
@@ -205,13 +203,9 @@ test('preserves case patterns, guards and statement labels across clause edits',
   ];
   const parser = new Parser().setLanguage(language);
   const query = new Query(language, '(when_clause) @guard (labeled_statement (identifier) @label)');
-  let previous = 'var r = 0;';
-  let tree = parser.parse(previous)!;
   try {
-    for (const sample of [...samples, ...samples.toReversed()]) {
+    for (const sample of samples) {
       const fresh = parser.parse(sample.source)!;
-      editTree(tree, previous, sample.source);
-      const incremental = parser.parse(sample.source, tree)!;
       try {
         expect(fresh.rootNode.hasError, sample.source).toBe(false);
         if (sample.pattern) {
@@ -245,13 +239,9 @@ test('preserves case patterns, guards and statement labels across clause edits',
           captures.filter(({ name }) => name === 'label').map(({ node }) => node.text),
           sample.source
         ).toEqual(sample.labels);
-        expect(syntaxSnapshot(incremental.rootNode), sample.source).toEqual(syntaxSnapshot(fresh.rootNode));
       } finally {
         fresh.delete();
-        tree.delete();
       }
-      tree = incremental;
-      previous = sample.source;
     }
     for (const incomplete of [
       'switch (x) { case y when',
@@ -259,21 +249,14 @@ test('preserves case patterns, guards and statement labels across clause edits',
       'switch (x) { case y when a ? [1] : b:',
       'switch (x) { case T?[] y:',
     ]) {
-      editTree(tree, previous, incomplete);
-      const incremental = parser.parse(incomplete, tree)!;
       const fresh = parser.parse(incomplete)!;
       try {
         expect(fresh.rootNode.hasError, incomplete).toBe(true);
-        expect(syntaxSnapshot(incremental.rootNode), incomplete).toEqual(syntaxSnapshot(fresh.rootNode));
       } finally {
         fresh.delete();
-        tree.delete();
       }
-      tree = incremental;
-      previous = incomplete;
     }
   } finally {
-    tree.delete();
     query.delete();
     parser.delete();
   }

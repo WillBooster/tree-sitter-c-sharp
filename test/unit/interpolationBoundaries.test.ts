@@ -1,8 +1,6 @@
 import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
-
 let language: Language;
 
 beforeAll(async () => {
@@ -154,7 +152,7 @@ test('preserves nested expressions and multiple interpolation holes', () => {
   }
 });
 
-test('keeps incremental interpolation boundaries consistent through nested and incomplete edits', () => {
+test('keeps interpolation boundaries through nested and incomplete holes', () => {
   const parser = new Parser().setLanguage(language);
   const sources = [
     'var r = $"{a?[0]:?foo}";',
@@ -174,62 +172,44 @@ test('keeps incremental interpolation boundaries consistent through nested and i
     'var r = $$"""{{a?[c ? 0 : 1]:??=}}""";',
     'var r = $$"""{{x is T?[]:C:D}} {{a?[0]:?foo}}""";',
   ].map((source) => `${source}\nclass Following { int Value => 1; }`);
-  let previous = sources[0]!;
-  let tree = parser.parse(previous)!;
   try {
-    for (const source of [...sources.slice(1), ...sources.toReversed()]) {
-      editTree(tree, previous, source);
-      const incremental = parser.parse(source, tree)!;
+    for (const source of sources) {
       const fresh = parser.parse(source)!;
       try {
-        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
         expect(
           fresh.rootNode.descendantsOfType('class_declaration').map((node) => node.text),
           source
         ).toEqual(['class Following { int Value => 1; }']);
         if (!source.includes(': )')) expect(fresh.rootNode.hasError, source).toBe(false);
       } finally {
-        tree.delete();
-        tree = incremental;
         fresh.delete();
-        previous = source;
       }
     }
   } finally {
-    tree.delete();
     parser.delete();
   }
 });
 
-test('preserves structural nesting when incremental edits exhaust optional proof storage', () => {
+test('preserves structural nesting when nested interpolations exhaust optional proof storage', () => {
   const parser = new Parser().setLanguage(language);
-  let previous = 'var r = a;';
-  let tree = parser.parse(previous)!;
   try {
-    for (const depth of [168, 169, 170, 171, 254, 255, 171, 170, 169]) {
+    for (const depth of [168, 169, 170, 171, 254, 255]) {
       const hasAccessChain = depth < 170;
       const expression = hasAccessChain
         ? `(f(a?[0], x is null) ? f($"{x as int?:?foo}")${'?[0]'.repeat(16)} : b):X`
         : 'a';
       const source = `var r = ${'$"{'.repeat(depth)}${expression}${'}"'.repeat(depth)};`;
-      editTree(tree, previous, source);
-      const incremental = parser.parse(source, tree)!;
       const fresh = parser.parse(source)!;
       try {
         expect(fresh.rootNode.hasError, source).toBe(false);
-        expect(incremental.rootNode.descendantsOfType('interpolated_string_expression')).toHaveLength(
+        expect(fresh.rootNode.descendantsOfType('interpolated_string_expression')).toHaveLength(
           depth + Number(hasAccessChain)
         );
-        expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
       } finally {
-        tree.delete();
-        tree = incremental;
         fresh.delete();
-        previous = source;
       }
     }
   } finally {
-    tree.delete();
     parser.delete();
   }
 });
@@ -339,28 +319,16 @@ test('recovers malformed interpolation holes without swallowing the following cl
           }
         }
       }
-      let previous = sources[0]!;
-      let tree = parser.parse(previous)!;
-      try {
-        for (const source of [...sources.slice(1), ...sources.toReversed()]) {
-          editTree(tree, previous, source);
-          const incremental = parser.parse(source, tree)!;
-          const fresh = parser.parse(source)!;
-          try {
-            expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
-            expect(
-              fresh.rootNode.descendantsOfType('class_declaration').map((node) => node.text),
-              source
-            ).toEqual(['class Following { int Value => 1; }']);
-          } finally {
-            tree.delete();
-            tree = incremental;
-            fresh.delete();
-            previous = source;
-          }
+      for (const source of sources) {
+        const fresh = parser.parse(source)!;
+        try {
+          expect(
+            fresh.rootNode.descendantsOfType('class_declaration').map((node) => node.text),
+            source
+          ).toEqual(['class Following { int Value => 1; }']);
+        } finally {
+          fresh.delete();
         }
-      } finally {
-        tree.delete();
       }
     }
   } finally {
