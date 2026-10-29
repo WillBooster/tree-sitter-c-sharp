@@ -88,7 +88,6 @@ static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo
 
 static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
 static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
-static bool rank_read_tail_after_rank(TSLexer *, QuestionInput *, RankTokens *, unsigned *, bool);
 
 static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
     QuestionCheckpoint prefix = question_input_checkpoint(input);
@@ -123,7 +122,7 @@ static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *que
     if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division)) { array_delete(&tail); return RANK_NONE; }
     RankScopeRead scope_read = {.input = input, .prefix = prefix,
         .tail = {.cursor = input->cursor, .capturing = input->capturing}, .prefix_questions = *questions > prior_questions};
-    if (!rank_read_tail_after_rank(lexer, input, &tail, &colons, division) || pending > colons) {
+    if (!rank_read_stream_after_rank(lexer, &tail, &colons, division, NULL, NULL) || pending > colons) {
         array_delete(&tail);
         return RANK_NONE;
     }
@@ -841,6 +840,9 @@ static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *to
             array_push(tokens, ((RankToken){RANK_QUESTION, false}));
             array_push(tokens, ((RankToken){RANK_ATOM, false}));
         }
+        // A suffix after the ranks of `T?[]` proves that its first question is nullable too.
+        if (!tokens->input && expression->nullable_event != ((unsigned)-1))
+            tokens->contents[expression->nullable_event].kind = RANK_DEFINITE_TYPE;
         expression->nullable_type = true;
         return RANK_READ_MORE;
     }

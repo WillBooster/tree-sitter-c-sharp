@@ -448,19 +448,4 @@ static enum TokenType question_access_symbol(const bool *valid_symbols, const Qu
     return QUESTION_NULLABLE;
 }
 
-// The binary-operand read gives `x is T?[]?` the tokens of `x is T?[]`, so type-test right operands use the generic stream.
-static bool rank_read_tail_after_rank(TSLexer *lexer, QuestionInput *input, RankTokens *tail, unsigned *colons, bool division) {
-    QuestionCheckpoint start = question_input_checkpoint(input);
-    uint32_t ranks = tail->size;
-    bool read = rank_read_stream_after_rank(lexer, tail, colons, division, NULL, NULL);
-    for (uint32_t i = ranks; division && read && i < tail->size; i++) {
-        if (tail->contents[i].kind != RANK_IS_TYPE) continue;
-        question_input_restore(input, start);
-        tail->size = ranks;
-        *colons = 0;
-        return rank_read_stream_until(lexer, tail, colons, false, NULL, NULL);
-    }
-    return read;
-}
-
 #endif
