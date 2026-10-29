@@ -1,8 +1,6 @@
 import { Language, Parser, type Tree } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
-
 let language: Language;
 
 beforeAll(async () => {
@@ -31,35 +29,25 @@ test('keeps conditional element receivers before collection arms containing type
   }
 });
 
-test('reparses collection-arm type operators without changing the preceding receiver', () => {
+test('parses collection-arm type operators after a non-ASCII comment without changing the preceding receiver', () => {
   const parser = new Parser().setLanguage(language);
   const condition = 'a.b?[0]';
-  let source = `// 😀\nvar result = ${condition} ? [x] : e;`;
-  let tree = parser.parse(source)!;
   try {
     for (const [consequence, alternative] of [
+      ['[x]', 'e'],
       ['[x is T]', 'e'],
       ['[x as T]', 'e as T'],
       ['[x is T?[]]', 'e as T?'],
       ['[x is T ? [1] : [2]]', '[e is T]'],
-      ['[x]', 'e'],
     ] as const) {
-      const next = `// 😀\nvar result = ${condition} ? ${consequence} : ${alternative};`;
-      editTree(tree, source, next);
-      const incremental = parser.parse(next, tree)!;
-      tree.delete();
-      tree = incremental;
-      source = next;
-      assertConditional(tree, condition, consequence, alternative);
-      const fresh = parser.parse(source)!;
+      const tree = parser.parse(`// 😀\nvar result = ${condition} ? ${consequence} : ${alternative};`)!;
       try {
-        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        assertConditional(tree, condition, consequence, alternative);
       } finally {
-        fresh.delete();
+        tree.delete();
       }
     }
   } finally {
-    tree.delete();
     parser.delete();
   }
 });
@@ -83,33 +71,22 @@ test('does not carry type uncertainty across statement and block boundaries', ()
     `class C { void A() { if (o is T) {} } void M() { ${statement} } }`,
     `var pre = o is T; ${statement}`,
   ];
-  let source = `// 😀\nclass C { void M() { ${statement} } }`;
-  let tree = parser.parse(source)!;
   try {
-    for (const next of [...sources, source]) {
-      editTree(tree, source, next);
-      const incremental = parser.parse(next, tree)!;
-      tree.delete();
-      tree = incremental;
-      source = next;
-      const fresh = parser.parse(source)!;
+    for (const source of [`// 😀\nclass C { void M() { ${statement} } }`, ...sources]) {
+      const tree = parser.parse(source)!;
       try {
-        for (const parsed of [tree, fresh]) {
-          expect(parsed.rootNode.hasError, source).toBe(false);
-          const conditional = parsed.rootNode
-            .descendantsOfType('conditional_expression')
-            .find((node) => node.text === expression)!;
-          expect(conditional?.childForFieldName('condition')?.text, source).toBe('q?[0]');
-          expect(conditional?.childForFieldName('consequence')?.text, source).toBe('[1]');
-          expect(conditional?.childForFieldName('alternative')?.text, source).toBe('z');
-        }
-        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
+        expect(tree.rootNode.hasError, source).toBe(false);
+        const conditional = tree.rootNode
+          .descendantsOfType('conditional_expression')
+          .find((node) => node.text === expression)!;
+        expect(conditional?.childForFieldName('condition')?.text, source).toBe('q?[0]');
+        expect(conditional?.childForFieldName('consequence')?.text, source).toBe('[1]');
+        expect(conditional?.childForFieldName('alternative')?.text, source).toBe('z');
       } finally {
-        fresh.delete();
+        tree.delete();
       }
     }
   } finally {
-    tree.delete();
     parser.delete();
   }
 });

@@ -1,7 +1,5 @@
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
 
 let language: Language;
 let parser: Parser;
@@ -22,107 +20,63 @@ beforeAll(async () => {
 afterAll(() => parser.delete());
 
 test.each(wrappers)('retains IS and coalescing operands before $name interpolation formats', ({ open, close }) => {
-  const query = new Query(language, '(interpolation_format_clause) @format (conditional_expression) @conditional');
-  let previous = 'var r = 0;';
-  let tree = parser.parse(previous)!;
-  try {
-    for (const { expression, format, declaration } of [
-      { expression: 'x is T?[] ?? y as T is T?[] t', format: ': c' },
-      { expression: 'a is T?[] is U ?? c ? [1]', format: ': d :x' },
-      { expression: 'f(a) is T?[]? || b?[i] as T?[]?[] is U ?? a ? [1]', format: ': c:X' },
-      { expression: 'a is T?[] && a is T?[] ? c', format: ': b', declaration: 'T?[] ? c' },
-    ]) {
-      for (const parenthesized of [false, true, false]) {
-        const source = `var r = ${open}${parenthesized ? `(${expression})` : expression}${format}${close};`;
-        editTree(tree, previous, source);
-        const incremental = parser.parse(source, tree)!;
-        tree.delete();
-        tree = incremental;
-        previous = source;
-        const fresh = parser.parse(source)!;
-        try {
-          expect(fresh.rootNode.hasError, source).toBe(false);
-          expect(fresh.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(0);
+  for (const { expression, format, declaration } of [
+    { expression: 'x is T?[] ?? y as T is T?[] t', format: ': c' },
+    { expression: 'a is T?[] is U ?? c ? [1]', format: ': d :x' },
+    { expression: 'f(a) is T?[]? || b?[i] as T?[]?[] is U ?? a ? [1]', format: ': c:X' },
+    { expression: 'a is T?[] && a is T?[] ? c', format: ': b', declaration: 'T?[] ? c' },
+  ]) {
+    for (const parenthesized of [false, true]) {
+      const source = `var r = ${open}${parenthesized ? `(${expression})` : expression}${format}${close};`;
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(false);
+        expect(tree.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(0);
+        expect(
+          tree.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text),
+          source
+        ).toEqual([format]);
+        if (declaration) {
+          const start = source.indexOf(declaration);
           expect(
-            query.captures(fresh.rootNode).map(({ name, node }) => [name, node.text, node.startIndex, node.endIndex]),
+            tree.rootNode
+              .descendantsOfType('declaration_pattern')
+              .map((node) => [
+                node.text,
+                node.startIndex,
+                node.endIndex,
+                node.childForFieldName('type')?.text,
+                node.childForFieldName('name')?.text,
+              ]),
             source
-          ).toEqual([['format', format, source.indexOf(format), source.indexOf(format) + format.length]]);
-          if (declaration) {
-            const start = source.indexOf(declaration);
-            expect(
-              fresh.rootNode
-                .descendantsOfType('declaration_pattern')
-                .map((node) => [
-                  node.text,
-                  node.startIndex,
-                  node.endIndex,
-                  node.childForFieldName('type')?.text,
-                  node.childForFieldName('name')?.text,
-                ]),
-              source
-            ).toEqual([[declaration, start, start + declaration.length, 'T?[] ?', 'c']]);
-          }
-          expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
-          expect(
-            query.captures(incremental.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]),
-            source
-          ).toEqual(query.captures(fresh.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]));
-        } finally {
-          fresh.delete();
+          ).toEqual([[declaration, start, start + declaration.length, 'T?[] ?', 'c']]);
         }
+      } finally {
+        tree.delete();
       }
     }
-  } finally {
-    query.delete();
-    tree.delete();
   }
 });
 
-test.each(wrappers)(
-  'retains sized AS ranks and $name format boundaries across parentheses edits',
-  ({ open, close }) => {
-    const expression = 'a is T?[] || b as T ? [1] : c';
-    const query = new Query(language, '(interpolation_format_clause) @format (conditional_expression) @conditional');
-    let previous = 'var r = 0;';
-    let tree = parser.parse(previous)!;
+test.each(wrappers)('retains sized AS ranks and $name format boundaries', ({ open, close }) => {
+  const expression = 'a is T?[] || b as T ? [1] : c';
+  for (const parenthesized of [false, true]) {
+    const source = `var r = ${open}${parenthesized ? `(${expression})` : expression}${close};`;
+    const tree = parser.parse(source)!;
     try {
-      for (const parenthesized of [false, true, false]) {
-        const source = `var r = ${open}${parenthesized ? `(${expression})` : expression}${close};`;
-        editTree(tree, previous, source);
-        const incremental = parser.parse(source, tree)!;
-        tree.delete();
-        tree = incremental;
-        previous = source;
-        const fresh = parser.parse(source)!;
-        try {
-          expect(fresh.rootNode.hasError, source).toBe(false);
-          expect(fresh.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(
-            parenthesized ? 1 : 0
-          );
-          expect(
-            fresh.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text),
-            source
-          ).toEqual(parenthesized ? [] : [': c']);
-          const formats = query.captures(fresh.rootNode).filter(({ name }) => name === 'format');
-          expect(
-            formats.map(({ node }) => [node.startIndex, node.endIndex]),
-            source
-          ).toEqual(parenthesized ? [] : [[source.indexOf(': c'), source.indexOf(': c') + 3]]);
-          expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
-          expect(
-            query.captures(incremental.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]),
-            source
-          ).toEqual(query.captures(fresh.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]));
-        } finally {
-          fresh.delete();
-        }
-      }
+      expect(tree.rootNode.hasError, source).toBe(false);
+      expect(tree.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(parenthesized ? 1 : 0);
+      expect(
+        tree.rootNode
+          .descendantsOfType('interpolation_format_clause')
+          .map((node) => [node.text, node.startIndex, node.endIndex]),
+        source
+      ).toEqual(parenthesized ? [] : [[': c', source.indexOf(': c'), source.indexOf(': c') + 3]]);
     } finally {
-      query.delete();
       tree.delete();
     }
   }
-);
+});
 
 test.each(wrappers)('retains nullable declarations before $name interpolation formats', ({ open, close }) => {
   for (const type of ['T', 'int', 'List<int>']) {

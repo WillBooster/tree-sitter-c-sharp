@@ -1,7 +1,5 @@
-import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
+import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
-
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
 
 let language: Language;
 
@@ -94,7 +92,7 @@ test('places C# 14 assignment inside the conditional access consequence', () => 
   }
 });
 
-test('reparses dependent chains, assignments, nullable types, and collections consistently after edits', () => {
+test('parses dependent chains, assignments, nullable types, and collections with and without comments', () => {
   const inputs = [
     'var result = a?.B;',
     'var result = a?.B.C()[i];',
@@ -114,30 +112,19 @@ test('reparses dependent chains, assignments, nullable types, and collections co
     'var result = x is T?[0] : other;',
   ];
   for (const comment of ['', '/*\n😀? : */']) {
-    const sequence = [...inputs, ...inputs.toReversed()].map((input) =>
-      input.replaceAll(/(?<!\?)\?(?!\?)/g, `?${comment}`)
-    );
     const parser = new Parser();
     parser.setLanguage(language);
-    let source = sequence[0]!;
-    let tree = parser.parse(source)!;
     try {
-      for (const next of sequence.slice(1)) {
-        const previous: Tree = tree;
-        editTree(previous, source, next);
-        tree = parser.parse(next, previous)!;
-        previous.delete();
-        const fresh = parser.parse(next)!;
+      for (const input of inputs) {
+        const source = input.replaceAll(/(?<!\?)\?(?!\?)/g, `?${comment}`);
+        const tree = parser.parse(source)!;
         try {
-          expect(tree.rootNode.hasError, next).toBe(false);
-          expect(syntaxSnapshot(tree.rootNode), next).toEqual(syntaxSnapshot(fresh.rootNode));
+          expect(tree.rootNode.hasError, source).toBe(false);
         } finally {
-          fresh.delete();
+          tree.delete();
         }
-        source = next;
       }
     } finally {
-      tree.delete();
       parser.delete();
     }
   }

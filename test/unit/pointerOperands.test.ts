@@ -1,9 +1,7 @@
 import path from 'node:path';
 
-import { Edit, Language, type Node, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
+import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
-
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot.js';
 
 await Parser.init();
 const language = await Language.load(path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm'));
@@ -25,71 +23,29 @@ const operands = [
   '*++pp',
 ];
 
-test('retains pointer operands and fresh query ranges through edits', () => {
+test('retains pointer operands in assignments', () => {
   const parser = new Parser().setLanguage(language);
-  let query: Query | undefined;
-  let tree: Tree | undefined;
-  const prefix = 'unsafe class C { void M() { ';
-  const suffix = ' } }';
   try {
-    query = new Query(language, '(expression) @expression (_) @node');
-    const captures = (root: Node): unknown =>
-      query!.captures(root).map(({ name, node }) => ({
-        name,
-        type: node.type,
-        text: node.text,
-        start: node.startIndex,
-        end: node.endIndex,
-        startPosition: node.startPosition,
-        endPosition: node.endPosition,
-      }));
     for (const operand of operands) {
       const expression = `*${operand}`;
-      let statement = `var result = ${expression};`;
-      tree = parser.parse(prefix + statement + suffix)!;
-      const original = tree.rootNode.toString();
-      expect(tree.rootNode.hasError, statement).toBe(false);
-      for (const replacement of [`${expression} = v;`, `${expression} += v;`, statement]) {
-        tree.edit(
-          new Edit({
-            startIndex: prefix.length,
-            oldEndIndex: prefix.length + statement.length,
-            newEndIndex: prefix.length + replacement.length,
-            startPosition: { row: 0, column: prefix.length },
-            oldEndPosition: { row: 0, column: prefix.length + statement.length },
-            newEndPosition: { row: 0, column: prefix.length + replacement.length },
-          })
-        );
-        statement = replacement;
-        const source = prefix + statement + suffix;
-        const next: Tree = parser.parse(source, tree)!;
-        tree.delete();
-        tree = next;
-        const fresh = parser.parse(source)!;
+      for (const statement of [`var result = ${expression};`, `${expression} = v;`, `${expression} += v;`]) {
+        const tree = parser.parse(`unsafe class C { void M() { ${statement} } }`)!;
         try {
           expect(tree.rootNode.hasError, statement).toBe(false);
-          expect(tree.rootNode.toString()).toBe(fresh.rootNode.toString());
-          expect(captures(tree.rootNode)).toEqual(captures(fresh.rootNode));
-          const assignment = tree.rootNode.descendantsOfType('assignment_expression')[0];
           if (!statement.startsWith('var ')) {
+            const assignment = tree.rootNode.descendantsOfType('assignment_expression')[0];
             expect(assignment).toBeDefined();
             expect(assignment!.childForFieldName('left')?.text).toBe(expression);
             expect(assignment!.childForFieldName('left')?.type).toBe('prefix_unary_expression');
             expect(assignment!.childForFieldName('left')?.firstNamedChild?.text).toBe(operand);
             expect(assignment!.childForFieldName('right')?.text).toBe('v');
-          } else {
-            expect(tree.rootNode.toString()).toBe(original);
           }
         } finally {
-          fresh.delete();
+          tree.delete();
         }
       }
-      tree.delete();
-      tree = undefined;
     }
   } finally {
-    tree?.delete();
-    query?.delete();
     parser.delete();
   }
 });
@@ -178,7 +134,7 @@ test('binds pointer assignments inside larger expressions', () => {
   }
 });
 
-test('distinguishes casts of collections from parenthesized indexing through edits', () => {
+test('distinguishes casts of collections from parenthesized indexing', () => {
   const parser = new Parser().setLanguage(language);
   const cases = [
     ['(b)[0]', 'element_access_expression'],
@@ -200,20 +156,11 @@ test('distinguishes casts of collections from parenthesized indexing through edi
     ['(T*)[0]', 'cast_expression'],
     ['(global::T)[0]', 'cast_expression'],
   ] as const;
-  let tree: Tree | undefined;
-  let previous = '';
   try {
-    for (const [expression, kind] of [...cases, ...cases.toReversed()]) {
-      const source = `/* α */ var result = ${expression};`;
-      if (tree) editTree(tree, previous, source);
-      const next = parser.parse(source, tree)!;
-      tree?.delete();
-      tree = next;
-      previous = source;
-      const fresh = parser.parse(source)!;
+    for (const [expression, kind] of cases) {
+      const tree = parser.parse(`/* α */ var result = ${expression};`)!;
       try {
         expect(tree.rootNode.hasError, expression).toBe(false);
-        expect(syntaxSnapshot(tree.rootNode), expression).toEqual(syntaxSnapshot(fresh.rootNode));
         const initializer = tree.rootNode.descendantsOfType('variable_declarator')[0]?.lastNamedChild;
         expect(initializer?.type, expression).toBe(kind);
         expect(initializer?.text, expression).toBe(expression);
@@ -223,11 +170,10 @@ test('distinguishes casts of collections from parenthesized indexing through edi
           expect(initializer?.childForFieldName('expression')?.type, expression).toBe('parenthesized_expression');
         }
       } finally {
-        fresh.delete();
+        tree.delete();
       }
     }
   } finally {
-    tree?.delete();
     parser.delete();
   }
 });

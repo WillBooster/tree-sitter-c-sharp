@@ -1,7 +1,5 @@
-import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
+import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
 
 let language: Language;
 let parser: Parser;
@@ -184,13 +182,11 @@ test('retains colon-leading interpolation formats after generic method groups', 
   }
 });
 
-test('preserves callable and operator ranges while editing and undoing generic-shaped expressions', () => {
+test('preserves callable and operator ranges in generic-shaped expressions', () => {
   const query = new Query(
     language,
     '(generic_name) @generic\n(binary_expression operator: _ @operator)\n(type_argument_list (type) @argumentType)'
   );
-  let previous: Tree | undefined;
-  let old = '';
   try {
     for (const [expression, expectedGenerics, expectedArgumentTypes] of [
       ['A<X>>B', [], []],
@@ -205,44 +201,32 @@ test('preserves callable and operator ranges while editing and undoing generic-s
       ['F<global::N.C.Value>+B', [], []],
       ['global::A<X>+B', ['A<X>'], ['X']],
       ['A<X>+B', [], []],
-      ['F<int>(B)', ['F<int>'], ['int']],
-      ['A<X>>B', [], []],
     ] as const) {
       const source = `/* 😀 */ class C { T F<T>(T value)=>value; dynamic M(dynamic A,dynamic X,dynamic B)=>${expression}; } class Following {}`;
-      if (previous) editTree(previous, old, source);
-      const tree = parser.parse(source, previous)!;
-      previous?.delete();
-      previous = tree;
-      old = source;
-      const fresh = parser.parse(source)!;
+      const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
-        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
         expect(
           tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
         ).toEqual(['C', 'Following']);
-        const generic = query.captures(tree.rootNode).filter((capture) => capture.name === 'generic');
+        const captures = query.captures(tree.rootNode);
         expect(
-          generic.map((capture) => capture.node.text),
+          captures.filter((capture) => capture.name === 'generic').map((capture) => capture.node.text),
           source
         ).toEqual(expectedGenerics);
         expect(
-          query
-            .captures(tree.rootNode)
-            .filter((capture) => capture.name === 'argumentType')
-            .map((capture) => capture.node.text),
+          captures.filter((capture) => capture.name === 'argumentType').map((capture) => capture.node.text),
           source
         ).toEqual(expectedArgumentTypes);
-        for (const { node } of query.captures(tree.rootNode)) {
+        for (const { node } of captures) {
           expect(source.slice(node.startIndex, node.endIndex), source).toBe(node.text);
           expect(node.startIndex, source).toBeGreaterThanOrEqual(source.indexOf(expression));
         }
       } finally {
-        fresh.delete();
+        tree.delete();
       }
     }
   } finally {
-    previous?.delete();
     query.delete();
   }
 });

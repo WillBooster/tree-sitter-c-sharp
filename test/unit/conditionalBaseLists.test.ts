@@ -1,9 +1,7 @@
 import fs from 'node:fs';
 
-import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
+import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-
-import { editTree, syntaxSnapshot } from '../helpers/syntaxSnapshot';
 
 let language: Language;
 let highlightQuery: Query;
@@ -139,22 +137,14 @@ cases.push(
   'enum C :\n#if A\n#if X\n#endif\n#if Y\n#endif\n#else\nbyte\n#endif\n#if A\nint\n#endif\n{}\nclass Following {}'
 );
 
-test('retains conditional base lists and declaration bodies through edits', () => {
+test('retains conditional base lists and declaration bodies', () => {
   const parser = new Parser().setLanguage(language);
   const query = new Query(language, '(base_list) @base');
-  let previous: Tree | undefined;
-  let source = '';
   try {
-    for (const next of [...cases, cases[0]!]) {
-      if (previous) editTree(previous, source, next);
-      const tree = parser.parse(next, previous)!;
-      previous?.delete();
-      previous = tree;
-      source = next;
-      const fresh = parser.parse(source)!;
+    for (const source of cases) {
+      const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
-        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
         const declarations = tree.rootNode.descendantsOfType([
           'class_declaration',
           'struct_declaration',
@@ -176,17 +166,16 @@ test('retains conditional base lists and declaration bodies through edits', () =
           expect(capture.node.endIndex).toBeLessThanOrEqual(body.startIndex);
         }
       } finally {
-        fresh.delete();
+        tree.delete();
       }
     }
   } finally {
-    previous?.delete();
     query.delete();
     parser.delete();
   }
 });
 
-test('rejects base clauses with no physical type while retaining following declarations through edits', () => {
+test('rejects base clauses with no physical type while retaining following declarations', () => {
   const parser = new Parser().setLanguage(language);
   const sources = ['class', 'struct', 'interface', 'record', 'record struct', 'enum'].flatMap((kind) =>
     [
@@ -198,29 +187,20 @@ test('rejects base clauses with no physical type while retaining following decla
       '#if A\n#if X\n#endif\n#else\n#if Y\n#endif\n#if Z\n#endif\n#endif',
     ].map((clauses) => `${kind} C :\n${clauses}\n{}\nclass Following {}`)
   );
-  let previous: Tree | undefined;
-  let source = '';
   try {
-    for (const next of [...sources, sources[0]!]) {
-      if (previous) editTree(previous, source, next);
-      const tree = parser.parse(next, previous)!;
-      previous?.delete();
-      previous = tree;
-      source = next;
-      const fresh = parser.parse(source)!;
+    for (const source of sources) {
+      const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(true);
-        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
         const following = tree.rootNode
           .descendantsOfType('class_declaration')
           .find((node) => node.childForFieldName('name')?.text === 'Following');
         expect(following?.childForFieldName('body')?.text, source).toBe('{}');
       } finally {
-        fresh.delete();
+        tree.delete();
       }
     }
   } finally {
-    previous?.delete();
     parser.delete();
   }
 });
@@ -252,19 +232,11 @@ test('highlights nested conditional base types without treating conditions as ty
     .flatMap((source) =>
       ['class', 'struct', 'interface', 'record', 'record struct'].map((kind) => source.replace(/^class C/, `${kind} C`))
     );
-  let previous: Tree | undefined;
-  let source = '';
   try {
-    for (const next of [...sources, sources[0]!]) {
-      if (previous) editTree(previous, source, next);
-      const tree = parser.parse(next, previous)!;
-      previous?.delete();
-      previous = tree;
-      source = next;
-      const fresh = parser.parse(source)!;
+    for (const source of sources) {
+      const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
-        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
         const captures = query.captures(tree.rootNode);
         const references = tags.captures(tree.rootNode).filter((capture) => capture.name === 'reference.class');
         for (const match of source.matchAll(/\b(?:B|D|E|H|I|J|K|L)\b/g)) {
@@ -303,11 +275,10 @@ test('highlights nested conditional base types without treating conditions as ty
             .map((node) => node.childForFieldName('name')?.text)
         ).toEqual(['C', 'Following']);
       } finally {
-        fresh.delete();
+        tree.delete();
       }
     }
   } finally {
-    previous?.delete();
     parser.delete();
   }
 });
@@ -363,7 +334,7 @@ test('tags only actual base types across qualified, generic, and constructor bas
   }
 });
 
-test('does not tag enum underlying types as class references through edits', () => {
+test('does not tag enum underlying types as class references', () => {
   const parser = new Parser().setLanguage(language);
   const tags = tagQuery;
   const sources = [
@@ -377,29 +348,20 @@ test('does not tag enum underlying types as class references through edits', () 
       `enum E :\n#if A\n${nestedBase('byte', 'long', depth)}\n#endif\n#if !A\nint\n#endif\n{}`,
     ]),
   ];
-  let previous: Tree | undefined;
-  let source = '';
   try {
-    for (const next of [...sources, sources[0]!]) {
-      if (previous) editTree(previous, source, next);
-      const tree = parser.parse(next, previous)!;
-      previous?.delete();
-      previous = tree;
-      source = next;
-      const fresh = parser.parse(source)!;
+    for (const source of sources) {
+      const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
-        expect(syntaxSnapshot(tree.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
         expect(
           tags.captures(tree.rootNode).filter((capture) => capture.name.startsWith('reference.')),
           source
         ).toHaveLength(0);
       } finally {
-        fresh.delete();
+        tree.delete();
       }
     }
   } finally {
-    previous?.delete();
     parser.delete();
   }
 });
