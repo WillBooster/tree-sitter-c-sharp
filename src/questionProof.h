@@ -575,16 +575,31 @@ static enum TokenType question_access_symbol(const bool *valid_symbols, const Qu
     return QUESTION_NULLABLE;
 }
 
-static bool rank_interpolation_prefix(TSLexer *lexer, QuestionInput *input, QuestionCheckpoint prefix, uint32_t *questions) {
+static bool rank_local_nullable_prefix(QuestionInput *input, QuestionCheckpoint prefix, uint32_t *questions, bool interpolation) {
+    TSLexer *lexer = &input->lexer;
     QuestionCheckpoint end = question_input_checkpoint(input);
-    question_input_restore(input, prefix);
-    RankTypeRead read = {0};
-    bool type = rank_read_as_type(lexer, &read) && read.questions && read.has_word && read.word.keyword &&
-        (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as")) &&
-        !read.colon && !read.division && !read.conditional && !read.coalesce && !read.binary && !read.sized_rank;
+    uint32_t count = 0;
+    bool valid = false;
+    if (interpolation) {
+        question_input_restore(input, prefix);
+        RankTypeRead read = {0};
+        valid = rank_read_as_type(lexer, &read) && read.questions && read.has_word && read.word.keyword &&
+            (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as")) &&
+            !read.colon && !read.division && !read.conditional && !read.coalesce && !read.binary && !read.sized_rank;
+        count = read.questions;
+    } else {
+        bool nullable = false;
+        uint32_t suffix_questions = 0;
+        bool type = question_walk_pattern_suffix(lexer, &nullable, &suffix_questions);
+        QuestionIdentifier logical, negation;
+        valid = type && nullable && suffix_questions && rank_read_identifier(lexer, &logical) && logical.keyword &&
+            (!strcmp(logical.word, "and") || !strcmp(logical.word, "or")) && question_skip_separators(lexer) >= 0 &&
+            rank_read_identifier(lexer, &negation) && negation.keyword && !strcmp(negation.word, "not") &&
+            suffix_questions < UINT32_MAX - *questions;
+        if (valid) count = *questions + suffix_questions + 1;
+    }
     question_input_restore(input, end);
-    if (type) *questions = read.questions;
-    return type;
+    if (valid) *questions = count;
+    return valid;
 }
-
 #endif

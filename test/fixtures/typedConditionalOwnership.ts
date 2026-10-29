@@ -3458,4 +3458,32 @@ export const ownershipSamples = [
     source: 'switch(x){case y when a is T?[,,]?[]? ? b : c: break;}',
     ranges: [[[22, 37], [40, 41], [44, 45]]],
   },
+  {
+    source: 'var r = a is T?[] / a is T?[]? and not U?[] ? [1] : b: L0: L1;',
+    ranges: [[[8, 14], [15, 57], [59, 61]], [[15, 40], [41, 53], [55, 57]], [[41, 43], [46, 49], [52, 53]]],
+  },
+  {
+    source: 'var r = a is T?[] / a is T?[]? or not U?[] ? [1] : b: L0: L1;',
+    ranges: [[[8, 14], [15, 56], [58, 60]], [[15, 39], [40, 52], [54, 56]], [[40, 42], [45, 48], [51, 52]]],
+  },
+  {
+    source: 'class C { void M() { var r = a is T?[]?[] == b ? [] : d is T?[]? is T?[,]?[]; } }',
+    ranges: [[[29, 46], [49, 51], [54, 76]]],
+  },
+  {
+    source: 'class C { void M() { var r = a is T?[]?[] == b ? [] : c && [] is T?[]? is T?[,]; } }',
+    ranges: [[[29, 46], [49, 51], [54, 79]]],
+  },
+  {
+    source: 'class C { void M() { var r = (f(a) is T?[]?[] == a?.b ? [] : a ? a?[0] : default && [] is T?[]? is T?[,]?[]); L: x = 1; } }',
+    ranges: [[[30, 53], [56, 58], [61, 107]], [[61, 62], [65, 70], [73, 107]]],
+  },
+  {
+    source: 'var r = a is T?[] as a is T?[]?[] as U == a ? [1] : b;',
+    ranges: [[[8, 43], [46, 49], [52, 53]]],
+  },
+  {
+    source: 'var r = a is T?[] as U : d;',
+    ranges: [[[8, 14], [15, 22], [25, 26]]],
+  },
 ];
