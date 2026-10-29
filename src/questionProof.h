@@ -170,11 +170,11 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
         preference && preference->first ? &first : NULL);
     if (preference) {
         bool boundary = !pending && limit < tail->size && tail->contents[limit].kind == RANK_COLON;
-        if (boundary && preference->first && !definite && first.valid && first.end == tokens.size - 1) {
+        if (boundary && preference->first && !definite && first.valid && !(first.suffix_flags & RANK_SUFFIX_INVALID) && first.end == tokens.size - 1) {
             preference->colon = true;
             preference->successor = 0;
         } else {
-            preference->colon = boundary && (!definite || successor) && when_true.valid && when_true.end == tokens.size - 1;
+            preference->colon = boundary && (!definite || successor) && when_true.valid && !(when_true.suffix_flags & RANK_SUFFIX_INVALID) && when_true.end == tokens.size - 1;
         }
     }
     RankParse parsed = modes[0];
@@ -190,6 +190,18 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
 static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (frame->case_guard) {
+        if (!(frame->guard.role & GUARD_ROLE_MASK)) {
+            QuestionCheckpoint start = question_input_checkpoint(input);
+            question_guard_type_start(input);
+            bool proved = false;
+            bool designation = rank_read_designation(lexer, questions, input, &proved);
+            question_input_restore(input, start);
+            if (designation) {
+                if (!*questions) return RANK_PATTERN_COMPLETE;
+                (*questions)--;
+                return RANK_NULLABLE_NEXT;
+            }
+        }
         uint8_t role = question_guard_rank_role(lexer, scanner, questions, input);
         if (role) return role;
         if (question_guard_scalar_question(lexer, input)) return RANK_PATTERN_COMPLETE;

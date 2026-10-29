@@ -3578,4 +3578,8 @@ export const ownershipSamples = [
     source: "var r = value is T?[] ? [] + x : value is T?[] ? [] + x : fallback;",
     ranges: [[[8, 21], [24, 30], [33, 66]], [[33, 46], [49, 55], [58, 66]]],
   },
+  {
+    source: "class C { void M() { switch (o) { case int when a is T?[]? is U ? [1] : b ? [2] : [3]: break; } } }",
+    ranges: [[[48, 63], [66, 69], [72, 85]], [[72, 73], [76, 79], [82, 85]]],
+  },
 ];
