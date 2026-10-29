@@ -11,6 +11,7 @@ static uint8_t question_guard_rank_successor(uint8_t, bool, uint32_t, uint32_t *
 static bool question_guard_suffix(TSLexer *, Scanner *, QuestionInput *, uint32_t *);
 static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
 static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
+static bool question_guard_nullable_question(TSLexer *, QuestionInput *, uint32_t *);
 static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
 static bool question_input_multi_rank(const QuestionInput *, uint32_t);
 static bool question_guard_suffix_complete(TSLexer *, Scanner *, QuestionInput *, uint32_t);
@@ -43,7 +44,9 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
         interpolation_question_prefix(lexer, interpolation, interpolation->question_depth);
     result = question_walk_finish(scanner, lexer, &walk);
     *known_nullable = walk.known_nullable;
-    if (walk.known_nullable && rank_phase == RANK_NULLABLE_NEXT && !scanner->question_unknown &&
+    bool nullable_successor = rank_phase == RANK_NULLABLE_NEXT ||
+        (walk.owned_type_prefix && walk.case_boundary && following.token == '?' && !scanner->question_rank_prefix_questions);
+    if (walk.known_nullable && nullable_successor && !scanner->question_unknown &&
         !scanner->question_frames[scanner->question_frame_count - 1].unknown)
         scanner->question_rank_role = RANK_AFTER_NULLABLE;
     if (walk.proven_nullable_questions) {
@@ -165,6 +168,7 @@ static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *que
         uint8_t role = question_guard_rank_role(lexer, scanner, questions, input);
         if (role) return role;
         if (rank_guard_designation(lexer, questions, input)) return RANK_PATTERN_COMPLETE;
+        if (question_guard_nullable_question(lexer, input, questions)) return RANK_OWNED_NULLABLE_PREFIX;
     }
     const Interpolation *interpolation = scanner->interpolation_stack.size ? array_back(&scanner->interpolation_stack) : NULL;
     return rank_stream_ranked(lexer, scanner, questions, input,
@@ -207,6 +211,18 @@ static bool question_input_multi_rank(const QuestionInput *input, uint32_t start
         if (c != ' ' && c != '\t') open = c == '[';
     }
     return false;
+}
+
+static bool question_guard_nullable_question(TSLexer *lexer, QuestionInput *input, uint32_t *questions) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    RankTypeRead read = {0};
+    bool valid = rank_read_as_type(lexer, &read) && read.questions && !read.colon && !read.coalesce &&
+        !read.conditional && !read.division && !read.binary && !read.has_word &&
+        lexer->lookahead == '?' && question_read_single_question(lexer) &&
+        question_expression_start(lexer, question_skip_separators(lexer));
+    if (valid) *questions = read.questions;
+    question_input_restore(input, start);
+    return valid;
 }
 
 static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
