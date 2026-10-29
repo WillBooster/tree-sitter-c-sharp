@@ -108,7 +108,8 @@ static uint8_t rank_stream_ranked(TSLexer *lexer, Scanner *scanner, uint32_t *qu
     int32_t bracket_first = question_skip_separators(lexer);
     if (bracket_first < 0 || lexer->eof(lexer)) return RANK_NONE;
     if (bracket_first != ']' && bracket_first != ',') return RANK_TERNARY;
-    RankTokens tail = {.peek = input, .format_boundary = boundary};
+    // Case-guard fallbacks keep the guard proofs' ownership instead of ordinary-stream suffix probes.
+    RankTokens tail = {.peek = scanner->question_frames[scanner->question_frame_count - 1].case_guard ? NULL : input, .format_boundary = boundary};
     bool definite = false, division = false;
     unsigned colons = 0;
     if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division)) { array_delete(&tail); return RANK_NONE; }
