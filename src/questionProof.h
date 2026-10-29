@@ -188,7 +188,7 @@ static bool rank_guard_designation(TSLexer *lexer, uint32_t *questions, Question
     bool proved = false;
     if (rank_read_designation(lexer, questions, input, &proved)) return true;
     question_input_restore(input, start);
-    // Like released parsing, `not T?[]` without a designation reads `not` as the type unless a multi-rank or second suffix proves `T?[...]`.
+    // Like released parsing, an unproved `not T?[]` reads `not` as the type.
     if (type.cursor == start.cursor || proved || !rank_read_designation(lexer, questions, input, &proved)) {
         question_input_restore(input, start);
         return false;
@@ -201,11 +201,12 @@ static bool rank_read_designation(TSLexer *lexer, uint32_t *questions, QuestionI
     RankTypeRead read = {0};
     QuestionIdentifier designation;
     bool parsed = rank_read_as_type(lexer, &read);
-    *proved = read.questions > 1 || question_input_multi_rank(input, type_start);
-    bool valid = parsed && !read.colon && !read.division &&
+    bool named = parsed && !read.colon && !read.division &&
         !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
-        rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true) &&
-        question_skip_separators(lexer) == '?' && question_read_single_question(lexer) &&
+        rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true);
+    // A designation or a multi-rank/second suffix proves the read type even without a following question.
+    *proved = named || read.questions > 1 || question_input_multi_rank(input, type_start);
+    bool valid = named && question_skip_separators(lexer) == '?' && question_read_single_question(lexer) &&
         UINT32_MAX - *questions >= read.questions;
     if (valid) *questions += read.questions;
     return valid;
