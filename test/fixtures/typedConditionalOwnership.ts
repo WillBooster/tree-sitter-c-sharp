@@ -3370,4 +3370,8 @@ export const ownershipSamples = [
     source: 'var r = a is T?[] / a is T? and not null ? [1] : b: L;',
     ranges: [[[8, 14], [15, 50], [52, 53]], [[15, 40], [43, 46], [49, 50]]],
   },
+  {
+    source: 'switch(x){case y when a is not T?[] t ? [1] : b: L2: break;}',
+    ranges: [[[22, 37], [40, 43], [46, 47]]],
+  },
 ];

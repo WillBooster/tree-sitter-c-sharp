@@ -13,6 +13,7 @@ static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
 static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
 static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
 static bool question_input_multi_rank(const QuestionInput *, uint32_t);
+static bool rank_read_designation(TSLexer *, uint32_t *, QuestionInput *, bool *);
 static bool question_guard_suffix_complete(TSLexer *, Scanner *, QuestionInput *, uint32_t);
 static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
@@ -179,23 +180,29 @@ static bool rank_guard_designation(TSLexer *lexer, uint32_t *questions, Question
         prefix.keyword && !strcmp(prefix.word, "not"))
         type = question_input_checkpoint(input);
     question_input_restore(input, type);
+    bool proved = false;
+    if (rank_read_designation(lexer, questions, input, &proved)) return true;
+    question_input_restore(input, start);
+    // Like released parsing, `not T?[]` without a designation reads `not` as the type unless a multi-rank or second suffix proves `T?[...]`.
+    if (type.cursor == start.cursor || proved || !rank_read_designation(lexer, questions, input, &proved)) {
+        question_input_restore(input, start);
+        return false;
+    }
+    return true;
+}
+
+static bool rank_read_designation(TSLexer *lexer, uint32_t *questions, QuestionInput *input, bool *proved) {
     uint32_t type_start = input->cursor;
     RankTypeRead read = {0};
-    bool parsed = rank_read_as_type(lexer, &read);
-    // Like released parsing, `not T?[]` reads `not` as the type unless a multi-rank or second suffix proves `T?[...]`.
-    if (type.cursor != start.cursor && read.questions < 2 && !question_input_multi_rank(input, type_start)) {
-        question_input_restore(input, start);
-        read = (RankTypeRead){0};
-        parsed = rank_read_as_type(lexer, &read);
-    }
     QuestionIdentifier designation;
+    bool parsed = rank_read_as_type(lexer, &read);
+    *proved = read.questions > 1 || question_input_multi_rank(input, type_start);
     bool valid = parsed && !read.colon && !read.division &&
         !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
         rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true) &&
         question_skip_separators(lexer) == '?' && question_read_single_question(lexer) &&
         UINT32_MAX - *questions >= read.questions;
     if (valid) *questions += read.questions;
-    else question_input_restore(input, start);
     return valid;
 }
 
