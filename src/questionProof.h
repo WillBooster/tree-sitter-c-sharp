@@ -10,6 +10,7 @@ static uint8_t question_guard_save(QuestionFrame *, RankParse *);
 static uint8_t question_guard_rank_successor(uint8_t, bool, uint32_t, uint32_t *);
 static bool question_guard_suffix(TSLexer *, Scanner *, QuestionInput *, uint32_t *);
 static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
+static bool question_guard_high_binary(TSLexer *, QuestionInput *);
 static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
 static bool question_guard_nullable_question(TSLexer *, QuestionInput *, uint32_t *);
 static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
@@ -86,7 +87,7 @@ typedef struct {
     unsigned scanned, mandatory, colons;
 } QuestionGuardRead;
 
-static RankParse question_guard_evaluate(const RankTokens *, unsigned, uint32_t, bool);
+static RankParse question_guard_evaluate(const RankTokens *, unsigned, uint32_t, bool, bool *);
 
 static bool question_guard_complete_prefix(QuestionGuardRead *guard) {
     RankTokens *tail = guard->tail;
@@ -101,7 +102,7 @@ static bool question_guard_complete_prefix(QuestionGuardRead *guard) {
     }
     if ((uint64_t)guard->colons < (uint64_t)guard->pending + guard->mandatory + (tail->suffix_modes ? 1 : 2) ||
         !tail->size || tail->contents[tail->size - 1].kind != RANK_COLON) return false;
-    RankParse parsed = question_guard_evaluate(tail, tail->size - 1, guard->pending, false);
+    RankParse parsed = question_guard_evaluate(tail, tail->size - 1, guard->pending, false, NULL);
     if (!tail->suffix_modes) return parsed.valid && parsed.types.runs == 1 && parsed.types.first == GUARD_TERNARY;
     unsigned prefix = 0;
     for (unsigned i = 0; i + 2 < tail->size && tail->contents[i].kind == RANK_IS_TYPE &&
@@ -143,7 +144,7 @@ static bool question_guard_stream_stop(TSLexer *lexer, void *context) {
     return stop;
 }
 
-static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit, uint32_t pending, bool definite) {
+static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit, uint32_t pending, bool definite, bool *initial_colon) {
     RankTokens tokens = array_new();
     for (uint32_t i = 0; i < pending; i++) {
         array_push(&tokens, ((RankToken){RANK_ATOM, false}));
@@ -156,7 +157,9 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
     for (unsigned i = 0; i < limit; i++) array_push(&tokens, tail->contents[i]);
     array_push(&tokens, ((RankToken){RANK_END, false}));
     RankParse modes[2];
-    rank_evaluate_collected_modes(&tokens, question, modes, true);
+    RankParse when_true = rank_evaluate_collected_modes(&tokens, question, modes, true);
+    if (initial_colon) *initial_colon = !pending && !definite && limit < tail->size &&
+        tail->contents[limit].kind == RANK_COLON && when_true.valid && when_true.end == tokens.size - 1;
     RankParse parsed = modes[0];
     parsed.valid &= parsed.end < tokens.size &&
         (tokens.contents[parsed.end].kind == RANK_END || tokens.contents[parsed.end].kind == RANK_COLON);
@@ -274,6 +277,10 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     if (!division) definite |= question_guard_suffix(lexer, scanner, input, &suffix_questions);
     question_input_restore(input, suffix);
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (definite && !prefix && question_guard_high_binary(lexer, input)) {
+        result = RANK_PATTERN_COMPLETE;
+        goto done;
+    }
     if (definite && !(frame->pending && question_guard_type_operator_follows(lexer, input))) {
         question_input_restore(input, start);
         if (has_next && !suffix_questions && question_guard_nullable_question(lexer, input, questions)) result = RANK_OWNED_NULLABLE_PREFIX;
@@ -294,15 +301,30 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     unsigned last_colon = 0;
     for (unsigned i = 0; i < tail.size; i++) if (tail.contents[i].kind == RANK_COLON) last_colon = i;
     if (!read || !colons || !last_colon) goto done;
-    RankParse parsed = question_guard_evaluate(&tail, last_colon, frame->pending, definite);
+    bool initial_colon = false;
+    RankParse parsed = question_guard_evaluate(&tail, last_colon, frame->pending, definite, simple && !prefix ? &initial_colon : NULL);
     if (parsed.valid && !(parsed.suffix_flags & RANK_SUFFIX_INVALID)) {
         result = question_guard_save(frame, &parsed);
         if (result) *questions = prefix + (result == RANK_OWNED_NULLABLE_PREFIX);
+    }
+    if (initial_colon) {
+        result = RANK_PATTERN_COMPLETE;
+        *questions = prefix;
     }
 done:
     array_delete(&tail);
     question_input_restore(input, start);
     return question_guard_rank_successor(result, has_next, prefix, questions);
+}
+
+static bool question_guard_high_binary(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    int32_t c = question_skip_separators(lexer);
+    bool postfix = false, high = c == -1;
+    bool binary = c == -1 ? lexer->lookahead != '=' :
+        rank_binary_start(c) && rank_skip_binary_operator(lexer, c, &postfix, false, &high);
+    question_input_restore(input, start);
+    return binary && high && !postfix;
 }
 
 // Inside a pending conditional, a type operator after a definite type leaves the role to the guard stream evaluation.
@@ -366,7 +388,7 @@ static bool question_guard_suffix_complete(TSLexer *lexer, Scanner *scanner, Que
     for (unsigned i = 0; i < tail.size; i++) if (tail.contents[i].kind == RANK_COLON) last_colon = i;
     RankParse parsed = {0};
     if (read && colons && last_colon && last_colon + 2 == tail.size)
-        parsed = question_guard_evaluate(&tail, last_colon, frame->pending, false);
+        parsed = question_guard_evaluate(&tail, last_colon, frame->pending, false, NULL);
     bool complete = parsed.valid && !(parsed.suffix_flags & RANK_SUFFIX_INVALID) && parsed.role == RANK_NULLABLE_LAST &&
         parsed.end == (uint64_t)frame->pending * 2 + 3 + last_colon &&
         parsed.types.first == GUARD_NULLABLE && parsed.types.prefix > questions;

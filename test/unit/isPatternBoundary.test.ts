@@ -2669,10 +2669,20 @@ test('retains await as a contextual type name in nonasync positional patterns', 
   }
 });
 
-test('rejects later type tests that borrow the case colon', () => {
+test('rejects incomplete nullable guard conditionals', () => {
   const samples = [
     'class C{void M(){switch(x){case y when a is T?[]?[] is U ? [1] : b as V?[]?: break; default: break;}}}',
     'class C{void M(){switch(x){case y when a is T?[] is U ? [1] : b: break; default: break;}}}',
+    'class C{void M(){switch(x){case y when a is T?[]?[] as U ? [1] : b is V?[]?: var value = a ? [1] : b; break;}}}',
+    'class C{void M(){switch(x){case y when a is T?[]?[] as U ? [1] : b is V?[]?: return a ? [1] : b;}}}',
+    'class C{void M(){switch(x){case y when a is T?[]?[] as U ? [1] : b is V?[]?: break; default: break;}}}',
+    'class C{void M(){switch(x){case y when a is T?[]?[] as U ? [1] : b is V?[]?: break; case 2 when c ? d : e: break;}}}',
+    'class C { void M() { switch (y) { case int when a is T?[] ? d : c is not T?[] v ? f : b: break; } } }\n',
+    'class C { void M() { switch (y) { case int when b is not T?[,] + a.b : return; } } }\n',
+    'class C { void M() { switch (y) { case int when 1 is T?[] is T : break; } } }\n',
+    'class C { void M() { switch (y) { case int when c is T?[]? v : L: break; } } }\n',
+    'class C { void M() { switch (y) { case int when a is T?[]?[] : L: break; } } }\n',
+    'class C { void M() { switch (y) { case int when (a) is T?[]?[] : L: break; } } }\n',
   ];
   const parser = new Parser().setLanguage(language);
   try {
