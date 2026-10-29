@@ -3498,4 +3498,72 @@ export const ownershipSamples = [
     source: 'class C { void M() { var s = $"{(x is T?[] ? [] || a.b is T?[,]?[] : x),5}"; } }',
     ranges: [[[33, 63], [64, 66], [69, 70]]],
   },
+  {
+    source: "switch(x){case y when a is T?[] as T?[,] ? [] as U : b: L: break;}",
+    ranges: [[[22, 28], [29, 50], [53, 54]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] as T?[,] ? [] is U : b: L: break;}",
+    ranges: [[[22, 28], [29, 50], [53, 54]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] as T?[] as T?[][] ? [1] as U : b: L: break;}",
+    ranges: [[[22, 28], [29, 60], [63, 64]]],
+  },
+  {
+    source: "switch(x){case y when a as T?[] is List<int>? t: L: break;}",
+    ranges: [[[22, 44], [46, 47], [49, 50]]],
+  },
+  {
+    source: "switch(x){case y when a as T?[] is T?[][] and int?[]: L0: L1: break;}",
+    ranges: [[[22, 49], [50, 52], [54, 56]]],
+  },
+  {
+    source: "switch(x){case y when a as T?[]?[] is T?[,] and int?[]: L: break;}",
+    ranges: [[[22, 51], [52, 54], [56, 57]]],
+  },
+  {
+    source: "switch(x){case y when a as int?[] is not List<int>? t: L: break;}",
+    ranges: [[[22, 50], [52, 53], [55, 56]]],
+  },
+  {
+    source: "class C { void M() { var r = a is T ? [] ? c : b is T?[,]?[] : d; } }",
+    ranges: [[[29, 40], [43, 44], [47, 64]], [[47, 57], [58, 60], [63, 64]]],
+  },
+  {
+    source: "class C { void M() { var r = f(a) is T ? [] ? c : b is T?[,]?[] : d; } }",
+    ranges: [[[29, 43], [46, 47], [50, 67]], [[50, 60], [61, 63], [66, 67]]],
+  },
+  {
+    source: "class C { void M() { var r = x ? a?[0] : f(a) is T ? [] ? c : b is T?[,]?[] : a.b ?? x is T is T?[]?; } }",
+    ranges: [[[29, 30], [33, 38], [41, 100]], [[41, 55], [58, 59], [62, 100]], [[62, 72], [73, 75], [78, 100]]],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when d is T?[]? < c ? a?[0] : e : L: break; } } }",
+    ranges: [[[48, 62], [65, 74], [77, 78]], [[65, 66], [67, 70], [73, 74]]],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when default is T?[]? < ([]) ? a?[0] : [] : L: break; } } }",
+    ranges: [[[48, 71], [74, 84], [87, 88]], [[74, 75], [76, 79], [82, 84]]],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when 1 is T?[,] * [] : return; } } }",
+    ranges: [],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when x && v || (a?.b) is T?[,] * [] || a.b as T[] : break; } } }",
+    ranges: [],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when a?.b is [] is T?[,] * [] is T q ? a?.b : (a) as int? : L: x = 1; break; } } }",
+    ranges: [[[48, 79], [82, 86], [89, 100]]],
+  },
+  {
+    source: "class C { void M() { var r = a is T?[,]?[] as T ? [] : d; } }",
+    ranges: [[[29, 39], [40, 52], [55, 56]]],
+  },
+  {
+    source: "class C { void M() { var r = c is T?[,]?[] as T?[,] ? [] : f(a); } }",
+    ranges: [[[29, 39], [40, 56], [59, 63]]],
+  },
 ];

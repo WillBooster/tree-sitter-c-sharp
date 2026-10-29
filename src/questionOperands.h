@@ -581,7 +581,7 @@ static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *l
     bool nullable_rank = rank_separator &&
         (walk->rank_phase == RANK_NULLABLE_LAST || walk->rank_phase == RANK_NULLABLE_NEXT);
     bool expression_rank = (walk->binding || first == ']') &&
-        (walk->rank_phase == RANK_TERNARY || (walk->case_boundary && walk->rank_phase == RANK_AFTER_NULLABLE));
+        (walk->rank_phase == RANK_TERNARY || walk->rank_phase == RANK_AFTER_NULLABLE);
     bool pattern_rank = !walk->known_ternary && !walk->known_nullable && rank_separator && walk->case_boundary && walk->nullable_allowed &&
         question_walk_current_type_pattern(lexer, walk);
     if (pattern_rank) {
@@ -827,6 +827,7 @@ static void rank_apply_type_suffix(TSLexer *lexer, RankTokens *tokens, RankExpre
         for (unsigned i = first; i <= expression->nullable_event; i++)
             if (tokens->contents[i].kind == RANK_IS_TYPE) tokens->contents[i].kind = RANK_DEFINITE_TYPE;
         expression->type_chain = expression->nullable_event;
+        expression->chain_unproved = false;
     }
     expression->nullable_type = true;
 }

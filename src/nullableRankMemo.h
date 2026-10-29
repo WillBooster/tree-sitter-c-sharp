@@ -1,13 +1,13 @@
 #ifndef TREE_SITTER_C_SHARP_NULLABLE_RANK_MEMO_H_
 #define TREE_SITTER_C_SHARP_NULLABLE_RANK_MEMO_H_
 
-static RankParse rank_evaluate_collected_modes(const RankTokens *tokens, unsigned target, RankParse modes[2], bool collect);
+static RankParse rank_evaluate_collected_modes(const RankTokens *tokens, unsigned target, RankParse modes[2], bool collect, unsigned successor, RankParse *first_body);
 
-static void rank_evaluate_modes(const RankTokens *tokens, unsigned target, RankParse modes[2]) {
-    rank_evaluate_collected_modes(tokens, target, modes, false);
+static RankParse rank_evaluate_modes(const RankTokens *tokens, unsigned target, RankParse modes[2]) {
+    return rank_evaluate_collected_modes(tokens, target, modes, false, 1, NULL);
 }
 
-static RankParse rank_evaluate_collected_modes(const RankTokens *tokens, unsigned target, RankParse modes[2], bool collect) {
+static RankParse rank_evaluate_collected_modes(const RankTokens *tokens, unsigned target, RankParse modes[2], bool collect, unsigned successor, RankParse *first_body) {
     RankParse *memo = ts_calloc((size_t)tokens->size * 2, sizeof(RankParse));
     for (unsigned end = tokens->size; end > 0; end--) {
         unsigned start = end - 1;
@@ -16,7 +16,10 @@ static RankParse rank_evaluate_collected_modes(const RankTokens *tokens, unsigne
     }
     modes[0] = memo[0];
     modes[1] = memo[1];
-    RankParse when_true = target < tokens->size && target + 1 < tokens->size ? memo[(size_t)(target + 1) * 2] : (RankParse){0};
+    uint64_t first = (uint64_t)target + 1;
+    if (first_body) *first_body = first < tokens->size ? memo[(size_t)first * 2] : (RankParse){0};
+    uint64_t consequence = first + (uint64_t)successor * 2;
+    RankParse when_true = consequence < tokens->size ? memo[(size_t)consequence * 2] : (RankParse){0};
     ts_free(memo);
     return when_true;
 }

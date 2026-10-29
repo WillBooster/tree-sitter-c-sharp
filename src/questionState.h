@@ -16,6 +16,11 @@ typedef struct { bool unknown, extended, rank, cache, depths, confirmation, tran
 
 static uint8_t question_take_rank(Scanner *scanner, bool *known_nullable, bool *dimension_expression) {
 
+    if (scanner->question_rank_role == RANK_NULLABLE_NEXT && scanner->question_rank_prefix_questions) {
+        *known_nullable = true;
+        scanner->question_rank_prefix_questions--;
+        return RANK_NONE;
+    }
     if (scanner->question_rank_role == RANK_NULLABLE_PREFIX || scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX) {
         uint8_t role = scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX ? RANK_OWNED_NULLABLE_PREFIX : RANK_NONE;
         *known_nullable = true;

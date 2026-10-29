@@ -143,6 +143,14 @@ function nullablePatternSuffixes(count: number): string {
   return 'switch(x) { case y when a ? [1] : b is T?' + '[]?'.repeat(count) + ' and not null: break; }';
 }
 
+test('bounds negated nullable-rank successors in case guards', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(negatedNullableRankSuccessors(100), negatedNullableRankSuccessors(1000));
+});
+
+function negatedNullableRankSuccessors(count: number): string {
+  return `class C { void M() { switch (y) { case int when a is not T?${'[]?'.repeat(count)}[] is T?[]? : return; } } }`;
+}
+
 test('bounds repeated nullable-rank successors in a malformed case guard', { timeout: 60_000 }, () => {
   const large = repeatedRankSuccessors(1000);
   expectBoundedGrowth(repeatedRankSuccessors(100), large, false);
