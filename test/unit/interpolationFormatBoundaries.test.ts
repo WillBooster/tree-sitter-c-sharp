@@ -26,11 +26,11 @@ test.each(wrappers)('retains IS and coalescing operands before $name interpolati
   let previous = 'var r = 0;';
   let tree = parser.parse(previous)!;
   try {
-    for (const { expression, format } of [
+    for (const { expression, format, declaration } of [
       { expression: 'x is T?[] ?? y as T is T?[] t', format: ': c' },
       { expression: 'a is T?[] is U ?? c ? [1]', format: ': d :x' },
       { expression: 'f(a) is T?[]? || b?[i] as T?[]?[] is U ?? a ? [1]', format: ': c:X' },
-      { expression: 'a is T?[] && a is T?[] ? c', format: ': b' },
+      { expression: 'a is T?[] && a is T?[] ? c', format: ': b', declaration: 'T?[] ? c' },
     ]) {
       for (const parenthesized of [false, true, false]) {
         const source = `var r = ${open}${parenthesized ? `(${expression})` : expression}${format}${close};`;
@@ -47,6 +47,21 @@ test.each(wrappers)('retains IS and coalescing operands before $name interpolati
             query.captures(fresh.rootNode).map(({ name, node }) => [name, node.text, node.startIndex, node.endIndex]),
             source
           ).toEqual([['format', format, source.indexOf(format), source.indexOf(format) + format.length]]);
+          if (declaration) {
+            const start = source.indexOf(declaration);
+            expect(
+              fresh.rootNode
+                .descendantsOfType('declaration_pattern')
+                .map((node) => [
+                  node.text,
+                  node.startIndex,
+                  node.endIndex,
+                  node.childForFieldName('type')?.text,
+                  node.childForFieldName('name')?.text,
+                ]),
+              source
+            ).toEqual([[declaration, start, start + declaration.length, 'T?[] ?', 'c']]);
+          }
           expect(syntaxSnapshot(incremental.rootNode), source).toEqual(syntaxSnapshot(fresh.rootNode));
           expect(
             query.captures(incremental.rootNode).map(({ name, node }) => [name, syntaxSnapshot(node)]),

@@ -382,6 +382,7 @@ static bool rank_read_type_rank(TSLexer *lexer, RankTypeRead *read) {
             UINT32_MAX - read->expression_questions < questions) return false;
         if (questions && !read->expression_questions) read->prefix_questions = read->questions;
         read->expression_questions += questions;
+        read->sized_rank |= read->expression_ranks;
     }
     rank_type_close(read, ']');
     return true;

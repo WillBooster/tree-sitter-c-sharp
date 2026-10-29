@@ -13,6 +13,105 @@ beforeAll(async () => {
 test('preserves case patterns, guards and statement labels across clause edits', () => {
   const samples = [
     {
+      source: 'switch(x){case y when a as T?[] && a is not T?[,] ? b : c: break;}',
+      guards: ['when a as T?[] && a is not T?[,] ? b : c'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 49],
+          [52, 53],
+          [56, 57],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when a as T?[] && a is not T?[]? && a ? b : c: break;}',
+      guards: ['when a as T?[] && a is not T?[]? && a ? b : c'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 54],
+          [57, 58],
+          [61, 62],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when a is T?[]? && a is not T?[]? && a ? b : c: break;}',
+      guards: ['when a is T?[]? && a is not T?[]? && a ? b : c'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 55],
+          [58, 59],
+          [62, 63],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when c ? b as T? is T : a ? [0] : [1]: var r = 1; break;}',
+      guards: ['when c ? b as T? is T : a ? [0] : [1]'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 38],
+          [41, 54],
+        ],
+        [
+          [41, 42],
+          [45, 48],
+          [51, 54],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when c ? b as T? as U : a ? [0] : [1]: var r = 1; break;}',
+      guards: ['when c ? b as T? as U : a ? [0] : [1]'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 38],
+          [41, 54],
+        ],
+        [
+          [41, 42],
+          [45, 48],
+          [51, 54],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when c ? b as T?[\n,]? is T : a ? [0] : [1]: var r = 1; break;}',
+      guards: ['when c ? b as T?[\n,]? is T : a ? [0] : [1]'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 43],
+          [46, 59],
+        ],
+        [
+          [46, 47],
+          [50, 53],
+          [56, 59],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
       source: 'class C{void M(){switch(x){case var y when c is T?[]? || a?[0] ? [1] : b : L: break;}}} class F{}',
       guards: ['when c is T?[]? || a?[0] ? [1] : b : L'],
       labels: [],
