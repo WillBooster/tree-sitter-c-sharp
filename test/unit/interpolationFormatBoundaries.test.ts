@@ -30,6 +30,7 @@ test.each(wrappers)('retains IS and coalescing operands before $name interpolati
       { expression: 'x is T?[] ?? y as T is T?[] t', format: ': c' },
       { expression: 'a is T?[] is U ?? c ? [1]', format: ': d :x' },
       { expression: 'f(a) is T?[]? || b?[i] as T?[]?[] is U ?? a ? [1]', format: ': c:X' },
+      { expression: 'a is T?[] && a is T?[] ? c', format: ': b' },
     ]) {
       for (const parenthesized of [false, true, false]) {
         const source = `var r = ${open}${parenthesized ? `(${expression})` : expression}${format}${close};`;

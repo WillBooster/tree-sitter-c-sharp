@@ -157,6 +157,20 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
     return parsed;
 }
 
+static bool rank_guard_designation(TSLexer *lexer, uint32_t *questions, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    RankTypeRead read = {0};
+    QuestionIdentifier designation;
+    bool valid = rank_read_as_type(lexer, &read) && !read.colon && !read.division &&
+        !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
+        rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true) &&
+        question_skip_separators(lexer) == '?' && question_read_single_question(lexer) &&
+        UINT32_MAX - *questions >= read.questions;
+    if (valid) *questions += read.questions;
+    else question_input_restore(input, start);
+    return valid;
+}
+
 static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
     QuestionCheckpoint start = question_input_checkpoint(input);
     uint32_t prefix = 0;
