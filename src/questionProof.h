@@ -227,7 +227,16 @@ done:
 static bool question_guard_type_operator_follows(TSLexer *lexer, QuestionInput *input) {
     QuestionCheckpoint start = question_input_checkpoint(input);
     bool nullable = false;
-    bool follows = question_walk_pattern_suffix(lexer, &nullable, NULL) && question_type_keyword_follower(lexer, input);
+    bool follows = question_walk_pattern_suffix(lexer, &nullable, NULL);
+    QuestionCheckpoint word = question_input_checkpoint(input);
+    QuestionIdentifier designation;
+    if (!rank_read_identifier(lexer, &designation) || !rank_identifier_allowed(&designation, true)) question_input_restore(input, word);
+    else question_skip_separators(lexer);
+    int32_t c = lexer->lookahead;
+    if (follows && (c == '|' || c == '&')) {
+        advance(lexer);
+        follows = lexer->lookahead == c;
+    } else follows = follows && question_type_keyword_follower(lexer, input);
     question_input_restore(input, start);
     return follows;
 }

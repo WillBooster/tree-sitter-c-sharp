@@ -25,7 +25,7 @@ typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid
 typedef struct { RankTokenKind kind; bool collection; bool force_unsafe; RankCertificate certificate; RankParse nested[2]; bool guard_candidate; uint8_t suffix_flags; } RankToken;
 typedef struct { RankToken *contents; uint32_t size, capacity; QuestionInput *input, *peek; bool format_boundary; bool suffix_modes; } RankTokens;
 typedef enum { RANK_HEADER_START, RANK_HEADER_MODIFIER, RANK_HEADER_NAME, RANK_HEADER_PARAMETERS, RANK_HEADER_DELEGATE, RANK_HEADER_DELEGATE_PARAMETERS, RANK_HEADER_INVALID } RankLambdaHeader;
-typedef struct { unsigned token; RankLambdaHeader header; bool content; bool primary; bool type_pending; bool type_complete; bool pattern; bool member; bool colon; bool conditional; bool nullable_type; bool division; bool has_word; QuestionIdentifier word; unsigned nullable_event, type_chain; bool guard_candidate; } RankExpression;
+typedef struct { unsigned token; RankLambdaHeader header; bool content; bool primary; bool type_pending; bool type_complete; bool pattern; bool member; bool colon; bool conditional; bool nullable_type; bool division; bool has_word; QuestionIdentifier word; unsigned nullable_event, type_chain; bool guard_candidate; bool chain_unproved; } RankExpression;
 
 static bool question_type_boundary(int32_t c);
 static bool question_type_operator_follower(TSLexer *, QuestionInput *, QuestionFollowing);
@@ -865,8 +865,12 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
     RankTokens ranks = array_new();
     bool definite = false, division = false;
     if (!rank_read_omitted_ranks(lexer, &ranks, &definite, &division)) { array_delete(&ranks); return RANK_READ_UNKNOWN; }
+    // Every rank of an ordinary chain reaches the same suffix end, so one walk decides the whole chain.
+    bool chain = !tokens->input && expression->nullable_event != ((unsigned)-1);
+    bool proved = chain && tokens->contents[expression->nullable_event].kind == RANK_DEFINITE_TYPE;
+    definite |= proved;
     QuestionInput *probe = tokens->input ? tokens->input : tokens->peek;
-    if (probe && !division) {
+    if (probe && !division && !proved && !(chain && expression->chain_unproved)) {
         QuestionCheckpoint start = question_input_checkpoint(probe);
         bool nullable = false;
         uint32_t questions = 0;
@@ -875,6 +879,7 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
         suffix_candidate |= tokens->input && type && questions && question_type_keyword_follower(lexer, probe);
         bool pattern = type && question_walk_pattern_tail(lexer, nullable, false, probe);
         definite |= pattern;
+        expression->chain_unproved = !pattern;
         question_input_restore(probe, pattern && tokens->input ? suffix : start);
     }
     if (definite || ranks.size) tokens->contents[expression->token].certificate = RANK_CERT_INVALID;
