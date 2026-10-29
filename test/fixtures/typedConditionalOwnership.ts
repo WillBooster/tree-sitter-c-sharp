@@ -3266,4 +3266,12 @@ export const ownershipSamples = [
   {"source": "switch (x) { case y when b is T & new (T,U)?(1): L: break; }", "ranges": []},
   {"source": "switch(x){case y when b is T?[]? z and not null: var r = y ? c ? [a] : d ? [] : x is T? t and U : w; break;}", "ranges": [[[57, 58], [61, 95], [98, 99]], [[61, 62], [65, 68], [71, 95]], [[71, 72], [75, 77], [80, 95]]]},
   {"source": "switch (x) { case y when f(new (T,U)?(1)) & new (T,U)?(1): L: break; }", "ranges": []},
+  {
+    source: "var r = a is T?[] / a is T?[]? ? [1] : b: L;",
+    ranges: [[[8,14],[15,40],[42,43]],[[15,30],[33,36],[39,40]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[]? == a?[0] ? [1] : b: L: break;} var following=a?[0];",
+    ranges: [[[22,37],[38,51],[53,54]],[[38,41],[44,47],[50,51]]],
+  },
 ];
