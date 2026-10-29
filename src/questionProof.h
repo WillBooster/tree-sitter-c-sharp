@@ -14,6 +14,7 @@ static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, Questi
 static bool question_guard_nullable_question(TSLexer *, QuestionInput *, uint32_t *);
 static bool rank_guard_designation(TSLexer *, uint32_t *, QuestionInput *);
 static bool question_input_multi_rank(const QuestionInput *, uint32_t);
+static bool question_assignment_follows(TSLexer *, QuestionInput *);
 static bool rank_read_designation(TSLexer *, uint32_t *, QuestionInput *, bool *);
 static bool question_guard_suffix_complete(TSLexer *, Scanner *, QuestionInput *, uint32_t);
 static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
@@ -203,12 +204,30 @@ static bool rank_read_designation(TSLexer *lexer, uint32_t *questions, QuestionI
     bool named = parsed && !read.colon && !read.division &&
         !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
         rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true);
-    // A designation (read here or absorbed by the type reader) or a multi-rank/second suffix proves the read type.
-    *proved = named || read.has_word || read.questions > 1 || question_input_multi_rank(input, type_start);
+    // A designation (read here or absorbed by the type reader) proves the read type; a multi-rank or second
+    // suffix does too unless an assignment follows, where the released `not`-as-type reading keeps ownership.
+    *proved = named || read.has_word ||
+        ((read.questions > 1 || question_input_multi_rank(input, type_start)) && !question_assignment_follows(lexer, input));
     bool valid = named && question_skip_separators(lexer) == '?' && question_read_single_question(lexer) &&
         UINT32_MAX - *questions >= read.questions;
     if (valid) *questions += read.questions;
     return valid;
+}
+
+static bool question_assignment_follows(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    unsigned length = 0;
+    while (length < 3 && lexer->lookahead > 0 && lexer->lookahead < 128 && strchr("+-*/%&|^<>?", lexer->lookahead)) {
+        advance(lexer);
+        length++;
+    }
+    bool assignment = lexer->lookahead == '=';
+    if (assignment && !length) {
+        advance(lexer);
+        assignment = lexer->lookahead != '=' && lexer->lookahead != '>';
+    }
+    question_input_restore(input, start);
+    return assignment;
 }
 
 static bool question_input_multi_rank(const QuestionInput *input, uint32_t start) {
