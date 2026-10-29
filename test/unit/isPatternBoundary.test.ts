@@ -2671,6 +2671,11 @@ test('retains await as a contextual type name in nonasync positional patterns', 
 
 test('rejects incomplete nullable guard conditionals', () => {
   const samples = [
+    'class C{void M(){switch(x){case y when a is T?[] && b is U?[] && c is V?[]: L: break;}}}',
+    'class C { void M() { switch (o) { case int when a is not T?[]* x ? x : y: break; } } }',
+    'class C { void M() { switch (o) { case int when a is not not T?[]* x ? x : y: break; } } }',
+    'class C { void M() { switch (o) { case int when a is not T?[]* x ? x : b ? x : y: break; } } }',
+
     'class C { void M(object a, bool x) { switch (a) { case int when a is int?[] ? x : a is int?[] ? x : x: break; } } }',
     'class C { void M(object o, bool b) { switch(o){ case int when x is not T?[][] ? o : x: break; } } }',
     'class C { void M(object o, bool b) { switch(o){ case int when x is not T?[][] || y: break; } } }',
@@ -2743,6 +2748,22 @@ function mixedGuardSource(labels: number): string {
 
 test('retains proven nullable patterns before recursive, binary and lambda boundaries', () => {
   const samples = [
+    {
+      source: 'class C{void M(){switch(x){case y when b is not T?[](1) {}: break;}}}',
+      nullable: ['T?'],
+      fields: [],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when c ? d : b is not T?[](1) {}: break;}}}',
+      nullable: ['T?'],
+      fields: [
+        [
+          [39, 40],
+          [43, 44],
+          [47, 66],
+        ],
+      ],
+    },
     {
       source: 'class C{void M(){switch(x){case y when b is not T?[] {}: break;}}}',
       nullable: ['T?'],

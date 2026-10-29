@@ -246,6 +246,11 @@ test('keeps nested collection conditionals before a later root nullable format',
 
 test('retains nullable array designations before a format containing a colon', () => {
   for (const [type, source] of [
+    ['int?[] ?', 'class C { void M(object a, bool x) { var r = $"{a is not int?[] ? x : 1:X}"; } }'],
+    ['int?[]?', 'class C { void M(object a, bool x) { var r = $"{a is not int?[]? x : 1:X}"; } }'],
+    ['A.B?[] ?', 'class C { void M(object a, bool x) { var r = $"{a is not A.B?[] ? x : 1:X}"; } }'],
+    ['List<int>?[] ?', 'class C { void M(object a, bool x) { var r = $"{a is not List<int>?[] ? x : 1:X}"; } }'],
+
     ['int?[] ?', 'class C { void M(object a, bool x) { var r = $"{a is int?[] ? x : 1:X}"; } }'],
     ['int?[]?', 'class C { void M(object a, bool x) { var r = $"{a is int?[]? x : 1:X}"; } }'],
   ]) {

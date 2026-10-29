@@ -184,6 +184,14 @@ function collectionArithmeticConsequences(count: number): string {
   return `var r = ${'value is T?[] ? [] + x : '.repeat(count)}fallback;`;
 }
 
+test('bounds incomplete nullable logical guard chains', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(incompleteLogicalGuard(100), incompleteLogicalGuard(1000), true);
+});
+
+function incompleteLogicalGuard(count: number): string {
+  return `class C{void M(){switch(x){case y when a is T?[] && ${'b is U?[] && '.repeat(count - 1)}c is V?[]: L: break;}}}`;
+}
+
 test('bounds invalid nullable guard alternative chains', { timeout: 60_000 }, () => {
   expectBoundedGrowth(incompleteNullableGuardAlternatives(100), incompleteNullableGuardAlternatives(1000), true);
 });
