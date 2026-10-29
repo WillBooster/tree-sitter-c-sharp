@@ -1104,8 +1104,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
          (next.token == '>' || next.token == '/' || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
     bool dimension_expression = false;
     uint8_t rank_phase = question_take_rank(scanner, &known_nullable, &dimension_expression);
-    if (frame->case_guard && (frame->guard.role & GUARD_ROLE_MASK) &&
-        (frame->guard.role & GUARD_ROLE_MASK) != GUARD_NULLABLE_BOUND && !known_nullable &&
+    if (frame->case_guard && (frame->guard.role & GUARD_ROLE_MASK) && !known_nullable &&
         next.token != '[' && !next.member && (next.token == '.' || question_expression_start(lexer, next.token)))
         rank_phase = RANK_PATTERN_COMPLETE;
     bool owned_type_prefix = rank_phase == RANK_OWNED_NULLABLE_PREFIX;

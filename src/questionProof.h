@@ -6,13 +6,14 @@ static bool question_prepare_guard(Scanner *, TSLexer *);
 static bool question_prepare_prefix(Scanner *, QuestionInput *, bool);
 static void question_save_type_handoff(Scanner *, const QuestionWalk *);
 static uint8_t question_guard_take(QuestionFrame *, uint32_t, uint32_t *);
-static uint8_t question_guard_save(QuestionFrame *, RankParse *, bool, bool);
+static uint8_t question_guard_save(QuestionFrame *, RankParse *, bool);
 static uint8_t question_guard_rank_successor(uint8_t, bool, uint32_t, uint32_t *);
 static bool question_guard_suffix(TSLexer *, Scanner *, QuestionInput *, uint32_t *);
 static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
 static bool question_guard_high_binary(TSLexer *, QuestionInput *);
 static bool question_guard_binary_follows(TSLexer *, QuestionInput *);
 static bool question_guard_modes_agree(const RankParse [2]);
+static bool question_guard_untracked_collection(const RankTokens *, unsigned);
 static unsigned question_guard_empty_prefix(const RankTokens *);
 static bool question_guard_logical_collection(TSLexer *, QuestionInput *);
 static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
@@ -172,6 +173,7 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
         preference && preference->first ? &first : NULL);
     if (preference && preference->first && !preference->successor && !pending && !definite &&
         limit < tail->size && tail->contents[limit].kind == RANK_COLON &&
+        !question_guard_untracked_collection(&tokens, question) &&
         ((first.types.runs == 1 && first.types.first == GUARD_NULLABLE) ||
          (first.types.runs == 2 && question_guard_modes_agree(modes)))) {
         array_pop(&tokens);
@@ -198,6 +200,14 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
         (tokens.contents[parsed.end].kind == RANK_END || tokens.contents[parsed.end].kind == RANK_COLON);
     array_delete(&tokens);
     return parsed;
+}
+
+static bool question_guard_untracked_collection(const RankTokens *tokens, unsigned target) {
+    for (unsigned i = target + 1; i < tokens->size; i++) {
+        if (tokens->contents[i].kind == RANK_QUESTION && tokens->contents[i].collection &&
+            tokens->contents[i - 1].kind != RANK_IS_TYPE && tokens->contents[i - 1].kind != RANK_DEFINITE_TYPE) return true;
+    }
+    return false;
 }
 
 static bool question_guard_modes_agree(const RankParse modes[2]) {
@@ -354,6 +364,9 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     if (!division) definite |= question_guard_suffix(lexer, scanner, input, &suffix_questions);
     question_input_restore(input, suffix);
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    uint32_t cached_questions = 0;
+    uint8_t cached = frame->guard.role & GUARD_ROLE_MASK
+        ? question_guard_take(frame, prefix, &cached_questions) : RANK_NONE;
     if (definite && !prefix && question_guard_high_binary(lexer, input)) {
         result = RANK_PATTERN_COMPLETE;
         goto done;
@@ -365,9 +378,10 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     bool successor = empty_successor && !prefix;
     bool definite_prefix = definite && !(frame->pending && question_guard_type_operator_follows(lexer, input));
     if (definite_prefix && !successor) goto definite_prefix;
-    if (frame->guard.role & GUARD_ROLE_MASK) {
+    if (cached) {
         if (definite_prefix) goto definite_prefix;
-        result = question_guard_take(frame, prefix, questions);
+        result = cached;
+        *questions = cached_questions;
         goto done;
     }
     unsigned colons = 0;
@@ -385,7 +399,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
         preference.first || preference.successor ? &preference : NULL);
     if (!preference.colon && definite_prefix) goto definite_prefix;
     if (parsed.valid && !(parsed.suffix_flags & RANK_SUFFIX_INVALID)) {
-        result = question_guard_save(frame, &parsed, !preference.concrete, !preference.colon);
+        result = question_guard_save(frame, &parsed, !preference.concrete);
         if (result) *questions = prefix + (result == RANK_OWNED_NULLABLE_PREFIX);
     }
     if (preference.colon) {
@@ -499,13 +513,7 @@ static bool question_guard_suffix(TSLexer *lexer, Scanner *scanner, QuestionInpu
     question_input_restore(input, end);
     bool boundary = type && *questions && (binary || question_type_keyword_follower(lexer, input));
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    if (boundary && !frame->pending && (frame->guard.role & GUARD_SUFFIX_COMPLETE)) {
-        if (frame->guard.role & GUARD_ROLE_MASK) {
-            uint32_t consumed = 0;
-            question_guard_take(frame, 0, &consumed);
-        }
-        return true;
-    }
+    if (boundary && !frame->pending && (frame->guard.role & GUARD_SUFFIX_COMPLETE)) return true;
     bool pattern = type && (boundary ? question_guard_suffix_complete(lexer, scanner, input, *questions) :
         question_walk_pattern_tail(lexer, nullable, false, input));
     if (!pattern) *questions = 0;
@@ -547,27 +555,21 @@ static uint8_t question_guard_rank_successor(uint8_t role, bool has_next, uint32
 }
 
 static uint8_t question_guard_take(QuestionFrame *frame, uint32_t prefix, uint32_t *questions) {
-    unsigned role = frame->guard.role & GUARD_ROLE_MASK;
-    bool nullable = role == GUARD_NULLABLE || role == GUARD_NULLABLE_BOUND;
+    bool nullable = (frame->guard.role & GUARD_ROLE_MASK) == GUARD_NULLABLE;
     *questions = prefix + nullable;
     if (frame->guard.prefix && !--frame->guard.prefix)
-        frame->guard.role = role == GUARD_NULLABLE_BOUND ? 0 :
-            (frame->guard.role & GUARD_SUFFIX_COMPLETE) | (nullable ? GUARD_TERNARY : GUARD_NULLABLE);
+        frame->guard.role = (frame->guard.role & GUARD_SUFFIX_COMPLETE) | (nullable ? GUARD_TERNARY : GUARD_NULLABLE);
     return nullable ? RANK_OWNED_NULLABLE_PREFIX : RANK_PATTERN_COMPLETE;
 }
 
-static uint8_t question_guard_save(QuestionFrame *frame, RankParse *parsed, bool bounded, bool prefix) {
+static uint8_t question_guard_save(QuestionFrame *frame, RankParse *parsed, bool bounded) {
     if (bounded && parsed->types.runs == 2 && parsed->types.first == GUARD_NULLABLE) {
         parsed->types.prefix = parsed->types.count - parsed->types.prefix;
         parsed->types.first = GUARD_TERNARY;
         parsed->types.last = GUARD_NULLABLE;
         parsed->role = RANK_TERNARY;
     }
-    if (prefix && !parsed->suffix_flags && parsed->role == RANK_NULLABLE_LAST &&
-        parsed->types.runs > 2 && parsed->types.first == GUARD_NULLABLE && parsed->types.prefix > 1) {
-        frame->guard.role = GUARD_NULLABLE_BOUND;
-        frame->guard.prefix = parsed->types.prefix - 1;
-    } else if (parsed->types.runs && parsed->types.runs <= 2) {
+    if (parsed->types.runs && parsed->types.runs <= 2) {
         frame->guard.role = (frame->guard.role & GUARD_SUFFIX_COMPLETE) | parsed->types.first;
         frame->guard.prefix = parsed->types.runs == 2 ? parsed->types.prefix - 1 : 0;
         if (parsed->types.runs == 2 && !frame->guard.prefix) frame->guard.role = (frame->guard.role & GUARD_SUFFIX_COMPLETE) | parsed->types.last;
