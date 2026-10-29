@@ -3406,4 +3406,8 @@ export const ownershipSamples = [
     source: 'switch(x){case y when a is T?[] as a is T? and {} ? [1] : b: L: break;} var following=a?[0];',
     ranges: [[[22, 28], [29, 59], [61, 62]], [[29, 49], [52, 55], [58, 59]]],
   },
+  {
+    source: 'switch(x){case y when a is not T?[,]?[] = b: L0: L1: break;}',
+    ranges: [[[22, 36], [37, 43], [45, 47]]],
+  },
 ];

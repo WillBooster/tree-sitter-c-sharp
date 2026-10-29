@@ -204,10 +204,10 @@ static bool rank_read_designation(TSLexer *lexer, uint32_t *questions, QuestionI
     bool named = parsed && !read.colon && !read.division &&
         !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
         rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true);
-    // A designation (read here or absorbed by the type reader) proves the read type; a multi-rank or second
+    // A designation (read here or absorbed by the type reader) or a multi-rank proves the read type; a second
     // suffix does too unless an assignment follows, where the released `not`-as-type reading keeps ownership.
-    *proved = named || read.has_word ||
-        ((read.questions > 1 || question_input_multi_rank(input, type_start)) && !question_assignment_follows(lexer, input));
+    *proved = named || read.has_word || question_input_multi_rank(input, type_start) ||
+        (read.questions > 1 && !question_assignment_follows(lexer, input));
     bool valid = named && question_skip_separators(lexer) == '?' && question_read_single_question(lexer) &&
         UINT32_MAX - *questions >= read.questions;
     if (valid) *questions += read.questions;
