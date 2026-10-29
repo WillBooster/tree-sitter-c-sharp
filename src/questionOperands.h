@@ -821,9 +821,11 @@ static void rank_apply_type_suffix(TSLexer *lexer, RankTokens *tokens, RankExpre
         array_push(tokens, ((RankToken){RANK_QUESTION, false}));
         array_push(tokens, ((RankToken){RANK_ATOM, false}));
     }
-    // A suffix after the ranks of `T?[]`, including one before is/as or a pattern tail, proves its first question nullable.
-    if (!tokens->input && expression->nullable_event != ((unsigned)-1))
-        tokens->contents[expression->nullable_event].kind = RANK_DEFINITE_TYPE;
+    // A suffix after the ranks of `T?[]`, including one before is/as or a pattern tail, proves every question of `T?[]?[]` nullable.
+    if (!tokens->input && expression->nullable_event != ((unsigned)-1)) {
+        for (unsigned i = expression->type_chain; i <= expression->nullable_event; i++)
+            if (tokens->contents[i].kind == RANK_IS_TYPE) tokens->contents[i].kind = RANK_DEFINITE_TYPE;
+    }
     expression->nullable_type = true;
 }
 

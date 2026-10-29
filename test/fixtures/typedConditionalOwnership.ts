@@ -3318,4 +3318,12 @@ export const ownershipSamples = [
     source: 'switch(x){case y when f(a) is N.T?[] is N.T?[] t: L: break;}',
     ranges: [[[22, 33], [34, 48], [50, 51]]],
   },
+  {
+    source: 'var r = f(a is T?[] / a is T?[]?[]? is U ? [1] : b: L);',
+    ranges: [[[10, 16], [17, 50], [52, 53]], [[17, 40], [43, 46], [49, 50]]],
+  },
+  {
+    source: 'f(a is T?[] / a is T?[]?[]? ? [1] : b: L, 1);',
+    ranges: [[[2, 8], [9, 37], [39, 40]], [[9, 27], [30, 33], [36, 37]]],
+  },
 ];
