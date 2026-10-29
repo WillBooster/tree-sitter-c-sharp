@@ -11,6 +11,7 @@ static uint8_t question_guard_rank_successor(uint8_t, bool, uint32_t, uint32_t *
 static bool question_guard_suffix(TSLexer *, Scanner *, QuestionInput *, uint32_t *);
 static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
 static bool question_guard_high_binary(TSLexer *, QuestionInput *);
+static bool question_guard_binary_follows(TSLexer *, QuestionInput *);
 static unsigned question_guard_empty_prefix(const RankTokens *);
 static bool question_guard_logical_collection(TSLexer *, QuestionInput *);
 static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
@@ -177,6 +178,9 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
         }
     }
     RankParse parsed = modes[0];
+    if (preference && preference->colon && !preference->successor &&
+        first.types.runs == 1 && first.types.first == GUARD_TERNARY)
+        parsed.types = rank_type_merge(rank_type_role(GUARD_TERNARY), first.types);
     parsed.valid &= parsed.end < tokens.size &&
         (tokens.contents[parsed.end].kind == RANK_END || tokens.contents[parsed.end].kind == RANK_COLON);
     array_delete(&tokens);
@@ -189,7 +193,8 @@ static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *que
         uint8_t role = question_guard_rank_role(lexer, scanner, questions, input);
         if (role) return role;
         if (question_guard_scalar_question(lexer, input)) return RANK_PATTERN_COMPLETE;
-        if (rank_guard_designation(lexer, questions, input)) return RANK_PATTERN_COMPLETE;
+        if (rank_guard_designation(lexer, questions, input))
+            return *questions ? RANK_NULLABLE_PREFIX : RANK_PATTERN_COMPLETE;
         if (question_guard_nullable_question(lexer, input, questions)) return RANK_OWNED_NULLABLE_PREFIX;
     }
     const Interpolation *interpolation = scanner->interpolation_stack.size ? array_back(&scanner->interpolation_stack) : NULL;
@@ -240,9 +245,9 @@ static bool rank_read_designation(TSLexer *lexer, uint32_t *questions, QuestionI
     bool named = parsed && !read.colon && !read.division &&
         !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
         rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true);
-    // A designation (read here or absorbed by the type reader) or a multi-rank proves the read type; a second
-    // suffix does too unless an assignment follows, where the released `not`-as-type reading keeps ownership.
-    *proved = named || read.has_word || question_input_multi_rank(input, type_start) ||
+    *proved = named || read.has_word || read.binary || (read.division && lexer->lookahead != '=') ||
+        lexer->lookahead == '{' || question_guard_binary_follows(lexer, input) ||
+        question_input_multi_rank(input, type_start) ||
         (read.questions > 1 && !question_assignment_follows(lexer, input));
     bool valid = named && question_skip_separators(lexer) == '?' && question_read_single_question(lexer) &&
         UINT32_MAX - *questions >= read.questions;
@@ -305,6 +310,11 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division)) goto done;
     QuestionCheckpoint suffix = question_input_checkpoint(input);
     has_next = question_skip_separators(lexer) == '?' && question_read_single_question(lexer);
+    bool empty_successor = has_next && question_skip_separators(lexer) == '[';
+    if (empty_successor) {
+        advance(lexer);
+        empty_successor = question_skip_separators(lexer) == ']';
+    }
     question_input_restore(input, suffix);
     uint32_t suffix_questions = 0;
     if (!division) definite |= question_guard_suffix(lexer, scanner, input, &suffix_questions);
@@ -318,7 +328,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
         result = RANK_NULLABLE_NEXT;
         goto done;
     }
-    bool successor = has_next && !prefix;
+    bool successor = empty_successor && !prefix;
     bool definite_prefix = definite && !(frame->pending && question_guard_type_operator_follows(lexer, input));
     if (definite_prefix && !successor) goto definite_prefix;
     if (frame->guard.role & GUARD_ROLE_MASK) {
@@ -336,7 +346,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
         goto done;
     }
     unsigned successor_questions = successor ? question_guard_empty_prefix(&tail) : 0;
-    QuestionGuardPreference preference = {.successor = successor_questions, .first = simple && !prefix};
+    QuestionGuardPreference preference = {.successor = successor_questions, .first = !definite};
     RankParse parsed = question_guard_evaluate(&tail, last_colon, frame->pending, definite,
         preference.first || preference.successor ? &preference : NULL);
     if (!preference.colon && definite_prefix) goto definite_prefix;
@@ -352,7 +362,8 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
 definite_prefix:
     question_input_restore(input, start);
     if (has_next && !suffix_questions && question_guard_nullable_question(lexer, input, questions)) result = RANK_OWNED_NULLABLE_PREFIX;
-    else if (rank_guard_designation(lexer, questions, input)) result = RANK_PATTERN_COMPLETE;
+    else if (rank_guard_designation(lexer, questions, input))
+        result = *questions ? RANK_NULLABLE_PREFIX : RANK_PATTERN_COMPLETE;
     else {
         *questions = prefix + 1 + suffix_questions;
         result = RANK_OWNED_NULLABLE_PREFIX;
@@ -393,6 +404,16 @@ static bool question_guard_logical_collection(TSLexer *lexer, QuestionInput *inp
     }
     question_input_restore(input, start);
     return valid;
+}
+
+static bool question_guard_binary_follows(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    int32_t c = question_skip_separators(lexer);
+    bool postfix = false, high = false;
+    bool binary = rank_binary_start(c) && !question_expression_start(lexer, c) &&
+        rank_skip_binary_operator(lexer, c, &postfix, false, &high);
+    question_input_restore(input, start);
+    return binary && !postfix;
 }
 
 static bool question_guard_high_binary(TSLexer *lexer, QuestionInput *input) {
@@ -687,7 +708,7 @@ static enum TokenType question_access_symbol(const bool *valid_symbols, const Qu
     return QUESTION_NULLABLE;
 }
 
-static bool rank_local_pattern_reset(QuestionInput *input, QuestionCheckpoint prefix) {
+static bool rank_local_pattern_reset(QuestionInput *input, QuestionCheckpoint prefix, uint32_t *questions) {
     TSLexer *lexer = &input->lexer;
     QuestionCheckpoint end = question_input_checkpoint(input);
     question_input_restore(input, prefix);
@@ -696,6 +717,7 @@ static bool rank_local_pattern_reset(QuestionInput *input, QuestionCheckpoint pr
     bool type = rank_read_as_type(lexer, &read);
     bool reset = type && !read.conditional && !read.coalesce && !read.binary && !read.has_word && !read.colon &&
         (read.division ? lexer->lookahead != '=' : question_guard_high_binary(lexer, input));
+    if (reset && read.questions) *questions = read.questions - 1;
     question_input_restore(input, end);
     return reset;
 }
@@ -708,10 +730,14 @@ static bool rank_local_nullable_prefix(QuestionInput *input, QuestionCheckpoint 
     if (interpolation) {
         question_input_restore(input, prefix);
         RankTypeRead read = {0};
-        valid = rank_read_as_type(lexer, &read) && read.questions && read.has_word && read.word.keyword &&
-            (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as")) &&
-            !read.colon && !read.division && !read.conditional && !read.coalesce && !read.binary && !read.sized_rank;
-        count = read.questions;
+        bool type = rank_read_as_type(lexer, &read);
+        bool designation = type && read.conditional && read.has_word && rank_identifier_allowed(&read.word, true) &&
+            question_skip_separators(lexer) == ':' && read.questions < UINT32_MAX;
+        bool type_operator = read.has_word && read.word.keyword &&
+            (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"));
+        valid = type && read.questions && (designation || (type_operator && !read.conditional)) &&
+            !read.colon && !read.division && !read.coalesce && !read.binary && !read.sized_rank;
+        count = read.questions + designation;
     } else {
         bool nullable = false;
         uint32_t suffix_questions = 0;

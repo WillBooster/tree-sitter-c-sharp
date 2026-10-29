@@ -2671,6 +2671,10 @@ test('retains await as a contextual type name in nonasync positional patterns', 
 
 test('rejects incomplete nullable guard conditionals', () => {
   const samples = [
+    'class C { void M(object a) { switch (a) { case int when a is not int?[] is bool: break; } } }',
+    'class C { void M(object a, bool x) { switch (a) { case int when a is A.B?[] ? x : x: break; } } }',
+    'class C { void M(object a, bool x) { switch (a) { case int when a is List<int?>?[] is var v: break; } } }',
+    'class C{void M(){switch(x){case y when a is T?[] && b is U?[]: L: break;}}}',
     'class C { void M() { switch (y) { case int when a is T?[]?[] is T : break; } } }\n',
     'class C { void M() { switch (y) { case int when x is T?[]?[] is T q : return; } } }\n',
     'class C { void M() { switch (y) { case int when a is T?[,]?[] is null : return; } } }\n',
@@ -2733,3 +2737,66 @@ test('retains complete mixed guard ownership in fresh parsers', () => {
 function mixedGuardSource(labels: number): string {
   return `switch(x){case y when ${'a is T?[] is U && a?.b && '.repeat(40)}a ? [1] : b:${Array.from({ length: labels }, (_, index) => ` L${index}:`).join('')} break;}`;
 }
+
+test('retains proven nullable patterns before recursive, binary and lambda boundaries', () => {
+  const samples = [
+    {
+      source: 'class C{void M(){switch(x){case y when b is not T?[] {}: break;}}}',
+      nullable: ['T?'],
+      fields: [],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when b is not T? == c: break; } } }',
+      nullable: ['T?'],
+      fields: [],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when x is T?[,] w ? (q) => 1 : 2: break; } } }',
+      nullable: ['T?'],
+      fields: [
+        [
+          [62, 74],
+          [77, 85],
+          [88, 89],
+        ],
+      ],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when a is not T? == null ? x : y: break; } } }',
+      nullable: ['T?'],
+      fields: [
+        [
+          [62, 81],
+          [84, 85],
+          [88, 89],
+        ],
+      ],
+    },
+  ];
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const sample of samples) {
+      const tree = parser.parse(sample.source)!;
+      try {
+        expect(tree.rootNode.hasError, sample.source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
+          sample.source
+        ).toEqual(sample.nullable);
+        expect(
+          tree.rootNode.descendantsOfType('conditional_expression').map((node) =>
+            ['condition', 'consequence', 'alternative'].map((field) => {
+              const child = node.childForFieldName(field)!;
+              return [child.startIndex, child.endIndex];
+            })
+          ),
+          sample.source
+        ).toEqual(sample.fields);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});

@@ -80,7 +80,7 @@ static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static RankParse rank_evaluate_modes(const RankTokens *tokens, unsigned target, RankParse modes[2]);
 
 static bool rank_local_nullable_prefix(QuestionInput *, QuestionCheckpoint, uint32_t *, bool);
-static bool rank_local_pattern_reset(QuestionInput *, QuestionCheckpoint);
+static bool rank_local_pattern_reset(QuestionInput *, QuestionCheckpoint, uint32_t *);
 static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next, RankScopeRead *);
 static void rank_complete_modes(TSLexer *, Scanner *, RankParse [2], RankScopeRead *);
 
@@ -117,11 +117,11 @@ static uint8_t rank_stream_ranked(TSLexer *lexer, Scanner *scanner, uint32_t *qu
     bool definite = false, division = false;
     unsigned colons = 0;
     if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division)) { array_delete(&tail); return RANK_NONE; }
-    if (!scanner->question_frames[scanner->question_frame_count - 1].case_guard && rank_local_pattern_reset(input, buffered_prefix)) {
+    if (!scanner->question_frames[scanner->question_frame_count - 1].case_guard && rank_local_pattern_reset(input, buffered_prefix, questions)) {
         array_delete(&tail);
         return RANK_TERNARY;
     }
-    if (!definite && (boundary || !scanner->question_frames[scanner->question_frame_count - 1].case_guard) &&
+    if ((boundary || (!definite && !scanner->question_frames[scanner->question_frame_count - 1].case_guard)) &&
         rank_local_nullable_prefix(input, buffered_prefix, questions, boundary)) {
         array_delete(&tail);
         return RANK_NULLABLE_PREFIX;

@@ -243,3 +243,22 @@ test('keeps nested collection conditionals before a later root nullable format',
     tree.delete();
   }
 });
+
+test('retains nullable array designations before a format containing a colon', () => {
+  for (const [type, source] of [
+    ['int?[] ?', 'class C { void M(object a, bool x) { var r = $"{a is int?[] ? x : 1:X}"; } }'],
+    ['int?[]?', 'class C { void M(object a, bool x) { var r = $"{a is int?[]? x : 1:X}"; } }'],
+  ]) {
+    const tree = parser.parse(source!)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(false);
+      const declaration = tree.rootNode.descendantsOfType('declaration_pattern')[0];
+      expect(declaration?.childForFieldName('type')?.text, source).toBe(type);
+      expect(declaration?.childForFieldName('name')?.text, source).toBe('x');
+      expect(tree.rootNode.descendantsOfType('interpolation_format_clause')[0]?.text, source).toBe(': 1:X');
+      expect(tree.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(0);
+    } finally {
+      tree.delete();
+    }
+  }
+});

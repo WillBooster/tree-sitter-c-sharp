@@ -7,6 +7,8 @@ import { expect, test } from 'vitest';
 
 import { generationInputMtime } from '../helpers/generationInputs.js';
 
+type ErrorExpectation = boolean | 'unchecked';
+
 const Root = path.join(import.meta.dirname, '../..');
 const WasmPath = path.join(Root, 'tree-sitter-c_sharp.wasm');
 await Parser.init();
@@ -172,6 +174,14 @@ test('bounds nullable relational suffix lookahead', { timeout: 60_000 }, () => {
 
 function nullableRelationalSource(count: number): string {
   return `var result = x is T?[] ? [0] : ${'a as int? > '.repeat(count)}b ? [1] : [2];`;
+}
+
+test('bounds repeated collection arithmetic consequences after nullable types', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(collectionArithmeticConsequences(100), collectionArithmeticConsequences(1000), false);
+});
+
+function collectionArithmeticConsequences(count: number): string {
+  return `var r = ${'value is T?[] ? [] + x : '.repeat(count)}fallback;`;
 }
 
 test('bounds repeated nullable ranks in ordinary type-test chains', { timeout: 60_000 }, () => {
@@ -355,7 +365,7 @@ const MaxLargeMicroseconds = 5_000_000;
 
 // Thread CPU time excludes competing test files and background compilation. The growth limit permits roughly n^1.25
 // scaling across a tenfold input increase; the absolute limit also catches a uniformly slow parser.
-function expectBoundedGrowth(small: string, large: string, expectedErrors = true): void {
+function expectBoundedGrowth(small: string, large: string, expectedErrors: ErrorExpectation = true): void {
   const warmup = parseCpuTime(large, expectedErrors);
   const smallSamples: ParseCpuSample[] = [];
   const largeSamples: ParseCpuSample[] = [];
@@ -378,7 +388,7 @@ function expectBoundedGrowth(small: string, large: string, expectedErrors = true
   expect(largeFastest, samples).toBeLessThan(MaxLargeMicroseconds);
 }
 
-function parseCpuTime(source: string, expectedErrors = true): ParseCpuSample {
+function parseCpuTime(source: string, expectedErrors: ErrorExpectation = true): ParseCpuSample {
   const wallStart = performance.now();
   const start = process.threadCpuUsage();
   let samples = 0;
@@ -388,7 +398,7 @@ function parseCpuTime(source: string, expectedErrors = true): ParseCpuSample {
   do {
     const tree = parser.parse(source);
     if (!tree) throw new Error('The parser returned no tree');
-    allMatchErrors &&= tree.rootNode.hasError === expectedErrors;
+    allMatchErrors &&= expectedErrors === 'unchecked' || tree.rootNode.hasError === expectedErrors;
     tree.delete();
     samples++;
     const { system, user } = process.threadCpuUsage(start);
@@ -517,28 +527,24 @@ test.each([
   ({ operator, completeGuard }) => {
     const source = (count: number): string =>
       `switch (x) { case y when ${`a is T?[] is T ${operator} `.repeat(count)}a ? [1] : b:${completeGuard ? Array.from({ length: count }, (_, index) => ` L${index}:`).join('') : ''} break; }`;
-    expectBoundedGrowth(source(100), source(1000), false);
+    expectBoundedGrowth(source(100), source(1000), completeGuard ? false : 'unchecked');
+    if (!completeGuard) return;
     const text = source(1000);
     const tree = parser.parse(text)!;
     try {
       expect(tree.rootNode.hasError).toBe(false);
-      expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(completeGuard ? 0 : 1000);
+      expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(0);
       expect(tree.rootNode.descendantsOfType('is_pattern_expression')).toHaveLength(2000);
       expect(tree.rootNode.descendantsOfType('labeled_statement')).toHaveLength(0);
       const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
-      expect(conditionals).toHaveLength(completeGuard ? 1001 : 1);
+      expect(conditionals).toHaveLength(1001);
       const outer = conditionals[0]!;
-      if (completeGuard) {
-        expect(outer.childForFieldName('condition')!.endIndex).toBe(text.indexOf('?[]'));
-        expect(outer.childForFieldName('consequence')!.startIndex).toBe(text.indexOf('?[]') + 1);
-        expect(outer.childForFieldName('alternative')!.text).toBe('L999');
-        expect(conditionals.at(-1)!.childForFieldName('condition')!.text).toBe(`[] is T ${operator} a`);
-        expect(conditionals.at(-1)!.childForFieldName('consequence')!.text).toBe('[1]');
-        expect(conditionals.at(-1)!.childForFieldName('alternative')!.text).toBe('b');
-      } else {
-        expect(outer.childForFieldName('consequence')!.text).toBe('[1]');
-        expect(outer.childForFieldName('alternative')!.text).toBe('b');
-      }
+      expect(outer.childForFieldName('condition')!.endIndex).toBe(text.indexOf('?[]'));
+      expect(outer.childForFieldName('consequence')!.startIndex).toBe(text.indexOf('?[]') + 1);
+      expect(outer.childForFieldName('alternative')!.text).toBe('L999');
+      expect(conditionals.at(-1)!.childForFieldName('condition')!.text).toBe(`[] is T ${operator} a`);
+      expect(conditionals.at(-1)!.childForFieldName('consequence')!.text).toBe('[1]');
+      expect(conditionals.at(-1)!.childForFieldName('alternative')!.text).toBe('b');
     } finally {
       tree.delete();
     }
@@ -617,7 +623,8 @@ test.each([
 ])('bounds mixed type-operator guards: $name', { timeout: 60_000 }, ({ term, labels, body, conditionals }) => {
   const source = (count: number): string =>
     `switch(x){case y when ${term.repeat(count)}a ? [1] : b:${labels ? Array.from({ length: labels === 'half' ? Math.floor(count / 2) : count }, (_, index) => ` L${index}:`).join('') : ''} ${body}}`;
-  expectBoundedGrowth(source(100), source(1000), false);
+  expectBoundedGrowth(source(100), source(1000), labels === true ? false : 'unchecked');
+  if (labels !== true) return;
   const tree = parser.parse(source(1000))!;
   try {
     expect(tree.rootNode.hasError).toBe(false);

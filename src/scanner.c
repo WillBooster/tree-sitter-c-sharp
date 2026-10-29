@@ -1106,7 +1106,8 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     uint8_t rank_phase = question_take_rank(scanner, &known_nullable, &dimension_expression);
     bool owned_type_prefix = rank_phase == RANK_OWNED_NULLABLE_PREFIX;
     if (owned_type_prefix) rank_phase = RANK_NONE;
-    if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown || frame->unknown ||
+    if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown ||
+        (frame->unknown && (frame->case_guard || rank_phase != RANK_TERNARY)) ||
         (next.token != '[' && !(frame->case_guard && rank_phase == RANK_PATTERN_COMPLETE && !next.member)))
         rank_phase = RANK_NONE;
     unsigned context_flags = (owned_type_prefix ? QUESTION_TYPE_PREFIX : 0) | (dimension_expression ? QUESTION_DIMENSION_EXPRESSION : 0) |
