@@ -174,6 +174,14 @@ function ordinaryNullableChain(count: number): string {
   return `var r = f(a is T?[] / a is T?${'[]?'.repeat(count)} is U ? [1] : b: L);`;
 }
 
+test('bounds nullable rank chains before conditional colons', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(nullableChainBeforeColon(1000), nullableChainBeforeColon(10_000), false);
+});
+
+function nullableChainBeforeColon(count: number): string {
+  return `var r = x is T?[]?[] ? d : x ? [] || 1 is T?${'[]?'.repeat(count)} : e;`;
+}
+
 test('bounds repeated omitted stack allocation ranks', { timeout: 60_000 }, () => {
   expectBoundedGrowth(omittedStackAllocationRanks(100), omittedStackAllocationRanks(1000), false);
 });

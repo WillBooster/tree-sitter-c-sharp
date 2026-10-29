@@ -1158,6 +1158,21 @@ test('preserves case patterns, guards and statement labels', () => {
       const fresh = parser.parse(sample.source)!;
       try {
         expect(fresh.rootNode.hasError, sample.source).toBe(false);
+        expect(
+          fresh.rootNode.descendantsOfType('when_clause').map((node) => node.text),
+          sample.source
+        ).toEqual(sample.guards);
+        const labels = fresh.rootNode.descendantsOfType('labeled_statement').map((node) => node.firstNamedChild!);
+        expect(
+          labels.map((node) => node.text),
+          sample.source
+        ).toEqual(sample.labels);
+        if (sample.labelRanges) {
+          expect(
+            labels.map((node) => [node.startIndex, node.endIndex]),
+            sample.source
+          ).toEqual(sample.labelRanges);
+        }
         if (sample.pattern) {
           expect(fresh.rootNode.descendantsOfType('switch_section')[0]?.firstNamedChild?.type, sample.source).toBe(
             sample.pattern
@@ -1362,7 +1377,6 @@ test('retains arithmetic and shifts with qualified constants before surrounding 
             tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
             source
           ).toEqual([constant]);
-          if (constant === 'A.B + 1') {}
         } finally {
           tree.delete();
         }
@@ -1495,9 +1509,6 @@ test('keeps parenthesized operands inside arithmetic constants', () => {
             tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
             source
           ).toEqual([constant]);
-
-          if (constant === '(A.B) + 1') {}
-          if (constant === '(1 + 1) * 2') {}
         } finally {
           tree.delete();
         }
@@ -2677,3 +2688,28 @@ test('rejects later type tests that borrow the case colon', () => {
     parser.delete();
   }
 });
+
+test('retains complete mixed guard ownership in fresh parsers', () => {
+  const samples = [
+    { source: mixedGuardSource(40).replace('L39:', 'Z39:'), conditionals: 41 },
+    { source: mixedGuardSource(20), conditionals: 21 },
+    { source: mixedGuardSource(0), conditionals: 1 },
+    { source: mixedGuardSource(40), conditionals: 41 },
+  ];
+  for (const { source, conditionals } of samples) {
+    const parser = new Parser().setLanguage(language);
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(false);
+      expect(tree.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(conditionals);
+      expect(tree.rootNode.descendantsOfType('is_pattern_expression'), source).toHaveLength(80);
+    } finally {
+      tree.delete();
+      parser.delete();
+    }
+  }
+});
+
+function mixedGuardSource(labels: number): string {
+  return `switch(x){case y when ${'a is T?[] is U && a?.b && '.repeat(40)}a ? [1] : b:${Array.from({ length: labels }, (_, index) => ` L${index}:`).join('')} break;}`;
+}

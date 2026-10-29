@@ -1086,13 +1086,18 @@ static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     if (lexer->lookahead != '?') return QUESTION_NOT_STARTED;
+    const Interpolation *interpolation = question_interpolation(scanner);
+    bool interpolation_root = interpolation && !interpolation->question_depth;
     advance(lexer);
     lexer->mark_end(lexer);
     if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
-    scanner->question_frames[scanner->question_frame_count - 1].case_colon |= valid_symbols[CASE_LABEL_COLON];
     QuestionFollowing next = question_skip_separators(lexer) == -1 ? (QuestionFollowing){.token = '/'} : question_following(lexer);
-    bool known_ternary = false;
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (interpolation_root && next.token == '[' && !next.member && !scanner->question_unknown && !frame->unknown &&
+        scanner->question_type_uncertain && scanner->question_rank_role == RANK_TERNARY && !scanner->question_rank_prefix_questions)
+        return QUESTION_MISMATCHED;
+    scanner->question_frames[scanner->question_frame_count - 1].case_colon |= valid_symbols[CASE_LABEL_COLON];
+    bool known_ternary = false;
     if (next.member) scanner->question_type_uncertain = false;
     bool known_nullable = (next.token == '{' && frame->case_guard) || next.token == ')' || next.token == ',' || next.token == ':' || next.token == ';' ||
         (valid_symbols[QUESTION_NULLABLE] &&

@@ -3422,4 +3422,16 @@ export const ownershipSamples = [
     source: 'class C { void M() { F(b is T?[]?[] && c is T?[]?[] v ? n ? [] : d : x); } }',
     ranges: [[[23, 53], [56, 66], [69, 70]], [[56, 57], [60, 62], [65, 66]]],
   },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] ? d : x ? [] || 1 is T?[]?[]? : e; } }',
+    ranges: [[[29, 41], [44, 45], [48, 75]], [[48, 49], [52, 71], [74, 75]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] is T v ? d : x ? [] || 1 is T?[]?[]? : e; } }',
+    ranges: [[[29, 48], [51, 52], [55, 82]], [[55, 56], [59, 78], [81, 82]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] is T?[,]?[] ? d : x ? [] || 1 is T?[]?[]? : e; } }',
+    ranges: [[[29, 53], [56, 57], [60, 87]], [[60, 61], [64, 83], [86, 87]]],
+  },
 ];

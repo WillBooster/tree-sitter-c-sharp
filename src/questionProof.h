@@ -574,4 +574,16 @@ static enum TokenType question_access_symbol(const bool *valid_symbols, const Qu
     return QUESTION_NULLABLE;
 }
 
+static bool rank_interpolation_prefix(TSLexer *lexer, QuestionInput *input, QuestionCheckpoint prefix, uint32_t *questions) {
+    QuestionCheckpoint end = question_input_checkpoint(input);
+    question_input_restore(input, prefix);
+    RankTypeRead read = {0};
+    bool type = rank_read_as_type(lexer, &read) && read.questions && read.has_word && read.word.keyword &&
+        (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as")) &&
+        !read.colon && !read.division && !read.conditional && !read.coalesce && !read.binary && !read.sized_rank;
+    question_input_restore(input, end);
+    if (type) *questions = read.questions;
+    return type;
+}
+
 #endif

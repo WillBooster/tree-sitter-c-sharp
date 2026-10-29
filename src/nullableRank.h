@@ -79,6 +79,7 @@ static bool rank_read_terminal(TSLexer *lexer, bool *colon);
 static bool rank_read_question(TSLexer *lexer, RankTokens *tokens, bool *colon);
 static void rank_evaluate_modes(const RankTokens *tokens, unsigned target, RankParse modes[2]);
 
+static bool rank_interpolation_prefix(TSLexer *, QuestionInput *, QuestionCheckpoint, uint32_t *);
 static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next, RankScopeRead *);
 static void rank_complete_modes(TSLexer *, Scanner *, RankParse [2], RankScopeRead *);
 
@@ -92,6 +93,7 @@ static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo
 
 static uint8_t rank_stream_ranked(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input, bool boundary) {
     QuestionCheckpoint prefix = question_input_checkpoint(input);
+    QuestionCheckpoint buffered_prefix = boundary ? question_input_checkpoint(input) : prefix;
     uint32_t prior_questions = *questions;
     uint32_t pending = scanner->question_frames[scanner->question_frame_count - 1].pending;
     int32_t first = question_skip_separators(lexer);
@@ -114,6 +116,10 @@ static uint8_t rank_stream_ranked(TSLexer *lexer, Scanner *scanner, uint32_t *qu
     bool definite = false, division = false;
     unsigned colons = 0;
     if (!rank_read_omitted_ranks(lexer, &tail, &definite, &division)) { array_delete(&tail); return RANK_NONE; }
+    if (boundary && !definite && rank_interpolation_prefix(lexer, input, buffered_prefix, questions)) {
+        array_delete(&tail);
+        return RANK_NULLABLE_PREFIX;
+    }
     RankScopeRead scope_read = {.input = input, .prefix = prefix,
         .tail = {.cursor = input->cursor, .capturing = input->capturing}, .prefix_questions = *questions > prior_questions};
     if (!rank_read_stream_after_rank(lexer, &tail, &colons, division, NULL, NULL) || pending > colons) {
@@ -148,6 +154,7 @@ static uint8_t rank_stream_ranked(TSLexer *lexer, Scanner *scanner, uint32_t *qu
     *questions = prior_questions;
     return rank_stream_ranked(lexer, scanner, questions, input, false);
 }
+
 
 static uint8_t rank_stream_result(TSLexer *lexer, Scanner *scanner, const RankTokens *tokens, unsigned target, bool has_next, RankScopeRead *scope) {
     RankParse modes[2];

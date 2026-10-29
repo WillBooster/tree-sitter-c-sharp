@@ -200,3 +200,46 @@ test.each(wrappers)('preserves nullable ownership around deeply nested $name int
     tree.delete();
   }
 });
+
+test('rejects unparenthesized scalar conditionals before interpolation formats', () => {
+  for (const source of [
+    'class C{void M(){var r = $"{a is T?[]? is U ? [1] : y: y:X}";}}',
+    'class C{void M(){var r = $"{a is T?[]? is U ? [1] : y: X:Y}";}}',
+  ]) {
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(true);
+    } finally {
+      tree.delete();
+    }
+  }
+});
+
+test('keeps nested collection conditionals before a later root nullable format', () => {
+  const source = 'class C{void M(){var r = $"{f(a is U ? [1] : y) + a as T?[]:X}";}}';
+  const tree = parser.parse(source)!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(
+      tree.rootNode.descendantsOfType('conditional_expression').map((node) =>
+        ['condition', 'consequence', 'alternative'].map((field) => {
+          const child = node.childForFieldName(field)!;
+          return [child.startIndex, child.endIndex];
+        })
+      )
+    ).toEqual([
+      [
+        [30, 36],
+        [39, 42],
+        [45, 46],
+      ],
+    ]);
+    expect(
+      tree.rootNode
+        .descendantsOfType('interpolation_format_clause')
+        .map((node) => [node.text, node.startIndex, node.endIndex])
+    ).toEqual([[':X', 59, 61]]);
+  } finally {
+    tree.delete();
+  }
+});
