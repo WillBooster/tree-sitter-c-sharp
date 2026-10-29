@@ -41,40 +41,15 @@ test('ships Wasm within raw and compressed size budgets', () => {
   expect(gzipSync(wasm).byteLength).toBeLessThanOrEqual(1.375 * 1024 * 1024);
 });
 
-// Thread CPU time excludes competing test files and background compilation. The growth limit permits roughly n^1.25
-// scaling across a tenfold input increase; the absolute limit also catches a uniformly slow parser.
 test('recovers from an error on each line in linear time', { timeout: 60_000 }, () => {
-  const small = '$ a\n'.repeat(5000);
-  const large = '$ a\n'.repeat(50_000);
-  parseCpuTime(large);
-  parseCpuTime(large);
-  let smallFastest = Infinity;
-  let largeFastest = Infinity;
-  for (let run = 0; run < 5; run++) {
-    smallFastest = Math.min(smallFastest, parseCpuTime(small).cpuMicroseconds);
-    largeFastest = Math.min(largeFastest, parseCpuTime(large).cpuMicroseconds);
-  }
-  expect(largeFastest / smallFastest).toBeLessThan(18);
-  // process.threadCpuUsage reports microseconds.
-  expect(largeFastest).toBeLessThan(5_000_000);
+  expectBoundedGrowth('$ a\n'.repeat(5000), '$ a\n'.repeat(50_000));
 });
 
 test.each(['@ ) ', '@ # ', '@ #:x/*c*/ '])(
   'recovers from a long malformed line containing %s in linear time',
   { timeout: 60_000 },
   (fragment) => {
-    const small = 'class C { ' + fragment.repeat(1000) + '}';
-    const large = 'class C { ' + fragment.repeat(10_000) + '}';
-    parseCpuTime(large);
-    parseCpuTime(large);
-    let smallFastest = Infinity;
-    let largeFastest = Infinity;
-    for (let run = 0; run < 5; run++) {
-      smallFastest = Math.min(smallFastest, parseCpuTime(small).cpuMicroseconds);
-      largeFastest = Math.min(largeFastest, parseCpuTime(large).cpuMicroseconds);
-    }
-    expect(largeFastest / smallFastest).toBeLessThan(18);
-    expect(largeFastest).toBeLessThan(5_000_000);
+    expectBoundedGrowth('class C { ' + fragment.repeat(1000) + '}', 'class C { ' + fragment.repeat(10_000) + '}');
   }
 );
 
@@ -327,23 +302,33 @@ interface ParseCpuSample {
   iterations: number;
 }
 
+const MaxGrowth = 18;
+// process.threadCpuUsage reports microseconds.
+const MaxLargeMicroseconds = 5_000_000;
+
+// Thread CPU time excludes competing test files and background compilation. The growth limit permits roughly n^1.25
+// scaling across a tenfold input increase; the absolute limit also catches a uniformly slow parser.
 function expectBoundedGrowth(small: string, large: string, expectedErrors = true): void {
   const warmup = parseCpuTime(large, expectedErrors);
   const smallSamples: ParseCpuSample[] = [];
   const largeSamples: ParseCpuSample[] = [];
   let smallFastest = Infinity;
   let largeFastest = Infinity;
-  for (let run = 0; run < 3; run++) {
+  // On macos-15-intel runners, the thread CPU time of an identical parse rises up to tenfold for seconds at a time.
+  // Such noise only adds time, so further rounds bring the fastest samples closer to the real cost, while super-linear
+  // growth slows every large sample and still fails after the last round.
+  for (let round = 1; round <= 10; round++) {
     const smallSample = parseCpuTime(small, expectedErrors);
     const largeSample = parseCpuTime(large, expectedErrors);
     smallSamples.push(smallSample);
     largeSamples.push(largeSample);
     smallFastest = Math.min(smallFastest, smallSample.cpuMicroseconds);
     largeFastest = Math.min(largeFastest, largeSample.cpuMicroseconds);
+    if (round >= 3 && largeFastest / smallFastest < MaxGrowth && largeFastest < MaxLargeMicroseconds) return;
   }
   const samples = JSON.stringify({ warmup, smallSamples, largeSamples });
-  expect(largeFastest / smallFastest, samples).toBeLessThan(18);
-  expect(largeFastest, samples).toBeLessThan(5_000_000);
+  expect(largeFastest / smallFastest, samples).toBeLessThan(MaxGrowth);
+  expect(largeFastest, samples).toBeLessThan(MaxLargeMicroseconds);
 }
 
 function parseCpuTime(source: string, expectedErrors = true): ParseCpuSample {
@@ -484,16 +469,8 @@ test.each(['call', 'array', 'collection'])(
         context === 'call' ? `N(${comparisons})` : context === 'array' ? `new[] {${comparisons}}` : `[${comparisons}]`;
       return `class C { void M() { var result = ${expression}; } }`;
     };
-    const small = source(200);
     const large = source(2000);
-    parseCpuTime(large, false);
-    let smallFastest = Infinity;
-    let largeFastest = Infinity;
-    for (let run = 0; run < 3; run++) {
-      smallFastest = Math.min(smallFastest, parseCpuTime(small, false).cpuMicroseconds);
-      largeFastest = Math.min(largeFastest, parseCpuTime(large, false).cpuMicroseconds);
-    }
-    expect(largeFastest / smallFastest).toBeLessThan(18);
+    expectBoundedGrowth(source(200), large, false);
     const tree = parser.parse(large)!;
     try {
       expect(tree.rootNode.hasError).toBe(false);
