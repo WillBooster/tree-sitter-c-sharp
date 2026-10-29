@@ -1225,7 +1225,7 @@ static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *l
         if (symbol == TYPE_CONTEXT_IS)
             scanner->question_rank_role = rank_stream_input(&input.lexer, scanner, &scanner->question_rank_prefix_questions, &input);
         else if (frame->case_guard)
-            scanner->question_rank_role = question_guard_as_role(&input, &scanner->question_rank_prefix_questions);
+            scanner->question_rank_role = question_guard_as_role(&input, &scanner->question_rank_prefix_questions, frame->pending);
         question_input_restore(&input, start);
         question_prepare_type_prefix(scanner, &input);
         array_delete(&input.characters);

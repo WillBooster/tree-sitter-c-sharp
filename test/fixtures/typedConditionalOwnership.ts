@@ -3286,4 +3286,16 @@ export const ownershipSamples = [
     source: 'var r = a is T?[] as a is T?[]? ? [1] : b: L;',
     ranges: [[[8, 14], [15, 41], [43, 44]], [[15, 31], [34, 37], [40, 41]]],
   },
+  {
+    source: 'switch(x){case y when a is T?[]? is U b < a ? [1] : b: break;}',
+    ranges: [[[22, 43], [46, 49], [52, 53]]],
+  },
+  {
+    source: 'switch(x){case y when c ? b is T?[,] is T : a ? [0] : L: break;}',
+    ranges: [[[22, 23], [26, 41], [44, 55]], [[44, 45], [48, 51], [54, 55]]],
+  },
+  {
+    source: 'switch(x){case y when c ? b as T?[,] is T : a ? [0] : L: var r = 1; break;}',
+    ranges: [[[22, 23], [26, 41], [44, 55]], [[44, 45], [48, 51], [54, 55]]],
+  },
 ];
