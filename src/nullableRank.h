@@ -23,7 +23,7 @@ typedef enum { RANK_CERT_START, RANK_CERT_INVALID, RANK_CERT_DECIMAL, RANK_CERT_
 enum { RANK_SUFFIX_CONDITIONAL = 1, RANK_SUFFIX_INVALID = 2 };
 typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid; uint8_t suffix_flags; RankTypeSummary types; } RankParse;
 typedef struct { RankTokenKind kind; bool collection; bool force_unsafe; RankCertificate certificate; RankParse nested[2]; bool guard_candidate; uint8_t suffix_flags; } RankToken;
-typedef struct { RankToken *contents; uint32_t size, capacity; QuestionInput *input; bool format_boundary; bool suffix_modes; } RankTokens;
+typedef struct { RankToken *contents; uint32_t size, capacity; QuestionInput *input, *peek; bool format_boundary; bool suffix_modes; } RankTokens;
 typedef enum { RANK_HEADER_START, RANK_HEADER_MODIFIER, RANK_HEADER_NAME, RANK_HEADER_PARAMETERS, RANK_HEADER_DELEGATE, RANK_HEADER_DELEGATE_PARAMETERS, RANK_HEADER_INVALID } RankLambdaHeader;
 typedef struct { unsigned token; RankLambdaHeader header; bool content; bool primary; bool type_pending; bool type_complete; bool pattern; bool member; bool colon; bool conditional; bool nullable_type; bool division; bool has_word; QuestionIdentifier word; unsigned nullable_event; bool guard_candidate; } RankExpression;
 
@@ -70,6 +70,8 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
 static RankReadStep rank_read_expression_rank(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
 static RankReadStep rank_read_expression_end(TSLexer *lexer, int32_t c, bool content, bool *colon);
 static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *tokens, RankExpression *expression);
+static bool rank_type_suffix_follows(TSLexer *, const RankTokens *, const RankExpression *);
+static void rank_apply_type_suffix(TSLexer *, RankTokens *, RankExpression *);
 static bool rank_skip_rhs_token(TSLexer *lexer, int32_t c, RankExpression *expression, bool *force_unsafe, bool prefix);
 static bool rank_read_rhs_generic(TSLexer *lexer, bool *colon, bool *generic, bool *high);
 static bool rank_read_terminal(TSLexer *lexer, bool *colon);
@@ -114,7 +116,7 @@ static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *que
     int32_t bracket_first = question_skip_separators(lexer);
     if (bracket_first < 0 || lexer->eof(lexer)) return RANK_NONE;
     if (bracket_first != ']' && bracket_first != ',') return RANK_TERNARY;
-    RankTokens tail = array_new();
+    RankTokens tail = {.peek = input};
     const Interpolation *interpolation = scanner->interpolation_stack.size ? array_back(&scanner->interpolation_stack) : NULL;
     tail.format_boundary = interpolation && interpolation->open_brace_count && !interpolation->question_depth;
     bool definite = false, division = false;
@@ -830,20 +832,8 @@ static RankReadStep rank_read_expression_question(TSLexer *lexer, RankTokens *to
     }
     bool collection = lexer->lookahead == '[';
     if (!collection) expression->guard_candidate = false;
-    if (expression->type_complete && !expression->nullable_type && !collection &&
-        (lexer->lookahead == '?' || question_type_boundary(lexer->lookahead) || lexer->eof(lexer) ||
-            (tokens->input && (lexer->lookahead == '{' || question_type_operator_follower(lexer, tokens->input, (QuestionFollowing){.token = lexer->lookahead}) ||
-                (expression->pattern && question_nullable_pattern_tail(lexer, tokens->input)))))) {
-        if (tokens->suffix_modes && expression->pattern && expression->nullable_event != ((unsigned)-1) &&
-            question_type_keyword_follower(lexer, tokens->input)) {
-            array_push(tokens, ((RankToken){.kind = RANK_IS_TYPE, .suffix_flags = RANK_SUFFIX_CONDITIONAL | RANK_SUFFIX_INVALID}));
-            array_push(tokens, ((RankToken){RANK_QUESTION, false}));
-            array_push(tokens, ((RankToken){RANK_ATOM, false}));
-        }
-        // A suffix after the ranks of `T?[]` proves that its first question is nullable too.
-        if (!tokens->input && expression->nullable_event != ((unsigned)-1))
-            tokens->contents[expression->nullable_event].kind = RANK_DEFINITE_TYPE;
-        expression->nullable_type = true;
+    if (expression->type_complete && !expression->nullable_type && !collection && rank_type_suffix_follows(lexer, tokens, expression)) {
+        rank_apply_type_suffix(lexer, tokens, expression);
         return RANK_READ_MORE;
     }
     if (!primary && collection && !expression->type_complete) return RANK_READ_UNKNOWN;

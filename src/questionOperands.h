@@ -804,6 +804,29 @@ static bool question_type_keyword_follower(TSLexer *lexer, QuestionInput *input)
     return type;
 }
 
+static bool rank_type_suffix_follows(TSLexer *lexer, const RankTokens *tokens, const RankExpression *expression) {
+    if (lexer->lookahead == '?' || question_type_boundary(lexer->lookahead) || lexer->eof(lexer)) return true;
+    if (!tokens->input) {
+        return tokens->peek && expression->nullable_event != ((unsigned)-1) && (question_type_keyword_follower(lexer, tokens->peek) ||
+            (expression->pattern && question_nullable_pattern_tail(lexer, tokens->peek)));
+    }
+    return lexer->lookahead == '{' || question_type_operator_follower(lexer, tokens->input, (QuestionFollowing){.token = lexer->lookahead}) ||
+        (expression->pattern && question_nullable_pattern_tail(lexer, tokens->input));
+}
+
+static void rank_apply_type_suffix(TSLexer *lexer, RankTokens *tokens, RankExpression *expression) {
+    if (tokens->suffix_modes && expression->pattern && expression->nullable_event != ((unsigned)-1) &&
+        question_type_keyword_follower(lexer, tokens->input)) {
+        array_push(tokens, ((RankToken){.kind = RANK_IS_TYPE, .suffix_flags = RANK_SUFFIX_CONDITIONAL | RANK_SUFFIX_INVALID}));
+        array_push(tokens, ((RankToken){RANK_QUESTION, false}));
+        array_push(tokens, ((RankToken){RANK_ATOM, false}));
+    }
+    // A suffix after the ranks of `T?[]`, including one before is/as or a pattern tail, proves its first question nullable.
+    if (!tokens->input && expression->nullable_event != ((unsigned)-1))
+        tokens->contents[expression->nullable_event].kind = RANK_DEFINITE_TYPE;
+    expression->nullable_type = true;
+}
+
 static QuestionWalkStep question_walk_literal(TSLexer *lexer, QuestionWalk *walk, int32_t c, bool first_identifier) {
     bool verbatim = c == '@';
     if (verbatim) {
