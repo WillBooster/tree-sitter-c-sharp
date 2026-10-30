@@ -2753,6 +2753,86 @@ function mixedGuardSource(labels: number): string {
 test('retains proven nullable patterns before recursive, binary and lambda boundaries', () => {
   const samples = [
     {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? is T : z: break; } } }',
+      nullable: ['B?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 84],
+          [87, 88],
+        ],
+      ],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? as T? : z: break; } } }',
+      nullable: ['B?', 'T?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 85],
+          [88, 89],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? switch { _ => 1 } : z: break; } } }',
+      nullable: ['B?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 97],
+          [100, 101],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? is T : [] is B? is T: break; } } }',
+      nullable: ['B?', 'B?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 84],
+          [87, 100],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B ? @is : q : z: break; } } }',
+      nullable: [],
+      fields: [
+        [
+          [62, 68],
+          [71, 88],
+          [91, 92],
+        ],
+        [
+          [71, 78],
+          [81, 84],
+          [87, 88],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B ? with : q : z: break; } } }',
+      nullable: [],
+      fields: [
+        [
+          [62, 68],
+          [71, 89],
+          [92, 93],
+        ],
+        [
+          [71, 78],
+          [81, 85],
+          [88, 89],
+        ],
+      ],
+    },
+    {
       source:
         'class C { void M(object o, bool b) { switch(o){ case int when x is string ? [] is T? < z : 1: break; } } }',
       nullable: ['T?'],

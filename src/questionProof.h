@@ -28,13 +28,17 @@ static bool question_guard_suffix_complete(TSLexer *, Scanner *, QuestionInput *
 static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
 static enum TokenType question_access_symbol(const bool *, const QuestionFollowing *);
+static bool question_guard_scalar_hint(const Scanner *, QuestionInput *, QuestionFollowing);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
-static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t rank_phase, bool *known_ternary) {
+static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t *phase, bool *known_ternary) {
+    uint8_t rank_phase = *phase;
     QuestionInput input = question_input_create(lexer);
     lexer = &input.lexer;
     if (!*known_nullable && !following.member && scanner->question_type_uncertain && (context_flags & QUESTION_NULLABLE_ALLOWED))
         *known_nullable = question_nullable_designation(lexer, &input);
+    if (!*known_nullable && question_guard_scalar_hint(scanner, &input, following))
+        *phase = rank_phase = RANK_PATTERN_COMPLETE;
     QuestionWalk walk = question_walk_create(scanner, following, *known_nullable, context_flags, rank_phase);
     walk.input = &input;
     walk.scanner = scanner;
@@ -79,6 +83,23 @@ unknown:
     *known_nullable = walk.known_nullable;
     *known_ternary = walk.known_ternary;
     return result ? result : walk.known_ternary ? 2 : 0;
+}
+
+
+static bool question_guard_scalar_hint(const Scanner *scanner, QuestionInput *input, QuestionFollowing following) {
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (!frame->case_guard || !(frame->guard.role & GUARD_ROLE_MASK) || scanner->question_unknown || frame->unknown ||
+        following.member || following.token == '[') return false;
+    if (following.token == '.') return true;
+    TSLexer *lexer = &input->lexer;
+    if (!question_expression_start(lexer, following.token)) return false;
+    if (!is_id_start(following.token) && following.token != '@' && following.token != '\\') return true;
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    QuestionIdentifier word;
+    bool operand = rank_read_identifier(lexer, &word) && (!word.keyword ||
+        (strcmp(word.word, "is") && strcmp(word.word, "as") && strcmp(word.word, "switch")));
+    question_input_restore(input, start);
+    return operand;
 }
 
 

@@ -1104,9 +1104,6 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
          (next.token == '>' || next.token == '/' || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
     bool dimension_expression = false;
     uint8_t rank_phase = question_take_rank(scanner, &known_nullable, &dimension_expression);
-    if (frame->case_guard && (frame->guard.role & GUARD_ROLE_MASK) && !known_nullable &&
-        next.token != '[' && !next.member && (next.token == '.' || question_expression_start(lexer, next.token)))
-        rank_phase = RANK_PATTERN_COMPLETE;
     bool owned_type_prefix = rank_phase == RANK_OWNED_NULLABLE_PREFIX;
     if (owned_type_prefix) rank_phase = RANK_NONE;
     if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown ||
@@ -1119,12 +1116,13 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
         (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
         (valid_symbols[QUESTION_NULLABLE] ? QUESTION_NULLABLE_ALLOWED : 0) |
         (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
-    bool preserve_unknown = frame->case_guard
-        ? valid_symbols[QUESTION_UNKNOWN] && !valid_symbols[QUESTION_NULLABLE] && next.token != '[' && !next.member && rank_phase != RANK_PATTERN_COMPLETE
+    bool guard_question = frame->case_guard;
+    bool preserve_unknown = guard_question
+        ? valid_symbols[QUESTION_UNKNOWN] && !valid_symbols[QUESTION_NULLABLE] && next.token != '[' && !next.member
         : valid_symbols[CASE_LABEL_COLON];
     unsigned role = prepare_question_context(scanner, lexer, next, &known_nullable,
-        context_flags, rank_phase, &known_ternary);
-    if (known_ternary && preserve_unknown) role = 0;
+        context_flags, &rank_phase, &known_ternary);
+    if (known_ternary && preserve_unknown && (!guard_question || rank_phase != RANK_PATTERN_COMPLETE)) role = 0;
     if (next.member) role = 1;
     if (lexer->log) lexer->log(lexer, "question_role role=%u access=%d ternary=%d nullable=%d unknown=%d", role,
         (valid_symbols[QUESTION_MEMBER_ACCESS] || valid_symbols[QUESTION_ELEMENT_ACCESS]), valid_symbols[QUESTION_TERNARY],
