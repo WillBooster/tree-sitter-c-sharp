@@ -106,6 +106,8 @@ static bool question_guard_conditional_hint(const Scanner *scanner, QuestionInpu
     QuestionIdentifier word;
     bool operand = rank_read_identifier(lexer, &word) && (!word.keyword ||
         (strcmp(word.word, "is") && strcmp(word.word, "as") && strcmp(word.word, "switch")));
+    if (operand && word.keyword && (!strcmp(word.word, "and") || !strcmp(word.word, "or")) &&
+        question_pattern_only_start(question_skip_separators(lexer))) operand = false;
     question_input_restore(input, start);
     return operand;
 }
