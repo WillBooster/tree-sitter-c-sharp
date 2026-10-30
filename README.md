@@ -99,10 +99,9 @@ In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
 fuzzed with. Use runtime 15.0.0 or later within major version 15:
 
-```toml
-[dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "15.0.0" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "17" }
+```sh
+cargo add willbooster-tree-sitter@15.0.0 --rename tree-sitter
+cargo add willbooster-tree-sitter-c-sharp --rename tree-sitter-c-sharp
 ```
 
 ```rust
