@@ -815,6 +815,7 @@ static void question_save_type_handoff(Scanner *scanner, const QuestionWalk *wal
 }
 
 static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool prefix) {
+    bool completed_guard = false;
     while (!lexer->eof(lexer)) {
         int32_t c = question_skip_separators(lexer);
         if (c == -2) return QUESTION_WALK_UNKNOWN;
@@ -823,8 +824,8 @@ static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, Que
             const QuestionFrame *frame = question_walk_prefix_frame(walk);
             if (scanner->question_unknown || !frame || frame->unknown) break;
             if (!frame->pending) {
-                if (frame->case_guard) array_push(&walk->events, ':');
-                break;
+                if (!frame->case_guard && !completed_guard) break;
+                completed_guard = true;
             }
         }
         QuestionWalkStep step = question_walk_step(scanner, lexer, walk, c);
