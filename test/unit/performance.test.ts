@@ -233,6 +233,22 @@ function typedGuardSegments(count: number): string {
   return `class C { void M(){switch(x){case y when a is T?[]? ?1: ${'c is U ? 1 : c ? [1] : '.repeat(count)}d is T?[]? ? b:d:break;}}}`;
 }
 
+test('bounds collection choices after collection guard consequences', { timeout: 60_000 }, () => {
+  const large = collectionGuardAlternatives(1000);
+  expectBoundedGrowth(collectionGuardAlternatives(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function collectionGuardAlternatives(count: number): string {
+  return `class C { void M() { switch(x){case y when a is T?[]? ? [] : ${'c ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
+}
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);

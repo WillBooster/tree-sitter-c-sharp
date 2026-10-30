@@ -56,7 +56,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     unsigned guard_frame = scanner->question_frame_count - 1;
     const QuestionFrame *owner = &scanner->question_frames[guard_frame];
     bool guard_questions = owner->case_guard && (!owner->guard.ordinary_scanned || !owner->guard.segment_scanned) && !owner->pending &&
-        (walk.ordinary || (owner->guard.ordinary_scanned && following.token == '[')) && !walk.known_nullable &&
+        (walk.ordinary || following.token == '[') && !walk.known_nullable &&
         !scanner->question_unknown && !owner->unknown;
     QuestionCheckpoint guard_start = guard_questions ? question_input_checkpoint(&input) : (QuestionCheckpoint){0};
     Interpolation *interpolation = question_interpolation(scanner);
