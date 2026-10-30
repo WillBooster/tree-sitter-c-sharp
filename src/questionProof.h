@@ -31,6 +31,7 @@ static enum TokenType question_access_symbol(const bool *, const QuestionFollowi
 static bool question_guard_conditional_hint(const Scanner *, QuestionInput *, QuestionFollowing);
 static bool question_guard_collection_consequence(QuestionInput *);
 static void question_guard_save_questions(Scanner *, QuestionInput *);
+static bool rank_format_logical_types(QuestionInput *, const RankTypeRead *, uint32_t *);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
 static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t *phase, bool *known_ternary) {
@@ -226,11 +227,15 @@ static void question_guard_save_questions(Scanner *scanner, QuestionInput *input
     unsigned colons = 0;
     QuestionGuardRead guard = {.input = input, .tail = &tokens};
     bool read = rank_read_stream_until(&input->lexer, &tokens, &colons, true, question_guard_stream_stop, &guard);
+    if (!read && tokens.size && array_back(&tokens)->kind == RANK_AS_BOUNDARY) {
+        array_push(&tokens, ((RankToken){RANK_END, false}));
+        read = true;
+    }
     unsigned supported = 0;
     for (; read && supported < tokens.size; supported++) {
         RankToken token = tokens.contents[supported];
         if (token.force_unsafe || (token.kind != RANK_ATOM && token.kind != RANK_QUESTION &&
-            token.kind != RANK_COLON && token.kind != RANK_BINARY &&
+            token.kind != RANK_COLON && token.kind != RANK_AS && token.kind != RANK_BINARY &&
             token.kind != RANK_BINARY_PRIMARY && token.kind != RANK_END)) break;
     }
     if (read && colons) {
@@ -258,7 +263,7 @@ static bool question_guard_collect_questions(const RankTokens *tokens, const Ran
         bool primary = true;
         while (pos < end) {
             RankToken token = tokens->contents[pos];
-            if (token.kind == RANK_BINARY || token.kind == RANK_BINARY_PRIMARY) {
+            if (token.kind == RANK_AS || token.kind == RANK_BINARY || token.kind == RANK_BINARY_PRIMARY) {
                 primary = token.kind == RANK_BINARY_PRIMARY;
                 pos++;
                 continue;
@@ -928,6 +933,7 @@ static bool rank_local_nullable_prefix(QuestionInput *input, QuestionCheckpoint 
         valid = type && read.questions && (designation || (type_operator && !read.conditional)) &&
             !read.colon && !read.division && !read.coalesce && !read.binary && !read.sized_rank;
         count = read.questions + designation;
+        if (!valid && type) valid = rank_format_logical_types(input, &read, &count);
     } else {
         bool nullable = false;
         uint32_t suffix_questions = 0;
@@ -942,5 +948,37 @@ static bool rank_local_nullable_prefix(QuestionInput *input, QuestionCheckpoint 
     question_input_restore(input, end);
     if (valid) *questions = count;
     return valid;
+}
+
+static bool rank_format_logical_types(QuestionInput *input, const RankTypeRead *first, uint32_t *questions) {
+    if (!first->conditional || !first->has_word || !first->word.keyword ||
+        (strcmp(first->word.word, "and") && strcmp(first->word.word, "or"))) return false;
+    TSLexer *lexer = &input->lexer;
+    RankTypeRead read = *first;
+    uint32_t count = 0;
+    for (;;) {
+        bool logical = read.has_word && read.word.keyword &&
+            (!strcmp(read.word.word, "and") || !strcmp(read.word.word, "or"));
+        if (read.colon || read.division || read.coalesce || read.binary || read.sized_rank || read.pointer_suffix ||
+            read.expression_questions || (read.has_word && !logical) || read.conditional != logical) return false;
+        uint32_t add = read.questions;
+        if (logical && add == UINT32_MAX) return false;
+        add += logical;
+        if (UINT32_MAX - count < add) return false;
+        count += add;
+        if (!logical) {
+            int32_t next = question_skip_separators(lexer);
+            if (next < 0) return false;
+            if (next == ':') {
+                *questions = count;
+                return count != 0;
+            }
+            QuestionIdentifier word;
+            if (!rank_read_identifier(lexer, &word) || !word.keyword ||
+                (strcmp(word.word, "and") && strcmp(word.word, "or"))) return false;
+        }
+        read = (RankTypeRead){0};
+        if (!rank_read_as_type(lexer, &read)) return false;
+    }
 }
 #endif

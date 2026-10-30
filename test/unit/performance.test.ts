@@ -152,6 +152,39 @@ function typedGuardAlternativeForest(count: number): string {
   return `class C { void M() { switch(x){case y when a is T?[]? ? 1 : ${'c ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
 }
 
+test('bounds collection choices before later AS guard alternatives', { timeout: 60_000 }, () => {
+  const large = laterAsGuardAlternative(1000);
+  expectBoundedGrowth(laterAsGuardAlternative(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(4);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1003);
+  } finally {
+    tree.delete();
+  }
+});
+
+function laterAsGuardAlternative(count: number): string {
+  return `class C { void M() { switch(x){case y when a as T?[]? ? f ? [1] : x : f is T${'?[]'.repeat(count)}? ? c : d as U ? b : e: break;} } }`;
+}
+
+test('bounds nullable logical types before interpolation formats', { timeout: 60_000 }, () => {
+  const large = logicalInterpolationTypes(1000);
+  expectBoundedGrowth(logicalInterpolationTypes(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(0);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text)).toEqual([': d:x']);
+  } finally {
+    tree.delete();
+  }
+});
+
+function logicalInterpolationTypes(count: number): string {
+  return `class C { string M() { return $"{a is T?[]?${' or T[]?[]'.repeat(count)}: d:x}"; } }`;
+}
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);

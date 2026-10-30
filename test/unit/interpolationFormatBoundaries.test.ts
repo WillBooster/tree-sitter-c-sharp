@@ -39,6 +39,56 @@ test('retains nullable cast ranks before interpolation format text', () => {
   }
 });
 
+test('retains nullable logical type ranks before interpolation format text', () => {
+  for (const sample of [
+    {
+      source: 'class C { string M() { return $"{a is T?[]? or T[] ? [] : d:x}"; } }',
+      nullable: [
+        [38, 43],
+        [38, 40],
+        [47, 52],
+      ],
+      format: [56, 61, ': d:x'],
+    },
+    {
+      source: 'class C { string M() { return $"{a is T?[]? or T[,] ? [] : d:x}"; } }',
+      nullable: [
+        [38, 43],
+        [38, 40],
+        [47, 53],
+      ],
+      format: [57, 62, ': d:x'],
+    },
+    {
+      source: 'class C { string M() { return $"{f() is T?[]? or T[] ? [] : d:x}"; } }',
+      nullable: [
+        [40, 45],
+        [40, 42],
+        [49, 54],
+      ],
+      format: [58, 63, ': d:x'],
+    },
+  ]) {
+    const tree = parser.parse(sample.source)!;
+    try {
+      expect(tree.rootNode.hasError, sample.source).toBe(false);
+      expect(tree.rootNode.descendantsOfType('conditional_expression'), sample.source).toHaveLength(0);
+      expect(
+        tree.rootNode.descendantsOfType('nullable_type').map((node) => [node.startIndex, node.endIndex]),
+        sample.source
+      ).toEqual(sample.nullable);
+      expect(
+        tree.rootNode
+          .descendantsOfType('interpolation_format_clause')
+          .map((node) => [node.startIndex, node.endIndex, node.text]),
+        sample.source
+      ).toEqual([sample.format]);
+    } finally {
+      tree.delete();
+    }
+  }
+});
+
 test.each(wrappers)('retains IS and coalescing operands before $name interpolation formats', ({ open, close }) => {
   for (const { expression, format, declaration } of [
     { expression: 'a is T?[] is T? || a ? [1]', format: ': a is N.T?[] or List<T?>' },
