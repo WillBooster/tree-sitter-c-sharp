@@ -102,7 +102,7 @@ fuzzed with. Use runtime 15.0.0 or later within major version 15:
 ```toml
 [dependencies]
 tree-sitter = { package = "willbooster-tree-sitter", version = "15.0.0" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "16" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "17" }
 ```
 
 ```rust
