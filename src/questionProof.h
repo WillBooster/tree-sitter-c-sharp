@@ -28,6 +28,7 @@ static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
 static enum TokenType question_access_symbol(const bool *, const QuestionFollowing *);
 static bool question_guard_conditional_hint(const Scanner *, QuestionInput *, QuestionFollowing);
+static bool question_guard_collection_consequence(QuestionInput *);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
 static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t *phase, bool *known_ternary) {
@@ -89,15 +90,8 @@ static bool question_guard_conditional_hint(const Scanner *scanner, QuestionInpu
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (!frame->case_guard || !(frame->guard.role & GUARD_ROLE_MASK) || scanner->question_unknown || frame->unknown ||
         following.member) return false;
-    if (following.token == '[') {
-        if ((frame->guard.role & GUARD_ROLE_MASK) != GUARD_TERNARY) return false;
-        QuestionCheckpoint start = question_input_checkpoint(input);
-        advance(&input->lexer);
-        bool colon = rank_read_delimited(&input->lexer, '[', RANK_BODY_EXPRESSION, NULL) &&
-            question_skip_separators(&input->lexer) == ':';
-        question_input_restore(input, start);
-        return colon;
-    }
+    if (following.token == '[') return (frame->guard.role & GUARD_ROLE_MASK) == GUARD_TERNARY &&
+        question_guard_collection_consequence(input);
     if (following.token == '.') return true;
     TSLexer *lexer = &input->lexer;
     if (!question_expression_start(lexer, following.token)) return false;
@@ -110,6 +104,24 @@ static bool question_guard_conditional_hint(const Scanner *scanner, QuestionInpu
         question_pattern_only_start(question_skip_separators(lexer))) operand = false;
     question_input_restore(input, start);
     return operand;
+}
+
+
+static bool question_guard_collection_consequence(QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    TSLexer *lexer = &input->lexer;
+    advance(lexer);
+    bool colon = rank_read_delimited(lexer, '[', RANK_BODY_EXPRESSION, NULL);
+    while (colon) {
+        int32_t c = question_skip_separators(lexer);
+        if (c == ':') {
+            colon = question_guard_colon(lexer, input);
+            break;
+        }
+        colon = rank_read_postfix(lexer, c);
+    }
+    question_input_restore(input, start);
+    return colon;
 }
 
 
@@ -429,7 +441,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
         preference.first || preference.successor ? &preference : NULL);
     if (!preference.colon && definite_prefix) goto definite_prefix;
     if (parsed.valid && !(parsed.suffix_flags & RANK_SUFFIX_INVALID)) {
-        result = question_guard_save(frame, &parsed, !preference.concrete);
+        result = question_guard_save(frame, &parsed, !preference.concrete && !definite);
         if (result) *questions = prefix + (result == RANK_OWNED_NULLABLE_PREFIX);
     }
     if (preference.colon) {
