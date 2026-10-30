@@ -364,7 +364,8 @@ static void question_write_guard(const QuestionFrame *frame, bool unknown, char 
     buffer[(*size)++] = (char)(frame->case_guard ? 1 | (proof ? (frame->guard.role & GUARD_ROLE_MASK) << 1 : 0) |
         (proof && frame->guard.prefix ? 8 : 0) |
         (!unknown && !frame->unknown && frame->guard.handoff ? 16 : 0) |
-        (!unknown && !frame->unknown && (frame->guard.role & GUARD_SUFFIX_COMPLETE) ? 32 : 0) : 0);
+        (!unknown && !frame->unknown && (frame->guard.role & GUARD_SUFFIX_COMPLETE) ? 32 : 0) |
+        (frame->guard.ordinary_scanned ? 64 : 0) : 0);
     if (proof && frame->guard.prefix) question_write_varint(buffer, size, frame->guard.prefix);
 }
 
@@ -412,11 +413,12 @@ static bool question_read_frame(QuestionFrame *frame, unsigned index, const char
 static bool question_read_guard(QuestionFrame *frame, const char *buffer, unsigned length, unsigned *size) {
     if (*size == length) return false;
     unsigned guard = (unsigned char)buffer[(*size)++];
-    if (guard > 61 || ((guard & 6) == 6) || (guard && !(guard & 1)) || ((guard & 8) && !(guard & 6))) return false;
+    if (guard > 125 || ((guard & 6) == 6) || (guard && !(guard & 1)) || ((guard & 8) && !(guard & 6))) return false;
     if (frame->unknown && (guard & 54)) return false;
     frame->case_guard = guard & 1;
     frame->guard.role = ((guard >> 1) & 3) | ((guard & 32) ? GUARD_SUFFIX_COMPLETE : 0);
     frame->guard.handoff = (guard & 16) != 0;
+    frame->guard.ordinary_scanned = (guard & 64) != 0;
     if (guard & 8) {
         if (!question_read_varint(buffer, length, size, &frame->guard.prefix) || !frame->guard.prefix) return false;
     }

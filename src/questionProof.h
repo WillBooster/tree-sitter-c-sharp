@@ -29,6 +29,7 @@ static bool question_guard_colon(TSLexer *, QuestionInput *);
 static enum TokenType question_access_symbol(const bool *, const QuestionFollowing *);
 static bool question_guard_conditional_hint(const Scanner *, QuestionInput *, QuestionFollowing);
 static bool question_guard_collection_consequence(QuestionInput *);
+static void question_guard_save_questions(Scanner *, QuestionInput *);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
 static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t *phase, bool *known_ternary) {
@@ -48,6 +49,11 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
         walk.known_ternary = false;
         walk.role_active = false;
     }
+    unsigned guard_frame = scanner->question_frame_count - 1;
+    const QuestionFrame *owner = &scanner->question_frames[guard_frame];
+    bool guard_questions = owner->case_guard && !owner->guard.ordinary_scanned && !owner->pending && walk.ordinary && !walk.known_nullable &&
+        !scanner->question_unknown && !owner->unknown;
+    QuestionCheckpoint guard_start = guard_questions ? question_input_checkpoint(&input) : (QuestionCheckpoint){0};
     Interpolation *interpolation = question_interpolation(scanner);
     unsigned result = 0;
     QuestionWalkStep step = question_walk_read(scanner, lexer, &walk, false);
@@ -70,6 +76,13 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     *known_ternary = walk.known_ternary;
     question_save_allocation_prefix(scanner, &walk);
     question_save_type_handoff(scanner, &walk);
+    if (guard_questions && walk.known_ternary && !walk.depth && scanner->question_frame_count == guard_frame + 1 &&
+        owner->case_guard && !owner->unknown && !scanner->question_unknown) {
+        QuestionCheckpoint end = question_input_checkpoint(&input);
+        question_input_restore(&input, (QuestionCheckpoint){guard_start.cursor, true});
+        question_guard_save_questions(scanner, &input);
+        question_input_restore(&input, end);
+    }
     question_walk_dispose(&walk);
     array_delete(&input.characters);
     return result;
@@ -194,6 +207,72 @@ static bool question_guard_stream_stop(TSLexer *lexer, void *context) {
     if (!stop && assignment) stop = question_guard_complete_prefix(guard);
     question_input_restore(input, start);
     return stop;
+}
+
+typedef struct { unsigned start; bool force; } QuestionGuardBranch;
+typedef Array(QuestionGuardBranch) QuestionGuardBranches;
+
+static bool question_guard_collect_questions(const RankTokens *, const RankParse *, QuestionSuffixBuilder *);
+
+static void question_guard_save_questions(Scanner *scanner, QuestionInput *input) {
+    scanner->question_frames[scanner->question_frame_count - 1].guard.ordinary_scanned = true;
+    RankTokens tokens = {.input = input, .ordinary_suffix = true};
+    array_push(&tokens, ((RankToken){RANK_ATOM, false}));
+    array_push(&tokens, ((RankToken){RANK_QUESTION, false}));
+    unsigned colons = 0;
+    QuestionGuardRead guard = {.input = input, .tail = &tokens};
+    bool read = rank_read_stream_until(&input->lexer, &tokens, &colons, true, question_guard_stream_stop, &guard);
+    for (unsigned i = 0; read && i < tokens.size; i++) {
+        RankToken token = tokens.contents[i];
+        read = !token.force_unsafe && (token.kind == RANK_ATOM || token.kind == RANK_QUESTION ||
+            token.kind == RANK_COLON || token.kind == RANK_BINARY ||
+            token.kind == RANK_BINARY_PRIMARY || token.kind == RANK_END);
+    }
+    if (read && colons) {
+        RankParse *memo = rank_create_memo(&tokens, UINT32_MAX, false);
+        QuestionSuffixBuilder builder = {0};
+        if (question_guard_collect_questions(&tokens, memo, &builder)) {
+            question_suffix_store(&scanner->suffix, &builder, scanner->question_frame_count,
+                scanner->question_frames[scanner->question_frame_count - 1].pending);
+            scanner->suffix.confirm = true;
+        }
+        question_suffix_dispose(&builder);
+        ts_free(memo);
+    }
+    array_delete(&tokens);
+}
+
+static bool question_guard_collect_questions(const RankTokens *tokens, const RankParse *memo, QuestionSuffixBuilder *builder) {
+    QuestionGuardBranches branches = array_new();
+    array_push(&branches, ((QuestionGuardBranch){0}));
+    while (branches.size) {
+        QuestionGuardBranch branch = array_pop(&branches);
+        unsigned pos = branch.start;
+        if (tokens->contents[pos].kind != RANK_ATOM) continue;
+        pos++;
+        bool primary = true;
+        while (pos < tokens->size) {
+            RankToken token = tokens->contents[pos];
+            if (token.kind == RANK_BINARY || token.kind == RANK_BINARY_PRIMARY) {
+                primary = token.kind == RANK_BINARY_PRIMARY;
+                pos++;
+                continue;
+            }
+            if (token.kind != RANK_QUESTION || pos + 1 >= tokens->size) break;
+            RankParse body = memo[(pos + 1) * 2 + branch.force];
+            bool access = primary && token.collection && (branch.force || tokens->contents[body.end].kind != RANK_COLON);
+            if (tokens->contents[pos + 1].collection) array_push(&builder->roles, !access);
+            if (access) { pos += 2; continue; }
+            bool force = branch.force;
+            body = rank_conditional_body(tokens, memo, pos, &force);
+            if (tokens->contents[body.end].kind == RANK_COLON && body.end + 1 < tokens->size)
+                array_push(&branches, ((QuestionGuardBranch){body.end + 1, branch.force}));
+            array_push(&branches, ((QuestionGuardBranch){pos + 1, force}));
+            break;
+        }
+    }
+    array_delete(&branches);
+    return builder->roles.size > 0;
 }
 
 static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit, uint32_t pending, bool definite, QuestionGuardPreference *preference) {
@@ -627,7 +706,7 @@ static uint8_t question_guard_as_role(QuestionInput *input, uint32_t *questions,
     bool type = rank_read_as_type(&input->lexer, &read);
     uint32_t prefix = read.expression_questions ? read.prefix_questions : read.questions;
     if (!type || !prefix) return RANK_NONE;
-    uint8_t role = RANK_OWNED_NULLABLE_PREFIX;
+    uint8_t role = input->lexer.lookahead == '?' ? RANK_NULLABLE_PREFIX : RANK_OWNED_NULLABLE_PREFIX;
     if (pending && !read.sized_rank) {
         // The type reader may already have consumed is/as after a nullable suffix.
         bool type_operator = read.has_word

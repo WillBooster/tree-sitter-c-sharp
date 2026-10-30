@@ -796,6 +796,8 @@ static bool question_is_type_designation(TSLexer *lexer, QuestionInput *input) {
             parsed = rank_read_as_type(lexer, &read);
         }
         named = parsed && rank_read_type_designation(lexer, &read, false);
+        if (named && question_skip_separators(lexer) >= 0 && rank_read_identifier(lexer, &word) && word.keyword &&
+            (!strcmp(word.word, "and") || !strcmp(word.word, "or"))) named = false;
     }
     question_input_restore(input, start);
     return named;
@@ -838,10 +840,10 @@ static bool question_type_keyword_follower(TSLexer *lexer, QuestionInput *input)
     return type;
 }
 
-static bool rank_type_suffix_follows(TSLexer *lexer, const RankTokens *tokens, const RankExpression *expression) {
+static bool rank_type_suffix_follows(TSLexer *lexer, const RankTokens *tokens, const RankExpression *expression, bool is_type) {
     if (lexer->lookahead == '?' || question_type_boundary(lexer->lookahead) || lexer->eof(lexer)) return true;
     if (!tokens->input) {
-        return tokens->peek && ((expression->nullable_event != ((unsigned)-1) && question_type_keyword_follower(lexer, tokens->peek)) ||
+        return tokens->peek && (((is_type || expression->nullable_event != ((unsigned)-1)) && question_type_keyword_follower(lexer, tokens->peek)) ||
             (expression->pattern && question_nullable_pattern_tail(lexer, tokens->peek)));
     }
     return lexer->lookahead == '{' || question_type_operator_follower(lexer, tokens->input, (QuestionFollowing){.token = lexer->lookahead}) ||

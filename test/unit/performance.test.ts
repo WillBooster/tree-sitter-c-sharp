@@ -112,6 +112,14 @@ test.each(['a ? b : ', 'a is T z ? b : ', 'a is T[] z ? [1] : ', 'a is T?[] z ? 
   }
 );
 
+test('bounds ordinary bracket decisions in case guards', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(ordinaryGuardBrackets(100), ordinaryGuardBrackets(1000), false);
+});
+
+function ordinaryGuardBrackets(count: number): string {
+  return `class C{void M(){switch(x){case y when b is not T?[]? == b ? ${'b?[0] : '.repeat(count)}f(a): L: break;}}}`;
+}
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);

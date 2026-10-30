@@ -342,7 +342,7 @@ static void interpolation_question_prefix(TSLexer *lexer, Interpolation *interpo
 static bool question_suffix_context(const Scanner *scanner, bool known, bool known_nullable, uint8_t rank_phase) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     return known && !known_nullable && !rank_phase && !scanner->interpolation_stack.size &&
-        !frame->case_colon && !frame->force_barrier && !frame->query_pending && !frame->query_result && !frame->generic_pending;
+        (!frame->case_colon || frame->case_guard) && !frame->force_barrier && !frame->query_pending && !frame->query_result && !frame->generic_pending;
 }
 
 static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing following, bool known_nullable, unsigned context_flags, uint8_t rank_phase) {

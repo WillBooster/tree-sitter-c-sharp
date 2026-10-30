@@ -8,6 +8,7 @@ enum { GUARD_ROLE_MASK = 3, GUARD_SUFFIX_COMPLETE = 4 };
 typedef struct {
     uint8_t role;
     bool handoff;
+    bool ordinary_scanned;
     uint32_t prefix;
 } QuestionGuardCertificate;
 

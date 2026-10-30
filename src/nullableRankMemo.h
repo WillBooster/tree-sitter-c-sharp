@@ -1,6 +1,9 @@
 #ifndef TREE_SITTER_C_SHARP_NULLABLE_RANK_MEMO_H_
 #define TREE_SITTER_C_SHARP_NULLABLE_RANK_MEMO_H_
 
+static RankParse *rank_create_memo(const RankTokens *, unsigned, bool);
+static RankParse rank_conditional_body(const RankTokens *, const RankParse *, unsigned, bool *);
+
 static RankParse rank_evaluate_collected_modes(const RankTokens *tokens, unsigned target, RankParse modes[2], bool collect, unsigned successor, RankParse *first_body);
 
 static RankParse rank_evaluate_modes(const RankTokens *tokens, unsigned target, RankParse modes[2]) {
@@ -8,12 +11,7 @@ static RankParse rank_evaluate_modes(const RankTokens *tokens, unsigned target, 
 }
 
 static RankParse rank_evaluate_collected_modes(const RankTokens *tokens, unsigned target, RankParse modes[2], bool collect, unsigned successor, RankParse *first_body) {
-    RankParse *memo = ts_calloc((size_t)tokens->size * 2, sizeof(RankParse));
-    for (unsigned end = tokens->size; end > 0; end--) {
-        unsigned start = end - 1;
-        memo[start * 2 + 1] = rank_parse(tokens, memo, start, true, target, collect);
-        memo[start * 2] = rank_parse(tokens, memo, start, false, target, collect);
-    }
+    RankParse *memo = rank_create_memo(tokens, target, collect);
     modes[0] = memo[0];
     modes[1] = memo[1];
     uint64_t first = (uint64_t)target + 1;
@@ -22,6 +20,16 @@ static RankParse rank_evaluate_collected_modes(const RankTokens *tokens, unsigne
     RankParse when_true = consequence < tokens->size ? memo[(size_t)consequence * 2] : (RankParse){0};
     ts_free(memo);
     return when_true;
+}
+
+static RankParse *rank_create_memo(const RankTokens *tokens, unsigned target, bool collect) {
+    RankParse *memo = ts_calloc((size_t)tokens->size * 2, sizeof(RankParse));
+    for (unsigned end = tokens->size; end > 0; end--) {
+        unsigned start = end - 1;
+        memo[start * 2 + 1] = rank_parse(tokens, memo, start, true, target, collect);
+        memo[start * 2] = rank_parse(tokens, memo, start, false, target, collect);
+    }
+    return memo;
 }
 
 static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, unsigned start, bool force, unsigned target, bool collect) {
@@ -98,11 +106,8 @@ static unsigned rank_parse_type(const RankTokens *tokens, const RankParse *memo,
 }
 
 static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool force, unsigned target, RankParse *result, bool collect) {
-    RankParse when_true = memo[(pos + 1) * 2 + force];
-    if (tokens->contents[when_true.end].kind != RANK_COLON && !force && when_true.collection_ternary) {
-        RankParse retry = memo[(pos + 1) * 2 + 1];
-        if (retry.valid && tokens->contents[retry.end].kind == RANK_COLON) when_true = retry;
-    }
+    bool body_force = force;
+    RankParse when_true = rank_conditional_body(tokens, memo, pos, &body_force);
     if (pos == target) result->role = RANK_TERNARY;
     result->suffix_flags |= tokens->contents[pos].suffix_flags;
     result->types = rank_type_merge(result->types, when_true.types);
@@ -124,6 +129,18 @@ static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo
         pos = when_true.end;
     }
     return pos;
+}
+
+static RankParse rank_conditional_body(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool *force) {
+    RankParse body = memo[(pos + 1) * 2 + *force];
+    if (tokens->contents[body.end].kind != RANK_COLON && !*force && body.collection_ternary) {
+        RankParse retry = memo[(pos + 1) * 2 + 1];
+        if (retry.valid && tokens->contents[retry.end].kind == RANK_COLON) {
+            body = retry;
+            *force = true;
+        }
+    }
+    return body;
 }
 
 #endif
