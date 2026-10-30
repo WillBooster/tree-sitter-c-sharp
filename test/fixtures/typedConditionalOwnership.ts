@@ -3854,4 +3854,24 @@ export const ownershipSamples = [
     source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is G<T?>?[]?[]? ? b : d: break; } } }",
     ranges: [[[46, 56], [59, 60], [63, 102]], [[63, 69], [72, 74], [77, 102]], [[77, 94], [97, 98], [101, 102]]],
   },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is not T?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 102]], [[63, 69], [72, 74], [77, 102]], [[77, 94], [97, 98], [101, 102]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is not T?[]?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 105]], [[63, 69], [72, 74], [77, 105]], [[77, 97], [100, 101], [104, 105]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ? [] : d is not T?[,]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 98]], [[63, 64], [67, 69], [72, 98]], [[72, 90], [93, 94], [97, 98]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is not not T?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 106]], [[63, 69], [72, 74], [77, 106]], [[77, 98], [101, 102], [105, 106]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is @not?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 101]], [[63, 69], [72, 74], [77, 101]], [[77, 93], [96, 97], [100, 101]]],
+  },
 ];

@@ -495,12 +495,22 @@ static bool question_input_multi_rank(const QuestionInput *input, uint32_t start
 
 static bool question_guard_nullable_question(TSLexer *lexer, QuestionInput *input, uint32_t *questions) {
     QuestionCheckpoint start = question_input_checkpoint(input);
-    RankTypeRead read = {0};
-    bool valid = rank_read_as_type(lexer, &read) && read.questions && !read.colon && !read.coalesce &&
-        !read.conditional && !read.division && !read.binary && !read.has_word &&
-        lexer->lookahead == '?' && question_read_single_question(lexer) &&
-        question_expression_start(lexer, question_skip_separators(lexer));
-    if (valid) *questions = read.questions;
+    bool valid = false;
+    for (unsigned attempt = 0; attempt < 2; attempt++) {
+        if (attempt) {
+            question_input_restore(input, start);
+            if (question_guard_type_start(input).cursor == start.cursor) break;
+        }
+        RankTypeRead read = {0};
+        valid = rank_read_as_type(lexer, &read) && read.questions && !read.colon && !read.coalesce &&
+            !read.conditional && !read.division && !read.binary && !read.has_word &&
+            lexer->lookahead == '?' && question_read_single_question(lexer) &&
+            question_expression_start(lexer, question_skip_separators(lexer));
+        if (valid) {
+            *questions = read.questions;
+            break;
+        }
+    }
     question_input_restore(input, start);
     return valid;
 }
