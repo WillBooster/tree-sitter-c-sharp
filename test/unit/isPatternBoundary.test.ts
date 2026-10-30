@@ -2753,6 +2753,33 @@ test('retains proven nullable patterns before recursive, binary and lambda bound
   const samples = [
     {
       source:
+        'class C{void M(){switch(x){case y when a is not T?[] && a is T?[,] && a is T?[] && a is T?[,] && a is T?[] && b ? [1].Length : [2] : [3] : [4] : [5]: break;}}}',
+      nullable: ['T?', 'T?'],
+      fields: [
+        [
+          [39, 49],
+          [50, 142],
+          [145, 148],
+        ],
+        [
+          [50, 76],
+          [77, 136],
+          [139, 142],
+        ],
+        [
+          [77, 103],
+          [104, 130],
+          [133, 136],
+        ],
+        [
+          [104, 111],
+          [114, 124],
+          [127, 130],
+        ],
+      ],
+    },
+    {
+      source:
         'class C{void M(){switch(x){case y when a is not T?[] && a is T?[,] && a is T?[] && b ? [1].ToArray()[0].Length : [2] : [3] : [4]: break;}}}',
       nullable: ['T?'],
       fields: [

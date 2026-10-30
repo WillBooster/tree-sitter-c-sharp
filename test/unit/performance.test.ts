@@ -145,6 +145,14 @@ function nullablePatternSuffixes(count: number): string {
   return 'switch(x) { case y when a ? [1] : b is T?' + '[]?'.repeat(count) + ' and not null: break; }';
 }
 
+test('bounds alternating definite and conditional guard types', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(mixedDefiniteGuardSource(100), mixedDefiniteGuardSource(1000), false);
+});
+
+function mixedDefiniteGuardSource(count: number): string {
+  return `class C{void M(){switch(x){case y when a is not T?[] && ${'a is T?[,] && a is T?[] && '.repeat(count)}b ? [1].Length : [2]${Array.from({ length: count + 1 }, (_, index) => ` : [${index + 3}]`).join('')}: break;}}}`;
+}
+
 test('bounds negated nullable-rank successors in case guards', { timeout: 60_000 }, () => {
   expectBoundedGrowth(negatedNullableRankSuccessors(100), negatedNullableRankSuccessors(1000));
 });
