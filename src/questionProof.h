@@ -216,7 +216,7 @@ static bool question_guard_stream_stop(TSLexer *lexer, void *context) {
 typedef struct { unsigned start; bool force; } QuestionGuardBranch;
 typedef Array(QuestionGuardBranch) QuestionGuardBranches;
 
-static bool question_guard_collect_questions(const RankTokens *, const RankParse *, QuestionSuffixBuilder *);
+static bool question_guard_collect_questions(const RankTokens *, const RankParse *, QuestionSuffixBuilder *, QuestionGuardBranch, unsigned);
 
 static void question_guard_save_questions(Scanner *scanner, QuestionInput *input) {
     scanner->question_frames[scanner->question_frame_count - 1].guard.ordinary_scanned = true;
@@ -226,16 +226,25 @@ static void question_guard_save_questions(Scanner *scanner, QuestionInput *input
     unsigned colons = 0;
     QuestionGuardRead guard = {.input = input, .tail = &tokens};
     bool read = rank_read_stream_until(&input->lexer, &tokens, &colons, true, question_guard_stream_stop, &guard);
-    for (unsigned i = 0; read && i < tokens.size; i++) {
-        RankToken token = tokens.contents[i];
-        read = !token.force_unsafe && (token.kind == RANK_ATOM || token.kind == RANK_QUESTION ||
-            token.kind == RANK_COLON || token.kind == RANK_BINARY ||
-            token.kind == RANK_BINARY_PRIMARY || token.kind == RANK_END);
+    unsigned supported = 0;
+    for (; read && supported < tokens.size; supported++) {
+        RankToken token = tokens.contents[supported];
+        if (token.force_unsafe || (token.kind != RANK_ATOM && token.kind != RANK_QUESTION &&
+            token.kind != RANK_COLON && token.kind != RANK_BINARY &&
+            token.kind != RANK_BINARY_PRIMARY && token.kind != RANK_END)) break;
     }
     if (read && colons) {
         RankParse *memo = rank_create_memo(&tokens, UINT32_MAX, false);
+        QuestionGuardBranch branch = {0};
+        unsigned end = tokens.size;
+        if (supported < tokens.size) {
+            RankParse body = rank_conditional_body(&tokens, memo, 1, &branch.force);
+            read = body.valid && body.end < supported && tokens.contents[body.end].kind == RANK_COLON;
+            branch.start = 2;
+            end = body.end;
+        }
         QuestionSuffixBuilder builder = {0};
-        if (question_guard_collect_questions(&tokens, memo, &builder)) {
+        if (read && question_guard_collect_questions(&tokens, memo, &builder, branch, end)) {
             question_suffix_store(&scanner->suffix, &builder, scanner->question_frame_count,
                 scanner->question_frames[scanner->question_frame_count - 1].pending);
             scanner->suffix.confirm = true;
@@ -246,30 +255,30 @@ static void question_guard_save_questions(Scanner *scanner, QuestionInput *input
     array_delete(&tokens);
 }
 
-static bool question_guard_collect_questions(const RankTokens *tokens, const RankParse *memo, QuestionSuffixBuilder *builder) {
+static bool question_guard_collect_questions(const RankTokens *tokens, const RankParse *memo, QuestionSuffixBuilder *builder, QuestionGuardBranch initial, unsigned end) {
     QuestionGuardBranches branches = array_new();
-    array_push(&branches, ((QuestionGuardBranch){0}));
+    array_push(&branches, initial);
     while (branches.size) {
         QuestionGuardBranch branch = array_pop(&branches);
         unsigned pos = branch.start;
-        if (tokens->contents[pos].kind != RANK_ATOM) continue;
+        if (pos >= end || tokens->contents[pos].kind != RANK_ATOM) continue;
         pos++;
         bool primary = true;
-        while (pos < tokens->size) {
+        while (pos < end) {
             RankToken token = tokens->contents[pos];
             if (token.kind == RANK_BINARY || token.kind == RANK_BINARY_PRIMARY) {
                 primary = token.kind == RANK_BINARY_PRIMARY;
                 pos++;
                 continue;
             }
-            if (token.kind != RANK_QUESTION || pos + 1 >= tokens->size) break;
+            if (token.kind != RANK_QUESTION || pos + 1 >= end) break;
             RankParse body = memo[(pos + 1) * 2 + branch.force];
             bool access = primary && token.collection && (branch.force || tokens->contents[body.end].kind != RANK_COLON);
             if (tokens->contents[pos + 1].collection) array_push(&builder->roles, !access);
             if (access) { pos += 2; continue; }
             bool force = branch.force;
             body = rank_conditional_body(tokens, memo, pos, &force);
-            if (tokens->contents[body.end].kind == RANK_COLON && body.end + 1 < tokens->size)
+            if (body.end < end && tokens->contents[body.end].kind == RANK_COLON && body.end + 1 < end)
                 array_push(&branches, ((QuestionGuardBranch){body.end + 1, branch.force}));
             array_push(&branches, ((QuestionGuardBranch){pos + 1, force}));
             break;

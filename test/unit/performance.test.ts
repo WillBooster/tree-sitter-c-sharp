@@ -120,6 +120,22 @@ function ordinaryGuardBrackets(count: number): string {
   return `class C{void M(){switch(x){case y when b is not T?[]? == b ? ${'b?[0] : '.repeat(count)}f(a): L: break;}}}`;
 }
 
+test('bounds nested collection guards with typed alternatives', { timeout: 60_000 }, () => {
+  const large = nestedCollectionGuardAlternative(1000);
+  expectBoundedGrowth(nestedCollectionGuardAlternative(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(3);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1003);
+  } finally {
+    tree.delete();
+  }
+});
+
+function nestedCollectionGuardAlternative(count: number): string {
+  return `class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x : a is T${'?[]'.repeat(count)}? ? 1 : x: break; } } }`;
+}
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);

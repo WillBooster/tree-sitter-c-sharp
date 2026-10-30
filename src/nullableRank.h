@@ -880,7 +880,7 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
     if (!rank_read_omitted_ranks(lexer, &ranks, &definite, &division, tokens->input != NULL)) { array_delete(&ranks); return RANK_READ_UNKNOWN; }
     bool fixed_rank = definite;
     // Every rank of an ordinary chain reaches the same suffix end, so one walk decides the whole chain.
-    bool chain = !tokens->input && expression->nullable_event != ((unsigned)-1);
+    bool chain = (!tokens->input || tokens->ordinary_suffix) && expression->nullable_event != ((unsigned)-1);
     bool proved = chain && !expression->chain_unproved && tokens->contents[expression->nullable_event].kind == RANK_DEFINITE_TYPE;
     definite |= proved;
     QuestionInput *probe = tokens->input ? tokens->input : tokens->peek;

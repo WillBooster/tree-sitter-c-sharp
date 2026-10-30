@@ -3710,4 +3710,12 @@ export const ownershipSamples = [
     source: "class C { void M() { switch (x) { case y when a is T[] ? [] : a is T?[,] or T?[,]: default: break; break; } } }",
     ranges: [[[46, 54], [57, 59], [62, 81]]],
   },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x : a is T?[]? ? 1 : x: break; } } }",
+    ranges: [[[46, 56], [59, 70], [73, 91]], [[59, 60], [63, 66], [69, 70]], [[73, 83], [86, 87], [90, 91]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x : g: break; } } }",
+    ranges: [[[46, 56], [59, 70], [73, 74]], [[59, 60], [63, 66], [69, 70]]],
+  },
 ];
