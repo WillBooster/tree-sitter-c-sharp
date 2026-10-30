@@ -336,7 +336,7 @@ test('preserves nested and block lambda return fields', () => {
   const parser = new Parser().setLanguage(language);
   const query = new Query(
     language,
-    '(expression/lambda_expression) @lambda (lambda_expression type: (_) @return parameters: (_) @parameters body: (_) @body)'
+    '(lambda_expression) @lambda (lambda_expression type: (_) @return parameters: (_) @parameters body: (_) @body)'
   );
   const samples = [
     {

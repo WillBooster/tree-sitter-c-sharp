@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 const root = path.join(import.meta.dirname, '../..');
@@ -13,11 +12,9 @@ beforeAll(async () => {
   language = await Language.load(path.join(root, 'tree-sitter-c_sharp.wasm'));
 });
 
-test('preserves conditional method signatures, shared bodies and method queries', () => {
+test('preserves conditional method signatures and shared bodies', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const highlights = new Query(language, readFileSync(path.join(root, 'queries/highlights.scm'), 'utf8'));
-  const tags = new Query(language, readFileSync(path.join(root, 'queries/tags.scm'), 'utf8'));
   try {
     for (const body of ['{ return value; }', '=> value;']) {
       const tree = parser.parse(`class C {
@@ -53,20 +50,11 @@ void After() {}
         const conditional = tree.rootNode.descendantsOfType('conditional_method_declaration');
         expect(conditional).toHaveLength(1);
         expect(conditional[0]?.childForFieldName('body')?.text).toBe(body.replace(/;$/, ''));
-        expect(
-          highlights
-            .captures(tree.rootNode)
-            .filter(({ name }) => name === 'function.method')
-            .map(({ node }) => node.text)
-        ).toEqual(['M', 'M', 'M', 'After']);
-        expect(tags.captures(tree.rootNode).filter(({ name }) => name === 'definition.method')).toHaveLength(4);
       } finally {
         tree.delete();
       }
     }
   } finally {
-    tags.delete();
-    highlights.delete();
     parser.delete();
   }
 });

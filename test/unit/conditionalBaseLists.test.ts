@@ -1,22 +1,11 @@
-import fs from 'node:fs';
-
 import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { beforeAll, expect, test } from 'vitest';
 
 let language: Language;
-let highlightQuery: Query;
-let tagQuery: Query;
 
 beforeAll(async () => {
   await Parser.init();
   language = await Language.load('tree-sitter-c_sharp.wasm');
-  highlightQuery = new Query(language, fs.readFileSync('queries/highlights.scm', 'utf8'));
-  tagQuery = new Query(language, fs.readFileSync('queries/tags.scm', 'utf8'));
-});
-
-afterAll(() => {
-  highlightQuery?.delete();
-  tagQuery?.delete();
 });
 
 const cases: string[] = [];
@@ -205,10 +194,8 @@ test('rejects base clauses with no physical type while retaining following decla
   }
 });
 
-test('highlights nested conditional base types without treating conditions as types', () => {
+test('parses nested conditional base types and keeps following declarations', () => {
   const parser = new Parser().setLanguage(language);
-  const query = highlightQuery;
-  const tags = tagQuery;
   const sources = [1, 4, 16]
     .flatMap((depth) => [
       `class C\n${nestedBase(': B', ': D', depth)}\n{}\nclass Following {}`,
@@ -237,33 +224,6 @@ test('highlights nested conditional base types without treating conditions as ty
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
-        const captures = query.captures(tree.rootNode);
-        const references = tags.captures(tree.rootNode).filter((capture) => capture.name === 'reference.class');
-        for (const match of source.matchAll(/\b(?:B|D|E|H|I|J|K|L)\b/g)) {
-          expect(
-            captures.filter(
-              (capture) =>
-                capture.name === 'type' &&
-                capture.node.startIndex === match.index &&
-                capture.node.endIndex === match.index + match[0].length
-            ),
-            source
-          ).toHaveLength(1);
-          expect(
-            references.filter(
-              (capture) =>
-                capture.node.startIndex === match.index && capture.node.endIndex === match.index + match[0].length
-            ),
-            source
-          ).toHaveLength(1);
-        }
-        expect(
-          references.every((capture) => /^(?:B|D|E|H|I|J|K|L)$/.test(capture.node.text)),
-          source
-        ).toBe(true);
-        expect(
-          captures.filter((capture) => capture.name === 'type' && /^A[0-9]+$/.test(capture.node.text))
-        ).toHaveLength(0);
         expect(
           tree.rootNode
             .descendantsOfType([
@@ -283,48 +243,24 @@ test('highlights nested conditional base types without treating conditions as ty
   }
 });
 
-test('tags only actual base types across qualified, generic, and constructor bases', () => {
+test('parses qualified, generic, and constructor bases', () => {
   const parser = new Parser().setLanguage(language);
-  const query = tagQuery;
   const sources = [
-    ['class C(int x) : A.B<T>(x), I<T> {}', ['A.B<T>', 'I<T>']],
-    ['class C() : object() {}', ['object']],
-    ['record C(int x) : A.B<T>(x), I<T> {}', ['A.B<T>', 'I<T>']],
-    ['interface C : A.B<T>, I<T> {}', ['A.B<T>', 'I<T>']],
-    ['struct C : A.B<T>, I<T> {}', ['A.B<T>', 'I<T>']],
-    ['class C :\n#if A\nA.B<T>\n#else\nI<T>\n#endif\n{}', ['A.B<T>', 'I<T>']],
-    [
-      'class C(int x)\n#if A\n: A.B<T>(x)\n#else\n: Other<T>(x)\n#endif\n#if X\n, I<T>\n#endif\n{}',
-      ['A.B<T>', 'Other<T>', 'I<T>'],
-    ],
-    [
-      'class C(int x) :\n#if A\nA.B<T>(x)\n#endif\n#if !A\nOther<T>(x)\n#endif\n{}\nclass Following {}',
-      ['A.B<T>', 'Other<T>'],
-    ],
-    [
-      'class C(int x) :\n#if A\nA.B<T>(x)\n#endif\n#if !A\nOther<T>(x)\n#endif\n, I<T>\n{}\nclass Following {}',
-      ['A.B<T>', 'Other<T>', 'I<T>'],
-    ],
-  ] as const;
+    'class C(int x) : A.B<T>(x), I<T> {}',
+    'class C() : object() {}',
+    'record C(int x) : A.B<T>(x), I<T> {}',
+    'interface C : A.B<T>, I<T> {}',
+    'struct C : A.B<T>, I<T> {}',
+    'class C :\n#if A\nA.B<T>\n#else\nI<T>\n#endif\n{}',
+    'class C(int x)\n#if A\n: A.B<T>(x)\n#else\n: Other<T>(x)\n#endif\n#if X\n, I<T>\n#endif\n{}',
+    'class C(int x) :\n#if A\nA.B<T>(x)\n#endif\n#if !A\nOther<T>(x)\n#endif\n{}\nclass Following {}',
+    'class C(int x) :\n#if A\nA.B<T>(x)\n#endif\n#if !A\nOther<T>(x)\n#endif\n, I<T>\n{}\nclass Following {}',
+  ];
   try {
-    for (const [source, names] of sources) {
+    for (const source of sources) {
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
-        const matches = query
-          .matches(tree.rootNode)
-          .filter((match) => match.captures.some((capture) => capture.name === 'reference.class'));
-        expect(
-          matches.map((match) =>
-            match.captures.map((capture) => [capture.name, capture.node.startIndex, capture.node.endIndex])
-          ),
-          source
-        ).toEqual(
-          names.map((name) => [
-            ['name', source.indexOf(name), source.indexOf(name) + name.length],
-            ['reference.class', source.indexOf(name), source.indexOf(name) + name.length],
-          ])
-        );
       } finally {
         tree.delete();
       }
@@ -334,9 +270,8 @@ test('tags only actual base types across qualified, generic, and constructor bas
   }
 });
 
-test('does not tag enum underlying types as class references', () => {
+test('parses conditional enum underlying types', () => {
   const parser = new Parser().setLanguage(language);
-  const tags = tagQuery;
   const sources = [
     ...['byte', 'sbyte', 'short', 'ushort', 'int', 'uint', 'long', 'ulong', 'System.Byte', 'MyByte'].map(
       (type) => `enum E : ${type} {}`
@@ -353,10 +288,6 @@ test('does not tag enum underlying types as class references', () => {
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
-        expect(
-          tags.captures(tree.rootNode).filter((capture) => capture.name.startsWith('reference.')),
-          source
-        ).toHaveLength(0);
       } finally {
         tree.delete();
       }

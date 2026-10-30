@@ -1439,7 +1439,6 @@ test('keeps complete qualified constants in logical patterns', () => {
 test('parses intrinsic nameof as a constant pattern', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-
   const tree = parser.parse('var result = value is nameof(Type.Member);')!;
   try {
     expect(tree.rootNode.hasError).toBe(false);
@@ -1448,7 +1447,6 @@ test('parses intrinsic nameof as a constant pattern', () => {
     ]);
   } finally {
     tree.delete();
-
     parser.delete();
   }
 });
@@ -1621,7 +1619,6 @@ test('keeps conditional case labels intact alongside constant and declaration pa
 test('keeps unguarded switch list patterns distinct from collection expressions', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-
   try {
     for (const pattern of ['[]', '[1]', '[1, 2]', '[A.B]', '[nameof(value)]', '[1, ..]']) {
       for (const guard of ['', ' when ready']) {
@@ -1724,7 +1721,6 @@ test('keeps identifier-type cast constants complete through arithmetic and quali
 test('preserves parenthesized qualified switch constant boundaries', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-
   try {
     for (const depth of [1, 2, 3, 5]) {
       const pattern = `${'('.repeat(depth)}A.B${')'.repeat(depth)}`;
@@ -1826,7 +1822,6 @@ test('preserves parenthesized tuple-designation patterns and genuine positional 
 
 test('preserves tuple-var patterns through negation and nested named positional clauses', () => {
   const parser = new Parser().setLanguage(language);
-
   try {
     for (const pattern of [
       '(not (var (a, b)))',
