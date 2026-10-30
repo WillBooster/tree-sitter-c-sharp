@@ -2,21 +2,30 @@
 #define TREE_SITTER_C_SHARP_QUESTION_STATE_H_
 
 static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size);
-static unsigned question_serialized_size(const Scanner *scanner, bool transfers);
-static void question_serialize(const Scanner *scanner, char *buffer, unsigned *size, bool transfers);
+static unsigned question_serialized_size(const Scanner *scanner, bool transfers, bool guard_counts);
+static void question_serialize(const Scanner *scanner, char *buffer, unsigned *size, bool transfers, bool guard_counts);
 static bool question_deserialize(Scanner *scanner, const char *buffer, unsigned length, unsigned *size);
 static bool question_read_varint(const char *buffer, unsigned length, unsigned *size, uint32_t *value);
+static void question_write_guard(const QuestionFrame *, bool, char *, unsigned *, bool);
+static bool question_read_guard(QuestionFrame *, const char *, unsigned, unsigned *);
 
 static unsigned question_frame_modes(QuestionFrame frame);
 static bool question_read_rank(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size);
 
-typedef struct { bool unknown, extended, rank, cache, depths, confirmation, transfers; } QuestionSerialization;
+typedef struct { bool unknown, extended, rank, cache, depths, confirmation, transfers, guard_counts; } QuestionSerialization;
 
 static uint8_t question_take_rank(Scanner *scanner, bool *known_nullable, bool *dimension_expression) {
-    if (scanner->question_rank_role == RANK_NULLABLE_PREFIX) {
+
+    if (scanner->question_rank_role == RANK_NULLABLE_NEXT && scanner->question_rank_prefix_questions) {
+        *known_nullable = true;
+        scanner->question_rank_prefix_questions--;
+        return RANK_NONE;
+    }
+    if (scanner->question_rank_role == RANK_NULLABLE_PREFIX || scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX) {
+        uint8_t role = scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX ? RANK_OWNED_NULLABLE_PREFIX : RANK_NONE;
         *known_nullable = true;
         if (!--scanner->question_rank_prefix_questions) clear_question_rank(scanner);
-        return RANK_NONE;
+        return role;
     }
     if (scanner->question_rank_role == RANK_ALLOCATION_MIXED) {
         *dimension_expression = !(scanner->question_rank_prefix_questions & 1);
@@ -39,7 +48,7 @@ static QuestionSerialization question_serialization_plan(const Scanner *scanner,
     bool extended = (!scanner->question_unknown || confirmation) && (scanner->question_frame_count > 1 ||
         scanner->question_frames[0].pending || scanner->question_frames[0].unknown || scanner->question_frames[0].case_colon || scanner->question_frames[0].force_barrier || scanner->question_frames[0].query_pending || scanner->question_frames[0].query_result || scanner->question_frames[0].generic_pending);
     bool unknown = scanner->question_unknown;
-    unsigned extension_size = extended ? question_serialized_size(scanner, false) : 2;
+    unsigned extension_size = extended ? question_serialized_size(scanner, false, false) : 2;
     if (extended && extension_size > available) {
         extended = false;
         unknown = true;
@@ -52,16 +61,20 @@ static QuestionSerialization question_serialization_plan(const Scanner *scanner,
         available += extension_size;
         extended = false;
     }
-    bool type_prefix = (scanner->question_rank_role == RANK_NULLABLE_PREFIX || scanner->question_rank_role == RANK_ALLOCATION_MIXED) && scanner->question_rank_prefix_questions;
-    bool rank = (type_prefix || (!unknown && scanner->question_rank_role &&
-        (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE))) && available >= 5;
+    bool type_prefix = (scanner->question_rank_role == RANK_NULLABLE_PREFIX || scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX || scanner->question_rank_role == RANK_ALLOCATION_MIXED) && scanner->question_rank_prefix_questions;
+    bool rank = type_prefix || (!unknown && scanner->question_rank_role &&
+            (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE));
+    rank &= available >= 5;
     if (rank) available -= 5;
     bool cache = !rank && (unknown || !scanner->question_type_uncertain) && scanner->question_access_cache && available >= 4;
     if (cache) available -= 4;
     bool depths = scanner->interpolation_stack.size && scanner->interpolation_stack.size * 2 <= available;
     if (depths) available -= scanner->interpolation_stack.size * 2;
-    bool transfers = extended && question_serialized_size(scanner, true) - extension_size <= available;
-    return (QuestionSerialization){unknown, extended, rank, cache, depths, confirmation, transfers};
+    bool transfers = extended && question_serialized_size(scanner, true, false) - extension_size <= available;
+    if (transfers) available -= question_serialized_size(scanner, true, false) - extension_size;
+    bool guard_counts = extended && question_serialized_size(scanner, transfers, true) -
+        question_serialized_size(scanner, transfers, false) <= available;
+    return (QuestionSerialization){unknown, extended, rank, cache, depths, confirmation, transfers, guard_counts};
 }
 
 static char question_serialization_modes(const Scanner *scanner, QuestionSerialization state) {
@@ -82,7 +95,7 @@ static void question_serialize_modes(const Scanner *scanner, QuestionSerializati
     if (state.cache) {
         for (unsigned byte = 0; byte < 4; byte++) buffer[(*size)++] = (char)(scanner->question_access_cache >> (byte * 8));
     }
-    if (state.extended) question_serialize(scanner, buffer, size, state.transfers);
+    if (state.extended) question_serialize(scanner, buffer, size, state.transfers, state.guard_counts);
     if (state.confirmation) {
         TernaryConfirmation value = scanner->ternary_confirmation;
         buffer[(*size)++] = (char)value.frame;
@@ -99,6 +112,7 @@ static bool apply_question_events(Scanner *scanner, const char *events, unsigned
     for (unsigned i = 0; i < count; i++) {
         if (question_apply_event(scanner, events[i])) continue;
         scanner->question_unknown = true;
+        question_clear_rank_from(scanner, 0);
         question_clear_access_cache(scanner);
         return false;
     }
@@ -115,10 +129,12 @@ static bool question_apply_event(Scanner *scanner, char event) {
     QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (!question_apply_scope_event(frame, event)) return false;
     if (event == ':') {
+        frame->guard.role &= GUARD_ROLE_MASK;
         if (frame->pending) frame->pending--;
         else if (!frame->unknown && !scanner->question_unknown) {
             frame->case_colon = false;
             frame->case_guard = false;
+            frame->guard = (QuestionGuardCertificate){0};
         }
     }
     if (event != ';') return true;
@@ -132,13 +148,19 @@ static bool question_apply_event(Scanner *scanner, char event) {
     frame->unknown = false;
     frame->case_colon = false;
     frame->case_guard = false;
+    frame->guard = (QuestionGuardCertificate){0};
     if (scanner->question_frame_count == 1) reset_question_context(scanner);
     return true;
 }
 
 static void question_clear_rank_from(Scanner *scanner, unsigned first) {
-    for (unsigned i = first; i < scanner->question_frame_count; i++)
-        memset(scanner->question_frames[i].rank_modes, 0, sizeof(scanner->question_frames[i].rank_modes));
+    for (unsigned i = first; i < scanner->question_frame_count; i++) {
+        QuestionFrame *frame = &scanner->question_frames[i];
+        memset(frame->rank_modes, 0, sizeof(frame->rank_modes));
+        frame->guard.role = 0;
+        frame->guard.prefix = 0;
+        if (scanner->question_unknown || frame->unknown) frame->guard.handoff = false;
+    }
 }
 
 static unsigned question_rank_mask(const QuestionFrame *frame) {
@@ -236,7 +258,7 @@ static void question_save_confirmation(Scanner *scanner, const Scanner *confirme
     for (unsigned i = 0; i < scanner->question_frame_count; i++) {
         QuestionFrame actual = scanner->question_frames[i];
         QuestionFrame next = confirmed->question_frames[i];
-        if (actual.group != next.group || actual.case_colon != next.case_colon || actual.case_guard != next.case_guard || actual.force_barrier != next.force_barrier ||
+        if (actual.group != next.group || actual.case_colon != next.case_colon || actual.case_guard != next.case_guard || actual.guard.handoff != next.guard.handoff || actual.force_barrier != next.force_barrier ||
             actual.query_pending != next.query_pending || actual.query_result != next.query_result ||
             actual.lambda_query != next.lambda_query || actual.lambda_result != next.lambda_result ||
             actual.generic_pending != next.generic_pending) return;
@@ -254,7 +276,7 @@ static void question_save_confirmation(Scanner *scanner, const Scanner *confirme
 static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size) {
     if (flags & QUESTION_STATE_UNKNOWN) {
         bool type_prefix = (flags & QUESTION_STATE_RANK_ROLE) && *size + 5 <= length &&
-            ((uint8_t)buffer[*size] == RANK_NULLABLE_PREFIX || (uint8_t)buffer[*size] == RANK_ALLOCATION_MIXED);
+            ((uint8_t)buffer[*size] == RANK_NULLABLE_PREFIX || (uint8_t)buffer[*size] == RANK_OWNED_NULLABLE_PREFIX || (uint8_t)buffer[*size] == RANK_ALLOCATION_MIXED);
         if (!(flags & (QUESTION_STATE_ACCESS_CACHE | QUESTION_STATE_CONFIRMATION)) && !type_prefix) return false;
         if (((flags & QUESTION_STATE_EXTENDED) && !(flags & QUESTION_STATE_CONFIRMATION)) ||
             (flags & QUESTION_STATE_TYPE_UNCERTAIN) || ((flags & QUESTION_STATE_RANK_ROLE) && !type_prefix)) return false;
@@ -276,7 +298,8 @@ static bool question_read_rank(Scanner *scanner, unsigned flags, const char *buf
     scanner->question_rank_role = (uint8_t)buffer[(*size)++];
     for (unsigned byte = 0; byte < 4; byte++) scanner->question_rank_prefix_questions |=
         (uint32_t)(unsigned char)buffer[(*size)++] << (byte * 8);
-    if (scanner->question_rank_role == RANK_NULLABLE_PREFIX) return scanner->question_rank_prefix_questions != 0;
+
+    if (scanner->question_rank_role == RANK_NULLABLE_PREFIX || scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX) return scanner->question_rank_prefix_questions != 0;
     if (scanner->question_rank_role == RANK_ALLOCATION_MIXED) return scanner->question_rank_prefix_questions > 1;
     if (!scanner->question_rank_role || scanner->question_rank_role > RANK_PATTERN_COMPLETE) return false;
     if (!scanner->question_type_uncertain && scanner->question_rank_role != RANK_PATTERN_COMPLETE) return false;
@@ -297,11 +320,12 @@ static void question_write_varint(char *buffer, unsigned *size, uint32_t value) 
     } while (value);
 }
 
-static unsigned question_serialized_size(const Scanner *scanner, bool transfers) {
+static unsigned question_serialized_size(const Scanner *scanner, bool transfers, bool guard_counts) {
     unsigned size = 2;
     for (unsigned i = 0; i < scanner->question_frame_count; i++) {
         QuestionFrame frame = scanner->question_frames[i];
         size += 1 + frame.case_colon + question_varint_size(frame.pending);
+        if (!scanner->question_unknown && !frame.unknown && frame.case_guard && frame.guard.prefix && guard_counts) size += question_varint_size(frame.guard.prefix);
         unsigned mask = transfers ? question_rank_mask(&frame) : 0;
         if (frame.query_pending || frame.lambda_query || frame.generic_pending || mask) {
             size += 1 + question_varint_size(frame.query_pending) + question_varint_size(frame.lambda_query) + question_varint_size(frame.generic_pending);
@@ -312,7 +336,7 @@ static unsigned question_serialized_size(const Scanner *scanner, bool transfers)
     return size;
 }
 
-static void question_serialize(const Scanner *scanner, char *buffer, unsigned *size, bool transfers) {
+static void question_serialize(const Scanner *scanner, char *buffer, unsigned *size, bool transfers, bool guard_counts) {
     buffer[(*size)++] = (char)scanner->question_frame_count;
     buffer[(*size)++] = (char)(scanner->question_frame_count >> 8);
     for (unsigned i = 0; i < scanner->question_frame_count; i++) {
@@ -321,7 +345,7 @@ static void question_serialize(const Scanner *scanner, char *buffer, unsigned *s
         bool extra = frame.query_pending || frame.lambda_query || frame.generic_pending || mask;
         if (extra) buffer[(*size)++] = mask ? 6 : 7;
         buffer[(*size)++] = (char)question_frame_modes(frame);
-        if (frame.case_colon) buffer[(*size)++] = (char)frame.case_guard;
+        if (frame.case_colon) question_write_guard(&frame, scanner->question_unknown, buffer, size, guard_counts);
         question_write_varint(buffer, size, frame.pending);
         if (extra) {
             question_write_varint(buffer, size, frame.query_pending);
@@ -335,6 +359,16 @@ static void question_serialize(const Scanner *scanner, char *buffer, unsigned *s
     }
 }
 
+static void question_write_guard(const QuestionFrame *frame, bool unknown, char *buffer, unsigned *size, bool counts) {
+    bool proof = !unknown && !frame->unknown && frame->case_guard && (!frame->guard.prefix || counts);
+    buffer[(*size)++] = (char)(frame->case_guard ? 1 | (proof ? (frame->guard.role & GUARD_ROLE_MASK) << 1 : 0) |
+        (proof && frame->guard.prefix ? 8 : 0) |
+        (!unknown && !frame->unknown && frame->guard.handoff ? 16 : 0) |
+        (!unknown && !frame->unknown && (frame->guard.role & GUARD_SUFFIX_COMPLETE) ? 32 : 0) |
+        (frame->guard.ordinary_scanned ? 64 : 0) | (frame->guard.segment_scanned ? 128 : 0) : 0);
+    if (proof && frame->guard.prefix) question_write_varint(buffer, size, frame->guard.prefix);
+}
+
 static bool question_read_frame(QuestionFrame *, unsigned, const char *, unsigned, unsigned *);
 static bool question_read_transfers(QuestionFrame *, const char *, unsigned, unsigned *);
 
@@ -345,7 +379,9 @@ static bool question_deserialize(Scanner *scanner, const char *buffer, unsigned 
     if (!count || count > QUESTION_FRAME_LIMIT) return false;
     scanner->question_frame_count = count;
     for (unsigned i = 0; i < count; i++)
-        if (!question_read_frame(&scanner->question_frames[i], i, buffer, length, size)) return false;
+        if (!question_read_frame(&scanner->question_frames[i], i, buffer, length, size) ||
+            (scanner->question_unknown && (scanner->question_frames[i].guard.role || scanner->question_frames[i].guard.handoff))) return false;
+
     return true;
 }
 
@@ -364,12 +400,7 @@ static bool question_read_frame(QuestionFrame *frame, unsigned index, const char
     *frame = (QuestionFrame){.group = groups[kind], .unknown = (group & 8) != 0,
         .case_colon = (group & 16) != 0, .force_barrier = (group & 32) != 0,
         .query_result = (group & 64) != 0, .lambda_result = (group & 128) != 0};
-    if (frame->case_colon) {
-        if (*size == length) return false;
-        unsigned guard = (unsigned char)buffer[(*size)++];
-        if (guard > 1) return false;
-        frame->case_guard = guard;
-    }
+    if (frame->case_colon && !question_read_guard(frame, buffer, length, size)) return false;
     if (!question_read_varint(buffer, length, size, &frame->pending)) return false;
     if (extra && (!question_read_varint(buffer, length, size, &frame->query_pending) ||
         !question_read_varint(buffer, length, size, &frame->lambda_query) ||
@@ -377,6 +408,23 @@ static bool question_read_frame(QuestionFrame *frame, unsigned index, const char
     if (transfers && !question_read_transfers(frame, buffer, length, size)) return false;
     if (extra && !transfers && !frame->query_pending && !frame->lambda_query && !frame->generic_pending) return false;
     return frame->force_barrier || (!frame->lambda_query && !frame->lambda_result);
+}
+
+static bool question_read_guard(QuestionFrame *frame, const char *buffer, unsigned length, unsigned *size) {
+    if (*size == length) return false;
+    unsigned guard = (unsigned char)buffer[(*size)++];
+    if (guard > 253 || ((guard & 6) == 6) || (guard && !(guard & 1)) || ((guard & 8) && !(guard & 6)) ||
+        ((guard & 128) && !(guard & 64))) return false;
+    if (frame->unknown && (guard & 54)) return false;
+    frame->case_guard = guard & 1;
+    frame->guard.role = ((guard >> 1) & 3) | ((guard & 32) ? GUARD_SUFFIX_COMPLETE : 0);
+    frame->guard.handoff = (guard & 16) != 0;
+    frame->guard.ordinary_scanned = (guard & 64) != 0;
+    frame->guard.segment_scanned = (guard & 128) != 0;
+    if (guard & 8) {
+        if (!question_read_varint(buffer, length, size, &frame->guard.prefix) || !frame->guard.prefix) return false;
+    }
+    return true;
 }
 
 static bool question_read_transfers(QuestionFrame *frame, const char *buffer, unsigned length, unsigned *size) {

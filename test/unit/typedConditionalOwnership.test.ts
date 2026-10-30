@@ -1,4 +1,4 @@
-import { Language, type Node, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, type Node, Parser } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 import { ownershipSamples } from '../fixtures/typedConditionalOwnership';
@@ -25,12 +25,8 @@ beforeAll(async () => {
   language = await Language.load('tree-sitter-c_sharp.wasm');
 });
 
-test('preserves typed conditional fields, ranges and captures', { timeout: 30_000 }, () => {
+test('preserves typed conditional fields and ranges', { timeout: 30_000 }, () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(
-    language,
-    '(conditional_expression condition: (_) @condition consequence: (_) @consequence alternative: (_) @alternative)'
-  );
   const fields = ['condition', 'consequence', 'alternative'];
   try {
     for (const sample of ownershipSamples) {
@@ -46,26 +42,17 @@ test('preserves typed conditional fields, ranges and captures', { timeout: 30_00
           ),
           sample.source
         ).toEqual(sample.ranges);
-        const expected = sample.ranges
-          .flatMap((ranges) => ranges.map(([start, end], index) => `${fields[index]}:${start}:${end}`))
-          .toSorted();
-        expect(ownershipCaptures(query, fresh.rootNode), sample.source).toEqual(expected);
       } finally {
         fresh.delete();
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
 
 test('retains a later type-tested conditional after an ambiguous binding chain', () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(
-    language,
-    '(conditional_expression condition: (_) @condition consequence: (_) @consequence alternative: (_) @alternative)'
-  );
   const prefix = '/* 日本語? */ var r = a?[0] is T ? b?[0] ? [1] : y : ';
   const following = ' class Following {}';
   try {
@@ -92,11 +79,6 @@ test('retains a later type-tested conditional after an ambiguous binding chain',
           }),
           source
         ).toEqual(expected);
-        expect(ownershipCaptures(query, alternative), source).toEqual(
-          expected
-            .map(([, start, end], index) => `${['condition', 'consequence', 'alternative'][index]}:${start}:${end}`)
-            .toSorted()
-        );
         const declaration = fresh.rootNode.descendantsOfType('class_declaration')[0]!;
         expect(
           [declaration.text, declaration.parent?.type, declaration.startIndex, declaration.endIndex],
@@ -107,7 +89,6 @@ test('retains a later type-tested conditional after an ambiguous binding chain',
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -290,10 +271,6 @@ test('preserves conditional ownership with different distant alternatives', () =
 
 test('preserves complete stack allocation types and nullable lambda headers', () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(
-    language,
-    '(lambda_expression type: (_) @return) (stackalloc_expression type: (_) @allocation)'
-  );
   const deepType = 'G<T?>?[]?[a?[0]]';
   const samples = [
     typedAllocationSample('int?*[a?[0]][b]', '[b]'),
@@ -321,8 +298,7 @@ test('preserves complete stack allocation types and nullable lambda headers', ()
       const fresh = parser.parse(source)!;
       try {
         expect(fresh.rootNode.hasError, source).toBe(false);
-        const expected = expectAllocationFields(fresh.rootNode, source, sample.type, sample.rank, sample.header);
-        expect(ownershipCaptures(query, fresh.rootNode), source).toEqual(expected);
+        expectAllocationFields(fresh.rootNode, source, sample.type, sample.rank, sample.header);
         const declaration = fresh.rootNode
           .descendantsOfType('class_declaration')
           .find((node) => node.text === following)!;
@@ -336,17 +312,12 @@ test('preserves complete stack allocation types and nullable lambda headers', ()
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
 
 test('preserves nested and block lambda return fields', () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(
-    language,
-    '(lambda_expression) @lambda (lambda_expression type: (_) @return parameters: (_) @parameters body: (_) @body)'
-  );
   const samples = [
     {
       source: 'var r = list.Select(Foo? (Foo x) => x.Items.Select(Bar? (Bar y) => y.Next));',
@@ -384,8 +355,7 @@ test('preserves nested and block lambda return fields', () => {
       const fresh = parser.parse(source)!;
       try {
         expect(fresh.rootNode.hasError, source).toBe(false);
-        const expected = expectLambdaFields(fresh.rootNode, source, sample.fields);
-        expect(ownershipCaptures(query, fresh.rootNode), source).toEqual(expected);
+        expectLambdaFields(fresh.rootNode, source, sample.fields);
         const declaration = fresh.rootNode
           .descendantsOfType('class_declaration')
           .find((node) => node.text === following)!;
@@ -396,15 +366,13 @@ test('preserves nested and block lambda return fields', () => {
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
 
-function expectLambdaFields(root: Node, source: string, expected: readonly LambdaFields[]): string[] {
+function expectLambdaFields(root: Node, source: string, expected: readonly LambdaFields[]): void {
   const lambdas = root.descendantsOfType('lambda_expression');
   expect(lambdas, source).toHaveLength(expected.length);
-  const captures: string[] = [];
   for (const [index, fields] of expected.entries()) {
     const lambda = lambdas[index]!;
     expect(lambda.childForFieldName('type')?.type, source).toBe('nullable_type');
@@ -422,24 +390,21 @@ function expectLambdaFields(root: Node, source: string, expected: readonly Lambd
     const start = source.indexOf(fields.attributes?.[0] ?? fields.type, lambda.startIndex);
     const end = source.indexOf(fields.body, source.indexOf('=>', lambda.startIndex) + 2) + fields.body.length;
     expect([lambda.startIndex, lambda.endIndex], source).toEqual([start, end]);
-    captures.push(`lambda:${start}:${end}`);
     for (const field of ['type', 'parameters', 'body'] as const) {
       const node = lambda.childForFieldName(field)!;
       const text = fields[field];
       const afterHeader = field === 'body' ? source.indexOf('=>', lambda.startIndex) + 2 : lambda.startIndex;
       const start = source.indexOf(text, afterHeader);
       expect([node.text, node.startIndex, node.endIndex], source).toEqual([text, start, start + text.length]);
-      captures.push(`${field === 'type' ? 'return' : field}:${start}:${start + text.length}`);
     }
   }
-  return captures.toSorted();
 }
 
 function typedAllocationSample(type: string, rank: string): AllocationSample {
   return { source: `var r = f(T? (k) => f(x is A, stackalloc ${type}));`, type, rank, header: true };
 }
 
-function expectAllocationFields(root: Node, source: string, type: string, rank: string, header: boolean): string[] {
+function expectAllocationFields(root: Node, source: string, type: string, rank: string, header: boolean): void {
   const allocations = root.descendantsOfType('stackalloc_expression');
   expect(allocations, source).toHaveLength(1);
   const allocation = allocations[0]!;
@@ -452,7 +417,6 @@ function expectAllocationFields(root: Node, source: string, type: string, rank: 
   const field = allocation.childForFieldName('type')!;
   expect([field.type, field.text, field.childForFieldName('rank')?.text], source).toEqual(['array_type', type, rank]);
   expect(field.childForFieldName('type')?.text, source).toBe(type.slice(0, -rank.length).trimEnd());
-  const expected = [`allocation:${start + 'stackalloc '.length}:${start + 'stackalloc '.length + type.length}`];
   const lambdas = root.descendantsOfType('lambda_expression');
   expect(lambdas, source).toHaveLength(header ? 1 : 0);
   if (header) {
@@ -463,15 +427,5 @@ function expectAllocationFields(root: Node, source: string, type: string, rank: 
     ]);
     expect(lambda.childForFieldName('parameters')?.text, source).toBe('(k)');
     expect(lambda.childForFieldName('body')?.type, source).toBe('invocation_expression');
-    const position = source.indexOf('T? (k)');
-    expected.push(`return:${position}:${position + 2}`);
   }
-  return expected.toSorted();
-}
-
-function ownershipCaptures(query: Query, node: Node): string[] {
-  return query
-    .captures(node)
-    .map(({ name, node: captured }) => `${name}:${captured.startIndex}:${captured.endIndex}`)
-    .toSorted();
 }

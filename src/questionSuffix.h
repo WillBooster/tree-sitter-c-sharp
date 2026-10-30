@@ -26,12 +26,13 @@ static unsigned question_suffix_pattern_byte(const QuestionSuffix *, unsigned, u
 static bool question_suffix_read_pattern(QuestionSuffix *, const char *, unsigned, unsigned, unsigned);
 static bool question_suffix_read_bitmap(QuestionSuffix *, const char *, unsigned, unsigned, unsigned);
 
-static unsigned question_suffix_take(QuestionSuffix *proof, bool binding, bool eligible, unsigned frames, uint32_t pending) {
+static unsigned question_suffix_take(QuestionSuffix *proof, bool binding, bool member, bool eligible, unsigned frames, uint32_t pending) {
     if (proof->index >= proof->count) return 0;
     if (!eligible || proof->frames != frames || proof->pending != pending) {
         question_suffix_clear(proof);
         return 0;
     }
+    if (member) return 0;
     unsigned role = 2;
     if (binding) {
         unsigned index = proof->index++;

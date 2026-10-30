@@ -1,5 +1,189 @@
 export const ownershipSamples = [
   {
+    source: "class C { void M() { switch(x){case y when F(() => { switch(z){case q when a is T: M(a ? [2] : c); break;} return a; }) ? [1] : b: break;} } }",
+    ranges: [[[43, 119], [122, 125], [128, 129]], [[85, 86], [89, 92], [95, 96]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when F(() => { switch(z){case q when a is T: L: M(a ? [2] : c); break;} return a; }) ? [1] : b: break;} } }",
+    ranges: [[[43, 122], [125, 128], [131, 132]], [[88, 89], [92, 95], [98, 99]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when c is not T?[] ? d : e is U ? [1] : g : a: break; } } }",
+    ranges: [[[46, 56], [57, 82], [85, 86]], [[57, 59], [62, 63], [66, 82]], [[66, 72], [75, 78], [81, 82]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when c is not T?[] ? d : e is U ? [1] : g : a: L: break; } } }",
+    ranges: [[[46, 56], [57, 82], [85, 86]], [[57, 59], [62, 63], [66, 82]], [[66, 72], [75, 78], [81, 82]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when F(() => { switch(z){case q when c ? d as T? && e is T : b: L: break;} return a; }) ? [1] : b: break;} } }",
+    ranges: [[[43, 125], [128, 131], [134, 135]], [[75, 76], [79, 96], [99, 100]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when F(() => { switch(z){case q when c ? d as T? && e is T : b: break;} return a; }) ? [1] : b: break;} } }",
+    ranges: [[[43, 122], [125, 128], [131, 132]], [[75, 76], [79, 96], [99, 100]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when c ? d as T? && e is T : b: M(a ? [1] : b); break;} } }",
+    ranges: [[[43, 44], [47, 64], [67, 68]], [[72, 73], [76, 79], [82, 83]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when c ? d as T? && e is T : b: var q = a ? [1] : b; break;} } }",
+    ranges: [[[43, 44], [47, 64], [67, 68]], [[78, 79], [82, 85], [88, 89]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when c ? d as T? && e is T : b: case z: M(a ? [1] : b); break;} } }",
+    ranges: [[[43, 44], [47, 64], [67, 68]], [[80, 81], [84, 87], [90, 91]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when a is T? ? c as T? ?? b?[0] ?? b?[0] : c: break;} } }",
+    ranges: [[[43, 50], [53, 78], [81, 82]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when a is T? ? [1] as T? ?? b?[0] ?? b?[0] : c: break;} } }",
+    ranges: [[[43, 50], [53, 80], [83, 84]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when b is not T?[]? == b ? b?[0] : f(a): L: break;} } }",
+    ranges: [[[43, 62], [65, 77], [79, 80]], [[65, 66], [67, 70], [73, 77]]],
+  },
+  {
+    source: "class C{void M(){switch(x){case y when a ? f(b?[0]) ? [1] : c : d: break;}}}",
+    ranges: [[[39, 40], [43, 61], [64, 65]], [[43, 51], [54, 57], [60, 61]]],
+  },
+  {
+    source: "class C{void M(){switch(x){case y when b is not T?[]? == b ? b?[0] : b?[0] : f(a): L: break;}}}",
+    ranges: [[[39, 58], [61, 81], [83, 84]], [[61, 62], [63, 66], [69, 81]], [[69, 70], [71, 74], [77, 81]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T? ? [1] : b ? [1] : a is T?[]? && c: break; } } }",
+    ranges: [[[46, 53], [56, 59], [62, 87]], [[62, 63], [66, 69], [72, 87]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T? ? [1] : b ? [1] : a is T?[]? || c: break; } } }",
+    ranges: [[[46, 53], [56, 59], [62, 87]], [[62, 63], [66, 69], [72, 87]]],
+  },
+  {
+    source: "class C { void M() { var z = x is T?[] is T? is T?[]? : a; } }",
+    ranges: [[[29, 35], [36, 53], [56, 57]]],
+  },
+  {
+    source: "class C { void M() { if (x is T?[] is T? is T?[]? : a) {} } }",
+    ranges: [[[25, 31], [32, 49], [52, 53]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when a as T?[,] ? c : c ? [1] is T && b as T?[] ?? d : e is T: break;} } }",
+    ranges: [[[43, 53], [56, 57], [60, 99]], [[60, 61], [64, 90], [93, 99]]],
+  },
+  {
+    source: "class C{void M(){switch(x){case y when a is T?[]? is U?[] ? and : c: L: break;}}}",
+    ranges: [[[39, 54], [55, 67], [69, 70]], [[55, 57], [60, 63], [66, 67]]],
+  },
+  {
+    source: "class C{void M(){switch(x){case y when a is T?[]? is U?[] ? @and : c: L: break;}}}",
+    ranges: [[[39, 54], [55, 68], [70, 71]], [[55, 57], [60, 64], [67, 68]]],
+  },
+  {
+    source: "class C { void M() { var z = a is T?[] ? n ? [1] : b ? [1] : c as T ? [1] : d; } }",
+    ranges: [[[29, 38], [41, 73], [76, 77]], [[41, 42], [45, 48], [51, 73]], [[51, 52], [55, 58], [61, 73]]],
+  },
+  {
+    source: "class C { void M() { var z = a is T?[]? n ? [1] : b ? [1] : c as T ? [1] : d; } }",
+    ranges: [[[29, 38], [40, 72], [75, 76]], [[40, 41], [44, 47], [50, 72]], [[50, 51], [54, 57], [60, 72]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case 1 when a is T?[]? is a.b == b ? [] : c: y(); break; } } }",
+    ranges: [[[46, 68], [71, 73], [76, 77]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[]? is not U b < a ? [1] : b: break;}",
+    ranges: [[[22, 47], [50, 53], [56, 57]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[]? is not[] b < a ? [1] : b: break;}",
+    ranges: [[[22, 47], [50, 53], [56, 57]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[]? is @not[] b < a ? [1] : b: break;}",
+    ranges: [[[22, 48], [51, 54], [57, 58]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] is T && a ? [1] : b: x switch { _ => L }: break;}",
+    ranges: [[[22,28],[29,51],[53,72]],[[29,41],[44,47],[50,51]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: x switch { _ => L }: L1: switch(z){case 1: var r=a ? b : c; break;} break;}",
+    ranges: [[[22,28],[29,90],[92,94]],[[29,46],[47,69],[71,90]],[[47,59],[62,65],[68,69]],[[120,121],[124,125],[128,129]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] is T && a ? [1] : b: L0: break;}",
+    ranges: [[[22,28],[29,51],[53,55]],[[29,41],[44,47],[50,51]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;}",
+    ranges: [[[22,28],[29,73],[75,77]],[[29,46],[47,69],[71,73]],[[47,59],[62,65],[68,69]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: L2: L3: L4: break;}",
+    ranges: [[[22,28],[29,139],[141,143]],[[29,46],[47,135],[137,139]],[[47,64],[65,131],[133,135]],[[65,82],[83,127],[129,131]],[[83,100],[101,123],[125,127]],[[101,113],[116,119],[122,123]]],
+  },
+  {
+    source: "namespace N { class C { void M(){ switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} } } }",
+    ranges: [[[56,62],[63,107],[109,111]],[[63,80],[81,103],[105,107]],[[81,93],[96,99],[102,103]]],
+  },
+  {
+    source: "switch(x){case { P: var p } when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;}",
+    ranges: [[[33,39],[40,84],[86,88]],[[40,57],[58,80],[82,84]],[[58,70],[73,76],[79,80]]],
+  },
+  {
+    source: "switch(x){case y when F(() => { switch(z){case q when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} return a; }) ? [1] : b: break;}",
+    ranges: [[[22,131],[134,137],[140,141]],[[54,60],[61,105],[107,109]],[[61,78],[79,101],[103,105]],[[79,91],[94,97],[100,101]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as int?[] is int?[]: L: break; } } }",
+    ranges: [[[48,66],[67,69],[71,72]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T?[] is N.T?[]: L: break; } } }",
+    ranges: [[[48,64],[65,67],[69,70]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T?[] is not T?[]: L: break; } } }",
+    ranges: [[[48,66],[67,69],[71,72]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T?[] is T?[] as T?[]: L: break; } } }",
+    ranges: [[[48,62],[63,73],[75,76]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T?[] as T?[]: L: break; } } }",
+    ranges: [],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T?[]? is null && a ? [1] : b: L: break; } } }",
+    ranges: [[[48,71],[74,77],[80,81]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when p ? c : a as T?[]? as object == null && a ? [1] : b: L: break; } } }",
+    ranges: [[[48,49],[52,53],[56,99]],[[56,89],[92,95],[98,99]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as int? is null && a ? [1] : b: break; } } }",
+    ranges: [[[48,70],[73,76],[79,80]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as int? as object == null && a ? [1] : b: break; } } }",
+    ranges: [[[48,80],[83,86],[89,90]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as int? is not null && a ? [1] : b: break; } } }",
+    ranges: [[[48,74],[77,80],[83,84]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case T y when a as T? is null && a ? [1] : b: break; } } }",
+    ranges: [[[48,68],[71,74],[77,78]]],
+  },
+  {
     source: "var r = c is T ? f(a ? 1 : 2) : a?[0] is T ? b : c;",
     ranges: [[[8,14],[17,29],[32,50]],[[19,20],[23,24],[27,28]],[[32,42],[45,46],[49,50]]],
   },
@@ -3190,4 +3374,504 @@ export const ownershipSamples = [
   {"source": "switch (x) { case y when b is T & new (T,U)?(1): L: break; }", "ranges": []},
   {"source": "switch(x){case y when b is T?[]? z and not null: var r = y ? c ? [a] : d ? [] : x is T? t and U : w; break;}", "ranges": [[[57, 58], [61, 95], [98, 99]], [[61, 62], [65, 68], [71, 95]], [[71, 72], [75, 77], [80, 95]]]},
   {"source": "switch (x) { case y when f(new (T,U)?(1)) & new (T,U)?(1): L: break; }", "ranges": []},
+  {
+    source: "var r = a is T?[] / a is T?[]? ? [1] : b: L;",
+    ranges: [[[8,14],[15,40],[42,43]],[[15,30],[33,36],[39,40]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[]? == a?[0] ? [1] : b: L: break;} var following=a?[0];",
+    ranges: [[[22,37],[38,51],[53,54]],[[38,41],[44,47],[50,51]]],
+  },
+  {
+    source: 'switch(x){case y when a ? [] is T : e: break;}',
+    ranges: [[[22, 23], [26, 33], [36, 37]]],
+  },
+  {
+    source: 'switch(x){case y when p && a ? [] as T : e: L: break;}',
+    ranges: [[[22, 28], [31, 38], [41, 42]]],
+  },
+  {
+    source: 'var r = a is T?[] as a is T?[]? ? [1] : b: L;',
+    ranges: [[[8, 14], [15, 41], [43, 44]], [[15, 31], [34, 37], [40, 41]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[]? is U b < a ? [1] : b: break;}',
+    ranges: [[[22, 43], [46, 49], [52, 53]]],
+  },
+  {
+    source: 'switch(x){case y when c ? b is T?[,] is T : a ? [0] : L: break;}',
+    ranges: [[[22, 23], [26, 41], [44, 55]], [[44, 45], [48, 51], [54, 55]]],
+  },
+  {
+    source: 'switch(x){case y when c ? b as T?[,] is T : a ? [0] : L: var r = 1; break;}',
+    ranges: [[[22, 23], [26, 41], [44, 55]], [[44, 45], [48, 51], [54, 55]]],
+  },
+  {
+    source: 'var r = a is T?[] / a is T?[]? is U ? [1] : b: L;',
+    ranges: [[[8, 14], [15, 45], [47, 48]], [[15, 35], [38, 41], [44, 45]]],
+  },
+  {
+    source: 'var r = a is T?[] as a is T?[]? is U ? [1] : b: L;',
+    ranges: [[[8, 14], [15, 46], [48, 49]], [[15, 36], [39, 42], [45, 46]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[] is T?[] t: L: break;}',
+    ranges: [[[22, 28], [29, 41], [43, 44]]],
+  },
+  {
+    source: 'switch(x){case y when a?[0] is T?[]? and not null ? [] : b: L0: L1: break;}',
+    ranges: [[[22, 23], [24, 58], [60, 62]], [[24, 49], [52, 54], [57, 58]]],
+  },
+  {
+    source: 'switch(x){case y when f(a) is N.T?[] is N.T?[] t: L: break;}',
+    ranges: [[[22, 33], [34, 48], [50, 51]]],
+  },
+  {
+    source: 'var r = f(a is T?[] / a is T?[]?[]? is U ? [1] : b: L);',
+    ranges: [[[10, 16], [17, 50], [52, 53]], [[17, 40], [43, 46], [49, 50]]],
+  },
+  {
+    source: 'f(a is T?[] / a is T?[]?[]? ? [1] : b: L, 1);',
+    ranges: [[[2, 8], [9, 37], [39, 40]], [[9, 27], [30, 33], [36, 37]]],
+  },
+  {
+    source: 'var r = a is T?[] / a is T?[] and not null ? [1] : b: L;',
+    ranges: [[[8, 14], [15, 52], [54, 55]], [[15, 42], [45, 48], [51, 52]]],
+  },
+  {
+    source: 'switch(x){case y when a ? [0] as T?[1] as U ? [1] : b: L: break;}',
+    ranges: [[[22, 23], [26, 49], [52, 53]]],
+  },
+  {
+    source: 'switch(x){case y when x is int?[] as T?[1] is T: L0: L1: break;}',
+    ranges: [[[22, 30], [31, 47], [49, 51]]],
+  },
+  {
+    source: 'switch(x){case y when c ? b as T?[,]? is T : a ? [0] : [1]: var r = 1; break;}',
+    ranges: [[[22, 23], [26, 42], [45, 58]], [[45, 46], [49, 52], [55, 58]]],
+  },
+  {
+    source: 'switch(x){case y when c ? b is T?[] t is T : a ? [0] : L: break;}',
+    ranges: [[[22, 23], [26, 42], [45, 56]], [[45, 46], [49, 52], [55, 56]]],
+  },
+  {
+    source: 'switch(x){case y when c ? b is T?[] t || d is T : a ? [0] : L: break;}',
+    ranges: [[[22, 23], [26, 47], [50, 61]], [[50, 51], [54, 57], [60, 61]]],
+  },
+  {
+    source: 'var r = a is T?[] && a is T?[] and U?[] ? [1] : b: L;',
+    ranges: [[[8, 36], [37, 49], [51, 52]], [[37, 39], [42, 45], [48, 49]]],
+  },
+  {
+    source: 'var r = a is T?[]?[] is T ?? c ? [1] : d;',
+    ranges: [[[8, 30], [33, 36], [39, 40]]],
+  },
+  {
+    source: 'switch(x){case y when a is not T?[] is {} ? [1] : b: L2: break;}',
+    ranges: [[[22, 32], [33, 51], [53, 55]], [[33, 41], [44, 47], [50, 51]]],
+  },
+  {
+    source: 'var r = a is T?[] / a is T?[]? and U?[,] ? [1] : b: L;',
+    ranges: [[[8, 14], [15, 50], [52, 53]], [[15, 40], [43, 46], [49, 50]]],
+  },
+  {
+    source: 'var r = a is T?[] / a is T? and not null ? [1] : b: L;',
+    ranges: [[[8, 14], [15, 50], [52, 53]], [[15, 40], [43, 46], [49, 50]]],
+  },
+  {
+    source: 'switch(x){case y when a is not T?[] t ? [1] : b: L2: break;}',
+    ranges: [[[22, 37], [40, 43], [46, 47]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[] && a is T? and {} ? [1] : b: L: break;} var following=a?[0];',
+    ranges: [[[22, 28], [29, 59], [61, 62]], [[29, 49], [52, 55], [58, 59]]],
+  },
+  {
+    source: 'switch(x){case y when a is not T?[] t && c ? [1] : b: L2: break;}',
+    ranges: [[[22, 42], [45, 48], [51, 52]]],
+  },
+  {
+    source: 'switch(x){case y when a is not T?[]? t or null ? [1] : b: L2: break;}',
+    ranges: [[[22, 46], [49, 52], [55, 56]]],
+  },
+  {
+    source: 'switch(x){case y when a is not T?[]? t and U ? [1] : b: L2: break;}',
+    ranges: [[[22, 44], [47, 50], [53, 54]]],
+  },
+  {
+    source: 'switch(x){case y when a is not T?[]?[] = b: L0: L1: break;}',
+    ranges: [[[22, 32], [33, 46], [48, 50]], [[33, 35], [36, 42], [44, 46]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[,] ? [] is U : b: L: break;}',
+    ranges: [[[22, 32], [35, 42], [45, 46]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[,]?[] is U: L: break;}',
+    ranges: [[[22, 32], [33, 40], [42, 43]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[] as a is T? and {} ? [1] : b: L: break;} var following=a?[0];',
+    ranges: [[[22, 28], [29, 59], [61, 62]], [[29, 49], [52, 55], [58, 59]]],
+  },
+  {
+    source: 'switch(x){case y when a is not T?[,]?[] = b: L0: L1: break;}',
+    ranges: [[[22, 36], [37, 43], [45, 47]]],
+  },
+  {
+    source: 'class C { void M() { var r = b is T?[]?[] && c is T?[]?[] v ? n ? [] : d : x; } }',
+    ranges: [[[29, 59], [62, 72], [75, 76]], [[62, 63], [66, 68], [71, 72]]],
+  },
+  {
+    source: 'class C { void M() { var r = b is T?[]?[] && c is T?[]?[] v ? n ? [1] : d : x; } }',
+    ranges: [[[29, 59], [62, 73], [76, 77]], [[62, 63], [66, 69], [72, 73]]],
+  },
+  {
+    source: 'class C { void M() { F(b is T?[]?[] && c is T?[]?[] v ? n ? [] : d : x); } }',
+    ranges: [[[23, 53], [56, 66], [69, 70]], [[56, 57], [60, 62], [65, 66]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] ? d : x ? [] || 1 is T?[]?[]? : e; } }',
+    ranges: [[[29, 41], [44, 45], [48, 75]], [[48, 49], [52, 71], [74, 75]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] is T v ? d : x ? [] || 1 is T?[]?[]? : e; } }',
+    ranges: [[[29, 48], [51, 52], [55, 82]], [[55, 56], [59, 78], [81, 82]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] is T?[,]?[] ? d : x ? [] || 1 is T?[]?[]? : e; } }',
+    ranges: [[[29, 53], [56, 57], [60, 87]], [[60, 61], [64, 83], [86, 87]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] ? d : x ? [] || 1 is T?[]?[]? == y : e; } }',
+    ranges: [[[29, 41], [44, 45], [48, 80]], [[48, 49], [52, 76], [79, 80]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] ? d : x ? [] || 1 is T?[]?[]? is U : e; } }',
+    ranges: [[[29, 41], [44, 45], [48, 80]], [[48, 49], [52, 76], [79, 80]]],
+  },
+  {
+    source: 'class C { void M() { var r = x is T?[]?[] ? d : x ? [] || 1 is T?[]?[]? as U : e; } }',
+    ranges: [[[29, 41], [44, 45], [48, 80]], [[48, 49], [52, 76], [79, 80]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[,]?[]? ? b : c: break;}',
+    ranges: [[[22, 36], [39, 40], [43, 44]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[,]?[]? ? [1] : c: break;}',
+    ranges: [[[22, 36], [39, 42], [45, 46]]],
+  },
+  {
+    source: 'switch(x){case y when a is T?[,,]?[]? ? b : c: break;}',
+    ranges: [[[22, 37], [40, 41], [44, 45]]],
+  },
+  {
+    source: 'var r = a is T?[] / a is T?[]? and not U?[] ? [1] : b: L0: L1;',
+    ranges: [[[8, 14], [15, 57], [59, 61]], [[15, 40], [41, 53], [55, 57]], [[41, 43], [46, 49], [52, 53]]],
+  },
+  {
+    source: 'var r = a is T?[] / a is T?[]? or not U?[] ? [1] : b: L0: L1;',
+    ranges: [[[8, 14], [15, 56], [58, 60]], [[15, 39], [40, 52], [54, 56]], [[40, 42], [45, 48], [51, 52]]],
+  },
+  {
+    source: 'class C { void M() { var r = a is T?[]?[] == b ? [] : d is T?[]? is T?[,]?[]; } }',
+    ranges: [[[29, 46], [49, 51], [54, 76]]],
+  },
+  {
+    source: 'class C { void M() { var r = a is T?[]?[] == b ? [] : c && [] is T?[]? is T?[,]; } }',
+    ranges: [[[29, 46], [49, 51], [54, 79]]],
+  },
+  {
+    source: 'class C { void M() { var r = (f(a) is T?[]?[] == a?.b ? [] : a ? a?[0] : default && [] is T?[]? is T?[,]?[]); L: x = 1; } }',
+    ranges: [[[30, 53], [56, 58], [61, 107]], [[61, 62], [65, 70], [73, 107]]],
+  },
+  {
+    source: 'var r = a is T?[] as a is T?[]?[] as U == a ? [1] : b;',
+    ranges: [[[8, 43], [46, 49], [52, 53]]],
+  },
+  {
+    source: 'var r = a is T?[] as U : d;',
+    ranges: [[[8, 14], [15, 22], [25, 26]]],
+  },
+  {
+    source: 'class C { void M() { var s = x is T?[] ? [] || a is T?[,]?[] : x; } }',
+    ranges: [[[29, 57], [58, 60], [63, 64]]],
+  },
+  {
+    source: 'class C { void M() { var s = x is T?[] ? [] && a is T?[,]?[] : x; } }',
+    ranges: [[[29, 57], [58, 60], [63, 64]]],
+  },
+  {
+    source: 'class C { void M() { var s = $"{(x is T?[] ? [] || a.b is T?[,]?[] : x),5}"; } }',
+    ranges: [[[33, 63], [64, 66], [69, 70]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] as T?[,] ? [] as U : b: L: break;}",
+    ranges: [[[22, 28], [29, 50], [53, 54]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] as T?[,] ? [] is U : b: L: break;}",
+    ranges: [[[22, 28], [29, 50], [53, 54]]],
+  },
+  {
+    source: "switch(x){case y when a is T?[] as T?[] as T?[][] ? [1] as U : b: L: break;}",
+    ranges: [[[22, 28], [29, 60], [63, 64]]],
+  },
+  {
+    source: "switch(x){case y when a as T?[] is List<int>? t: L: break;}",
+    ranges: [[[22, 44], [46, 47], [49, 50]]],
+  },
+  {
+    source: "switch(x){case y when a as T?[] is T?[][] and int?[]: L0: L1: break;}",
+    ranges: [[[22, 49], [50, 52], [54, 56]]],
+  },
+  {
+    source: "switch(x){case y when a as T?[]?[] is T?[,] and int?[]: L: break;}",
+    ranges: [[[22, 51], [52, 54], [56, 57]]],
+  },
+  {
+    source: "switch(x){case y when a as int?[] is not List<int>? t: L: break;}",
+    ranges: [[[22, 50], [52, 53], [55, 56]]],
+  },
+  {
+    source: "class C { void M() { var r = a is T ? [] ? c : b is T?[,]?[] : d; } }",
+    ranges: [[[29, 40], [43, 44], [47, 64]], [[47, 57], [58, 60], [63, 64]]],
+  },
+  {
+    source: "class C { void M() { var r = f(a) is T ? [] ? c : b is T?[,]?[] : d; } }",
+    ranges: [[[29, 43], [46, 47], [50, 67]], [[50, 60], [61, 63], [66, 67]]],
+  },
+  {
+    source: "class C { void M() { var r = x ? a?[0] : f(a) is T ? [] ? c : b is T?[,]?[] : a.b ?? x is T is T?[]?; } }",
+    ranges: [[[29, 30], [33, 38], [41, 100]], [[41, 55], [58, 59], [62, 100]], [[62, 72], [73, 75], [78, 100]]],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when d is T?[]? < c ? a?[0] : e : L: break; } } }",
+    ranges: [[[48, 62], [65, 74], [77, 78]], [[65, 66], [67, 70], [73, 74]]],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when default is T?[]? < ([]) ? a?[0] : [] : L: break; } } }",
+    ranges: [[[48, 71], [74, 84], [87, 88]], [[74, 75], [76, 79], [82, 84]]],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when 1 is T?[,] * [] : return; } } }",
+    ranges: [],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when x && v || (a?.b) is T?[,] * [] || a.b as T[] : break; } } }",
+    ranges: [],
+  },
+  {
+    source: "class C { void M() { switch (y) { case int when a?.b is [] is T?[,] * [] is T q ? a?.b : (a) as int? : L: x = 1; break; } } }",
+    ranges: [[[48, 79], [82, 86], [89, 100]]],
+  },
+  {
+    source: "class C { void M() { var r = a is T?[,]?[] as T ? [] : d; } }",
+    ranges: [[[29, 39], [40, 52], [55, 56]]],
+  },
+  {
+    source: "class C { void M() { var r = c is T?[,]?[] as T?[,] ? [] : f(a); } }",
+    ranges: [[[29, 39], [40, 56], [59, 63]]],
+  },
+  {
+    source: "var r = a is T?[] ? [] + x : y : z;",
+    ranges: [[[8, 14], [15, 30], [33, 34]], [[15, 17], [20, 26], [29, 30]]],
+  },
+  {
+    source: "var r = a as T?[]?[] + x;",
+    ranges: [],
+  },
+  {
+    source: "var r = value is T?[] ? [] + x : value is T?[] ? [] + x : fallback;",
+    ranges: [[[8, 21], [24, 30], [33, 66]], [[33, 46], [49, 55], [58, 66]]],
+  },
+  {
+    source: "class C { void M() { switch (o) { case int when a is T?[]? is U ? [1] : b ? [2] : [3]: break; } } }",
+    ranges: [[[48, 63], [66, 69], [72, 85]], [[72, 73], [76, 79], [82, 85]]],
+  },
+  {
+    source: "class C { void M(object o, bool b) { switch(o){ case int when x is {} and T?[,] w ? (q) => 1 : 2: break; } } }",
+    ranges: [[[62, 81], [84, 92], [95, 96]]],
+  },
+  {
+    source: "class C { void M() { var r = a is T?[] >> x ? x : y; } }",
+    ranges: [[[29, 43], [46, 47], [50, 51]]],
+  },
+  {
+    source: "class C { void M() { var r = a is T?[] >>> x ? x : y; } }",
+    ranges: [[[29, 44], [47, 48], [51, 52]]],
+  },
+  {
+    source: "class C { void M() { var r = a is int?[] >> x ? x : y; } }",
+    ranges: [[[29, 45], [48, 49], [52, 53]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T[] ? [] : a is T?[,] or T?[,]: default: break; break; } } }",
+    ranges: [[[46, 54], [57, 59], [62, 81]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x : a is T?[]? ? 1 : x: break; } } }",
+    ranges: [[[46, 56], [59, 70], [73, 91]], [[59, 60], [63, 66], [69, 70]], [[73, 83], [86, 87], [90, 91]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x : g: break; } } }",
+    ranges: [[[46, 56], [59, 70], [73, 74]], [[59, 60], [63, 66], [69, 70]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 91]], [[63, 64], [67, 70], [73, 91]], [[73, 83], [86, 87], [90, 91]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? 1 : c ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 91]], [[63, 64], [67, 70], [73, 91]], [[73, 83], [86, 87], [90, 91]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ? [1] : d is not T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 95]], [[63, 64], [67, 70], [73, 95]], [[73, 87], [90, 91], [94, 95]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ? [1] : d is T?[]? or T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 100]], [[63, 64], [67, 70], [73, 100]], [[73, 92], [95, 96], [99, 100]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x : f is T?[]? ? c : d as U ? b : e: break; } } }",
+    ranges: [[[46, 56], [59, 70], [73, 104]], [[59, 60], [63, 66], [69, 70]], [[73, 83], [86, 87], [90, 104]], [[90, 96], [99, 100], [103, 104]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x : f is T?[]? ? c : d as U? ? b : e: break; } } }",
+    ranges: [[[46, 56], [59, 70], [73, 105]], [[59, 60], [63, 66], [69, 70]], [[73, 83], [86, 87], [90, 105]], [[90, 97], [100, 101], [104, 105]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[,] ? f ? [1] : x : f is T?[]? ? c : d as U[]? ? b: default: break; } } }",
+    ranges: [[[46, 56], [59, 70], [73, 112]], [[59, 60], [63, 66], [69, 70]], [[73, 83], [86, 87], [90, 112]], [[90, 99], [102, 103], [105, 112]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x as U : f is T?[]? ? c : d as U ? b : e: break; } } }",
+    ranges: [[[46, 56], [59, 75], [78, 109]], [[59, 60], [63, 66], [69, 75]], [[78, 88], [91, 92], [95, 109]], [[95, 101], [104, 105], [108, 109]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ? [] : c == d ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 105]], [[63, 64], [67, 69], [72, 105]], [[72, 78], [81, 84], [87, 105]], [[87, 97], [100, 101], [104, 105]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ? [] : c ?? e ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 105]], [[63, 64], [67, 69], [72, 105]], [[72, 78], [81, 84], [87, 105]], [[87, 97], [100, 101], [104, 105]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T? or U ? 1 : !c ? [] : c == d ? [1, 2] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 58], [61, 62], [65, 111]], [[65, 67], [70, 72], [75, 111]], [[75, 81], [84, 90], [93, 111]], [[93, 103], [106, 107], [110, 111]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c == d ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 96]], [[63, 69], [72, 75], [78, 96]], [[78, 88], [91, 92], [95, 96]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c && d ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 96]], [[63, 69], [72, 75], [78, 96]], [[78, 88], [91, 92], [95, 96]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? 1 : c ?? e ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 96]], [[63, 69], [72, 75], [78, 96]], [[78, 88], [91, 92], [95, 96]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f ?? g ? [1] : x : a is T?[]? ? 1 : x: break; } } }",
+    ranges: [[[46, 56], [59, 75], [78, 96]], [[59, 65], [68, 71], [74, 75]], [[78, 88], [91, 92], [95, 96]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f == g ? [1] : x : a is T?[]? ? 1 : x: break; } } }",
+    ranges: [[[46, 56], [59, 75], [78, 96]], [[59, 65], [68, 71], [74, 75]], [[78, 88], [91, 92], [95, 96]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a as T?[]? ? f && g ? [1] : x : a is T?[]? ? 1 : x: break; } } }",
+    ranges: [[[46, 56], [59, 75], [78, 96]], [[59, 65], [68, 71], [74, 75]], [[78, 88], [91, 92], [95, 96]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : x?.y ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 94]], [[63, 67], [70, 73], [76, 94]], [[76, 86], [89, 90], [93, 94]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ? [] : x?.y ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 103]], [[63, 64], [67, 69], [72, 103]], [[72, 76], [79, 82], [85, 103]], [[85, 95], [98, 99], [102, 103]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ? [] : c is U ? 1 : c ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 113]], [[63, 64], [67, 69], [72, 113]], [[72, 78], [81, 82], [85, 113]], [[85, 86], [89, 92], [95, 113]], [[95, 105], [108, 109], [112, 113]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ?? d ? [] : c is U ? [1] : c == d ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 125]], [[63, 69], [72, 74], [77, 125]], [[77, 83], [86, 89], [92, 125]], [[92, 98], [101, 104], [107, 125]], [[107, 117], [120, 121], [124, 125]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? 1 : c ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 104]], [[63, 69], [72, 73], [76, 104]], [[76, 77], [80, 83], [86, 104]], [[86, 96], [99, 100], [103, 104]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c < d ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 95]], [[63, 68], [71, 74], [77, 95]], [[77, 87], [90, 91], [94, 95]]],
+  },
+  {
+    source: "class C { void M(){switch(x){case y when a is T?[]? ? 1 : c is U ? 1 : c ? [1] as U : d is T?[]? ? b : d: break;}}}",
+    ranges: [[[41, 51], [54, 55], [58, 104]], [[58, 64], [67, 68], [71, 104]], [[71, 72], [75, 83], [86, 104]], [[86, 96], [99, 100], [103, 104]]],
+  },
+  {
+    source: "class C { void M(){switch(x){case y when a is T?[]? ? 1 : c is U ? f(c is V ? 1 : c ? [1] : d) : c ? [2] : d is T?[]? ? b : d: break;}}}",
+    ranges: [[[41, 51], [54, 55], [58, 125]], [[58, 64], [67, 94], [97, 125]], [[69, 75], [78, 79], [82, 93]], [[82, 83], [86, 89], [92, 93]], [[97, 98], [101, 104], [107, 125]], [[107, 117], [120, 121], [124, 125]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? [] : c ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 61], [64, 92]], [[64, 65], [68, 71], [74, 92]], [[74, 84], [87, 88], [91, 92]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T? ? [1] : c ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 53], [56, 59], [62, 90]], [[62, 63], [66, 69], [72, 90]], [[72, 82], [85, 86], [89, 90]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? [1] : c ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 62], [65, 93]], [[65, 66], [69, 72], [75, 93]], [[75, 85], [88, 89], [92, 93]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? [1] : c == d ? [1] : d is T?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 62], [65, 98]], [[65, 71], [74, 77], [80, 98]], [[80, 90], [93, 94], [97, 98]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is T?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 98]], [[63, 69], [72, 74], [77, 98]], [[77, 90], [93, 94], [97, 98]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is T?[]?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 101]], [[63, 69], [72, 74], [77, 101]], [[77, 93], [96, 97], [100, 101]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is T?[]?[]? ? b : e is V?[]?[]? ? b : e: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 118]], [[63, 69], [72, 74], [77, 118]], [[77, 90], [93, 94], [97, 118]], [[97, 110], [113, 114], [117, 118]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is T?[]?[]? ? b : e is V?[]?[]? ? [] : e: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 119]], [[63, 69], [72, 74], [77, 119]], [[77, 90], [93, 94], [97, 119]], [[97, 110], [113, 115], [118, 119]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is G<T?>?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 102]], [[63, 69], [72, 74], [77, 102]], [[77, 94], [97, 98], [101, 102]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is not T?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 102]], [[63, 69], [72, 74], [77, 102]], [[77, 94], [97, 98], [101, 102]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is not T?[]?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 105]], [[63, 69], [72, 74], [77, 105]], [[77, 97], [100, 101], [104, 105]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c ? [] : d is not T?[,]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 98]], [[63, 64], [67, 69], [72, 98]], [[72, 90], [93, 94], [97, 98]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is not not T?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 106]], [[63, 69], [72, 74], [77, 106]], [[77, 98], [101, 102], [105, 106]]],
+  },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is @not?[]?[]? ? b : d: break; } } }",
+    ranges: [[[46, 56], [59, 60], [63, 101]], [[63, 69], [72, 74], [77, 101]], [[77, 93], [96, 97], [100, 101]]],
+  },
 ];

@@ -47,8 +47,8 @@ the trees that error recovery produces may change; such changes are released as 
 ## Usage
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
-[@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
-browsers, and Cloudflare Workers. The parser uses WillBooster ABI `0x5742000b` and loads only with that runtime. Use version 15.0.0 or later within major version 15; upstream's runtime rejects it. Install the runtime alongside the grammar when using
+[@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter/v/15.0.3), which runs in Node.js, Bun,
+browsers, and Cloudflare Workers. The parser uses WillBooster ABI `0x5742000b` and loads only with that runtime. Use version 15.0.3 or later within major version 15; upstream's runtime rejects it. Install the runtime alongside the grammar when using
 the Wasm parser; it remains an optional peer for consumers that only use the grammar source.
 
 In Node.js and Bun, load it from the package:
@@ -96,12 +96,12 @@ When extending the source grammar, use `grammar.js` and the files under `src/` f
 Their external tokens and serialized scanner state must match.
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
-[willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter), the runtime this package is tested and
-fuzzed with. Use runtime 15.0.0 or later within major version 15:
+[willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter/15.0.3), the runtime this package is tested and
+fuzzed with. Use runtime 15.0.3 or later within major version 15:
 
 ```toml
 [dependencies]
-tree-sitter = { package = "willbooster-tree-sitter", version = "15.0.0" }
+tree-sitter = { package = "willbooster-tree-sitter", version = "15.0.3" }
 tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "17" }
 ```
 
