@@ -216,7 +216,7 @@ static bool question_guard_stream_stop(TSLexer *lexer, void *context) {
 typedef struct { unsigned start; bool force; } QuestionGuardBranch;
 typedef Array(QuestionGuardBranch) QuestionGuardBranches;
 
-static bool question_guard_collect_questions(const RankTokens *, const RankParse *, QuestionSuffixBuilder *, QuestionGuardBranch, unsigned);
+static bool question_guard_collect_questions(const RankTokens *, const RankParse *, QuestionSuffixBuilder *, unsigned);
 
 static void question_guard_save_questions(Scanner *scanner, QuestionInput *input) {
     scanner->question_frames[scanner->question_frame_count - 1].guard.ordinary_scanned = true;
@@ -235,16 +235,8 @@ static void question_guard_save_questions(Scanner *scanner, QuestionInput *input
     }
     if (read && colons) {
         RankParse *memo = rank_create_memo(&tokens, UINT32_MAX, false);
-        QuestionGuardBranch branch = {0};
-        unsigned end = tokens.size;
-        if (supported < tokens.size) {
-            RankParse body = rank_conditional_body(&tokens, memo, 1, &branch.force);
-            read = body.valid && body.end < supported && tokens.contents[body.end].kind == RANK_COLON;
-            branch.start = 2;
-            end = body.end;
-        }
         QuestionSuffixBuilder builder = {0};
-        if (read && question_guard_collect_questions(&tokens, memo, &builder, branch, end)) {
+        if (question_guard_collect_questions(&tokens, memo, &builder, supported)) {
             question_suffix_store(&scanner->suffix, &builder, scanner->question_frame_count,
                 scanner->question_frames[scanner->question_frame_count - 1].pending);
             scanner->suffix.confirm = true;
@@ -255,9 +247,9 @@ static void question_guard_save_questions(Scanner *scanner, QuestionInput *input
     array_delete(&tokens);
 }
 
-static bool question_guard_collect_questions(const RankTokens *tokens, const RankParse *memo, QuestionSuffixBuilder *builder, QuestionGuardBranch initial, unsigned end) {
+static bool question_guard_collect_questions(const RankTokens *tokens, const RankParse *memo, QuestionSuffixBuilder *builder, unsigned end) {
     QuestionGuardBranches branches = array_new();
-    array_push(&branches, initial);
+    array_push(&branches, ((QuestionGuardBranch){0}));
     while (branches.size) {
         QuestionGuardBranch branch = array_pop(&branches);
         unsigned pos = branch.start;
@@ -274,16 +266,19 @@ static bool question_guard_collect_questions(const RankTokens *tokens, const Ran
             if (token.kind != RANK_QUESTION || pos + 1 >= end) break;
             RankParse body = memo[(pos + 1) * 2 + branch.force];
             bool access = primary && token.collection && (branch.force || tokens->contents[body.end].kind != RANK_COLON);
+            bool force = branch.force;
+            if (!access) body = rank_conditional_body(tokens, memo, pos, &force);
+            if (end < tokens->size && (!body.valid || body.end >= end || tokens->contents[body.end].kind != RANK_COLON))
+                goto done;
             if (tokens->contents[pos + 1].collection) array_push(&builder->roles, !access);
             if (access) { pos += 2; continue; }
-            bool force = branch.force;
-            body = rank_conditional_body(tokens, memo, pos, &force);
             if (body.end < end && tokens->contents[body.end].kind == RANK_COLON && body.end + 1 < end)
                 array_push(&branches, ((QuestionGuardBranch){body.end + 1, branch.force}));
             array_push(&branches, ((QuestionGuardBranch){pos + 1, force}));
             break;
         }
     }
+done:
     array_delete(&branches);
     return builder->roles.size > 0;
 }

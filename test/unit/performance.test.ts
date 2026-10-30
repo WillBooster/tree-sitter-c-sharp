@@ -136,6 +136,22 @@ function nestedCollectionGuardAlternative(count: number): string {
   return `class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x : a is T${'?[]'.repeat(count)}? ? 1 : x: break; } } }`;
 }
 
+test('bounds collection choices in typed guard alternatives', { timeout: 60_000 }, () => {
+  const large = typedGuardAlternativeForest(1000);
+  expectBoundedGrowth(typedGuardAlternativeForest(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function typedGuardAlternativeForest(count: number): string {
+  return `class C { void M() { switch(x){case y when a is T?[]? ? 1 : ${'c ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
+}
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);
