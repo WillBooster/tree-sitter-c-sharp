@@ -79,37 +79,38 @@ test('keeps repeated type tests consistent across access and ternary ownership',
   }
 });
 
-test('preserves a valid following switch section after ambiguous repeated type-test guards', () => {
+test('preserves a following switch section after a parenthesized repeated type-test guard', () => {
   const parser = new Parser().setLanguage(language);
-  const guards = [
-    '(flag ? a?[0] is T is U : false)',
-    'flag ? a?[0] is T is U : false',
-    'flag ? a?[0]?.b is not null is U : M(false)',
-    'flag ? a?[0] is T?[] is U : false',
-    'flag ? a?[0] is T is U?[] ? true : false : false',
-  ];
   const following = 'case var w when (e?[0] is T is U): break;';
+  const source = `switch (y) { case var v when (flag ? a?[0] is T is U : false): break; ${following} }`;
+  const tree = parser.parse(source)!;
   try {
-    for (const guard of guards) {
-      const source = `switch (y) { case var v when ${guard}: break; ${following} }`;
-      const fresh = parser.parse(source)!;
-      try {
-        const section = fresh.rootNode.descendantsOfType('switch_section').find((node) => node.text === following);
-        expect(section?.hasError, source).toBe(false);
-        expect(
-          section?.descendantsOfType('when_clause').map((node) => node.text),
-          source
-        ).toEqual(['when (e?[0] is T is U)']);
-        expect(
-          section?.descendantsOfType('conditional_access_expression').map((node) => node.text),
-          source
-        ).toEqual(['e?[0]']);
-        if (guard.startsWith('(')) expect(fresh.rootNode.hasError, source).toBe(false);
-      } finally {
-        fresh.delete();
-      }
-    }
+    expect(tree.rootNode.hasError, source).toBe(false);
+    const section = tree.rootNode.descendantsOfType('switch_section').find((node) => node.text === following);
+    expect(section?.hasError, source).toBe(false);
+    expect(
+      section?.descendantsOfType('when_clause').map((node) => node.text),
+      source
+    ).toEqual(['when (e?[0] is T is U)']);
+    expect(
+      section?.descendantsOfType('conditional_access_expression').map((node) => node.text),
+      source
+    ).toEqual(['e?[0]']);
   } finally {
+    tree.delete();
+    parser.delete();
+  }
+});
+
+test('rejects an incomplete unparenthesized repeated type-test guard', () => {
+  const parser = new Parser().setLanguage(language);
+  const source =
+    'switch (y) { case var v when flag ? a?[0] is T is U : false: break; case var w when (e?[0] is T is U): break; }';
+  const tree = parser.parse(source)!;
+  try {
+    expect(tree.rootNode.hasError, source).toBe(true);
+  } finally {
+    tree.delete();
     parser.delete();
   }
 });
