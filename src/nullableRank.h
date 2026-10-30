@@ -20,7 +20,7 @@ typedef struct { QuestionInput *input; QuestionCheckpoint prefix, tail; unsigned
 
 typedef enum { RANK_ATOM, RANK_NONPRIMARY_ATOM, RANK_LAMBDA, RANK_IS_TYPE, RANK_DEFINITE_TYPE, RANK_QUESTION, RANK_COLON, RANK_CONTINUATION, RANK_AS, RANK_SWITCH, RANK_BINARY, RANK_BINARY_PRIMARY, RANK_NESTED_ATOM, RANK_END } RankTokenKind;
 typedef enum { RANK_CERT_START, RANK_CERT_INVALID, RANK_CERT_DECIMAL, RANK_CERT_NAME, RANK_CERT_IS, RANK_CERT_TYPE } RankCertificate;
-enum { RANK_SUFFIX_CONDITIONAL = 1, RANK_SUFFIX_INVALID = 2 };
+enum { RANK_SUFFIX_CONDITIONAL = 1, RANK_SUFFIX_INVALID = 2, RANK_SUFFIX_COLLECTION = 4 };
 typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid; uint8_t suffix_flags; RankTypeSummary types; } RankParse;
 typedef struct { RankTokenKind kind; bool collection; bool force_unsafe; RankCertificate certificate; RankParse nested[2]; bool guard_candidate, fixed_rank; uint8_t suffix_flags; } RankToken;
 typedef struct { RankToken *contents; uint32_t size, capacity; QuestionInput *input, *peek; bool format_boundary; bool suffix_modes; bool ordinary_suffix; } RankTokens;
@@ -871,7 +871,7 @@ static RankReadStep rank_read_expression_type_question(TSLexer *lexer, RankToken
         bool force_unsafe = false;
         if (first < 0 || !rank_read_delimited(lexer, '[', RANK_BODY_EXPRESSION, &force_unsafe)) return RANK_READ_UNKNOWN;
         array_push(tokens, ((RankToken){.kind = RANK_QUESTION, .collection = true,
-            .suffix_flags = tokens->input && guard_candidate ? RANK_SUFFIX_INVALID : 0}));
+            .suffix_flags = tokens->input && guard_candidate ? RANK_SUFFIX_COLLECTION : 0}));
         array_push(tokens, ((RankToken){RANK_ATOM, true, force_unsafe}));
         return RANK_READ_DONE;
     }

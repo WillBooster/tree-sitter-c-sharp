@@ -19,6 +19,26 @@ beforeAll(async () => {
 
 afterAll(() => parser.delete());
 
+test('retains nullable cast ranks before interpolation format text', () => {
+  const source =
+    'class C { string M() { return $"{a is N.T?[] as T?[] ? [1] : f() is int?[] ? c : d as T?[]? ? b}"; } }';
+  const tree = parser.parse(source)!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(0);
+    expect(tree.rootNode.descendantsOfType('nullable_type').map((node) => [node.startIndex, node.endIndex])).toEqual([
+      [38, 42],
+      [48, 54],
+      [48, 50],
+    ]);
+    expect(tree.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text)).toEqual([
+      ': f() is int?[] ? c : d as T?[]? ? b',
+    ]);
+  } finally {
+    tree.delete();
+  }
+});
+
 test.each(wrappers)('retains IS and coalescing operands before $name interpolation formats', ({ open, close }) => {
   for (const { expression, format, declaration } of [
     { expression: 'a is T?[] is T? || a ? [1]', format: ': a is N.T?[] or List<T?>' },

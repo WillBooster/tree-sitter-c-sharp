@@ -13,6 +13,7 @@ static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
 static bool question_guard_high_binary(TSLexer *, QuestionInput *);
 static bool question_guard_binary_follows(TSLexer *, QuestionInput *);
 static bool question_guard_modes_agree(const RankParse [2]);
+static bool question_guard_body_complete(const RankParse *, unsigned);
 static unsigned question_guard_empty_prefix(const RankTokens *);
 static bool question_guard_logical_collection(TSLexer *, QuestionInput *);
 static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
@@ -172,7 +173,7 @@ static bool question_guard_complete_prefix(QuestionGuardRead *guard) {
     unsigned prefix = 0;
     for (unsigned i = 0; i + 2 < tail->size && tail->contents[i].kind == RANK_IS_TYPE &&
         tail->contents[i].guard_candidate; i += 3) prefix++;
-    return parsed.valid && !(parsed.suffix_flags & RANK_SUFFIX_INVALID) &&
+    return parsed.valid && !(parsed.suffix_flags & (RANK_SUFFIX_INVALID | RANK_SUFFIX_COLLECTION)) &&
         parsed.end == (uint64_t)guard->pending * 2 + 2 + tail->size &&
         parsed.types.first == GUARD_NULLABLE && parsed.types.prefix > prefix;
 }
@@ -297,8 +298,8 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
     unsigned successor = preference ? preference->successor : 0;
     RankParse when_true = rank_evaluate_collected_modes(&tokens, question, modes, true, successor,
         preference && preference->first ? &first : NULL);
-    if (preference && preference->first && !preference->successor && !pending && !definite &&
-        limit < tail->size && tail->contents[limit].kind == RANK_COLON &&
+    bool boundary = !pending && limit < tail->size && tail->contents[limit].kind == RANK_COLON;
+    if (preference && preference->first && !preference->successor && !definite && boundary &&
         ((first.types.runs == 1 && first.types.first == GUARD_NULLABLE) ||
          (first.types.runs == 2 && question_guard_modes_agree(modes)))) {
         RankParse prior[4] = {modes[0], modes[1], first, when_true};
@@ -317,12 +318,11 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
         } else preference->concrete = true;
     }
     if (preference) {
-        bool boundary = !pending && limit < tail->size && tail->contents[limit].kind == RANK_COLON;
-        if (boundary && preference->first && !definite && first.valid && !(first.suffix_flags & RANK_SUFFIX_INVALID) && first.end == guard_end) {
+        if (boundary && preference->first && !definite && question_guard_body_complete(&first, guard_end)) {
             preference->colon = true;
             preference->successor = 0;
         } else {
-            preference->colon = boundary && (!definite || successor) && when_true.valid && !(when_true.suffix_flags & RANK_SUFFIX_INVALID) && when_true.end == guard_end;
+            preference->colon = boundary && (!definite || successor) && question_guard_body_complete(&when_true, guard_end);
         }
     }
     RankParse parsed = modes[0];
@@ -331,8 +331,14 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
         parsed.types = rank_type_merge(rank_type_role(GUARD_TERNARY), first.types);
     parsed.valid &= parsed.end < tokens.size &&
         (tokens.contents[parsed.end].kind == RANK_END || tokens.contents[parsed.end].kind == RANK_COLON);
+    if (parsed.valid && parsed.role == RANK_TERNARY)
+        parsed.suffix_flags &= ~RANK_SUFFIX_COLLECTION;
     array_delete(&tokens);
     return parsed;
+}
+
+static bool question_guard_body_complete(const RankParse *parsed, unsigned end) {
+    return parsed->valid && !(parsed->suffix_flags & (RANK_SUFFIX_INVALID | RANK_SUFFIX_COLLECTION)) && parsed->end == end;
 }
 
 static bool question_guard_modes_agree(const RankParse modes[2]) {
@@ -521,7 +527,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     RankParse parsed = question_guard_evaluate(&tail, last_colon, frame->pending, definite,
         &preference);
     if (!preference.colon && definite_prefix) goto definite_prefix;
-    if (parsed.valid && !(parsed.suffix_flags & RANK_SUFFIX_INVALID)) {
+    if (parsed.valid && !(parsed.suffix_flags & (RANK_SUFFIX_INVALID | RANK_SUFFIX_COLLECTION))) {
         result = question_guard_save(frame, &parsed, !preference.concrete && !definite, !fixed_rank);
         if (result) *questions = prefix + (result == RANK_OWNED_NULLABLE_PREFIX);
     }
@@ -661,7 +667,7 @@ static bool question_guard_suffix_complete(TSLexer *lexer, Scanner *scanner, Que
     RankParse parsed = {0};
     if (read && colons && last_colon && last_colon + 2 == tail.size)
         parsed = question_guard_evaluate(&tail, last_colon, frame->pending, false, NULL);
-    bool complete = parsed.valid && !(parsed.suffix_flags & RANK_SUFFIX_INVALID) && parsed.role == RANK_NULLABLE_LAST &&
+    bool complete = parsed.valid && !(parsed.suffix_flags & (RANK_SUFFIX_INVALID | RANK_SUFFIX_COLLECTION)) && parsed.role == RANK_NULLABLE_LAST &&
         parsed.end == (uint64_t)frame->pending * 2 + 3 + last_colon &&
         parsed.types.first == GUARD_NULLABLE && parsed.types.prefix > questions;
     if (complete && !frame->pending && !parsed.suffix_flags) frame->guard.role |= GUARD_SUFFIX_COMPLETE;
@@ -823,6 +829,10 @@ static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, Que
         if (prefix && !walk->depth && c == ':' && question_guard_colon(lexer, walk->input)) {
             const QuestionFrame *frame = question_walk_prefix_frame(walk);
             if (scanner->question_unknown || !frame || frame->unknown) break;
+            if (!frame->pending && frame->case_guard && !walk->type_prefix) {
+                array_push(&walk->events, ':');
+                break;
+            }
             if (!frame->pending) {
                 if (!frame->case_guard && !completed_guard) break;
                 completed_guard = true;
@@ -904,9 +914,10 @@ static bool rank_local_nullable_prefix(QuestionInput *input, QuestionCheckpoint 
         bool type = rank_read_as_type(lexer, &read);
         bool designation = type && read.conditional && read.has_word && rank_identifier_allowed(&read.word, true) &&
             question_skip_separators(lexer) == ':' && read.questions < UINT32_MAX;
+        QuestionIdentifier follower;
         bool type_operator = read.has_word
             ? read.word.keyword && (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))
-            : question_type_keyword_follower(lexer, input);
+            : rank_read_identifier(lexer, &follower) && follower.keyword && !strcmp(follower.word, "is");
         valid = type && read.questions && (designation || (type_operator && !read.conditional)) &&
             !read.colon && !read.division && !read.coalesce && !read.binary && !read.sized_rank;
         count = read.questions + designation;
