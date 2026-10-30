@@ -1225,6 +1225,8 @@ static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *l
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     scanner->question_type_uncertain = true;
     question_clear_access_cache(scanner);
+    for (unsigned i = 0; i < scanner->question_frame_count; i++)
+        scanner->question_frames[i].guard.segment_scanned = false;
     clear_question_rank(scanner);
     lexer->mark_end(lexer);
     if (!scanner->question_unknown && !frame->unknown) {

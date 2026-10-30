@@ -30,7 +30,8 @@ static bool question_guard_colon(TSLexer *, QuestionInput *);
 static enum TokenType question_access_symbol(const bool *, const QuestionFollowing *);
 static bool question_guard_conditional_hint(const Scanner *, QuestionInput *, QuestionFollowing);
 static bool question_guard_collection_consequence(QuestionInput *);
-static void question_guard_save_questions(Scanner *, QuestionInput *);
+static bool question_guard_save_questions(Scanner *, QuestionInput *, bool, bool);
+static void question_guard_probe_current(Scanner *, QuestionInput *, QuestionWalk *, unsigned);
 static bool rank_format_logical_types(QuestionInput *, const RankTypeRead *, uint32_t *);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
@@ -51,9 +52,11 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
         walk.known_ternary = false;
         walk.role_active = false;
     }
+    question_guard_probe_current(scanner, &input, &walk, context_flags);
     unsigned guard_frame = scanner->question_frame_count - 1;
     const QuestionFrame *owner = &scanner->question_frames[guard_frame];
-    bool guard_questions = owner->case_guard && !owner->guard.ordinary_scanned && !owner->pending && walk.ordinary && !walk.known_nullable &&
+    bool guard_questions = owner->case_guard && (!owner->guard.ordinary_scanned || !owner->guard.segment_scanned) && !owner->pending &&
+        (walk.ordinary || (owner->guard.ordinary_scanned && following.token == '[')) && !walk.known_nullable &&
         !scanner->question_unknown && !owner->unknown;
     QuestionCheckpoint guard_start = guard_questions ? question_input_checkpoint(&input) : (QuestionCheckpoint){0};
     Interpolation *interpolation = question_interpolation(scanner);
@@ -82,7 +85,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
         owner->case_guard && !owner->unknown && !scanner->question_unknown) {
         QuestionCheckpoint end = question_input_checkpoint(&input);
         question_input_restore(&input, (QuestionCheckpoint){guard_start.cursor, true});
-        question_guard_save_questions(scanner, &input);
+        question_guard_save_questions(scanner, &input, following.token == '[', false);
         question_input_restore(&input, end);
     }
     question_walk_dispose(&walk);
@@ -100,6 +103,22 @@ unknown:
     return result ? result : walk.known_ternary ? 2 : 0;
 }
 
+
+static void question_guard_probe_current(Scanner *scanner, QuestionInput *input, QuestionWalk *walk, unsigned context_flags) {
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (!frame->case_guard || !frame->guard.ordinary_scanned || frame->guard.segment_scanned || frame->pending ||
+        !walk->suffix.regular || walk->cached_access || walk->known_nullable || walk->nullable_context || walk->known_ternary) return;
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    bool stored = question_guard_save_questions(scanner, input, true, true);
+    question_input_restore(input, start);
+    if (!stored) return;
+    QuestionFollowing following = walk->following;
+    uint8_t phase = walk->rank_phase;
+    question_walk_dispose(walk);
+    *walk = question_walk_create(scanner, following, false, context_flags, phase);
+    walk->input = input;
+    walk->scanner = scanner;
+}
 
 static bool question_guard_conditional_hint(const Scanner *scanner, QuestionInput *input, QuestionFollowing following) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
@@ -219,15 +238,19 @@ typedef Array(QuestionGuardBranch) QuestionGuardBranches;
 
 static bool question_guard_collect_questions(const RankTokens *, const RankParse *, QuestionSuffixBuilder *, unsigned);
 
-static void question_guard_save_questions(Scanner *scanner, QuestionInput *input) {
-    scanner->question_frames[scanner->question_frame_count - 1].guard.ordinary_scanned = true;
-    RankTokens tokens = {.input = input, .ordinary_suffix = true};
+static bool question_guard_save_questions(Scanner *scanner, QuestionInput *input, bool binding, bool probe) {
+    QuestionGuardCertificate *guard_state = &scanner->question_frames[scanner->question_frame_count - 1].guard;
+    bool segmented = guard_state->ordinary_scanned;
+    guard_state->ordinary_scanned = true;
+    guard_state->segment_scanned = true;
+    RankTokens tokens = {.input = input, .ordinary_suffix = true, .segmented = segmented};
     array_push(&tokens, ((RankToken){RANK_ATOM, false}));
-    array_push(&tokens, ((RankToken){RANK_QUESTION, false}));
+    array_push(&tokens, ((RankToken){RANK_QUESTION, probe}));
+    bool stored = false;
     unsigned colons = 0;
     QuestionGuardRead guard = {.input = input, .tail = &tokens};
     bool read = rank_read_stream_until(&input->lexer, &tokens, &colons, true, question_guard_stream_stop, &guard);
-    if (!read && tokens.size && array_back(&tokens)->kind == RANK_AS_BOUNDARY) {
+    if (!read && tokens.size && array_back(&tokens)->kind == RANK_TYPE_BOUNDARY) {
         array_push(&tokens, ((RankToken){RANK_END, false}));
         read = true;
     }
@@ -241,15 +264,20 @@ static void question_guard_save_questions(Scanner *scanner, QuestionInput *input
     if (read && colons) {
         RankParse *memo = rank_create_memo(&tokens, UINT32_MAX, false);
         QuestionSuffixBuilder builder = {0};
-        if (question_guard_collect_questions(&tokens, memo, &builder, supported)) {
-            question_suffix_store(&scanner->suffix, &builder, scanner->question_frame_count,
-                scanner->question_frames[scanner->question_frame_count - 1].pending);
-            scanner->suffix.confirm = true;
+        if (question_guard_collect_questions(&tokens, memo, &builder, supported) && (!probe || builder.roles.contents[0])) {
+            if (binding && !probe) array_erase(&builder.roles, 0);
+            if (builder.roles.size) {
+                question_suffix_store(&scanner->suffix, &builder, scanner->question_frame_count,
+                    scanner->question_frames[scanner->question_frame_count - 1].pending);
+                scanner->suffix.confirm = true;
+                stored = true;
+            }
         }
         question_suffix_dispose(&builder);
         ts_free(memo);
     }
     array_delete(&tokens);
+    return stored;
 }
 
 static bool question_guard_collect_questions(const RankTokens *tokens, const RankParse *memo, QuestionSuffixBuilder *builder, unsigned end) {

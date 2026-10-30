@@ -73,7 +73,7 @@ static RankParse rank_parse(const RankTokens *tokens, const RankParse *memo, uns
             continue;
         }
         RankParse when_true = memo[(pos + 1) * 2 + force];
-        if (primary && tokens->contents[pos].collection && !force && tokens->contents[when_true.end].kind == RANK_AS_BOUNDARY) {
+        if (primary && tokens->contents[pos].collection && !force && tokens->contents[when_true.end].kind == RANK_TYPE_BOUNDARY) {
             result.valid = false;
             result.end = when_true.end;
             return result;
@@ -139,7 +139,7 @@ static unsigned rank_conditional(const RankTokens *tokens, const RankParse *memo
 static RankParse rank_conditional_body(const RankTokens *tokens, const RankParse *memo, unsigned pos, bool *force) {
     RankParse body = memo[(pos + 1) * 2 + *force];
     RankTokenKind end_kind = tokens->contents[body.end].kind;
-    if (end_kind != RANK_COLON && end_kind != RANK_AS_BOUNDARY && !*force && body.collection_ternary) {
+    if (end_kind != RANK_COLON && end_kind != RANK_TYPE_BOUNDARY && !*force && body.collection_ternary) {
         RankParse retry = memo[(pos + 1) * 2 + 1];
         if (retry.valid && tokens->contents[retry.end].kind == RANK_COLON) {
             body = retry;

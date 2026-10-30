@@ -9,6 +9,7 @@ typedef struct {
     uint8_t role;
     bool handoff;
     bool ordinary_scanned;
+    bool segment_scanned;
     uint32_t prefix;
 } QuestionGuardCertificate;
 

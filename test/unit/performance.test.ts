@@ -201,6 +201,38 @@ function binaryGuardAlternativeForest(count: number): string {
   return `class C { void M() { switch(x){case y when a is T?[]? ? 1 : ${'c == d ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
 }
 
+test('bounds relational conditions in typed guard alternatives', { timeout: 60_000 }, () => {
+  const large = relationalGuardAlternativeForest(1000);
+  expectBoundedGrowth(relationalGuardAlternativeForest(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function relationalGuardAlternativeForest(count: number): string {
+  return `class C { void M() { switch(x){case y when a is T?[]? ? 1 : ${'c < d ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
+}
+
+test('bounds collection choices across typed guard segments', { timeout: 60_000 }, () => {
+  const large = typedGuardSegments(1000);
+  expectBoundedGrowth(typedGuardSegments(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(2002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function typedGuardSegments(count: number): string {
+  return `class C { void M(){switch(x){case y when a is T?[]? ?1: ${'c is U ? 1 : c ? [1] : '.repeat(count)}d is T?[]? ? b:d:break;}}}`;
+}
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);

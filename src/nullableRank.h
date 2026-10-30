@@ -18,12 +18,12 @@ typedef enum {
 
 typedef struct { QuestionInput *input; QuestionCheckpoint prefix, tail; unsigned end; bool prefix_questions; } RankScopeRead;
 
-typedef enum { RANK_ATOM, RANK_NONPRIMARY_ATOM, RANK_LAMBDA, RANK_IS_TYPE, RANK_DEFINITE_TYPE, RANK_QUESTION, RANK_COLON, RANK_CONTINUATION, RANK_AS, RANK_SWITCH, RANK_BINARY, RANK_BINARY_PRIMARY, RANK_NESTED_ATOM, RANK_END, RANK_AS_BOUNDARY } RankTokenKind;
+typedef enum { RANK_ATOM, RANK_NONPRIMARY_ATOM, RANK_LAMBDA, RANK_IS_TYPE, RANK_DEFINITE_TYPE, RANK_QUESTION, RANK_COLON, RANK_CONTINUATION, RANK_AS, RANK_SWITCH, RANK_BINARY, RANK_BINARY_PRIMARY, RANK_NESTED_ATOM, RANK_END, RANK_TYPE_BOUNDARY } RankTokenKind;
 typedef enum { RANK_CERT_START, RANK_CERT_INVALID, RANK_CERT_DECIMAL, RANK_CERT_NAME, RANK_CERT_IS, RANK_CERT_TYPE } RankCertificate;
 enum { RANK_SUFFIX_CONDITIONAL = 1, RANK_SUFFIX_INVALID = 2, RANK_SUFFIX_COLLECTION = 4 };
 typedef struct { unsigned end; uint8_t role; bool collection_ternary; bool valid; uint8_t suffix_flags; RankTypeSummary types; } RankParse;
 typedef struct { RankTokenKind kind; bool collection; bool force_unsafe; RankCertificate certificate; RankParse nested[2]; bool guard_candidate, fixed_rank; uint8_t suffix_flags; } RankToken;
-typedef struct { RankToken *contents; uint32_t size, capacity; QuestionInput *input, *peek; bool format_boundary; bool suffix_modes; bool ordinary_suffix; } RankTokens;
+typedef struct { RankToken *contents; uint32_t size, capacity; QuestionInput *input, *peek; bool format_boundary; bool suffix_modes; bool ordinary_suffix; bool segmented; } RankTokens;
 typedef enum { RANK_HEADER_START, RANK_HEADER_MODIFIER, RANK_HEADER_NAME, RANK_HEADER_PARAMETERS, RANK_HEADER_DELEGATE, RANK_HEADER_DELEGATE_PARAMETERS, RANK_HEADER_INVALID } RankLambdaHeader;
 typedef struct { unsigned token; RankLambdaHeader header; bool content; bool primary; bool type_pending; bool type_complete; bool pattern; bool member; bool colon; bool conditional; bool nullable_type; bool division; bool has_word; QuestionIdentifier word; unsigned nullable_event, type_chain; bool guard_candidate; bool chain_unproved; } RankExpression;
 
@@ -349,6 +349,7 @@ static bool rank_read_stream_until(TSLexer *lexer, RankTokens *tokens, unsigned 
         } else if (!rank_read_operator(lexer, tokens, colons, &atom, division)) {
             return false;
         }
+        if (tokens->segmented && atom && tokens->contents[tokens->size - 2].kind == RANK_AS) break;
     }
     if (tokens->format_boundary && *colons) {
         array_pop(tokens);
@@ -514,6 +515,10 @@ static bool rank_read_expression(TSLexer *lexer, RankTokens *tokens, bool *colon
 static bool rank_read_is(TSLexer *lexer, RankTokens *tokens, bool *colon) {
     QuestionIdentifier word;
     if (!rank_read_identifier(lexer, &word) || !word.keyword || strcmp(word.word, "is")) return false;
+    if (tokens->segmented) {
+        array_push(tokens, ((RankToken){RANK_TYPE_BOUNDARY, false}));
+        return false;
+    }
     RankExpression expression = {.token = tokens->size, .header = RANK_HEADER_INVALID, .pattern = true, .type_pending = true, .nullable_event = ((unsigned)-1), .guard_candidate = true};
     array_push(tokens, ((RankToken){RANK_BINARY, false}));
     return rank_read_expression_tail(lexer, tokens, colon, &expression);
@@ -567,9 +572,10 @@ static RankReadStep rank_read_expression_token(TSLexer *lexer, RankTokens *token
             bool generic = false;
             bool high = false;
             if (!rank_read_rhs_generic(lexer, colon, &generic, &high)) return RANK_READ_UNKNOWN;
+            if (!generic && !prefix && tokens->ordinary_suffix) return rank_start_binary_rhs(lexer, -1, tokens, expression);
             expression->primary &= generic;
             if (!prefix && !high) expression->pattern = false;
-            return *colon ? (expression->content ? RANK_READ_DONE : RANK_READ_UNKNOWN) : RANK_READ_MORE;
+            return RANK_READ_MORE;
         }
         case -1:
             expression->header = RANK_HEADER_INVALID;
@@ -697,6 +703,10 @@ static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankE
         expression->header = RANK_HEADER_INVALID;
         return true;
     }
+    if (tokens->segmented && name.keyword && !strcmp(name.word, "is")) {
+        array_push(tokens, ((RankToken){RANK_TYPE_BOUNDARY, false}));
+        return false;
+    }
     RankReadStep pattern = rank_read_pattern_word(lexer, tokens, &name, expression, certificate);
     if (pattern != RANK_READ_TOKEN) return pattern == RANK_READ_MORE;
     if (expression->type_complete && expression->nullable_event != ((unsigned)-1) && rank_identifier_allowed(&name, true)) {
@@ -723,7 +733,7 @@ static bool rank_read_ordinary_as(TSLexer *lexer, RankTokens *tokens, RankExpres
         return true;
     }
     question_input_restore(tokens->input, cast);
-    array_push(tokens, ((RankToken){RANK_AS_BOUNDARY, false}));
+    array_push(tokens, ((RankToken){RANK_TYPE_BOUNDARY, false}));
     return false;
 }
 
