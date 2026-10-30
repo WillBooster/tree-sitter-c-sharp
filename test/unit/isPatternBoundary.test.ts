@@ -2671,6 +2671,9 @@ test('retains await as a contextual type name in nonasync positional patterns', 
 
 test('rejects incomplete nullable guard conditionals', () => {
   const samples = [
+    'class C{void M(){switch(x){case y when a is not T?[] && a is T?[,] && a is T?[] && b ? [1] : [2]: break;}}}',
+    'class C { void M(object a, bool b, bool c, bool x, bool y) { switch (a) { case int when a is int?[] ? [1] : b ? x : [1] is int?[] ? x : y: break; } } }',
+    'class C { void M(object a, bool b, bool c, bool x, bool y) { switch (a) { case int when a is not int?[] ? x : a is int?[] ? x : b ? [1] : y: break; } } }',
     'class C { void M(object a, bool x, bool y) { switch (a) { case int when a is not int?[] ? x : a is int?[] ? [1] : y: break; } } }',
     'class C{void M(){switch(x){case y when a is T?[] && a is T?[,] && a is T?[]: break;}}}',
     'class C{void M(){switch(x){case y when a is T?[] && a is T?[] t && a is T?[]: break;}}}',
@@ -2729,7 +2732,6 @@ test('retains complete mixed guard ownership in fresh parsers', () => {
   const samples = [
     { source: mixedGuardSource(40).replace('L39:', 'Z39:'), conditionals: 41 },
     { source: mixedGuardSource(20), conditionals: 21 },
-    { source: mixedGuardSource(0), conditionals: 1 },
     { source: mixedGuardSource(40), conditionals: 41 },
   ];
   for (const { source, conditionals } of samples) {

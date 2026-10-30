@@ -13,7 +13,6 @@ static bool question_guard_type_operator_follows(TSLexer *, QuestionInput *);
 static bool question_guard_high_binary(TSLexer *, QuestionInput *);
 static bool question_guard_binary_follows(TSLexer *, QuestionInput *);
 static bool question_guard_modes_agree(const RankParse [2]);
-static bool question_guard_untracked_collection(const RankTokens *, unsigned);
 static unsigned question_guard_empty_prefix(const RankTokens *);
 static bool question_guard_logical_collection(TSLexer *, QuestionInput *);
 static uint8_t question_guard_rank_role(TSLexer *, Scanner *, uint32_t *, QuestionInput *);
@@ -28,7 +27,7 @@ static bool question_guard_suffix_complete(TSLexer *, Scanner *, QuestionInput *
 static void question_save_allocation_prefix(Scanner *, const QuestionWalk *);
 static bool question_guard_colon(TSLexer *, QuestionInput *);
 static enum TokenType question_access_symbol(const bool *, const QuestionFollowing *);
-static bool question_guard_scalar_hint(const Scanner *, QuestionInput *, QuestionFollowing);
+static bool question_guard_conditional_hint(const Scanner *, QuestionInput *, QuestionFollowing);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
 static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t *phase, bool *known_ternary) {
@@ -37,7 +36,7 @@ static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, Quest
     lexer = &input.lexer;
     if (!*known_nullable && !following.member && scanner->question_type_uncertain && (context_flags & QUESTION_NULLABLE_ALLOWED))
         *known_nullable = question_nullable_designation(lexer, &input);
-    if (!*known_nullable && question_guard_scalar_hint(scanner, &input, following))
+    if (!*known_nullable && question_guard_conditional_hint(scanner, &input, following))
         *phase = rank_phase = RANK_PATTERN_COMPLETE;
     QuestionWalk walk = question_walk_create(scanner, following, *known_nullable, context_flags, rank_phase);
     walk.input = &input;
@@ -86,10 +85,19 @@ unknown:
 }
 
 
-static bool question_guard_scalar_hint(const Scanner *scanner, QuestionInput *input, QuestionFollowing following) {
+static bool question_guard_conditional_hint(const Scanner *scanner, QuestionInput *input, QuestionFollowing following) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     if (!frame->case_guard || !(frame->guard.role & GUARD_ROLE_MASK) || scanner->question_unknown || frame->unknown ||
-        following.member || following.token == '[') return false;
+        following.member) return false;
+    if (following.token == '[') {
+        if ((frame->guard.role & GUARD_ROLE_MASK) != GUARD_TERNARY) return false;
+        QuestionCheckpoint start = question_input_checkpoint(input);
+        advance(&input->lexer);
+        bool colon = rank_read_delimited(&input->lexer, '[', RANK_BODY_EXPRESSION, NULL) &&
+            question_skip_separators(&input->lexer) == ':';
+        question_input_restore(input, start);
+        return colon;
+    }
     if (following.token == '.') return true;
     TSLexer *lexer = &input->lexer;
     if (!question_expression_start(lexer, following.token)) return false;
@@ -194,15 +202,22 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
         preference && preference->first ? &first : NULL);
     if (preference && preference->first && !preference->successor && !pending && !definite &&
         limit < tail->size && tail->contents[limit].kind == RANK_COLON &&
-        !question_guard_untracked_collection(&tokens, question) &&
         ((first.types.runs == 1 && first.types.first == GUARD_NULLABLE) ||
          (first.types.runs == 2 && question_guard_modes_agree(modes)))) {
+        RankParse prior[4] = {modes[0], modes[1], first, when_true};
         array_pop(&tokens);
         array_push(&tokens, tail->contents[limit]);
         array_push(&tokens, ((RankToken){RANK_ATOM, false}));
         array_push(&tokens, ((RankToken){RANK_END, false}));
-        preference->concrete = true;
         when_true = rank_evaluate_collected_modes(&tokens, question, modes, true, successor, &first);
+        if (modes[0].types.runs > 2) {
+            modes[0] = prior[0];
+            modes[1] = prior[1];
+            first = prior[2];
+            when_true = prior[3];
+            tokens.size = guard_end + 1;
+            tokens.contents[guard_end] = (RankToken){RANK_END, false};
+        } else preference->concrete = true;
     }
     if (preference) {
         bool boundary = !pending && limit < tail->size && tail->contents[limit].kind == RANK_COLON;
@@ -221,14 +236,6 @@ static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit,
         (tokens.contents[parsed.end].kind == RANK_END || tokens.contents[parsed.end].kind == RANK_COLON);
     array_delete(&tokens);
     return parsed;
-}
-
-static bool question_guard_untracked_collection(const RankTokens *tokens, unsigned target) {
-    for (unsigned i = target + 1; i < tokens->size; i++) {
-        if (tokens->contents[i].kind == RANK_QUESTION && tokens->contents[i].collection &&
-            tokens->contents[i - 1].kind != RANK_IS_TYPE && tokens->contents[i - 1].kind != RANK_DEFINITE_TYPE) return true;
-    }
-    return false;
 }
 
 static bool question_guard_modes_agree(const RankParse modes[2]) {
