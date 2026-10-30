@@ -5,7 +5,7 @@
 [![Test](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test.yml/badge.svg)](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test.yml)
 [![Test rust](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test-rust.yml/badge.svg)](https://github.com/WillBooster/tree-sitter-c-sharp/actions/workflows/test-rust.yml)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
-[![wbfy](https://img.shields.io/badge/wbfy-20.50.0-1e90ff.svg)](https://github.com/WillBooster/shared/tree/main/packages/wbfy)
+[![wbfy](https://img.shields.io/badge/wbfy-21.0.0-1e90ff.svg)](https://github.com/WillBooster/shared/tree/main/packages/wbfy)
 [![crates.io](https://img.shields.io/crates/v/willbooster-tree-sitter-c-sharp.svg)](https://crates.io/crates/willbooster-tree-sitter-c-sharp)
 
 C# grammar for [tree-sitter](https://github.com/tree-sitter/tree-sitter), forked from
@@ -37,12 +37,19 @@ Conditional access includes its complete dependent chain and, for conditional as
 Tuple-shaped patterns such as `x is (1, 2)` use `recursive_pattern` with a `positional_pattern_clause`.
 The contextual type names `nint` and `nuint` use `identifier` nodes.
 
+## Support Scope
+
+This fork maintains only full parsing: valid input yields a correct tree, and invalid input yields `ERROR` or `MISSING`
+nodes without crashing, hanging, or taking more than linear time. Incremental parsing works as in upstream tree-sitter
+but is not tested here, and no queries (highlights, locals, injections, tags) are shipped. Node types, field names, and
+the trees that error recovery produces may change; such changes are released as new major versions.
+
 ## Usage
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter), which runs in Node.js, Bun,
 browsers, and Cloudflare Workers. The parser uses WillBooster ABI `0x5742000b` and loads only with that runtime. Use version 15.0.0 or later within major version 15; upstream's runtime rejects it. Install the runtime alongside the grammar when using
-the Wasm parser; it remains an optional peer for consumers that only use the grammar source or queries.
+the Wasm parser; it remains an optional peer for consumers that only use the grammar source.
 
 In Node.js and Bun, load it from the package:
 
@@ -84,7 +91,7 @@ const parser = new Parser();
 parser.setLanguage(await Language.load(cSharp));
 ```
 
-The package also ships the queries in `queries/` and the node types in `src/node-types.json`.
+The package also ships the node types in `src/node-types.json`.
 When extending the source grammar, use `grammar.js` and the files under `src/` from the same repository release tag.
 Their external tokens and serialized scanner state must match.
 
@@ -95,7 +102,7 @@ fuzzed with. Use runtime 15.0.0 or later within major version 15:
 ```toml
 [dependencies]
 tree-sitter = { package = "willbooster-tree-sitter", version = "15.0.0" }
-tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "16" }
+tree-sitter-c-sharp = { package = "willbooster-tree-sitter-c-sharp", version = "17" }
 ```
 
 ```rust

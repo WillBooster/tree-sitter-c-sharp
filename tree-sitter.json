@@ -7,8 +7,6 @@
       "scope": "source.cs",
       "path": ".",
       "file-types": ["cs"],
-      "highlights": ["queries/highlights.scm"],
-      "tags": ["queries/tags.scm"],
       "injection-regex": "cs",
       "external-files": [
         "src/genericExpressions.h",
