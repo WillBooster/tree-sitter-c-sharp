@@ -234,7 +234,7 @@ static void question_guard_save_questions(Scanner *scanner, QuestionInput *input
     unsigned supported = 0;
     for (; read && supported < tokens.size; supported++) {
         RankToken token = tokens.contents[supported];
-        if (token.force_unsafe || (token.kind != RANK_ATOM && token.kind != RANK_QUESTION &&
+        if (token.force_unsafe || (token.kind != RANK_ATOM && token.kind != RANK_NONPRIMARY_ATOM && token.kind != RANK_QUESTION &&
             token.kind != RANK_COLON && token.kind != RANK_AS && token.kind != RANK_BINARY &&
             token.kind != RANK_BINARY_PRIMARY && token.kind != RANK_END)) break;
     }
@@ -258,9 +258,9 @@ static bool question_guard_collect_questions(const RankTokens *tokens, const Ran
     while (branches.size) {
         QuestionGuardBranch branch = array_pop(&branches);
         unsigned pos = branch.start;
-        if (pos >= end || tokens->contents[pos].kind != RANK_ATOM) continue;
+        if (pos >= end || (tokens->contents[pos].kind != RANK_ATOM && tokens->contents[pos].kind != RANK_NONPRIMARY_ATOM)) continue;
+        bool primary = tokens->contents[pos].kind == RANK_ATOM;
         pos++;
-        bool primary = true;
         while (pos < end) {
             RankToken token = tokens->contents[pos];
             if (token.kind == RANK_AS || token.kind == RANK_BINARY || token.kind == RANK_BINARY_PRIMARY) {

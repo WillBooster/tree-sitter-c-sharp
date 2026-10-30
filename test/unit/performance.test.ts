@@ -185,6 +185,22 @@ function logicalInterpolationTypes(count: number): string {
   return `class C { string M() { return $"{a is T?[]?${' or T[]?[]'.repeat(count)}: d:x}"; } }`;
 }
 
+test('bounds binary conditions in typed guard alternatives', { timeout: 60_000 }, () => {
+  const large = binaryGuardAlternativeForest(1000);
+  expectBoundedGrowth(binaryGuardAlternativeForest(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function binaryGuardAlternativeForest(count: number): string {
+  return `class C { void M() { switch(x){case y when a is T?[]? ? 1 : ${'c == d ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
+}
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);

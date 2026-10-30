@@ -355,8 +355,8 @@ static QuestionWalk question_walk_create(Scanner *scanner, QuestionFollowing fol
     bool cached = scanner->question_access_cache && following.token == '[' && !ternary_only &&
         (known || (scanner->question_unknown && !known_nullable && !(context_flags & QUESTION_NULLABLE_ONLY)));
     bool suffix_context = question_suffix_context(scanner, known, known_nullable, rank_phase);
-    unsigned suffix_role = question_suffix_take(&scanner->suffix, following.token == '[',
-        suffix_context && (following.token == '[' || question_suffix_ordinary(following)), scanner->question_frame_count, frame->pending);
+    unsigned suffix_role = question_suffix_take(&scanner->suffix, following.token == '[', following.member,
+        suffix_context && (following.token == '[' || following.member || question_suffix_ordinary(following)), scanner->question_frame_count, frame->pending);
     bool case_boundary = frame->case_colon && (frame->case_guard || !(context_flags & QUESTION_CASE_COLON));
     bool ordinary = following.token != '[' && !following.member;
     bool definite_ternary = ternary_only || question_ordinary_ternary(scanner, following, context_flags, known_nullable);
