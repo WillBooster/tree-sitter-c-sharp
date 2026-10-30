@@ -330,11 +330,8 @@ static QuestionCheckpoint question_guard_type_start(QuestionInput *input) {
 static bool rank_read_designation(TSLexer *lexer, uint32_t *questions, QuestionInput *input, bool *proved, bool allow_pointer_suffix) {
     uint32_t type_start = input->cursor;
     RankTypeRead read = {0};
-    QuestionIdentifier designation;
     bool parsed = rank_read_as_type(lexer, &read);
-    bool named = parsed && (allow_pointer_suffix || !read.pointer_suffix) && !read.colon && !read.division &&
-        !read.conditional && !read.coalesce && !read.binary && !read.has_word &&
-        rank_read_identifier(lexer, &designation) && rank_identifier_allowed(&designation, true);
+    bool named = parsed && rank_read_type_designation(lexer, &read, allow_pointer_suffix);
     *proved = named || read.has_word || read.binary || (read.division && lexer->lookahead != '=') ||
         lexer->lookahead == '{' || (parsed && lexer->lookahead == '(') || question_guard_binary_follows(lexer, input) ||
         question_input_multi_rank(input, type_start) ||
@@ -805,7 +802,7 @@ static bool rank_local_pattern_reset(QuestionInput *input, QuestionCheckpoint pr
     RankTypeRead read = {0};
     bool type = rank_read_as_type(lexer, &read);
     bool reset = type && !read.conditional && !read.coalesce && !read.binary && !read.has_word && !read.colon &&
-        (read.division ? lexer->lookahead != '=' : question_guard_high_binary(lexer, input));
+        (read.pointer_suffix || (read.division ? lexer->lookahead != '=' : question_guard_high_binary(lexer, input)));
     if (reset && read.questions) *questions = read.questions - 1;
     question_input_restore(input, end);
     return reset;
@@ -823,8 +820,9 @@ static bool rank_local_nullable_prefix(QuestionInput *input, QuestionCheckpoint 
         bool type = rank_read_as_type(lexer, &read);
         bool designation = type && read.conditional && read.has_word && rank_identifier_allowed(&read.word, true) &&
             question_skip_separators(lexer) == ':' && read.questions < UINT32_MAX;
-        bool type_operator = read.has_word && read.word.keyword &&
-            (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"));
+        bool type_operator = read.has_word
+            ? read.word.keyword && (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))
+            : question_type_keyword_follower(lexer, input);
         valid = type && read.questions && (designation || (type_operator && !read.conditional)) &&
             !read.colon && !read.division && !read.coalesce && !read.binary && !read.sized_rank;
         count = read.questions + designation;

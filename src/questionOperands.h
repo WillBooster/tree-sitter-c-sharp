@@ -334,8 +334,8 @@ static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, Questio
 static void question_walk_as_type(TSLexer *lexer, QuestionWalk *walk) {
     QuestionCheckpoint start = question_input_checkpoint(walk->input);
     RankTypeRead read = {.expression_ranks = true};
-    bool type = rank_read_as_type(lexer, &read) && !read.conditional && !read.coalesce;
-    bool follows = read.colon || read.binary || read.division || (read.has_word
+    bool type = rank_read_as_type(lexer, &read) && !read.conditional;
+    bool follows = read.coalesce || read.colon || read.binary || read.division || (read.has_word
         ? read.word.keyword && (!strcmp(read.word.word, "is") || !strcmp(read.word.word, "as"))
         : lexer->lookahead == ':' || question_type_operator_follower(lexer, walk->input, (QuestionFollowing){.token = lexer->lookahead}));
     TSLexerPosition end;
@@ -717,7 +717,7 @@ static bool question_walk_type_pattern(TSLexer *lexer, QuestionWalk *walk) {
     uint32_t questions = 0;
     bool type = question_walk_pattern_suffix(lexer, &nullable, &questions);
     QuestionCheckpoint tail = {walk->input->cursor, start.capturing};
-    bool pattern = type && question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
+    bool pattern = type && question_walk_proven_pattern_tail(lexer, walk, nullable);
     question_input_restore(walk->input, pattern && !walk->recording ? tail : start);
     return pattern;
 }
@@ -737,7 +737,7 @@ static bool question_walk_current_type_pattern(TSLexer *lexer, QuestionWalk *wal
         bool suffix = question_walk_pattern_suffix(lexer, &nullable, &questions);
         // Outside a type context, `?[]` can open a collection consequence that a following is/as tests.
         pattern = suffix && (walk->nullable_context || !question_type_keyword_follower(lexer, walk->input)) &&
-            question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
+            question_walk_proven_pattern_tail(lexer, walk, nullable);
         if (pattern) walk->proven_nullable_questions = questions;
     }
     question_input_restore(walk->input, start);
@@ -769,16 +769,47 @@ static bool question_nullable_designation(TSLexer *lexer, QuestionInput *input) 
     return valid;
 }
 
+static bool question_walk_proven_pattern_tail(TSLexer *lexer, QuestionWalk *walk, bool nullable) {
+    if (walk->case_boundary && nullable && question_type_keyword_follower(lexer, walk->input)) {
+        const QuestionFrame *frame = question_walk_prefix_frame(walk);
+        return (frame && !frame->pending && (frame->guard.role & GUARD_SUFFIX_COMPLETE)) ||
+            question_is_type_designation(lexer, walk->input);
+    }
+    return question_walk_pattern_tail(lexer, nullable, walk->case_boundary, walk->input);
+}
+
+static bool question_is_type_designation(TSLexer *lexer, QuestionInput *input) {
+    QuestionCheckpoint start = question_input_checkpoint(input);
+    QuestionIdentifier word;
+    bool named = false;
+    if (rank_read_identifier(lexer, &word) && word.keyword && !strcmp(word.word, "is") &&
+        question_skip_separators(lexer) >= 0) {
+        QuestionCheckpoint type = question_input_checkpoint(input);
+        bool negated = rank_read_identifier(lexer, &word) && word.keyword && !strcmp(word.word, "not");
+        question_input_restore(input, type);
+        RankTypeRead read = {0};
+        bool parsed = rank_read_as_type(lexer, &read);
+        if (negated && !read.complex) {
+            question_input_restore(input, type);
+            question_guard_type_start(input);
+            read = (RankTypeRead){0};
+            parsed = rank_read_as_type(lexer, &read);
+        }
+        named = parsed && rank_read_type_designation(lexer, &read, false);
+    }
+    question_input_restore(input, start);
+    return named;
+}
+
 static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable, bool case_boundary, QuestionInput *input) {
-    // A suffix ending in a rank can still open a collection conditional (`T?[,] ? [] is U : b`).
-    if (case_boundary && nullable && question_type_keyword_follower(lexer, input)) return true;
     if (nullable && case_boundary && lexer->lookahead == ':') return true;
     if (lexer->lookahead == '{') return true;
     if (nullable) {
         if (question_nullable_designation(lexer, input)) return true;
         QuestionIdentifier logical;
         return rank_read_identifier(lexer, &logical) && logical.keyword &&
-            (!strcmp(logical.word, "and") || !strcmp(logical.word, "or"));
+            (!strcmp(logical.word, "and") || !strcmp(logical.word, "or")) &&
+            question_skip_separators(lexer) != ':';
     }
     if (lexer->lookahead == '(') {
         advance(lexer);

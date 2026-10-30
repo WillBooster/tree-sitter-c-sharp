@@ -21,6 +21,7 @@ afterAll(() => parser.delete());
 
 test.each(wrappers)('retains IS and coalescing operands before $name interpolation formats', ({ open, close }) => {
   for (const { expression, format, declaration } of [
+    { expression: 'a is T?[] is T? || a ? [1]', format: ': a is N.T?[] or List<T?>' },
     { expression: 'x is T?[] ?? y as T is T?[] t', format: ': c' },
     { expression: 'a is T?[] is U ?? c ? [1]', format: ': d :x' },
     { expression: 'f(a) is T?[]? || b?[i] as T?[]?[] is U ?? a ? [1]', format: ': c:X' },

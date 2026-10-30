@@ -633,6 +633,10 @@ static RankReadStep rank_read_expression_verbatim(TSLexer *lexer, RankTokens *to
 }
 
 static RankReadStep rank_read_expression_name(TSLexer *lexer, RankTokens *tokens, bool *colon, RankExpression *expression) {
+    if (tokens->input && !expression->content && !expression->type_pending &&
+        (expression->has_word ? expression->word.keyword &&
+            (!strcmp(expression->word.word, "is") || !strcmp(expression->word.word, "as")) :
+            question_type_keyword_follower(lexer, tokens->input))) return RANK_READ_UNKNOWN;
     expression->content = true;
     if (!rank_read_expression_word(lexer, tokens, expression)) return RANK_READ_UNKNOWN;
     if (expression->colon) { *colon = true; return RANK_READ_DONE; }
@@ -677,7 +681,7 @@ static bool rank_apply_expression_word(TSLexer *lexer, RankTokens *tokens, RankE
     }
     if (name.keyword && !strcmp(name.word, "as")) {
         expression->guard_candidate = false;
-        RankTypeRead read = {.expression_ranks = !tokens->format_boundary};
+        RankTypeRead read = {.expression_ranks = tokens->input && !tokens->format_boundary};
         if (!rank_read_as_type(lexer, &read)) return false;
         expression->pattern = false;
         expression->primary = read.coalesce;

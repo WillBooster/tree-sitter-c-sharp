@@ -117,6 +117,13 @@ static bool rank_read_as_type(TSLexer *lexer, RankTypeRead *read) {
     return rank_read_type_frames(lexer, read, (RankTypeFrame){.stage = RANK_TYPE_START});
 }
 
+static bool rank_read_type_designation(TSLexer *lexer, const RankTypeRead *read, bool allow_pointer_suffix) {
+    QuestionIdentifier name;
+    return (allow_pointer_suffix || !read->pointer_suffix) && !read->colon && !read->division &&
+        !read->conditional && !read->coalesce && !read->binary && !read->has_word &&
+        rank_read_identifier(lexer, &name) && rank_identifier_allowed(&name, true);
+}
+
 static bool rank_read_type_frames(TSLexer *lexer, RankTypeRead *read, RankTypeFrame initial) {
     RankTypeFrames frames = array_new();
     array_push(&frames, initial);
