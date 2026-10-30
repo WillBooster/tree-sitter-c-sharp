@@ -249,6 +249,22 @@ function collectionGuardAlternatives(count: number): string {
   return `class C { void M() { switch(x){case y when a is T?[]? ? [] : ${'c ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
 }
 
+test('bounds cached nullable guard type chains', { timeout: 60_000 }, () => {
+  const large = cachedNullableGuardChain(1000);
+  expectBoundedGrowth(cachedNullableGuardChain(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(3);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1003);
+  } finally {
+    tree.delete();
+  }
+});
+
+function cachedNullableGuardChain(count: number): string {
+  return `class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is T${'?[]'.repeat(count)}? ? b : d: break; } } }`;
+}
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);

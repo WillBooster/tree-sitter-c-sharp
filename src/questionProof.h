@@ -511,8 +511,7 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
     bool simple = false;
     uint8_t result = RANK_NONE;
     bool has_next = false;
-    RankTokens tail = array_new();
-    tail.input = input;
+    RankTokens tail = {.input = input, .guard_suffix = true};
     bool target = rank_read_prefix(lexer, &simple, &prefix) && question_read_single_question(lexer) && question_skip_separators(lexer) == '[';
     if (!target) goto done;
     advance(lexer);
@@ -551,6 +550,10 @@ static uint8_t question_guard_rank_role(TSLexer *lexer, Scanner *scanner, uint32
         if (definite_prefix) goto definite_prefix;
         result = cached;
         *questions = cached_questions;
+        if (cached == RANK_OWNED_NULLABLE_PREFIX) {
+            question_input_restore(input, start);
+            question_guard_nullable_question(lexer, input, questions);
+        }
         goto done;
     }
     unsigned colons = 0;
