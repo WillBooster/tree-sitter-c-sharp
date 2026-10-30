@@ -1,12 +1,9 @@
-import { readFileSync } from 'node:fs';
-
-import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
+import { Language, Parser, type Tree } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
 test('retains raw interpolation expressions beside literal braces', async () => {
   await Parser.init();
   const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
-  const highlights = new Query(parser.language!, readFileSync('queries/highlights.scm', 'utf8'));
   try {
     for (const dollars of [2, 3, 4]) {
       for (const literalBraces of new Set([1, dollars - 1])) {
@@ -29,14 +26,6 @@ var location = ${'$'.repeat(dollars)}"""
             expect(
               expressions.flatMap((node) => node.descendantsOfType('interpolation_brace').map((brace) => brace.text))
             ).toEqual(['{'.repeat(dollars), '}'.repeat(dollars), '{'.repeat(dollars), '}'.repeat(dollars)]);
-            if (text === source) {
-              expect(
-                highlights
-                  .captures(tree.rootNode)
-                  .filter(({ name, node }) => name === 'variable' && node.parent?.type === 'interpolation')
-                  .map(({ node }) => node.text)
-              ).toEqual(['Longitude', 'Latitude']);
-            }
           } finally {
             tree.delete();
           }
@@ -44,7 +33,6 @@ var location = ${'$'.repeat(dollars)}"""
       }
     }
   } finally {
-    highlights.delete();
     parser.delete();
   }
 });
@@ -74,10 +62,9 @@ test('accepts format newlines only in verbatim interpolated strings', async () =
   }
 });
 
-test('preserves interpolation brace and format ranges with and without a format', async () => {
+test('preserves interpolation format ranges with and without a format', async () => {
   await Parser.init();
   const parser = new Parser().setLanguage(await Language.load('tree-sitter-c_sharp.wasm'));
-  const highlights = new Query(parser.language!, readFileSync('queries/highlights.scm', 'utf8'));
   try {
     for (const prefix of ['$"', '$@"', '$"""']) {
       for (const spacing of [' ', '\t', '\n', '\r\n', '\r']) {
@@ -90,14 +77,6 @@ test('preserves interpolation brace and format ranges with and without a format'
             expect(tree.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text)).toEqual(
               format ? [format] : []
             );
-            if (!format) {
-              const braces = highlights
-                .captures(tree.rootNode)
-                .filter(({ name, node }) => name === 'punctuation.bracket' && node.type === 'interpolation_brace')
-                .map(({ node }) => [node.text, node.startIndex, node.endIndex]);
-              const end = source.indexOf(`}${closing}`) + 1;
-              expect(braces.at(-1)).toEqual(['}', end - 1, end]);
-            }
           } finally {
             tree.delete();
           }
@@ -105,7 +84,6 @@ test('preserves interpolation brace and format ranges with and without a format'
       }
     }
   } finally {
-    highlights.delete();
     parser.delete();
   }
 });

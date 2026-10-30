@@ -9,7 +9,7 @@ beforeAll(async () => {
   language = await Language.load(path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm'));
 }, 60_000);
 
-test('captures literal backslashes within line-directive filename boundaries', () => {
+test('keeps literal backslashes within line-directive filename boundaries', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   const query = new Query(language, '(preproc_line (string_literal) @filename)');

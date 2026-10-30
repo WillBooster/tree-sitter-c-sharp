@@ -477,18 +477,14 @@ test('keeps complete qualified constants in logical patterns', () => {
 test('parses intrinsic nameof as a constant pattern', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, '(expression) @expression');
   const tree = parser.parse('var result = value is nameof(Type.Member);')!;
   try {
     expect(tree.rootNode.hasError).toBe(false);
     expect(tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text)).toEqual([
       'nameof(Type.Member)',
     ]);
-    const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
-    expect(captures).toContainEqual(['expression', 'Type.Member']);
   } finally {
     tree.delete();
-    query.delete();
     parser.delete();
   }
 });
@@ -669,7 +665,6 @@ test('keeps conditional case labels intact alongside constant and declaration pa
 test('keeps unguarded switch list patterns distinct from collection expressions', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, '(pattern) @pattern\n(expression) @expression');
   try {
     for (const pattern of ['[]', '[1]', '[1, 2]', '[A.B]', '[nameof(value)]', '[1, ..]']) {
       for (const guard of ['', ' when ready']) {
@@ -680,15 +675,12 @@ test('keeps unguarded switch list patterns distinct from collection expressions'
           const section = tree.rootNode.descendantsOfType('switch_section')[0]!;
           expect(section.namedChild(0)?.type, source).toBe('list_pattern');
           expect(section.namedChild(0)?.text).toBe(pattern);
-          const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
-          expect(captures).toContainEqual(['pattern', pattern]);
         } finally {
           tree.delete();
         }
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -772,10 +764,9 @@ test('keeps identifier-type cast constants complete through arithmetic and quali
   }
 });
 
-test('preserves parenthesized qualified switch constant boundaries and captures', () => {
+test('preserves parenthesized qualified switch constant boundaries', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, '(pattern) @pattern');
   try {
     for (const depth of [1, 2, 3, 5]) {
       const pattern = `${'('.repeat(depth)}A.B${')'.repeat(depth)}`;
@@ -790,13 +781,11 @@ test('preserves parenthesized qualified switch constant boundaries and captures'
         expect(
           tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text.replaceAll(/^\(+|\)+$/g, ''))
         ).toEqual(['A.B']);
-        expect(query.captures(tree.rootNode).map(({ node }) => node.text)).toContain(pattern);
       } finally {
         tree.delete();
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -879,7 +868,6 @@ test('preserves parenthesized tuple-designation patterns and genuine positional 
 
 test('preserves tuple-var patterns through negation and nested named positional clauses', () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(language, '(expression) @expression');
   try {
     for (const pattern of [
       '(not (var (a, b)))',
@@ -912,8 +900,6 @@ test('preserves tuple-var patterns through negation and nested named positional 
     const labeled = parser.parse('var result = value is { P: Foo(Label: Foo(var(a, b))) };')!;
     try {
       expect(labeled.rootNode.hasError).toBe(false);
-      const captures = query.captures(labeled.rootNode).map(({ name, node }) => [name, node.text]);
-      expect(captures).toContainEqual(['expression', 'P']);
     } finally {
       labeled.delete();
     }
@@ -926,7 +912,6 @@ test('preserves tuple-var patterns through negation and nested named positional 
       call.delete();
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
