@@ -1,5 +1,17 @@
 export const ownershipSamples = [
   {
+    source: "class C { void M() { switch(x){case y when c ? d as T? && e is T : b: M(a ? [1] : b); break;} } }",
+    ranges: [[[43, 44], [47, 64], [67, 68]], [[72, 73], [76, 79], [82, 83]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when c ? d as T? && e is T : b: var q = a ? [1] : b; break;} } }",
+    ranges: [[[43, 44], [47, 64], [67, 68]], [[78, 79], [82, 85], [88, 89]]],
+  },
+  {
+    source: "class C { void M() { switch(x){case y when c ? d as T? && e is T : b: case z: M(a ? [1] : b); break;} } }",
+    ranges: [[[43, 44], [47, 64], [67, 68]], [[80, 81], [84, 87], [90, 91]]],
+  },
+  {
     source: "class C { void M() { switch(x){case y when a is T? ? c as T? ?? b?[0] ?? b?[0] : c: break;} } }",
     ranges: [[[43, 50], [53, 78], [81, 82]]],
   },

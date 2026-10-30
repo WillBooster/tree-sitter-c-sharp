@@ -821,7 +821,11 @@ static QuestionWalkStep question_walk_read(Scanner *scanner, TSLexer *lexer, Que
         if (lexer->eof(lexer)) break;
         if (prefix && !walk->depth && c == ':' && question_guard_colon(lexer, walk->input)) {
             const QuestionFrame *frame = question_walk_prefix_frame(walk);
-            if (scanner->question_unknown || !frame || frame->unknown || !frame->pending) break;
+            if (scanner->question_unknown || !frame || frame->unknown) break;
+            if (!frame->pending) {
+                if (frame->case_guard) array_push(&walk->events, ':');
+                break;
+            }
         }
         QuestionWalkStep step = question_walk_step(scanner, lexer, walk, c);
         walk->previous_token = walk->consumed_token ? walk->consumed_token : c;
