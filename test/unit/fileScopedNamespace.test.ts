@@ -2,7 +2,7 @@ import { Language, type Node, Parser, Query } from '@willbooster/web-tree-sitter
 import { expect, test } from 'vitest';
 
 test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
-  'keeps file-scoped namespace query ranges around following declarations with %j newlines',
+  'keeps file-scoped namespace ranges around following declarations with %j newlines',
   async (newline) => {
     await Parser.init();
     const language = await Language.load('tree-sitter-c_sharp.wasm');

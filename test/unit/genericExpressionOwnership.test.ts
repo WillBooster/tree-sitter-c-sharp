@@ -185,7 +185,7 @@ test('retains colon-leading interpolation formats after generic method groups', 
 test('preserves callable and operator ranges in generic-shaped expressions', () => {
   const query = new Query(
     language,
-    '(generic_name) @generic\n(binary_expression operator: _ @operator)\n(type_argument_list (type) @argumentType)'
+    '(generic_name) @generic\n(binary_expression operator: _ @operator)\n(type_argument_list (_) @argumentType)'
   );
   try {
     for (const [expression, expectedGenerics, expectedArgumentTypes] of [

@@ -352,7 +352,7 @@ test('distinguishes nullable as-types from parenthesized ternary conditions', ()
   }
 });
 
-test('queries index initializer targets separately from ternary collection values', () => {
+test('parses index initializer targets separately from ternary collection values', () => {
   const parser = new Parser();
   parser.setLanguage(language);
   const query = new Query(

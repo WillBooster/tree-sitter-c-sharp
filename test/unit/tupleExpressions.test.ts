@@ -28,7 +28,7 @@ class C {
     query = new Query(
       language,
       `(binary_expression left: (identifier) @left right: (identifier) @right) @product
-(type/generic_name) @generic`
+(generic_name) @generic`
     );
     tree = parser.parse(source)!;
     expect(tree.rootNode.hasError).toBe(false);

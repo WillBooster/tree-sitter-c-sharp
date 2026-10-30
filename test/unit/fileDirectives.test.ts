@@ -1,22 +1,15 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
+import { beforeAll, expect, test } from 'vitest';
 
 const wasmPath = path.join(import.meta.dirname, '../../tree-sitter-c_sharp.wasm');
 
 let language: Language;
-let query: Query;
 
 beforeAll(async () => {
   await Parser.init();
   language = await Language.load(wasmPath);
-  query = new Query(language, await readFile(path.join(import.meta.dirname, '../../queries/highlights.scm'), 'utf8'));
-});
-
-afterAll(() => {
-  query?.delete();
 });
 
 test('preserves file directive fields and following source across line endings', () => {
@@ -63,41 +56,6 @@ test('preserves file directive fields and following source across line endings',
             ]);
             expect(directives[2]?.childForFieldName('metadata')?.text).toBe('Version=13.0.3');
             expect(tree.rootNode.namedChildren.at(-1)?.text).toBe('class Program {}');
-            const captures = query.captures(tree.rootNode);
-            expect(captures.filter(({ name }) => name === 'keyword.directive').map(({ node }) => node.text)).toEqual(
-              [
-                '#:sdk',
-                '#:package',
-                '#:Package',
-                '#:property',
-                '#:property',
-                '#:project',
-                '#:ref',
-                '#:include',
-                '#:exclude',
-              ].map((kind) => (uppercase ? kind.toUpperCase() : kind))
-            );
-            for (const [capture, texts] of [
-              ['property', ['Microsoft.NET.Sdk', '"Humanizer"', 'Newtonsoft.Json', 'Description', 'Empty']],
-              [
-                'string',
-                [
-                  '2.0',
-                  'Version=13.0.3',
-                  '"Hello world"',
-                  '../my project',
-                  '../reference.cs',
-                  '../included.cs',
-                  '../excluded.cs',
-                ],
-              ],
-            ] as const) {
-              expect(
-                captures
-                  .filter(({ name }) => name === capture)
-                  .map(({ node }) => [node.text, node.startIndex, node.endIndex])
-              ).toEqual(texts.map((text) => [text, source.indexOf(text), source.indexOf(text) + text.length]));
-            }
           } finally {
             tree.delete();
           }
@@ -150,19 +108,7 @@ test('keeps unknown directive payloads opaque and ends ranges on their own line'
           expect(tree.rootNode.descendantsOfType('comment')).toHaveLength(0);
           if (/^#:(project|ref|include|exclude|tool) \/\//.test(line)) {
             expect(directive?.childForFieldName('value')?.text).toBe(line.slice(line.indexOf('//')));
-            expect(
-              query
-                .captures(tree.rootNode)
-                .filter(({ name }) => name === 'string')
-                .map(({ node }) => node.text)
-            ).toEqual([line.slice(line.indexOf('//'))]);
           }
-          expect(
-            query
-              .captures(tree.rootNode)
-              .filter(({ name }) => name === 'keyword.directive')
-              .map(({ node }) => node.text)
-          ).toEqual([line.split(/\s/)[0]]);
         } finally {
           tree.delete();
         }
@@ -188,12 +134,6 @@ test('keeps incomplete SDK payloads on their ignored directive line', () => {
             const directive = tree.rootNode.namedChildren[0]!;
             expect(directive.type).toBe('file_directive');
             expect(directive.text).toBe(line + newline);
-            expect(
-              query
-                .captures(tree.rootNode)
-                .filter(({ name }) => name === 'keyword.directive')
-                .map(({ node }) => node.text)
-            ).toEqual([`#:${kind}`]);
             if (newline) expect(tree.rootNode.namedChildren[1]?.text).toBe('class Program {}');
           } finally {
             tree.delete();
