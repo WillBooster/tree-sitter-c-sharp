@@ -125,7 +125,10 @@ static bool question_guard_collection_consequence(QuestionInput *input) {
     QuestionCheckpoint start = question_input_checkpoint(input);
     TSLexer *lexer = &input->lexer;
     advance(lexer);
-    bool colon = rank_read_delimited(lexer, '[', RANK_BODY_EXPRESSION, NULL);
+    QuestionCheckpoint element = question_input_checkpoint(input);
+    bool omitted = question_skip_separators(lexer) == ',';
+    question_input_restore(input, element);
+    bool colon = !omitted && rank_read_delimited(lexer, '[', RANK_BODY_EXPRESSION, NULL);
     while (colon) {
         int32_t c = question_skip_separators(lexer);
         if (c == ':') {

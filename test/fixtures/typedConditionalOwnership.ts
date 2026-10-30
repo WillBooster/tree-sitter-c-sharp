@@ -3706,4 +3706,8 @@ export const ownershipSamples = [
     source: "class C { void M() { var r = a is int?[] >> x ? x : y; } }",
     ranges: [[[29, 45], [48, 49], [52, 53]]],
   },
+  {
+    source: "class C { void M() { switch (x) { case y when a is T[] ? [] : a is T?[,] or T?[,]: default: break; break; } } }",
+    ranges: [[[46, 54], [57, 59], [62, 81]]],
+  },
 ];
