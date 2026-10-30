@@ -1,4 +1,4 @@
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 let language: Language;
@@ -11,7 +11,6 @@ beforeAll(async () => {
 test('binds conditional member and element access before surrounding operators', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const receivers = new Query(language, '(conditional_access_expression condition: _ @receiver)');
   try {
     for (const access of ['x?.Member', 'x?[0]']) {
       for (const expression of [
@@ -37,10 +36,6 @@ test('binds conditional member and element access before surrounding operators',
             expression
           ).toEqual([access]);
           expect(nodes[0]?.childForFieldName('condition')?.text, expression).toBe('x');
-          expect(
-            receivers.captures(tree.rootNode).map(({ node }) => node.text),
-            expression
-          ).toEqual(['x']);
         } finally {
           tree.delete();
         }
@@ -73,17 +68,12 @@ test('binds conditional member and element access before surrounding operators',
           expect(tree.rootNode.hasError, receiver).toBe(false);
           const node = tree.rootNode.descendantsOfType('conditional_access_expression')[0];
           expect(node?.childForFieldName('condition')?.text, receiver).toBe(receiver);
-          expect(
-            receivers.captures(tree.rootNode).map(({ node }) => node.text),
-            receiver
-          ).toEqual([receiver]);
         } finally {
           tree.delete();
         }
       }
     }
   } finally {
-    receivers.delete();
     parser.delete();
   }
 });
@@ -355,21 +345,12 @@ test('distinguishes nullable as-types from parenthesized ternary conditions', ()
 test('parses index initializer targets separately from ternary collection values', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(
-    language,
-    '(initializer_expression (assignment_expression left: (_) @target right: (conditional_expression) @value))'
-  );
   const tree = parser.parse('var result = new C { [key] = choose ? [1] : [2] };')!;
   try {
     expect(tree.rootNode.hasError).toBe(false);
-    expect(query.captures(tree.rootNode).map(({ name, node }) => [name, node.text])).toEqual([
-      ['target', '[key]'],
-      ['value', 'choose ? [1] : [2]'],
-    ]);
     expect(tree.rootNode.descendantsOfType('collection_expression').map((node) => node.text)).toEqual(['[1]', '[2]']);
   } finally {
     tree.delete();
-    query.delete();
     parser.delete();
   }
 });

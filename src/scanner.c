@@ -89,6 +89,8 @@ static inline bool is_verbatim(Interpolation *interpolation) { return interpolat
 
 static inline bool is_raw(Interpolation *interpolation) { return interpolation->string_type & RAW; }
 
+#include "questionGuard.h"
+
 #define QUESTION_FRAME_LIMIT ((TREE_SITTER_SERIALIZATION_BUFFER_SIZE - 5) / 2)
 
 typedef struct {
@@ -103,6 +105,7 @@ typedef struct {
     bool unknown;
     bool case_colon;
     bool case_guard;
+    QuestionGuardCertificate guard;
     bool force_barrier;
 } QuestionFrame;
 
@@ -614,6 +617,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
             if (!frame->case_guard || scanner->question_unknown) {
                 frame->case_colon = false;
                 frame->case_guard = false;
+                frame->guard = (QuestionGuardCertificate){0};
             }
             lexer->result_symbol = CASE_LABEL_COLON;
             return true;
@@ -1082,33 +1086,43 @@ static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     if (lexer->lookahead != '?') return QUESTION_NOT_STARTED;
+    const Interpolation *interpolation = question_interpolation(scanner);
+    bool interpolation_root = interpolation && !interpolation->question_depth;
     advance(lexer);
     lexer->mark_end(lexer);
     if (lexer->lookahead == '?') return QUESTION_MISMATCHED;
-    scanner->question_frames[scanner->question_frame_count - 1].case_colon |= valid_symbols[CASE_LABEL_COLON];
     QuestionFollowing next = question_skip_separators(lexer) == -1 ? (QuestionFollowing){.token = '/'} : question_following(lexer);
-    bool known_ternary = false;
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
+    if (interpolation_root && next.token == '[' && !next.member && !scanner->question_unknown && !frame->unknown &&
+        scanner->question_type_uncertain && scanner->question_rank_role == RANK_TERNARY && !scanner->question_rank_prefix_questions)
+        return QUESTION_MISMATCHED;
+    scanner->question_frames[scanner->question_frame_count - 1].case_colon |= valid_symbols[CASE_LABEL_COLON];
+    bool known_ternary = false;
     if (next.member) scanner->question_type_uncertain = false;
     bool known_nullable = (next.token == '{' && frame->case_guard) || next.token == ')' || next.token == ',' || next.token == ':' || next.token == ';' ||
         (valid_symbols[QUESTION_NULLABLE] &&
          (next.token == '>' || next.token == '/' || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
     bool dimension_expression = false;
     uint8_t rank_phase = question_take_rank(scanner, &known_nullable, &dimension_expression);
-    if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown || frame->unknown || next.token != '[')
+    bool owned_type_prefix = rank_phase == RANK_OWNED_NULLABLE_PREFIX;
+    if (owned_type_prefix) rank_phase = RANK_NONE;
+    if ((!scanner->question_type_uncertain && rank_phase != RANK_PATTERN_COMPLETE) || scanner->question_unknown ||
+        (frame->unknown && (frame->case_guard || rank_phase != RANK_TERNARY)) ||
+        (next.token != '[' && !(frame->case_guard && rank_phase == RANK_PATTERN_COMPLETE && !next.member)))
         rank_phase = RANK_NONE;
-    unsigned context_flags = (dimension_expression ? QUESTION_DIMENSION_EXPRESSION : 0) |
+    unsigned context_flags = (owned_type_prefix ? QUESTION_TYPE_PREFIX : 0) | (dimension_expression ? QUESTION_DIMENSION_EXPRESSION : 0) |
         (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
         (valid_symbols[QUESTION_ELEMENT_ACCESS] ? QUESTION_ACCESS_ALTERNATIVE : 0) |
         (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
         (valid_symbols[QUESTION_NULLABLE] ? QUESTION_NULLABLE_ALLOWED : 0) |
         (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
-    bool preserve_unknown = frame->case_guard
+    bool guard_question = frame->case_guard;
+    bool preserve_unknown = guard_question
         ? valid_symbols[QUESTION_UNKNOWN] && !valid_symbols[QUESTION_NULLABLE] && next.token != '[' && !next.member
         : valid_symbols[CASE_LABEL_COLON];
     unsigned role = prepare_question_context(scanner, lexer, next, &known_nullable,
-        context_flags, rank_phase, &known_ternary);
-    if (known_ternary && preserve_unknown) role = 0;
+        context_flags, &rank_phase, &known_ternary);
+    if (known_ternary && preserve_unknown && (!guard_question || rank_phase != RANK_PATTERN_COMPLETE)) role = 0;
     if (next.member) role = 1;
     if (lexer->log) lexer->log(lexer, "question_role role=%u access=%d ternary=%d nullable=%d unknown=%d", role,
         (valid_symbols[QUESTION_MEMBER_ACCESS] || valid_symbols[QUESTION_ELEMENT_ACCESS]), valid_symbols[QUESTION_TERNARY],
@@ -1208,13 +1222,24 @@ static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *l
     int32_t next = lexer->lookahead;
     if (!matched || next == '\\' || (next > 0x7F && !is_directive_horizontal(next) && !is_line_terminator(next)))
         return QUESTION_MISMATCHED;
+    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     scanner->question_type_uncertain = true;
     question_clear_access_cache(scanner);
+    for (unsigned i = 0; i < scanner->question_frame_count; i++)
+        scanner->question_frames[i].guard.segment_scanned = false;
     clear_question_rank(scanner);
     lexer->mark_end(lexer);
-    const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
-    if (symbol == TYPE_CONTEXT_IS && !scanner->question_unknown && !frame->unknown)
-        scanner->question_rank_role = rank_stream_role(lexer, scanner, &scanner->question_rank_prefix_questions);
+    if (!scanner->question_unknown && !frame->unknown) {
+        QuestionInput input = question_input_create(lexer);
+        QuestionCheckpoint start = question_input_checkpoint(&input);
+        if (symbol == TYPE_CONTEXT_IS)
+            scanner->question_rank_role = rank_stream_input(&input.lexer, scanner, &scanner->question_rank_prefix_questions, &input);
+        else if (frame->case_guard)
+            scanner->question_rank_role = question_guard_as_role(&input, &scanner->question_rank_prefix_questions, frame->pending);
+        question_input_restore(&input, start);
+        question_prepare_type_prefix(scanner, &input);
+        array_delete(&input.characters);
+    }
     if (!scanner->question_rank_role) scanner->question_rank_prefix_questions = 0;
     lexer->result_symbol = symbol;
     return QUESTION_MATCHED;

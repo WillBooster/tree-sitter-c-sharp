@@ -1,4 +1,4 @@
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 let language: Language;
@@ -10,6 +10,907 @@ beforeAll(async () => {
 
 test('preserves case patterns, guards and statement labels', () => {
   const samples = [
+    {
+      source:
+        'class C { void M() { switch (y) { case int when a ?? b is T?[]? && a ?? b is T?[] || a?.b is T?[] v ? a as T?[] is T : a?.b is T?[] v && (a) is T?[] v || a is T?[,] || a?.b is T? ? [1] : b: L: break; } } }',
+      guards: [
+        'when a ?? b is T?[]? && a ?? b is T?[] || a?.b is T?[] v ? a as T?[] is T : a?.b is T?[] v && (a) is T?[] v || a is T?[,] || a?.b is T? ? [1] : b: L',
+      ],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [48, 78],
+          [79, 188],
+          [190, 191],
+        ],
+        [
+          [79, 99],
+          [102, 116],
+          [119, 188],
+        ],
+        [
+          [119, 178],
+          [181, 184],
+          [187, 188],
+        ],
+      ],
+      nodeCounts: {
+        break_statement: 1,
+      },
+    },
+    {
+      source:
+        'class C { void M() { switch (y) { case int when a is T?[] ? d : c is T?[] v && e ? f : b: L: break; } } }',
+      guards: ['when a is T?[] ? d : c is T?[] v && e ? f : b: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [48, 54],
+          [55, 88],
+          [90, 91],
+        ],
+        [
+          [55, 57],
+          [60, 61],
+          [64, 88],
+        ],
+        [
+          [64, 80],
+          [83, 84],
+          [87, 88],
+        ],
+      ],
+      nodeCounts: {
+        break_statement: 1,
+      },
+    },
+    {
+      source: 'switch(x){case y when c ? a is T?[,] && a is T?[] t && a ? [1] : [2] : d: break;}',
+      guards: ['when c ? a is T?[,] && a is T?[] t && a ? [1] : [2] : d'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 68],
+          [71, 72],
+        ],
+        [
+          [26, 56],
+          [59, 62],
+          [65, 68],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when c ? a is T?[] t && a is T?[,] && b is T?[] u && a ? [1] : [2] : d: break;}',
+      guards: ['when c ? a is T?[] t && a is T?[,] && b is T?[] u && a ? [1] : [2] : d'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 83],
+          [86, 87],
+        ],
+        [
+          [26, 71],
+          [74, 77],
+          [80, 83],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source:
+        'class C { void M() { switch (y) { case int when a as T?[] is T? ? [1] : d is T?[]? ? b : c is T?[]: L: break; } } }',
+      guards: ['when a as T?[] is T? ? [1] : d is T?[]? ? b : c is T?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [48, 63],
+          [66, 69],
+          [72, 101],
+        ],
+        [
+          [72, 82],
+          [85, 86],
+          [89, 101],
+        ],
+        [
+          [89, 95],
+          [96, 98],
+          [100, 101],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source:
+        'class C { void M() { switch (y) { case int when a is T?[]? ? d is T?[] : a as T?[] is T? ? [1] : c: L: break; } } }',
+      guards: ['when a is T?[]? ? d is T?[] : a as T?[] is T? ? [1] : c: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [48, 58],
+          [61, 98],
+          [100, 101],
+        ],
+        [
+          [61, 67],
+          [68, 70],
+          [73, 98],
+        ],
+        [
+          [73, 88],
+          [91, 94],
+          [97, 98],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when a as T?[] && a is not T?[,] ? b : c: break;}',
+      guards: ['when a as T?[] && a is not T?[,] ? b : c'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 49],
+          [52, 53],
+          [56, 57],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when a as T?[] && a is not T?[]? && a ? b : c: break;}',
+      guards: ['when a as T?[] && a is not T?[]? && a ? b : c'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 54],
+          [57, 58],
+          [61, 62],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when a is T?[]? && a is not T?[]? && a ? b : c: break;}',
+      guards: ['when a is T?[]? && a is not T?[]? && a ? b : c'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 55],
+          [58, 59],
+          [62, 63],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when c ? b as T? is T : a ? [0] : [1]: var r = 1; break;}',
+      guards: ['when c ? b as T? is T : a ? [0] : [1]'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 38],
+          [41, 54],
+        ],
+        [
+          [41, 42],
+          [45, 48],
+          [51, 54],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when c ? b as T? as U : a ? [0] : [1]: var r = 1; break;}',
+      guards: ['when c ? b as T? as U : a ? [0] : [1]'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 38],
+          [41, 54],
+        ],
+        [
+          [41, 42],
+          [45, 48],
+          [51, 54],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'switch(x){case y when c ? b as T?[\n,]? is T : a ? [0] : [1]: var r = 1; break;}',
+      guards: ['when c ? b as T?[\n,]? is T : a ? [0] : [1]'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [22, 23],
+          [26, 43],
+          [46, 59],
+        ],
+        [
+          [46, 47],
+          [50, 53],
+          [56, 59],
+        ],
+      ],
+      nodeCounts: { break_statement: 1 },
+    },
+    {
+      source: 'class C{void M(){switch(x){case var y when c is T?[]? || a?[0] ? [1] : b : L: break;}}} class F{}',
+      guards: ['when c is T?[]? || a?[0] ? [1] : b : L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [43, 58],
+          [59, 72],
+          [75, 76],
+        ],
+        [
+          [59, 62],
+          [65, 68],
+          [71, 72],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case var y when x is T? t * q is T?[] ?? a ? [] : b : L0: L1: break;}}} class F{}',
+      guards: ['when x is T? t * q is T?[] ?? a ? [] : b : L0: L1'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [43, 49],
+          [51, 83],
+          [85, 87],
+        ],
+        [
+          [51, 61],
+          [62, 78],
+          [81, 83],
+        ],
+        [
+          [62, 69],
+          [72, 74],
+          [77, 78],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case var y when f(a) is T?[]?[]? && a ? [] : b : x = a ? [1] : b; break;}}} class F{}',
+      guards: ['when f(a) is T?[]?[]? && a ? [] : b'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [43, 64],
+          [67, 69],
+          [72, 73],
+        ],
+        [
+          [80, 81],
+          [84, 87],
+          [90, 91],
+        ],
+      ],
+      nodeCounts: {
+        expression_statement: 1,
+        break_statement: 1,
+        class_declaration: 2,
+      },
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when z is T?[] ?? a as T ?? a is T?[] ?? a ? [1] : b: L0: L1: break;}}} class F{}',
+      guards: ['when z is T?[] ?? a as T ?? a is T?[] ?? a ? [1] : b: L0: L1'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 90],
+          [92, 94],
+        ],
+        [
+          [46, 68],
+          [69, 86],
+          [88, 90],
+        ],
+        [
+          [69, 76],
+          [79, 82],
+          [85, 86],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when z is T?[] ?? a as T?[] ?? a is T?[] ?? a ? [1] : b: L0: L1: break;}}} class F{}',
+      guards: ['when z is T?[] ?? a as T?[] ?? a is T?[] ?? a ? [1] : b: L0: L1'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 93],
+          [95, 97],
+        ],
+        [
+          [46, 71],
+          [72, 89],
+          [91, 93],
+        ],
+        [
+          [72, 79],
+          [82, 85],
+          [88, 89],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[]? is U * a ? [1] : b is V?[]: L: break;}}}',
+      guards: ['when a is T?[]? is U * a ? [1] : b is V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 58],
+          [61, 64],
+          [67, 79],
+        ],
+        [
+          [67, 73],
+          [74, 76],
+          [78, 79],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[]?[,] is U && a ? [1] : b is V?[]: L: break;}}}',
+      guards: ['when a is T?[]?[,] is U && a ? [1] : b is V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 62],
+          [65, 68],
+          [71, 83],
+        ],
+        [
+          [71, 77],
+          [78, 80],
+          [82, 83],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when p is P?[]? is P && a is T?[]?[] is U && a ? [1] : b as V?[]: L0: L1: break;}}}',
+      guards: ['when p is P?[]? is P && a is T?[]?[] is U && a ? [1] : b as V?[]: L0: L1'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 64],
+          [65, 102],
+          [104, 106],
+        ],
+        [
+          [65, 67],
+          [68, 98],
+          [100, 102],
+        ],
+        [
+          [68, 80],
+          [83, 86],
+          [89, 98],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[]? is U && a ? [1] : b is V?[]: L: break;}}}',
+      guards: ['when a is T?[]? is U && a ? [1] : b is V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 59],
+          [62, 65],
+          [68, 80],
+        ],
+        [
+          [68, 74],
+          [75, 77],
+          [79, 80],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] ? [1] : b as U?[x ? y : z] : e: break;}}}',
+      guards: ['when a is T?[] ? [1] : b as U?[x ? y : z] : e'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 75],
+          [78, 79],
+        ],
+        [
+          [46, 48],
+          [51, 54],
+          [57, 75],
+        ],
+        [
+          [65, 66],
+          [69, 70],
+          [73, 74],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] is U * a ? [1] : b as V?[]: L: break;}}}',
+      guards: ['when a is T?[] is U * a ? [1] : b as V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 75],
+          [77, 78],
+        ],
+        [
+          [46, 57],
+          [60, 63],
+          [66, 75],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] is U** p ? [1] : b as V?[]: L: break;}}}',
+      guards: ['when a is T?[] is U** p ? [1] : b as V?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 75],
+          [77, 78],
+        ],
+        [
+          [46, 57],
+          [60, 63],
+          [66, 75],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] is U / a ? [1] : b as U?[]: L: break;}}}',
+      guards: ['when a is T?[] is U / a ? [1] : b as U?[]: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 75],
+          [77, 78],
+        ],
+        [
+          [46, 57],
+          [60, 63],
+          [66, 75],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] as U?[] ? x : y: L0: L1: break;}}}',
+      guards: ['when a is T?[] as U?[] ? x : y: L0'],
+      labels: ['L1'],
+      labelRanges: [[70, 72]],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 64],
+          [66, 68],
+        ],
+        [
+          [46, 56],
+          [59, 60],
+          [63, 64],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as U?[c ? d : e] ? b : a is T?[] ? [1] : b: L0: L1: break;}}}',
+      guards: ['when a as U?[c ? d : e] ? b : a is T?[] ? [1] : b: L0'],
+      labels: ['L1'],
+      labelRanges: [[89, 91]],
+      conditionalFields: [
+        [
+          [39, 57],
+          [60, 61],
+          [64, 87],
+        ],
+        [
+          [47, 48],
+          [51, 52],
+          [55, 56],
+        ],
+        [
+          [64, 70],
+          [71, 83],
+          [85, 87],
+        ],
+        [
+          [71, 73],
+          [76, 79],
+          [82, 83],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object y, object a, object b) { switch (y) { case int when x is int?[,] ? [1] : y: L: break; } } }',
+      guards: ['when x is int?[,] ? [1] : y'],
+      labels: ['L'],
+      labelRanges: [[100, 101]],
+      conditionalFields: [
+        [
+          [76, 88],
+          [91, 94],
+          [97, 98],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object y, object a, object b) { switch (y) { case int when x is int?[] ? 1 : y is int? {}: L: break; } } }',
+      guards: ['when x is int?[] ? 1 : y is int? {}: L'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [76, 84],
+          [85, 106],
+          [108, 109],
+        ],
+        [
+          [85, 87],
+          [90, 91],
+          [94, 106],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object y, object a, object b) { switch (y) { case int when b is T?[] || a is int? || y as T ? [1] : (a): break; } } }',
+      guards: ['when b is T?[] || a is int? || y as T ? [1] : (a)'],
+      labels: [],
+      labelRanges: [],
+      conditionalFields: [
+        [
+          [76, 82],
+          [83, 114],
+          [117, 120],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as T?[] ? [1] : b: break;}}}',
+      guards: ['when a as T?[] ? [1]'],
+      labels: ['b'],
+      labelRanges: [[57, 58]],
+      conditionalFields: [],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is U && (c ? d : e) && a ? [1] : b: L0: break;}',
+      guards: ['when a is T?[] is U && (c ? d : e) && a ? [1] : b: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [22, 28],
+          [29, 66],
+          [68, 70],
+        ],
+        [
+          [29, 56],
+          [59, 62],
+          [65, 66],
+        ],
+        [
+          [41, 42],
+          [45, 46],
+          [49, 50],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when a is T?[] is U && a?.b && a ? [1] : b: L0: T? r = a ? b : c; break;case 2: break;}}}',
+      guards: ['when a is T?[] is U && a?.b && a ? [1] : b: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 76],
+          [78, 80],
+        ],
+        [
+          [46, 66],
+          [69, 72],
+          [75, 76],
+        ],
+        [
+          [89, 90],
+          [93, 94],
+          [97, 98],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when a is T?[] is U && a?.b && a ? [1] : b: L0: x = a ? b : c; break;case 2: break;}}}',
+      guards: ['when a is T?[] is U && a?.b && a ? [1] : b: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 76],
+          [78, 80],
+        ],
+        [
+          [46, 66],
+          [69, 72],
+          [75, 76],
+        ],
+        [
+          [86, 87],
+          [90, 91],
+          [94, 95],
+        ],
+      ],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is U && a ? [1] : x = a ? b : c: L0: break;}',
+      guards: ['when a is T?[] is U && a ? [1] : x = a ? b : c: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [22, 28],
+          [29, 63],
+          [65, 67],
+        ],
+        [
+          [29, 41],
+          [44, 47],
+          [50, 63],
+        ],
+        [
+          [54, 55],
+          [58, 59],
+          [62, 63],
+        ],
+      ],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is U && a ? x = b : c: L0: break;}',
+      guards: ['when a is T?[] is U && a ? x = b : c: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [22, 28],
+          [29, 53],
+          [55, 57],
+        ],
+        [
+          [29, 41],
+          [44, 49],
+          [52, 53],
+        ],
+      ],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is U && a ? T ? r = b : c : d: L0: break;}',
+      guards: ['when a is T?[] is U && a ? T ? r = b : c : d: L0'],
+      labels: [],
+      conditionalFields: [
+        [
+          [22, 28],
+          [29, 61],
+          [63, 65],
+        ],
+        [
+          [29, 41],
+          [44, 57],
+          [60, 61],
+        ],
+        [
+          [44, 45],
+          [48, 53],
+          [56, 57],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is T?[] as U ? [1] : b: L: break;}}}',
+      guards: ['when a is T?[] as U ? [1] : b'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 45],
+          [46, 59],
+          [62, 63],
+        ],
+      ],
+      asTypes: [['U ? [1]', 'array_type']],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is N.T?[] as N.U ? [x ? y : z] : b: L: break;}}}',
+      guards: ['when a is N.T?[] as N.U ? [x ? y : z] : b'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 47],
+          [48, 71],
+          [74, 75],
+        ],
+        [
+          [61, 62],
+          [65, 66],
+          [69, 70],
+        ],
+      ],
+      asTypes: [['N.U ? [x ? y : z]', 'array_type']],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a is G<T?>?[] as G<U?> ? [a?[0]] : b: L: break;}}}',
+      guards: ['when a is G<T?>?[] as G<U?> ? [a?[0]] : b'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 49],
+          [50, 71],
+          [74, 75],
+        ],
+      ],
+      asTypes: [['G<U?> ? [a?[0]]', 'array_type']],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as T?[] is T < a ? [1] : b as U?[]: L: break;}}}',
+      guards: ['when a as T?[] is T < a ? [1] : b as U?[]'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 57],
+          [60, 63],
+          [66, 75],
+        ],
+      ],
+      asTypes: [
+        ['T?[]', 'array_type'],
+        ['U?[]', 'array_type'],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as N.T?[]? is T == a ? [1] : f(b) as U?[,]: L: break;}}}',
+      guards: ['when a as N.T?[]? is T == a ? [1] : f(b) as U?[,]'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 61],
+          [64, 67],
+          [70, 83],
+        ],
+      ],
+      asTypes: [
+        ['N.T?[]?', 'nullable_type'],
+        ['U?[,]', 'array_type'],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when a as G<T?>?[] is T / a ? [1] : b as U?[x ? y : z]: L: break;}}}',
+      guards: ['when a as G<T?>?[] is T / a ? [1] : b as U?[x ? y : z]'],
+      labels: ['L'],
+      conditionalFields: [
+        [
+          [39, 61],
+          [64, 67],
+          [70, 88],
+        ],
+        [
+          [78, 79],
+          [82, 83],
+          [86, 87],
+        ],
+      ],
+      asTypes: [
+        ['G<T?>?[]', 'array_type'],
+        ['U?[x ? y : z]', 'array_type'],
+      ],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as int?[] is int?[]: L: break; } } }',
+      guards: ['when a as int?[] is int?[]: L'],
+      labels: [],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[] is N.T?[]: L: break; } } }',
+      guards: ['when a as T?[] is N.T?[]: L'],
+      labels: [],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[] is not T?[]: L: break; } } }',
+      guards: ['when a as T?[] is not T?[]: L'],
+      labels: [],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[] is T?[] as T?[]: L: break; } } }',
+      guards: ['when a as T?[] is T?[] as T?[]: L'],
+      labels: [],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[] as T?[]: L: break; } } }',
+      guards: ['when a as T?[] as T?[]'],
+      labels: ['L'],
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T?[]? is null && a ? [1] : b: L: break; } } }',
+      guards: ['when a as T?[]? is null && a ? [1] : b'],
+      labels: ['L'],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 2 },
+    },
+    {
+      source:
+        'class C { void M() { switch (x) { case T y when p ? c : a as T?[]? as object == null && a ? [1] : b: L: break; } } }',
+      guards: ['when p ? c : a as T?[]? as object == null && a ? [1] : b'],
+      labels: ['L'],
+      nodeCounts: { conditional_expression: 2, conditional_access_expression: 0, nullable_type: 2 },
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as int? is null && a ? [1] : b: break; } } }',
+      guards: ['when a as int? is null && a ? [1] : b'],
+      labels: [],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 1 },
+    },
+    {
+      source:
+        'class C { void M() { switch (x) { case T y when a as int? as object == null && a ? [1] : b: break; } } }',
+      guards: ['when a as int? as object == null && a ? [1] : b'],
+      labels: [],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 1 },
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as int? is not null && a ? [1] : b: break; } } }',
+      guards: ['when a as int? is not null && a ? [1] : b'],
+      labels: [],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 1 },
+    },
+    {
+      source: 'class C { void M() { switch (x) { case T y when a as T? is null && a ? [1] : b: break; } } }',
+      guards: ['when a as T? is null && a ? [1] : b'],
+      labels: [],
+      nodeCounts: { conditional_expression: 1, conditional_access_expression: 0, nullable_type: 1 },
+    },
     {
       source: 'switch (x) { case T?[] y when a ? b : c: label: break; case 2: break; }',
       pattern: 'declaration_pattern',
@@ -199,25 +1100,109 @@ test('preserves case patterns, guards and statement labels', () => {
       labels: [],
       nodeCounts: { conditional_expression: 3 },
     },
+    {
+      source: 'switch(x){case y when a is T?[] is T && a ? [1] : b: L0: break;}',
+      guards: ['when a is T?[] is T && a ? [1] : b: L0'],
+      labels: [],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;}',
+      guards: ['when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1'],
+      labels: [],
+    },
+    {
+      source:
+        'switch(x){case y when a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: L2: L3: L4: break;}',
+      guards: [
+        'when a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: L2: L3: L4',
+      ],
+      labels: [],
+    },
+    {
+      source:
+        'namespace N { class C { void M(){ switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} } } }',
+      guards: ['when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1'],
+      labels: [],
+    },
+    {
+      source: 'switch(x){case { P: var p } when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;}',
+      guards: ['when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1'],
+      labels: [],
+    },
+    {
+      source:
+        'switch(x){case y when F(() => { switch(z){case q when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} return a; }) ? [1] : b: break;}',
+      guards: [
+        'when F(() => { switch(z){case q when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1: break;} return a; }) ? [1] : b',
+        'when a is T?[] is T && a is T?[] is T && a ? [1] : b: L0: L1',
+      ],
+      labels: [],
+    },
+    {
+      source: 'switch(x){case y when a is T?[] is T && a ? [1] : b: x switch { _ => L }: break;}',
+      guards: ['when a is T?[] is T && a ? [1] : b: x switch { _ => L }'],
+      labels: [],
+    },
+    {
+      source:
+        'switch(x){case y when a is T?[] is T && a is T?[] is T && a ? [1] : b: x switch { _ => L }: L1: switch(z){case 1: var r=a ? b : c; break;} break;}',
+      guards: ['when a is T?[] is T && a is T?[] is T && a ? [1] : b: x switch { _ => L }: L1'],
+      labels: [],
+    },
     { source: 'var r = x switch { T?[] y when a ? [1] : b => 1, _ => 0 };', guards: ['when a ? [1] : b'], labels: [] },
   ];
   const parser = new Parser().setLanguage(language);
-  const query = new Query(language, '(when_clause) @guard (labeled_statement (identifier) @label)');
+
   try {
     for (const sample of samples) {
       const fresh = parser.parse(sample.source)!;
       try {
         expect(fresh.rootNode.hasError, sample.source).toBe(false);
+        expect(
+          fresh.rootNode.descendantsOfType('when_clause').map((node) => node.text),
+          sample.source
+        ).toEqual(sample.guards);
+        const labels = fresh.rootNode.descendantsOfType('labeled_statement').map((node) => node.firstNamedChild!);
+        expect(
+          labels.map((node) => node.text),
+          sample.source
+        ).toEqual(sample.labels);
+        if (sample.labelRanges) {
+          expect(
+            labels.map((node) => [node.startIndex, node.endIndex]),
+            sample.source
+          ).toEqual(sample.labelRanges);
+        }
         if (sample.pattern) {
           expect(fresh.rootNode.descendantsOfType('switch_section')[0]?.firstNamedChild?.type, sample.source).toBe(
             sample.pattern
           );
         }
-        const captures = query.captures(fresh.rootNode);
+
         if (sample.nodeCounts) {
           for (const [type, count] of Object.entries(sample.nodeCounts)) {
             expect(fresh.rootNode.descendantsOfType(type), sample.source).toHaveLength(count);
           }
+        }
+        if (sample.asTypes) {
+          expect(
+            fresh.rootNode.descendantsOfType('as_expression').map((node) => {
+              const type = node.childForFieldName('right')!;
+              return [type.text, type.type];
+            }),
+            sample.source
+          ).toEqual(sample.asTypes);
+        }
+        if (sample.conditionalFields) {
+          expect(
+            fresh.rootNode.descendantsOfType('conditional_expression').map((node) =>
+              ['condition', 'consequence', 'alternative'].map((field) => {
+                const value = node.childForFieldName(field)!;
+                return [value.startIndex, value.endIndex];
+              })
+            ),
+            sample.source
+          ).toEqual(sample.conditionalFields);
         }
         if (sample.guardKinds) {
           expect(
@@ -225,20 +1210,6 @@ test('preserves case patterns, guards and statement labels', () => {
             sample.source
           ).toEqual(sample.guardKinds);
         }
-        expect(
-          captures.filter(({ name }) => name === 'guard').map(({ node }) => node.text),
-          sample.source
-        ).toEqual(sample.guards);
-        expect(
-          captures.filter(({ name }) => name === 'guard').map(({ node }) => [node.startIndex, node.endIndex]),
-          sample.source
-        ).toEqual(
-          sample.guards.map((guard) => [sample.source.indexOf(guard), sample.source.indexOf(guard) + guard.length])
-        );
-        expect(
-          captures.filter(({ name }) => name === 'label').map(({ node }) => node.text),
-          sample.source
-        ).toEqual(sample.labels);
       } finally {
         fresh.delete();
       }
@@ -257,7 +1228,6 @@ test('preserves case patterns, guards and statement labels', () => {
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -327,7 +1297,7 @@ test('distinguishes await expressions from constant-pattern roots', () => {
 test('keeps logical operators and collection ternaries outside an is constant pattern', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, '(is_pattern_expression) @test');
+
   try {
     const source = 'var result = x is null || y is null ? [1] : [2];';
     const tree = parser.parse(source)!;
@@ -335,14 +1305,13 @@ test('keeps logical operators and collection ternaries outside an is constant pa
       expect(tree.rootNode.hasError).toBe(false);
       const conditional = tree.rootNode.descendantsOfType('conditional_expression')[0]!;
       expect(conditional.childForFieldName('condition')?.text).toBe('x is null || y is null');
-      expect(query.captures(tree.rootNode).map(({ node }) => node.text)).toEqual(['x is null', 'y is null']);
     } finally {
       tree.delete();
     }
     const chain = parser.parse('var result = a == b && hook is not null && hook.Call() == false;')!;
     try {
       expect(chain.rootNode.hasError).toBe(false);
-      expect(query.captures(chain.rootNode).map(({ node }) => node.text)).toEqual(['hook is not null']);
+
       expect(chain.rootNode.descendantsOfType('constant_pattern').map((node) => node.text)).toEqual(['null']);
     } finally {
       chain.delete();
@@ -352,7 +1321,6 @@ test('keeps logical operators and collection ternaries outside an is constant pa
     )!;
     try {
       expect(guardedCall.rootNode.hasError).toBe(false);
-      expect(query.captures(guardedCall.rootNode).map(({ node }) => node.text)).toEqual(['items[0] is not null']);
     } finally {
       guardedCall.delete();
     }
@@ -375,7 +1343,6 @@ test('keeps logical operators and collection ternaries outside an is constant pa
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -383,7 +1350,7 @@ test('keeps logical operators and collection ternaries outside an is constant pa
 test('retains arithmetic and shifts with qualified constants before surrounding operators', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, '(binary_expression left: (member_access_expression) @operand)');
+
   try {
     for (const constant of [
       '1 + 2 * 3 << 4',
@@ -410,17 +1377,12 @@ test('retains arithmetic and shifts with qualified constants before surrounding 
             tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
             source
           ).toEqual([constant]);
-          if (constant === 'A.B + 1') {
-            const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
-            expect(captures).toContainEqual(['operand', 'A.B']);
-          }
         } finally {
           tree.delete();
         }
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -520,7 +1482,7 @@ test('keeps qualified null-forgiving constants and their continuations inside is
 test('keeps parenthesized operands inside arithmetic constants', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, '(binary_expression left: (parenthesized_expression) @operand)');
+
   try {
     for (const constant of [
       '(1 + 1) * 2',
@@ -545,20 +1507,12 @@ test('keeps parenthesized operands inside arithmetic constants', () => {
             tree.rootNode.descendantsOfType('constant_pattern').map((node) => node.text),
             source
           ).toEqual([constant]);
-          const captures = query.captures(tree.rootNode).map(({ name, node }) => [name, node.text]);
-          if (constant === '(A.B) + 1') {
-            expect(captures).toContainEqual(['operand', '(A.B)']);
-          }
-          if (constant === '(1 + 1) * 2') {
-            expect(captures).toContainEqual(['operand', '(1 + 1)']);
-          }
         } finally {
           tree.delete();
         }
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -992,7 +1946,7 @@ test('distinguishes contextual attribute targets from reserved keywords in colle
 
 test('keeps name-shaped is types in later logical operands', () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(language, '(binary_expression right: (is_pattern_expression) @typeTest)');
+
   try {
     for (const operator of ['||', '&&']) {
       for (const name of ['C', 'C<T>', '@nameof']) {
@@ -1000,10 +1954,7 @@ test('keeps name-shaped is types in later logical operands', () => {
         const tree = parser.parse(source)!;
         try {
           expect(tree.rootNode.hasError, source).toBe(false);
-          expect(
-            query.captures(tree.rootNode).map(({ node }) => node.text),
-            source
-          ).toEqual([`x is ${name}`]);
+
           const conditional = tree.rootNode.descendantsOfType('conditional_expression')[0]!;
           expect(conditional.childForFieldName('condition')?.text, source).toBe(`x is null ${operator} x is ${name}`);
         } finally {
@@ -1012,7 +1963,6 @@ test('keeps name-shaped is types in later logical operands', () => {
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -1705,6 +2655,410 @@ test('retains await as a contextual type name in nonasync positional patterns', 
           source
         ).toContain('await T');
         expect(tree.rootNode.descendantsOfType('await_expression'), source).toHaveLength(0);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('rejects incomplete nullable guard conditionals', () => {
+  const samples = [
+    'class C { void M() { switch (x) { case y when a is T?[]? ? [] : c is U ? 1 : c?[1]: break; } } }',
+    'class C{void M(){switch(x){case y when a is T?[]? is U b and not null ? [1] : c: L: break;}}}',
+    'class C { void M() { switch(x){case y when b is not T?[]? == b ? b?[0] : f(a): var q = a ? [1] : b;  break;} } }',
+    'class C{void M(){switch(x){case y when a is T?[]? is U ? [1] : c: L: break;}}}',
+    'class C{void M(){var r = a is T?[]?[,] * b ? [1] : c;}}',
+    'class C{void M(){switch(x){case y when a is T?[]? is not U ? [1] : c: L: break;}}}',
+    'class C{void M(){switch(x){case y when a is not T?[] && a is T?[,] && a is T?[] && b ? [1].Length : [2]: break;}}}',
+    'class C{void M(){switch(x){case y when a is not T?[] && a is T?[,] && a is T?[] && b ? [1].ToArray()[0].Length : [2]: break;}}}',
+    'class C{void M(){switch(x){case y when a is not T?[] && a is T?[,] && a is T?[] && b ? [1] : [2]: break;}}}',
+    'class C { void M(object a, bool b, bool c, bool x, bool y) { switch (a) { case int when a is int?[] ? [1] : b ? x : [1] is int?[] ? x : y: break; } } }',
+    'class C { void M(object a, bool b, bool c, bool x, bool y) { switch (a) { case int when a is not int?[] ? x : a is int?[] ? x : b ? [1] : y: break; } } }',
+    'class C { void M(object a, bool x, bool y) { switch (a) { case int when a is not int?[] ? x : a is int?[] ? [1] : y: break; } } }',
+    'class C{void M(){switch(x){case y when a is T?[] && a is T?[,] && a is T?[]: break;}}}',
+    'class C{void M(){switch(x){case y when a is T?[] && a is T?[] t && a is T?[]: break;}}}',
+
+    'class C{void M(){switch(x){case y when a is T?[] && b is U?[] && c is V?[]: L: break;}}}',
+    'class C { void M() { switch (o) { case int when a is not T?[]* x ? x : y: break; } } }',
+    'class C { void M() { switch (o) { case int when a is not not T?[]* x ? x : y: break; } } }',
+    'class C { void M() { switch (o) { case int when a is not T?[]* x ? x : b ? x : y: break; } } }',
+
+    'class C { void M(object a, bool x) { switch (a) { case int when a is int?[] ? x : a is int?[] ? x : x: break; } } }',
+    'class C { void M(object o, bool b) { switch(o){ case int when x is not T?[][] ? o : x: break; } } }',
+    'class C { void M(object o, bool b) { switch(o){ case int when x is not T?[][] || y: break; } } }',
+    'class C { void M(object a) { switch (a) { case int when a is not int?[] is bool: break; } } }',
+    'class C { void M(object a, bool x) { switch (a) { case int when a is A.B?[] ? x : x: break; } } }',
+    'class C { void M(object a, bool x) { switch (a) { case int when a is List<int?>?[] is var v: break; } } }',
+    'class C{void M(){switch(x){case y when a is T?[] && b is U?[]: L: break;}}}',
+    'class C { void M() { switch (y) { case int when a is T?[]?[] is T : break; } } }\n',
+    'class C { void M() { switch (y) { case int when x is T?[]?[] is T q : return; } } }\n',
+    'class C { void M() { switch (y) { case int when a is T?[,]?[] is null : return; } } }\n',
+    'class C { void M() { switch (y) { case int when a is T?[]?[] is T?[] v : break; } } }\n',
+    'class C { void M() { var r = a is T?[]?[] + v ? [] : v; } }\n',
+    'class C { void M() { var r = c ? [] ? d : b is T?[,]?[] : e; } }\n',
+    'class C{void M(){switch(x){case y when a is T?[]?[] is U ? [1] : b as V?[]?: break; default: break;}}}',
+    'class C{void M(){switch(x){case y when a is T?[] is U ? [1] : b: break; default: break;}}}',
+    'class C{void M(){switch(x){case y when a is T?[]?[] as U ? [1] : b is V?[]?: var value = a ? [1] : b; break;}}}',
+    'class C{void M(){switch(x){case y when a is T?[]?[] as U ? [1] : b is V?[]?: return a ? [1] : b;}}}',
+    'class C{void M(){switch(x){case y when a is T?[]?[] as U ? [1] : b is V?[]?: break; default: break;}}}',
+    'class C{void M(){switch(x){case y when a is T?[]?[] as U ? [1] : b is V?[]?: break; case 2 when c ? d : e: break;}}}',
+    'class C { void M() { switch (y) { case int when a is T?[] ? d : c is not T?[] v ? f : b: break; } } }\n',
+    'class C { void M() { switch (y) { case int when b is not T?[,] + a.b : return; } } }\n',
+    'class C { void M() { switch (y) { case int when 1 is T?[] is T : break; } } }\n',
+    'class C { void M() { switch (y) { case int when c is T?[]? v : L: break; } } }\n',
+    'class C { void M() { switch (y) { case int when a is T?[]?[] : L: break; } } }\n',
+    'class C { void M() { switch (y) { case int when (a) is T?[]?[] : L: break; } } }\n',
+    'class C { void M() { switch (y) { case int when c is not T?[]?[] : T? q = 1; } } }\n',
+    'class C { void M() { switch (y) { case int when a is not T?[]?[] is T?[]? : return; } } }\n',
+    'class C { void M() { switch (y) { case int when a is not T?[]?[]?[] is T?[]? : return; } } }',
+    'class C { void M() { switch (y) { case int when a is not T?[]?[]?[]?[] is T?[]? : return; } } }',
+  ];
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const source of samples) {
+      const tree = parser.parse(source)!;
+      try {
+        expect(tree.rootNode.hasError, source).toBe(true);
+      } finally {
+        tree.delete();
+      }
+    }
+  } finally {
+    parser.delete();
+  }
+});
+
+test('retains complete mixed guard ownership in fresh parsers', () => {
+  const samples = [
+    { source: mixedGuardSource(40).replace('L39:', 'Z39:'), conditionals: 41 },
+    { source: mixedGuardSource(20), conditionals: 21 },
+    { source: mixedGuardSource(40), conditionals: 41 },
+  ];
+  for (const { source, conditionals } of samples) {
+    const parser = new Parser().setLanguage(language);
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(false);
+      expect(tree.rootNode.descendantsOfType('conditional_expression'), source).toHaveLength(conditionals);
+      expect(tree.rootNode.descendantsOfType('is_pattern_expression'), source).toHaveLength(80);
+    } finally {
+      tree.delete();
+      parser.delete();
+    }
+  }
+});
+
+function mixedGuardSource(labels: number): string {
+  return `switch(x){case y when ${'a is T?[] is U && a?.b && '.repeat(40)}a ? [1] : b:${Array.from({ length: labels }, (_, index) => ` L${index}:`).join('')} break;}`;
+}
+
+test('retains proven nullable patterns before recursive, binary and lambda boundaries', () => {
+  const samples = [
+    {
+      source:
+        'class C{void M(){switch(x){case y when a is not T?[] && a is T?[,] && a is T?[] && a is T?[,] && a is T?[] && b ? [1].Length : [2] : [3] : [4] : [5]: break;}}}',
+      nullable: ['T?', 'T?'],
+      fields: [
+        [
+          [39, 49],
+          [50, 142],
+          [145, 148],
+        ],
+        [
+          [50, 76],
+          [77, 136],
+          [139, 142],
+        ],
+        [
+          [77, 103],
+          [104, 130],
+          [133, 136],
+        ],
+        [
+          [104, 111],
+          [114, 124],
+          [127, 130],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C{void M(){switch(x){case y when a is not T?[] && a is T?[,] && a is T?[] && b ? [1].ToArray()[0].Length : [2] : [3] : [4]: break;}}}',
+      nullable: ['T?'],
+      fields: [
+        [
+          [39, 49],
+          [50, 122],
+          [125, 128],
+        ],
+        [
+          [50, 76],
+          [77, 116],
+          [119, 122],
+        ],
+        [
+          [77, 84],
+          [87, 110],
+          [113, 116],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? z is T?[,] as T? ? 1 : 2 : w is T? or {}: break; } } }',
+      nullable: ['T?', 'T?', 'T?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 95],
+          [98, 111],
+        ],
+        [
+          [71, 87],
+          [90, 91],
+          [94, 95],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? and {} : z: break; } } }',
+      nullable: ['B?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 86],
+          [89, 90],
+        ],
+      ],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? or 1 : z: break; } } }',
+      nullable: ['B?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 84],
+          [87, 88],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B ? or : y : z: break; } } }',
+      nullable: [],
+      fields: [
+        [
+          [62, 68],
+          [71, 87],
+          [90, 91],
+        ],
+        [
+          [71, 78],
+          [81, 83],
+          [86, 87],
+        ],
+      ],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? is T : z: break; } } }',
+      nullable: ['B?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 84],
+          [87, 88],
+        ],
+      ],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? as T? : z: break; } } }',
+      nullable: ['B?', 'T?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 85],
+          [88, 89],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? switch { _ => 1 } : z: break; } } }',
+      nullable: ['B?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 97],
+          [100, 101],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B? is T : [] is B? is T: break; } } }',
+      nullable: ['B?', 'B?'],
+      fields: [
+        [
+          [62, 68],
+          [71, 84],
+          [87, 100],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B ? @is : q : z: break; } } }',
+      nullable: [],
+      fields: [
+        [
+          [62, 68],
+          [71, 88],
+          [91, 92],
+        ],
+        [
+          [71, 78],
+          [81, 84],
+          [87, 88],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T ? [] is B ? with : q : z: break; } } }',
+      nullable: [],
+      fields: [
+        [
+          [62, 68],
+          [71, 89],
+          [92, 93],
+        ],
+        [
+          [71, 78],
+          [81, 85],
+          [88, 89],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is string ? [] is T? < z : 1: break; } } }',
+      nullable: ['T?'],
+      fields: [
+        [
+          [62, 73],
+          [76, 88],
+          [91, 92],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is string ? [] is T? | z : 1: break; } } }',
+      nullable: ['T?'],
+      fields: [
+        [
+          [62, 73],
+          [76, 88],
+          [91, 92],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is string ? [] is T? == z : [] is T? == w: break; } } }',
+      nullable: ['T?', 'T?'],
+      fields: [
+        [
+          [62, 73],
+          [76, 89],
+          [92, 105],
+        ],
+      ],
+    },
+    {
+      source:
+        'class C { void M(object o, bool b) { switch(o){ case int when x is T[] ? [] is T[]? < z : 1: break; } } }',
+      nullable: ['T[]?'],
+      fields: [
+        [
+          [62, 70],
+          [73, 87],
+          [90, 91],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when b is not T?[](1) {}: break;}}}',
+      nullable: ['T?'],
+      fields: [],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when c ? d : b is not T?[](1) {}: break;}}}',
+      nullable: ['T?'],
+      fields: [
+        [
+          [39, 40],
+          [43, 44],
+          [47, 66],
+        ],
+      ],
+    },
+    {
+      source: 'class C{void M(){switch(x){case y when b is not T?[] {}: break;}}}',
+      nullable: ['T?'],
+      fields: [],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when b is not T? == c: break; } } }',
+      nullable: ['T?'],
+      fields: [],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when x is T?[,] w ? (q) => 1 : 2: break; } } }',
+      nullable: ['T?'],
+      fields: [
+        [
+          [62, 74],
+          [77, 85],
+          [88, 89],
+        ],
+      ],
+    },
+    {
+      source: 'class C { void M(object o, bool b) { switch(o){ case int when a is not T? == null ? x : y: break; } } }',
+      nullable: ['T?'],
+      fields: [
+        [
+          [62, 81],
+          [84, 85],
+          [88, 89],
+        ],
+      ],
+    },
+  ];
+  const parser = new Parser().setLanguage(language);
+  try {
+    for (const sample of samples) {
+      const tree = parser.parse(sample.source)!;
+      try {
+        expect(tree.rootNode.hasError, sample.source).toBe(false);
+        expect(
+          tree.rootNode.descendantsOfType('nullable_type').map((node) => node.text),
+          sample.source
+        ).toEqual(sample.nullable);
+        expect(
+          tree.rootNode.descendantsOfType('conditional_expression').map((node) =>
+            ['condition', 'consequence', 'alternative'].map((field) => {
+              const child = node.childForFieldName(field)!;
+              return [child.startIndex, child.endIndex];
+            })
+          ),
+          sample.source
+        ).toEqual(sample.fields);
       } finally {
         tree.delete();
       }

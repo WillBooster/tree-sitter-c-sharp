@@ -7,6 +7,8 @@ import { expect, test } from 'vitest';
 
 import { generationInputMtime } from '../helpers/generationInputs.js';
 
+type ErrorExpectation = boolean | 'unchecked';
+
 const Root = path.join(import.meta.dirname, '../..');
 const WasmPath = path.join(Root, 'tree-sitter-c_sharp.wasm');
 await Parser.init();
@@ -110,6 +112,175 @@ test.each(['a ? b : ', 'a is T z ? b : ', 'a is T[] z ? [1] : ', 'a is T?[] z ? 
   }
 );
 
+test('bounds ordinary bracket decisions in case guards', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(ordinaryGuardBrackets(100), ordinaryGuardBrackets(1000), false);
+});
+
+function ordinaryGuardBrackets(count: number): string {
+  return `class C{void M(){switch(x){case y when b is not T?[]? == b ? ${'b?[0] : '.repeat(count)}f(a): L: break;}}}`;
+}
+
+test('bounds nested collection guards with typed alternatives', { timeout: 60_000 }, () => {
+  const large = nestedCollectionGuardAlternative(1000);
+  expectBoundedGrowth(nestedCollectionGuardAlternative(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(3);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1003);
+  } finally {
+    tree.delete();
+  }
+});
+
+function nestedCollectionGuardAlternative(count: number): string {
+  return `class C { void M() { switch (x) { case y when a as T?[]? ? f ? [1] : x : a is T${'?[]'.repeat(count)}? ? 1 : x: break; } } }`;
+}
+
+test('bounds collection choices in typed guard alternatives', { timeout: 60_000 }, () => {
+  const large = typedGuardAlternativeForest(1000);
+  expectBoundedGrowth(typedGuardAlternativeForest(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function typedGuardAlternativeForest(count: number): string {
+  return `class C { void M() { switch(x){case y when a is T?[]? ? 1 : ${'c ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
+}
+
+test('bounds collection choices before later AS guard alternatives', { timeout: 60_000 }, () => {
+  const large = laterAsGuardAlternative(1000);
+  expectBoundedGrowth(laterAsGuardAlternative(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(4);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1003);
+  } finally {
+    tree.delete();
+  }
+});
+
+function laterAsGuardAlternative(count: number): string {
+  return `class C { void M() { switch(x){case y when a as T?[]? ? f ? [1] : x : f is T${'?[]'.repeat(count)}? ? c : d as U ? b : e: break;} } }`;
+}
+
+test('bounds nullable logical types before interpolation formats', { timeout: 60_000 }, () => {
+  const large = logicalInterpolationTypes(1000);
+  expectBoundedGrowth(logicalInterpolationTypes(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(0);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('interpolation_format_clause').map((node) => node.text)).toEqual([': d:x']);
+  } finally {
+    tree.delete();
+  }
+});
+
+function logicalInterpolationTypes(count: number): string {
+  return `class C { string M() { return $"{a is T?[]?${' or T[]?[]'.repeat(count)}: d:x}"; } }`;
+}
+
+test('bounds binary conditions in typed guard alternatives', { timeout: 60_000 }, () => {
+  const large = binaryGuardAlternativeForest(1000);
+  expectBoundedGrowth(binaryGuardAlternativeForest(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function binaryGuardAlternativeForest(count: number): string {
+  return `class C { void M() { switch(x){case y when a is T?[]? ? 1 : ${'c == d ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
+}
+
+test('bounds relational conditions in typed guard alternatives', { timeout: 60_000 }, () => {
+  const large = relationalGuardAlternativeForest(1000);
+  expectBoundedGrowth(relationalGuardAlternativeForest(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function relationalGuardAlternativeForest(count: number): string {
+  return `class C { void M() { switch(x){case y when a is T?[]? ? 1 : ${'c < d ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
+}
+
+test('bounds collection choices across typed guard segments', { timeout: 60_000 }, () => {
+  const large = typedGuardSegments(1000);
+  expectBoundedGrowth(typedGuardSegments(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(2002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function typedGuardSegments(count: number): string {
+  return `class C { void M(){switch(x){case y when a is T?[]? ?1: ${'c is U ? 1 : c ? [1] : '.repeat(count)}d is T?[]? ? b:d:break;}}}`;
+}
+
+test('bounds collection choices after collection guard consequences', { timeout: 60_000 }, () => {
+  const large = collectionGuardAlternatives(1000);
+  expectBoundedGrowth(collectionGuardAlternatives(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(1002);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(4);
+  } finally {
+    tree.delete();
+  }
+});
+
+function collectionGuardAlternatives(count: number): string {
+  return `class C { void M() { switch(x){case y when a is T?[]? ? [] : ${'c ? [1] : '.repeat(count)}d is T?[]? ? b : d: break;} } }`;
+}
+
+test('bounds cached nullable guard type chains', { timeout: 60_000 }, () => {
+  const large = cachedNullableGuardChain(1000);
+  expectBoundedGrowth(cachedNullableGuardChain(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(3);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1003);
+  } finally {
+    tree.delete();
+  }
+});
+
+function cachedNullableGuardChain(count: number): string {
+  return `class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is T${'?[]'.repeat(count)}? ? b : d: break; } } }`;
+}
+
+test('bounds negated cached nullable guard type chains', { timeout: 60_000 }, () => {
+  const large = negatedCachedNullableGuardChain(1000);
+  expectBoundedGrowth(negatedCachedNullableGuardChain(100), large, false);
+  const tree = parser.parse(large)!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(3);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(1003);
+  } finally {
+    tree.delete();
+  }
+});
+
+function negatedCachedNullableGuardChain(count: number): string {
+  return `class C { void M() { switch (x) { case y when a is T?[]? ? 1 : c is U ? [] : d is not T${'?[]'.repeat(count)}? ? b : d: break; } } }`;
+}
+
 test('bounds question-free stacked case guard prefixes', { timeout: 60_000 }, () => {
   const large = stackedCaseGuards(1000);
   expectBoundedGrowth(stackedCaseGuards(100), large, false);
@@ -143,12 +314,84 @@ function nullablePatternSuffixes(count: number): string {
   return 'switch(x) { case y when a ? [1] : b is T?' + '[]?'.repeat(count) + ' and not null: break; }';
 }
 
+test('bounds alternating definite and conditional guard types', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(mixedDefiniteGuardSource(100), mixedDefiniteGuardSource(1000), false);
+});
+
+function mixedDefiniteGuardSource(count: number): string {
+  return `class C{void M(){switch(x){case y when a is not T?[] && ${'a is T?[,] && a is T?[] && '.repeat(count)}b ? [1].Length : [2]${Array.from({ length: count + 1 }, (_, index) => ` : [${index + 3}]`).join('')}: break;}}}`;
+}
+
+test('bounds negated nullable-rank successors in case guards', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(negatedNullableRankSuccessors(100), negatedNullableRankSuccessors(1000));
+});
+
+function negatedNullableRankSuccessors(count: number): string {
+  return `class C { void M() { switch (y) { case int when a is not T?${'[]?'.repeat(count)}[] is T?[]? : return; } } }`;
+}
+
+test('bounds repeated nullable-rank successors in a malformed case guard', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(repeatedRankSuccessors(100), repeatedRankSuccessors(1000), 'unchecked');
+});
+
+function repeatedRankSuccessors(count: number): string {
+  return `switch(x){case y when ${'a is T?[] is U && a is T?[] ? [1] : b && '.repeat(count)}a ? [1] : b: break;}`;
+}
+
 test('bounds nullable relational suffix lookahead', { timeout: 60_000 }, () => {
   expectBoundedGrowth(nullableRelationalSource(100), nullableRelationalSource(1000), false);
 });
 
 function nullableRelationalSource(count: number): string {
   return `var result = x is T?[] ? [0] : ${'a as int? > '.repeat(count)}b ? [1] : [2];`;
+}
+
+test('bounds repeated collection arithmetic consequences after nullable types', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(collectionArithmeticConsequences(100), collectionArithmeticConsequences(1000), false);
+});
+
+function collectionArithmeticConsequences(count: number): string {
+  return `var r = ${'value is T?[] ? [] + x : '.repeat(count)}fallback;`;
+}
+
+test('bounds incomplete nullable logical guard chains', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(incompleteLogicalGuard(100), incompleteLogicalGuard(1000), true);
+});
+
+function incompleteLogicalGuard(count: number): string {
+  return `class C{void M(){switch(x){case y when a is T?[] && ${'b is U?[] && '.repeat(count - 1)}c is V?[]: L: break;}}}`;
+}
+
+test('bounds invalid nullable guard alternative chains', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(incompleteNullableGuardAlternatives(100), incompleteNullableGuardAlternatives(1000), true);
+});
+
+function incompleteNullableGuardAlternatives(count: number): string {
+  return `class C { void M(object a, bool x) { switch(a) { case int when ${'a is int?[] ? x : '.repeat(count)}x: break; } } }`;
+}
+
+test('bounds repeated nullable ranks in ordinary type-test chains', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(ordinaryNullableChain(1000), ordinaryNullableChain(10_000), false);
+});
+
+function ordinaryNullableChain(count: number): string {
+  return `var r = f(a is T?[] / a is T?${'[]?'.repeat(count)} is U ? [1] : b: L);`;
+}
+
+test('bounds nullable rank chains before conditional colons', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(nullableChainBeforeColon(1000), nullableChainBeforeColon(10_000), false);
+});
+
+function nullableChainBeforeColon(count: number): string {
+  return `var r = x is T?[]?[] ? d : x ? [] || 1 is T?${'[]?'.repeat(count)} : e;`;
+}
+
+test('bounds nested nullable chains before binary conditional followers', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(nestedNullableBinaryFollower(1000), nestedNullableBinaryFollower(10_000), false);
+});
+
+function nestedNullableBinaryFollower(count: number): string {
+  return `var r = x is T?[]?[] ? d : x ? [] || 1 is T?${'[]?'.repeat(count)} == y : e;`;
 }
 
 test('bounds repeated omitted stack allocation ranks', { timeout: 60_000 }, () => {
@@ -308,7 +551,7 @@ const MaxLargeMicroseconds = 5_000_000;
 
 // Thread CPU time excludes competing test files and background compilation. The growth limit permits roughly n^1.25
 // scaling across a tenfold input increase; the absolute limit also catches a uniformly slow parser.
-function expectBoundedGrowth(small: string, large: string, expectedErrors = true): void {
+function expectBoundedGrowth(small: string, large: string, expectedErrors: ErrorExpectation = true): void {
   const warmup = parseCpuTime(large, expectedErrors);
   const smallSamples: ParseCpuSample[] = [];
   const largeSamples: ParseCpuSample[] = [];
@@ -331,7 +574,7 @@ function expectBoundedGrowth(small: string, large: string, expectedErrors = true
   expect(largeFastest, samples).toBeLessThan(MaxLargeMicroseconds);
 }
 
-function parseCpuTime(source: string, expectedErrors = true): ParseCpuSample {
+function parseCpuTime(source: string, expectedErrors: ErrorExpectation = true): ParseCpuSample {
   const wallStart = performance.now();
   const start = process.threadCpuUsage();
   let samples = 0;
@@ -341,7 +584,7 @@ function parseCpuTime(source: string, expectedErrors = true): ParseCpuSample {
   do {
     const tree = parser.parse(source);
     if (!tree) throw new Error('The parser returned no tree');
-    allMatchErrors &&= tree.rootNode.hasError === expectedErrors;
+    allMatchErrors &&= expectedErrors === 'unchecked' || tree.rootNode.hasError === expectedErrors;
     tree.delete();
     samples++;
     const { system, user } = process.threadCpuUsage(start);
@@ -456,6 +699,137 @@ test('recovers from deeply incomplete conditional operands without poisoning the
     expect(subsequent.rootNode.descendantsOfType('conditional_access_expression')[0]!.text).toBe('a?[0]');
   } finally {
     subsequent.delete();
+  }
+});
+
+test.each([
+  { operator: '&&', completeGuard: false },
+  { operator: '||', completeGuard: false },
+  { operator: '&&', completeGuard: true },
+  { operator: '||', completeGuard: true },
+])(
+  'bounds repeated type-operator guards $operator / $completeGuard',
+  { timeout: 60_000 },
+  ({ operator, completeGuard }) => {
+    const source = (count: number): string =>
+      `switch (x) { case y when ${`a is T?[] is T ${operator} `.repeat(count)}a ? [1] : b:${completeGuard ? Array.from({ length: count }, (_, index) => ` L${index}:`).join('') : ''} break; }`;
+    expectBoundedGrowth(source(100), source(1000), completeGuard ? false : 'unchecked');
+    if (!completeGuard) return;
+    const text = source(1000);
+    const tree = parser.parse(text)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(0);
+      expect(tree.rootNode.descendantsOfType('is_pattern_expression')).toHaveLength(2000);
+      expect(tree.rootNode.descendantsOfType('labeled_statement')).toHaveLength(0);
+      const conditionals = tree.rootNode.descendantsOfType('conditional_expression');
+      expect(conditionals).toHaveLength(1001);
+      const outer = conditionals[0]!;
+      expect(outer.childForFieldName('condition')!.endIndex).toBe(text.indexOf('?[]'));
+      expect(outer.childForFieldName('consequence')!.startIndex).toBe(text.indexOf('?[]') + 1);
+      expect(outer.childForFieldName('alternative')!.text).toBe('L999');
+      expect(conditionals.at(-1)!.childForFieldName('condition')!.text).toBe(`[] is T ${operator} a`);
+      expect(conditionals.at(-1)!.childForFieldName('consequence')!.text).toBe('[1]');
+      expect(conditionals.at(-1)!.childForFieldName('alternative')!.text).toBe('b');
+    } finally {
+      tree.delete();
+    }
+  }
+);
+
+test('bounds repeated added nullable suffixes before later type operators', { timeout: 60_000 }, () => {
+  expectBoundedGrowth(addedSuffixGuardSource(100), addedSuffixGuardSource(1000), false);
+  const tree = parser.parse(addedSuffixGuardSource(1000))!;
+  try {
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(2);
+    expect(tree.rootNode.descendantsOfType('labeled_statement')).toHaveLength(0);
+    expect(tree.rootNode.lastNamedChild?.text).toBe('var following = a?[0];');
+    expect(tree.rootNode.lastNamedChild?.hasError).toBe(false);
+  } finally {
+    tree.delete();
+  }
+});
+
+function addedSuffixGuardSource(count: number): string {
+  return `switch(x){case y when ${'a is T?[]? is U && '.repeat(count)}a ? [1] : b is V?[]: L: break;} var following = a?[0];`;
+}
+
+test.each([
+  { name: 'AS then nullable IS then AS', term: 'a as T?[] is T?[] as U && ', errors: 'unchecked' as const },
+  {
+    name: 'scalar logical patterns',
+    term: 'a is T?[] as U || a is T? and not null || ',
+    errors: 'unchecked' as const,
+  },
+  {
+    name: 'array logical patterns',
+    term: 'a is T?[] as U || a is T?[] and not null || ',
+    errors: 'unchecked' as const,
+  },
+  {
+    name: 'coalescing IS/AS operands',
+    term: 'a as T ?? ',
+    prefix: 'z is T?[] ?? ',
+    suffix: 'a is T?[] ?? ',
+    labels: ': L0: L1',
+    conditionals: 3,
+  },
+])(
+  'bounds mixed nullable operands with $name',
+  { timeout: 60_000 },
+  ({ term, prefix = '', suffix = '', labels = '', conditionals, errors = false }) => {
+    const source = (count: number): string =>
+      `switch(x){case y when ${prefix}${term.repeat(count)}${suffix}a ? [1] : b${labels}: break;} var following = a?[0];`;
+    expectBoundedGrowth(source(100), source(1000), errors);
+    if (errors === 'unchecked') return;
+    const tree = parser.parse(source(1000))!;
+    try {
+      if (conditionals !== undefined) {
+        expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(conditionals);
+        expect(tree.rootNode.descendantsOfType('labeled_statement')).toHaveLength(0);
+      }
+      expect(tree.rootNode.descendantsOfType('break_statement').map((node) => node.text)).toEqual(['break;']);
+      expect(tree.rootNode.lastNamedChild?.text).toBe('var following = a?[0];');
+      expect(tree.rootNode.lastNamedChild?.hasError).toBe(false);
+    } finally {
+      tree.delete();
+    }
+  }
+);
+
+test.each([
+  { name: 'member access', term: 'a is T?[] is U && a?.b && ', labels: false, body: 'break;', conditionals: 1 },
+  {
+    name: 'nested conditionals',
+    term: 'a is T?[] is U && (c ? d : e) && ',
+    labels: false,
+    body: 'break;',
+    conditionals: 1001,
+  },
+  { name: 'as operators and labels', term: 'a is T?[] as U && ', labels: true, body: 'break;', conditionals: 1001 },
+  {
+    name: 'declaration after guard',
+    term: 'a is T?[] is U && a?.b && ',
+    labels: false,
+    body: 'var r=a ? b : c; break;',
+    conditionals: 2,
+  },
+  { name: 'partial obligations', term: 'a is T?[] is U && ', labels: 'half', body: 'break;', conditionals: 501 },
+])('bounds mixed type-operator guards: $name', { timeout: 60_000 }, ({ term, labels, body, conditionals }) => {
+  const source = (count: number): string =>
+    `switch(x){case y when ${term.repeat(count)}a ? [1] : b:${labels ? Array.from({ length: labels === 'half' ? Math.floor(count / 2) : count }, (_, index) => ` L${index}:`).join('') : ''} ${body}}`;
+  expectBoundedGrowth(source(100), source(1000), labels === true ? false : 'unchecked');
+  if (labels !== true) return;
+  const tree = parser.parse(source(1000))!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(tree.rootNode.descendantsOfType('is_pattern_expression')).toHaveLength(term.includes(' is U') ? 2000 : 1000);
+    expect(tree.rootNode.descendantsOfType('as_expression')).toHaveLength(term.includes(' as U') ? 1000 : 0);
+    expect(tree.rootNode.descendantsOfType('break_statement')).toHaveLength(1);
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(conditionals);
+    expect(tree.rootNode.descendantsOfType('labeled_statement')).toHaveLength(0);
+  } finally {
+    tree.delete();
   }
 });
 

@@ -3,7 +3,7 @@
 
 #include "questionLiterals.h"
 
-typedef struct { void *generic_context; unsigned (*generic_open)(TSLexer *, void *); void (*generic_close)(TSLexer *, void *, unsigned); unsigned generic_start; bool allow_omitted; bool allocation_prefix; bool sized_rank; uint32_t expression_questions; uint32_t question_bits; uint32_t questions; int32_t initial_suffix; bool colon; bool comma; bool root_comma; RankGroups *groups; RankGroups *prefix; bool prefix_done; bool prefix_all; bool verbatim_literal; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; QuestionIdentifier word; } RankTypeRead;
+typedef struct { void *generic_context; unsigned (*generic_open)(TSLexer *, void *); void (*generic_close)(TSLexer *, void *, unsigned); unsigned generic_start; bool allow_omitted; bool allocation_prefix; bool expression_ranks; bool sized_rank; uint32_t expression_questions; uint32_t prefix_questions; uint32_t question_bits; uint32_t questions; int32_t initial_suffix; bool colon; bool comma; bool root_comma; RankGroups *groups; RankGroups *prefix; bool prefix_done; bool prefix_all; bool verbatim_literal; bool complex; bool question; bool coalesce; bool conditional; bool division; bool binary; bool has_word; bool pointer_suffix; QuestionIdentifier word; } RankTypeRead;
 
 typedef enum { RANK_TYPE_START, RANK_TYPE_SUFFIX, RANK_TYPE_NAME, RANK_TYPE_TAIL, RANK_TYPE_ARGUMENT, RANK_TYPE_ARGUMENT_END } RankTypeStage;
 typedef struct { RankTypeStage stage; int32_t close; bool flag; bool function_pointer; unsigned opening; } RankTypeFrame;
@@ -115,6 +115,13 @@ static int32_t rank_type_gap(TSLexer *lexer, RankTypeRead *read) {
 
 static bool rank_read_as_type(TSLexer *lexer, RankTypeRead *read) {
     return rank_read_type_frames(lexer, read, (RankTypeFrame){.stage = RANK_TYPE_START});
+}
+
+static bool rank_read_type_designation(TSLexer *lexer, const RankTypeRead *read, bool allow_pointer_suffix) {
+    QuestionIdentifier name;
+    return (allow_pointer_suffix || !read->pointer_suffix) && !read->colon && !read->division &&
+        !read->conditional && !read->coalesce && !read->binary && !read->has_word &&
+        rank_read_identifier(lexer, &name) && rank_identifier_allowed(&name, true);
 }
 
 static bool rank_read_type_frames(TSLexer *lexer, RankTypeRead *read, RankTypeFrame initial) {
@@ -231,6 +238,7 @@ static bool rank_read_type_argument_end(TSLexer *lexer, RankTypeRead *read, Rank
 
 static bool rank_read_type_suffix(TSLexer *lexer, RankTypeRead *read, bool tuple_element, bool function_pointer) {
     if (read->colon || read->division) return true;
+    read->pointer_suffix = false;
     bool nullable = read->allocation_prefix && function_pointer;
     for (;;) {
         int32_t c = rank_type_gap(lexer, read);
@@ -244,12 +252,14 @@ static bool rank_read_type_suffix(TSLexer *lexer, RankTypeRead *read, bool tuple
                 break;
             case '*':
                 read->complex = true;
+                read->pointer_suffix = true;
                 nullable = true;
                 advance(lexer);
                 break;
             case '[':
                 read->complex = true;
                 if (!rank_read_type_rank(lexer, read)) return false;
+                read->pointer_suffix = false;
                 nullable = false;
                 break;
             default:
@@ -371,7 +381,7 @@ static void rank_type_close(RankTypeRead *read, char closing) {
 static bool rank_read_type_rank(TSLexer *lexer, RankTypeRead *read) {
     rank_type_open(read, '[');
     if (!rank_read_as_rank(lexer)) {
-        if (!read->allocation_prefix || !read->groups || read->groups->size == 1) {
+        if (!read->expression_ranks && (!read->allocation_prefix || !read->groups || read->groups->size == 1)) {
             read->sized_rank = read->allocation_prefix;
             return false;
         }
@@ -380,7 +390,9 @@ static bool rank_read_type_rank(TSLexer *lexer, RankTypeRead *read) {
         uint32_t questions = 0;
         if (!rank_read_frames(lexer, &frames, NULL, 0, NULL, &questions) ||
             UINT32_MAX - read->expression_questions < questions) return false;
+        if (questions && !read->expression_questions) read->prefix_questions = read->questions;
         read->expression_questions += questions;
+        read->sized_rank |= read->expression_ranks;
     }
     rank_type_close(read, ']');
     return true;
