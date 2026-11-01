@@ -1,4 +1,4 @@
-// code-gauge-allow-file fileNcss 894 -- Guard and ordinary proofs share captured input and chronology; splitting this state machine exceeds the flat-chain repair.
+// code-gauge-allow-file fileNcss 894 -- Guard and ordinary proofs share captured input, checkpoint restoration and event chronology.
 #ifndef TREE_SITTER_C_SHARP_QUESTION_PROOF_H_
 #define TREE_SITTER_C_SHARP_QUESTION_PROOF_H_
 

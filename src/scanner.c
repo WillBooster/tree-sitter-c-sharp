@@ -1,4 +1,4 @@
-// code-gauge-allow-file fileNcss 994 -- Scanner dispatch and literal lifecycles share token state; separating unrelated lexing is outside this proof-cache repair.
+// code-gauge-allow-file fileNcss 994 -- Scanner dispatch and literal lifecycles share token state.
 #include "tree_sitter/alloc.h"
 #include "tree_sitter/array.h"
 #include "tree_sitter/parser.h"
