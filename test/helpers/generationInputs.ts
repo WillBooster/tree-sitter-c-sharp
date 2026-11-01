@@ -20,6 +20,7 @@ export function generationInputMtime(root: string): number {
   }
   const inputs = [
     path.join(root, 'tree-sitter.json'),
+    path.join(root, 'script/directiveIdentifierRanges.mjs'),
     corpus,
     ...fs.readdirSync(corpus, { recursive: true, encoding: 'utf8' }).map((file) => path.join(corpus, file)),
     ...examples.map((file) => path.join(root, file)),
