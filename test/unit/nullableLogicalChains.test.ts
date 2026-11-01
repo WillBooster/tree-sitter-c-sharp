@@ -119,3 +119,28 @@ test('preserves mixed logical precedence when the chain ends with a type test', 
     parser.delete();
   }
 });
+
+test.each(['ready.Foo()', 'ready == 1', 'ready ? x : y'])(
+  'preserves nullable logical chains before the uncertified tail %s',
+  (tail) => {
+    const source = `var r = ${'a is T?[] && '.repeat(20)}${tail};`;
+    const parser = new Parser().setLanguage(language);
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(20);
+      expect(
+        tree.rootNode
+          .descendantsOfType('conditional_expression')
+          .map((node) =>
+            ['condition', 'consequence', 'alternative'].map((field) => node.childForFieldName(field)?.text)
+          )
+      ).toEqual(tail.includes('?') ? [[`${'a is T?[] && '.repeat(20)}ready`, 'x', 'y']] : []);
+      const binaries = tree.rootNode.descendantsOfType('binary_expression');
+      expect(binaries[0]!.childForFieldName('operator')?.text).toBe('&&');
+    } finally {
+      tree.delete();
+      parser.delete();
+    }
+  }
+);

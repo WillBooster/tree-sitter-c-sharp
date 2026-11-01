@@ -1,4 +1,4 @@
-// code-gauge-allow-file fileNcss 991 -- Scanner dispatch and literal lifecycles share token state; separating unrelated lexing is outside this proof-cache repair.
+// code-gauge-allow-file fileNcss 994 -- Scanner dispatch and literal lifecycles share token state; separating unrelated lexing is outside this proof-cache repair.
 #include "tree_sitter/alloc.h"
 #include "tree_sitter/array.h"
 #include "tree_sitter/parser.h"
@@ -126,6 +126,7 @@ typedef struct {
     bool question_unknown;
     bool question_type_uncertain;
     uint32_t question_access_cache;
+    uint32_t logical_refusals;
     QuestionSuffix suffix;
     uint8_t question_rank_role;
     uint32_t question_rank_prefix_questions;
@@ -222,6 +223,7 @@ static void question_clear_access_cache(Scanner *scanner) {
 
 static void reset_question_context(Scanner *scanner) {
     scanner->ternary_confirmation = (TernaryConfirmation){0};
+    scanner->logical_refusals = 0;
     scanner->question_unknown = false;
     scanner->question_type_uncertain = false;
     question_clear_access_cache(scanner);
@@ -273,6 +275,7 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
     size += interpolation_serialize(scanner, buffer + size, state.depths);
     question_serialize_modes(scanner, state, buffer, &size);
     question_suffix_serialize(&scanner->suffix, buffer, &size);
+    rank_logical_serialize_refusals(scanner, buffer, &size);
     return size;
 }
 
@@ -292,7 +295,7 @@ static unsigned interpolation_serialize(const Scanner *scanner, char *buffer, bo
     return size;
 }
 
-// code-gauge-allow functionCognitiveComplexity 28 -- Mandatory literal state and optional question proofs must be validated before publishing one deserialized scanner.
+// code-gauge-allow functionCognitiveComplexity 29 -- Mandatory literal state and optional question proofs must be validated before publishing one deserialized scanner.
 // code-gauge-allow functionNcss 57 -- Mandatory literal state and optional question proofs must be validated before publishing one deserialized scanner.
 void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
     Scanner *scanner = (Scanner *)payload;
@@ -338,7 +341,7 @@ void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char 
         value.unknown = modes & 2;
         scanner->ternary_confirmation = value;
     }
-    if (size < length) question_suffix_read(&scanner->suffix, scanner->question_frame_count, buffer, length, &size);
+    if (!rank_logical_read_tail(scanner, buffer, length, &size)) goto unknown;
     if (size != length) goto unknown;
     return;
 unknown:
