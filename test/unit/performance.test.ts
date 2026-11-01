@@ -112,6 +112,20 @@ test.each(['a ? b : ', 'a is T z ? b : ', 'a is T[] z ? [1] : ', 'a is T?[] z ? 
   }
 );
 
+test.each(['&&', '||'])('bounds nullable array type tests in %s chains', { timeout: 60_000 }, (operator) => {
+  const source = (count: number): string =>
+    `class C { bool M() { return ${`a is T?[] ${operator} `.repeat(count)}ready; } }`;
+  const tree = parser.parse(source(2000))!;
+  try {
+    expect(tree.rootNode.hasError).toBe(false);
+    expect(tree.rootNode.descendantsOfType('nullable_type')).toHaveLength(2000);
+    expect(tree.rootNode.descendantsOfType('conditional_expression')).toHaveLength(0);
+  } finally {
+    tree.delete();
+  }
+  expectBoundedGrowth(source(200), source(2000), false);
+});
+
 test('bounds ordinary bracket decisions in case guards', { timeout: 60_000 }, () => {
   expectBoundedGrowth(ordinaryGuardBrackets(100), ordinaryGuardBrackets(1000), false);
 });

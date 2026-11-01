@@ -1,3 +1,4 @@
+// code-gauge-allow-file fileNcss 410 -- The serializer and deserializer share one compact scanner-state format; splitting only relocates their codec.
 #ifndef TREE_SITTER_C_SHARP_QUESTION_STATE_H_
 #define TREE_SITTER_C_SHARP_QUESTION_STATE_H_
 
@@ -21,7 +22,7 @@ static uint8_t question_take_rank(Scanner *scanner, bool *known_nullable, bool *
         scanner->question_rank_prefix_questions--;
         return RANK_NONE;
     }
-    if (scanner->question_rank_role == RANK_NULLABLE_PREFIX || scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX) {
+    if (rank_nullable_prefix_role(scanner->question_rank_role)) {
         uint8_t role = scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX ? RANK_OWNED_NULLABLE_PREFIX : RANK_NONE;
         *known_nullable = true;
         if (!--scanner->question_rank_prefix_questions) clear_question_rank(scanner);
@@ -43,6 +44,8 @@ static uint8_t question_take_rank(Scanner *scanner, bool *known_nullable, bool *
     return role;
 }
 
+// code-gauge-allow functionCognitiveComplexity 24 -- Optional proof fields share a single remaining-byte budget and must be selected in codec order.
+// code-gauge-allow functionNcss 34 -- Keep the byte-budget accounting beside each optional field selection.
 static QuestionSerialization question_serialization_plan(const Scanner *scanner, unsigned available) {
     bool confirmation = scanner->ternary_confirmation.valid;
     bool extended = (!scanner->question_unknown || confirmation) && (scanner->question_frame_count > 1 ||
@@ -61,7 +64,7 @@ static QuestionSerialization question_serialization_plan(const Scanner *scanner,
         available += extension_size;
         extended = false;
     }
-    bool type_prefix = (scanner->question_rank_role == RANK_NULLABLE_PREFIX || scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX || scanner->question_rank_role == RANK_ALLOCATION_MIXED) && scanner->question_rank_prefix_questions;
+    bool type_prefix = rank_counted_role(scanner->question_rank_role) && scanner->question_rank_prefix_questions;
     bool rank = type_prefix || (!unknown && scanner->question_rank_role &&
             (scanner->question_type_uncertain || scanner->question_rank_role == RANK_PATTERN_COMPLETE));
     rank &= available >= 5;
@@ -119,6 +122,7 @@ static bool apply_question_events(Scanner *scanner, const char *events, unsigned
     return true;
 }
 
+// code-gauge-allow functionNcss 36 -- Question frame, guard and rank state must be reset together at the same canonical event.
 static bool question_apply_event(Scanner *scanner, char event) {
     if (event == 'p' || event == '(' || event == '[' || event == '{') {
         if (scanner->question_frame_count == QUESTION_FRAME_LIMIT) return false;
@@ -175,6 +179,8 @@ static void question_end_lambda(QuestionFrame *frame) {
     frame->lambda_result = false;
 }
 
+// code-gauge-allow functionCognitiveComplexity 25 -- Query, generic and lambda event transitions share chronological scope state.
+// code-gauge-allow functionNcss 33 -- Query, generic and lambda event transitions share chronological scope state.
 static bool question_apply_scope_event(QuestionFrame *frame, char event) {
     if (event == 'g') {
         if (frame->generic_pending == UINT32_MAX) return false;
@@ -273,10 +279,11 @@ static void question_save_confirmation(Scanner *scanner, const Scanner *confirme
         .frame_unknown = next.unknown, .unknown = confirmed->question_unknown, .valid = true};
 }
 
+// code-gauge-allow functionCognitiveComplexity 19 -- Flag combinations and payload bounds are validated before consuming the same shared buffer cursor.
 static bool question_read_modes(Scanner *scanner, unsigned flags, const char *buffer, unsigned length, unsigned *size) {
     if (flags & QUESTION_STATE_UNKNOWN) {
         bool type_prefix = (flags & QUESTION_STATE_RANK_ROLE) && *size + 5 <= length &&
-            ((uint8_t)buffer[*size] == RANK_NULLABLE_PREFIX || (uint8_t)buffer[*size] == RANK_OWNED_NULLABLE_PREFIX || (uint8_t)buffer[*size] == RANK_ALLOCATION_MIXED);
+            rank_counted_role((uint8_t)buffer[*size]);
         if (!(flags & (QUESTION_STATE_ACCESS_CACHE | QUESTION_STATE_CONFIRMATION)) && !type_prefix) return false;
         if (((flags & QUESTION_STATE_EXTENDED) && !(flags & QUESTION_STATE_CONFIRMATION)) ||
             (flags & QUESTION_STATE_TYPE_UNCERTAIN) || ((flags & QUESTION_STATE_RANK_ROLE) && !type_prefix)) return false;
@@ -299,7 +306,7 @@ static bool question_read_rank(Scanner *scanner, unsigned flags, const char *buf
     for (unsigned byte = 0; byte < 4; byte++) scanner->question_rank_prefix_questions |=
         (uint32_t)(unsigned char)buffer[(*size)++] << (byte * 8);
 
-    if (scanner->question_rank_role == RANK_NULLABLE_PREFIX || scanner->question_rank_role == RANK_OWNED_NULLABLE_PREFIX) return scanner->question_rank_prefix_questions != 0;
+    if (rank_nullable_prefix_role(scanner->question_rank_role)) return scanner->question_rank_prefix_questions != 0;
     if (scanner->question_rank_role == RANK_ALLOCATION_MIXED) return scanner->question_rank_prefix_questions > 1;
     if (!scanner->question_rank_role || scanner->question_rank_role > RANK_PATTERN_COMPLETE) return false;
     if (!scanner->question_type_uncertain && scanner->question_rank_role != RANK_PATTERN_COMPLETE) return false;
@@ -336,6 +343,7 @@ static unsigned question_serialized_size(const Scanner *scanner, bool transfers,
     return size;
 }
 
+// code-gauge-allow functionCognitiveComplexity 25 -- Each compact frame writes its optional payloads in the same codec order.
 static void question_serialize(const Scanner *scanner, char *buffer, unsigned *size, bool transfers, bool guard_counts) {
     buffer[(*size)++] = (char)scanner->question_frame_count;
     buffer[(*size)++] = (char)(scanner->question_frame_count >> 8);
@@ -359,6 +367,7 @@ static void question_serialize(const Scanner *scanner, char *buffer, unsigned *s
     }
 }
 
+// code-gauge-allow functionCognitiveComplexity 20 -- The guard role flags and optional count determine the following varint payload together.
 static void question_write_guard(const QuestionFrame *frame, bool unknown, char *buffer, unsigned *size, bool counts) {
     bool proof = !unknown && !frame->unknown && frame->case_guard && (!frame->guard.prefix || counts);
     buffer[(*size)++] = (char)(frame->case_guard ? 1 | (proof ? (frame->guard.role & GUARD_ROLE_MASK) << 1 : 0) |
@@ -385,6 +394,7 @@ static bool question_deserialize(Scanner *scanner, const char *buffer, unsigned 
     return true;
 }
 
+// code-gauge-allow functionCognitiveComplexity 21 -- Frame flags and optional counters are validated against one shared input cursor before publication.
 static bool question_read_frame(QuestionFrame *frame, unsigned index, const char *buffer, unsigned length, unsigned *size) {
     if (*size == length) return false;
     unsigned group = (unsigned char)buffer[(*size)++];
