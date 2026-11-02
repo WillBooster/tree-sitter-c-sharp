@@ -716,6 +716,7 @@ class C {
         await or;
         var both = await and && await when < 5;
         await or();
+        var tested = await or is object;
     }
 }
 
@@ -843,7 +844,17 @@ class C {
             (await_expression
               (invocation_expression
                 function: (identifier)
-                arguments: (argument_list)))))))))
+                arguments: (argument_list))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (is_pattern_expression
+                  expression: (await_expression
+                    (identifier))
+                  pattern: (type_pattern
+                    type: (predefined_type)))))))))))
 
 ================================================================================
 Async identifiers in types and calls

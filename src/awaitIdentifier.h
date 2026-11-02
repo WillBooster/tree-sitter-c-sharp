@@ -69,8 +69,8 @@ static bool continues_expression(TSLexer *lexer) {
     return false;
 }
 
-// Excludes pattern starts that can also continue an awaited variable, such as `(` in `await or(x)`, so a pattern like
-// `x is await or (1)` keeps the operator.
+// Excludes pattern starts that can also continue an awaited variable, such as `(` in `await or(x)` or the keyword in
+// `await or is T`, so a pattern like `x is await or (1)` keeps the operator.
 static bool starts_pattern(TSLexer *lexer) {
     if (!skip_await_trivia(lexer) || lexer->eof(lexer)) return false;
     int32_t c = lexer->lookahead;
@@ -78,7 +78,17 @@ static bool starts_pattern(TSLexer *lexer) {
         advance(lexer);
         return lexer->lookahead >= '0' && lexer->lookahead <= '9';
     }
-    return is_id_start(c) || (c >= '0' && c <= '9') || is_ascii_in(c, "@\\\"'${");
+    if (!is_id_start(c)) return (c >= '0' && c <= '9') || is_ascii_in(c, "@\\\"'${");
+    static const char *const continuations[] = {
+        "and", "as", "ascending", "by", "descending", "equals", "group", "in", "into", "is", "join",
+        "let", "on", "or", "orderby", "select", "switch", "when", "where", "with",
+    };
+    char word[10] = {0};
+    size_t length = consume_identifier_into(lexer, word, sizeof(word));
+    for (size_t i = 0; i < sizeof(continuations) / sizeof(continuations[0]); i++) {
+        if (buf_equals(word, length, continuations[i])) return false;
+    }
+    return true;
 }
 
 // Skips whitespace, comments, and directive lines. Returns false after consuming a `/` that is a division operator or
