@@ -372,7 +372,6 @@ module.exports = grammar({
     sym('_bang_operator'),
     sym('_conditional_alternative_start'),
     sym('_statement_end'),
-    sym('_block_end'),
     sym('_ampersand_operator'),
     sym('_interpolation_format_colon'),
     sym('_pragma_boundary'),
@@ -3896,12 +3895,15 @@ function prefixRangeExpression(operand) {
   return prec.right(PREC.RANGE, seq('..', optional(operand)));
 }
 
+// The zero-width `_statement_end` after the punctuation lets the scanner forget the question state of the ended
+// statement. An external alternative to the punctuation would instead sit in the lookahead of every state that can end a
+// statement or block, splitting them from the otherwise identical states of other contexts.
 function statementEnd() {
-  return choice(';', alias(sym('_statement_end'), ';'));
+  return seq(';', sym('_statement_end'));
 }
 
 function blockEnd() {
-  return choice('}', alias(sym('_block_end'), '}'));
+  return seq('}', sym('_statement_end'));
 }
 
 function ampersandOperator() {

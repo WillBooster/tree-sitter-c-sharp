@@ -55,7 +55,6 @@ enum TokenType {
     BANG_OPERATOR,
     CONDITIONAL_ALTERNATIVE_START,
     STATEMENT_END,
-    BLOCK_END,
     AMPERSAND_OPERATOR,
     INTERPOLATION_FORMAT_COLON,
     PRAGMA_BOUNDARY,
@@ -547,6 +546,8 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         return scan_recovery(scanner, lexer, next_file_directive);
     }
 
+    if (scan_statement_end(scanner, lexer, valid_symbols)) return true;
+
     if (valid_symbols[CASE_GUARD_WHEN]) {
         QuestionScanResult guard = scan_case_guard_when(scanner, lexer);
         if (guard != QUESTION_NOT_STARTED) return guard == QUESTION_MATCHED;
@@ -580,8 +581,6 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         lexer->result_symbol = CONDITIONAL_ALTERNATIVE_START;
         return true;
     }
-
-    if (scan_statement_end(scanner, lexer, valid_symbols)) return true;
 
     if (valid_symbols[AMBIGUOUS_CAST_OPERAND_START]) return scan_ambiguous_cast_operand_start(lexer);
 
@@ -1071,18 +1070,12 @@ static bool scan_interpolation_format_colon(TSLexer *lexer) {
 }
 
 static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
-    if (!valid_symbols[STATEMENT_END] && !valid_symbols[BLOCK_END]) return false;
-    if (!scanner->question_type_uncertain && !scanner->question_rank_role && !scanner->question_access_cache) return false;
-    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
-    unsigned end = lexer->lookahead == ';' ? STATEMENT_END : BLOCK_END;
-    if ((lexer->lookahead != ';' && lexer->lookahead != '}') || !valid_symbols[end]) return false;
-    if (end == STATEMENT_END && valid_symbols[OPT_SEMI]) return false;
-    advance(lexer);
+    if (!valid_symbols[STATEMENT_END]) return false;
     lexer->mark_end(lexer);
     scanner->question_type_uncertain = false;
     question_clear_access_cache(scanner);
     clear_question_rank(scanner);
-    lexer->result_symbol = end;
+    lexer->result_symbol = STATEMENT_END;
     return true;
 }
 
