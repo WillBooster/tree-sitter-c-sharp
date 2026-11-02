@@ -696,6 +696,92 @@ class C {
               arguments: (argument_list))))))))
 
 ================================================================================
+Await identifiers outside async functions
+================================================================================
+
+class C {
+    void M(int[] await) {
+        Use(await);
+        await[0] = await.Length + 1;
+        var negated = await - 1;
+        var named = await => await * 2;
+    }
+    async Task Run(Task<Task> task) {
+        await (await task);
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (array_type
+              type: (predefined_type)
+              rank: (array_rank_specifier))
+            name: (identifier)))
+        body: (block
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier)))))
+          (expression_statement
+            (assignment_expression
+              left: (element_access_expression
+                expression: (identifier)
+                subscript: (bracketed_argument_list
+                  (argument
+                    (integer_literal))))
+              right: (binary_expression
+                left: (member_access_expression
+                  expression: (identifier)
+                  name: (identifier))
+                right: (integer_literal))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (binary_expression
+                  left: (identifier)
+                  right: (integer_literal)))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (lambda_expression
+                  parameters: (implicit_parameter)
+                  body: (binary_expression
+                    left: (identifier)
+                    right: (integer_literal))))))))
+      (method_declaration
+        (modifier)
+        returns: (identifier)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (generic_name
+              (identifier)
+              (type_argument_list
+                (identifier)))
+            name: (identifier)))
+        body: (block
+          (expression_statement
+            (await_expression
+              (parenthesized_expression
+                (await_expression
+                  (identifier))))))))))
+
+================================================================================
 Async identifiers in types and calls
 ================================================================================
 

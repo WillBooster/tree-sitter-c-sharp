@@ -20509,6 +20509,10 @@
         {
           "type": "SYMBOL",
           "name": "_reserved_identifier"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_await_identifier"
         }
       ]
     },
@@ -33590,6 +33594,10 @@
     {
       "type": "SYMBOL",
       "name": "_case_guard_when"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_await_identifier"
     }
   ],
   "inline": [

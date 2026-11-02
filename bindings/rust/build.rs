@@ -27,19 +27,24 @@ fn main() {
         println!("cargo:rerun-if-changed={}", scanner_path.to_str().unwrap());
     }
 
-    println!("cargo:rerun-if-changed=src/genericExpressions.h");
-    println!("cargo:rerun-if-changed=src/identifierCharacters.h");
-    println!("cargo:rerun-if-changed=src/ifAlternativeDirective.h");
-    println!("cargo:rerun-if-changed=src/nullableRank.h");
-    println!("cargo:rerun-if-changed=src/nullableRankMemo.h");
-    println!("cargo:rerun-if-changed=src/nullableTypes.h");
-    println!("cargo:rerun-if-changed=src/questionContext.h");
-    println!("cargo:rerun-if-changed=src/questionGuard.h");
-    println!("cargo:rerun-if-changed=src/questionLiterals.h");
-    println!("cargo:rerun-if-changed=src/questionOperands.h");
-    println!("cargo:rerun-if-changed=src/questionProof.h");
-    println!("cargo:rerun-if-changed=src/questionState.h");
-    println!("cargo:rerun-if-changed=src/questionSuffix.h");
+    for header in [
+        "awaitIdentifier.h",
+        "genericExpressions.h",
+        "identifierCharacters.h",
+        "ifAlternativeDirective.h",
+        "nullableRank.h",
+        "nullableRankMemo.h",
+        "nullableTypes.h",
+        "questionContext.h",
+        "questionGuard.h",
+        "questionLiterals.h",
+        "questionOperands.h",
+        "questionProof.h",
+        "questionState.h",
+        "questionSuffix.h",
+    ] {
+        println!("cargo:rerun-if-changed=src/{header}");
+    }
 
     c_config.compile("tree-sitter-c-sharp");
 }

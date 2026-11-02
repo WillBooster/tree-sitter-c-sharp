@@ -385,6 +385,7 @@ module.exports = grammar({
     sym('_expression_generic_start'),
     sym('_stackalloc_context'),
     sym('_case_guard_when'),
+    sym('_await_identifier'),
   ],
 
   extras: ($) => [
@@ -2779,7 +2780,7 @@ module.exports = grammar({
           /(\p{XID_Start}|_|\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8})(\p{XID_Continue}|\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8})*/u
         )
       ),
-    identifier: ($) => choice($._identifier_token, $._reserved_identifier),
+    identifier: ($) => choice($._identifier_token, $._reserved_identifier, sym('_await_identifier')),
 
     _reserved_identifier: () => choice(...reservedIdentifiers()),
 

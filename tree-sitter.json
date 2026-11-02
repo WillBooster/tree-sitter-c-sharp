@@ -9,6 +9,7 @@
       "file-types": ["cs"],
       "injection-regex": "cs",
       "external-files": [
+        "src/awaitIdentifier.h",
         "src/genericExpressions.h",
         "src/identifierCharacters.h",
         "src/ifAlternativeDirective.h",

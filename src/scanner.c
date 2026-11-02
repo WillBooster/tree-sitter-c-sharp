@@ -68,6 +68,8 @@ enum TokenType {
     EXPRESSION_GENERIC_START,
     STACKALLOC_CONTEXT,
     CASE_GUARD_WHEN,
+    AWAIT_IDENTIFIER,
+    TOKEN_TYPE_COUNT,
 };
 
 typedef enum {
@@ -515,6 +517,7 @@ static bool scan_pragma_boundary(TSLexer *lexer);
 static bool scan_pragma_text(TSLexer *lexer);
 
 #include "ifAlternativeDirective.h"
+#include "awaitIdentifier.h"
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
@@ -533,6 +536,10 @@ static bool scan_conditional_consequence(Scanner *scanner, TSLexer *lexer);
 bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
     Scanner *scanner = (Scanner *)payload;
 
+    // Positions where an identifier is the only external candidate reach this scanner only for `await`, so they must not
+    // reset the scanner state below.
+    if (only_await_identifier_valid(valid_symbols)) return scan_await_identifier(lexer) == QUESTION_MATCHED;
+
     uint8_t brace_advanced = 0;
     uint8_t quote_count = 0;
     bool did_advance = false;
@@ -550,6 +557,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
     if (valid_symbols[CONDITIONAL_CONSEQUENCE_START]) return scan_conditional_consequence(scanner, lexer);
     scanner->ternary_confirmation.valid = false;
+
+    QuestionScanResult await_identifier = scan_await_identifier_among(lexer, valid_symbols);
+    if (await_identifier != QUESTION_NOT_STARTED) return await_identifier == QUESTION_MATCHED;
 
     QuestionScanResult generic_start = scan_expression_generic_start(lexer, valid_symbols);
     if (generic_start != QUESTION_NOT_STARTED) return generic_start == QUESTION_MATCHED;
