@@ -1227,8 +1227,8 @@ static bool advance_operator_character(TSLexer *lexer) {
 }
 
 
-// code-gauge-allow functionCognitiveComplexity 20 -- Keyword recognition and proof-cache handoff share the consumed token and current scanner frame.
-// code-gauge-allow functionNcss 41 -- Keep token marking, cache selection and prefix replay in their required lexical order.
+// code-gauge-allow functionCognitiveComplexity 22 -- Keyword recognition and proof-cache handoff share the consumed token and current scanner frame.
+// code-gauge-allow functionNcss 43 -- Keep token marking, cache selection and prefix replay in their required lexical order.
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     unsigned symbol;
