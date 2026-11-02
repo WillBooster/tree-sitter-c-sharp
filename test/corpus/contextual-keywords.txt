@@ -706,8 +706,9 @@ class C {
         var negated = await - 1;
         var named = await => await * 2;
     }
-    async Task Run(Task<Task> task) {
+    async Task Run(Task<Task> task, Task with) {
         await (await task);
+        await with;
     }
 }
 
@@ -773,13 +774,19 @@ class C {
               (identifier)
               (type_argument_list
                 (identifier)))
+            name: (identifier))
+          (parameter
+            type: (identifier)
             name: (identifier)))
         body: (block
           (expression_statement
             (await_expression
               (parenthesized_expression
                 (await_expression
-                  (identifier))))))))))
+                  (identifier)))))
+          (expression_statement
+            (await_expression
+              (identifier))))))))
 
 ================================================================================
 Async identifiers in types and calls

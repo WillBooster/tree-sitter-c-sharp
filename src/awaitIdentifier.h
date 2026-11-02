@@ -56,8 +56,8 @@ static bool await_continues_identifier(TSLexer *lexer) {
     char word[7] = {0};
     size_t length = consume_identifier_into(lexer, word, sizeof(word));
     if (lexer->lookahead == '\\') return false;
-    return buf_equals(word, length, "is") || buf_equals(word, length, "as") || buf_equals(word, length, "switch") ||
-           buf_equals(word, length, "with");
+    if (buf_equals(word, length, "with")) return skip_await_trivia(lexer) && lexer->lookahead == '{';
+    return buf_equals(word, length, "is") || buf_equals(word, length, "as") || buf_equals(word, length, "switch");
 }
 
 // Returns false after consuming a `/` that is a division operator or an unterminated comment.
