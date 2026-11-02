@@ -702,6 +702,9 @@ Await identifiers outside async functions
 class C {
     void M(int[] await) {
         Use(await);
+        Use(await
+#nullable enable
+        );
         await[0] = await.Length + 1;
         var negated = await - 1;
         var named = await => await * 2;
@@ -734,6 +737,13 @@ class C {
               arguments: (argument_list
                 (argument
                   (identifier)))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier))
+                (preproc_nullable))))
           (expression_statement
             (assignment_expression
               left: (element_access_expression

@@ -1,27 +1,19 @@
 #ifndef TREE_SITTER_C_SHARP_AWAIT_IDENTIFIER_H_
 #define TREE_SITTER_C_SHARP_AWAIT_IDENTIFIER_H_
 
-static QuestionScanResult scan_await_identifier(TSLexer *lexer);
+static QuestionScanResult scan_await_word(TSLexer *lexer);
 static bool await_continues_identifier(TSLexer *lexer);
 static bool skip_await_trivia(TSLexer *lexer);
 static bool is_ascii_in(int32_t c, const char *characters);
 
-static bool only_await_identifier_valid(const bool *valid_symbols) {
-    if (!valid_symbols[AWAIT_IDENTIFIER]) return false;
-    for (unsigned symbol = 0; symbol < TOKEN_TYPE_COUNT; symbol++) {
-        if (symbol != AWAIT_IDENTIFIER && valid_symbols[symbol]) return false;
-    }
-    return true;
-}
-
-static QuestionScanResult scan_await_identifier_among(TSLexer *lexer, const bool *valid_symbols) {
+static QuestionScanResult scan_await_identifier(TSLexer *lexer, const bool *valid_symbols) {
     // The scanner's later branches must see the `as` or pragma text that a consumed word would hide, and directive
     // ends must see the line break that skipped whitespace would hide.
     if (!valid_symbols[AWAIT_IDENTIFIER] || valid_symbols[TYPE_CONTEXT_AS] || valid_symbols[PRAGMA_TEXT] ||
         valid_symbols[PRAGMA_BOUNDARY] || valid_symbols[DIRECTIVE_NEWLINE] || valid_symbols[FILE_DIRECTIVE_NEWLINE] ||
         valid_symbols[END_OF_INPUT])
         return QUESTION_NOT_STARTED;
-    return scan_await_identifier(lexer);
+    return scan_await_word(lexer);
 }
 
 // `await` is the await operator inside async functions and an identifier elsewhere, but the parser does not track async
@@ -30,7 +22,7 @@ static QuestionScanResult scan_await_identifier_among(TSLexer *lexer, const bool
 // make an identifier because awaiting such a unary or collection operand is rare, while `(` keeps the operator because
 // `await (task)` is common in async functions; `..` and a `!` followed by an operand keep it as well, as the identifier
 // reading is no more common there.
-static QuestionScanResult scan_await_identifier(TSLexer *lexer) {
+static QuestionScanResult scan_await_word(TSLexer *lexer) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     if (lexer->lookahead != 'a') return QUESTION_NOT_STARTED;
     char word[6] = {0};
@@ -60,10 +52,19 @@ static bool await_continues_identifier(TSLexer *lexer) {
     return buf_equals(word, length, "is") || buf_equals(word, length, "as") || buf_equals(word, length, "switch");
 }
 
-// Returns false after consuming a `/` that is a division operator or an unterminated comment.
+// Skips whitespace, comments, and directive lines. Returns false after consuming a `/` that is a division operator or
+// an unterminated comment.
 static bool skip_await_trivia(TSLexer *lexer) {
+    bool line_start = false;
     for (;;) {
-        while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) advance(lexer);
+        while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) {
+            line_start = line_start || is_line_terminator(lexer->lookahead);
+            advance(lexer);
+        }
+        if (line_start && lexer->lookahead == '#') {
+            skip_line_comment(lexer);
+            continue;
+        }
         if (lexer->lookahead != '/') return true;
         advance(lexer);
         if (lexer->lookahead == '/') skip_line_comment(lexer);
