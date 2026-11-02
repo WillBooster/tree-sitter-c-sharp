@@ -50,8 +50,7 @@ enum TokenType {
     AMBIGUOUS_CAST_TYPE_END,
     DEFINITE_CAST_TYPE_END,
     RANGE_CAST_TYPE_END,
-    NONPRIMARY_EXPRESSION_END,
-    PATTERN_PAREN_END,
+    COMPLETED_OPERAND_QUESTION,
     PATTERN_BRACKET_END,
     BANG_OPERATOR,
     CONDITIONAL_ALTERNATIVE_START,
@@ -520,7 +519,9 @@ static bool scan_pragma_text(TSLexer *lexer);
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
-static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
+static void mark_completed_operand_question(Scanner *scanner, TSLexer *lexer);
+static void mark_question_after_completed_operand(Scanner *scanner);
+static QuestionScanResult scan_closer(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_statement_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static bool scan_interpolation_format_colon(TSLexer *lexer);
 static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *valid_symbols);
@@ -609,9 +610,11 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         }
     }
 
-    if (valid_symbols[NONPRIMARY_EXPRESSION_END] || valid_symbols[PATTERN_PAREN_END] || valid_symbols[PATTERN_BRACKET_END] ||
-        valid_symbols[AMBIGUOUS_CAST_TYPE_END] || valid_symbols[DEFINITE_CAST_TYPE_END] || valid_symbols[RANGE_CAST_TYPE_END]) {
-        QuestionScanResult closing = scan_nonprimary_expression_end(scanner, lexer, valid_symbols);
+    if (valid_symbols[COMPLETED_OPERAND_QUESTION]) mark_completed_operand_question(scanner, lexer);
+
+    if (valid_symbols[PATTERN_BRACKET_END] || valid_symbols[AMBIGUOUS_CAST_TYPE_END] || valid_symbols[DEFINITE_CAST_TYPE_END] ||
+        valid_symbols[RANGE_CAST_TYPE_END]) {
+        QuestionScanResult closing = scan_closer(scanner, lexer, valid_symbols);
         if (closing != QUESTION_NOT_STARTED) return closing == QUESTION_MATCHED;
     }
 
@@ -1147,25 +1150,34 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     return result;
 }
 
-// code-gauge-allow functionCognitiveComplexity 16 -- Cast-end alternatives share the same lookahead and result symbol.
-static QuestionScanResult scan_nonprimary_expression_end(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+// Records that a `)` or `}` completed a pattern or another nonprimary operand before a `?`, so the question scan
+// treats the operand as complete when it picks the `?`'s role. The grammar makes the never-emitted token valid after
+// those closers, rather than an alternative to the closers, because the closers' lookahead would split every parse state
+// of the operand from those of ordinary expressions.
+static void mark_completed_operand_question(Scanner *scanner, TSLexer *lexer) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
-    unsigned symbol = 0;
+    if (lexer->lookahead == '?') mark_question_after_completed_operand(scanner);
+}
+
+static void mark_question_after_completed_operand(Scanner *scanner) {
+    scanner->question_rank_role = RANK_PATTERN_COMPLETE;
+    scanner->question_rank_prefix_questions = 0;
+    question_clear_access_cache(scanner);
+}
+
+static QuestionScanResult scan_closer(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+    while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
+    bool bracket = lexer->lookahead == ']' && valid_symbols[PATTERN_BRACKET_END];
     bool cast = lexer->lookahead == ')' && (valid_symbols[AMBIGUOUS_CAST_TYPE_END] || valid_symbols[DEFINITE_CAST_TYPE_END] || valid_symbols[RANGE_CAST_TYPE_END]);
-    if (lexer->lookahead == '}' && valid_symbols[NONPRIMARY_EXPRESSION_END]) symbol = NONPRIMARY_EXPRESSION_END;
-    else if (lexer->lookahead == ')' && valid_symbols[PATTERN_PAREN_END]) symbol = PATTERN_PAREN_END;
-    else if (lexer->lookahead == ']' && valid_symbols[PATTERN_BRACKET_END]) symbol = PATTERN_BRACKET_END;
-    else if (!cast) return QUESTION_NOT_STARTED;
+    if (!bracket && !cast) return QUESTION_NOT_STARTED;
     advance(lexer);
     lexer->mark_end(lexer);
     int32_t following = question_skip_separators(lexer);
     if (following < 0) return QUESTION_MISMATCHED;
-    if (cast && scan_cast_type_end(lexer, valid_symbols)) return QUESTION_MATCHED;
-    if (!symbol || following != '?' || !question_read_single_question(lexer)) return QUESTION_MISMATCHED;
-    scanner->question_rank_role = RANK_PATTERN_COMPLETE;
-    scanner->question_rank_prefix_questions = 0;
-    question_clear_access_cache(scanner);
-    lexer->result_symbol = symbol;
+    if (cast) return scan_cast_type_end(lexer, valid_symbols) ? QUESTION_MATCHED : QUESTION_MISMATCHED;
+    if (following != '?' || !question_read_single_question(lexer)) return QUESTION_MISMATCHED;
+    mark_question_after_completed_operand(scanner);
+    lexer->result_symbol = PATTERN_BRACKET_END;
     return QUESTION_MATCHED;
 }
 

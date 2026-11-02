@@ -367,8 +367,7 @@ module.exports = grammar({
     sym('_ambiguous_cast_type_end'),
     sym('_definite_cast_type_end'),
     sym('_range_cast_type_end'),
-    sym('_nonprimary_expression_end'),
-    sym('_pattern_paren_end'),
+    sym('_completed_operand_question'),
     sym('_pattern_bracket_end'),
     sym('_bang_operator'),
     sym('_conditional_alternative_start'),
@@ -1616,7 +1615,7 @@ module.exports = grammar({
       choice($._pattern_primary_expression, $.prefix_unary_expression, $.cast_expression),
 
     _pattern_parenthesized_expression: ($) =>
-      seq('(', choice(...nestedConstantExpressionRoots($)), choice(')', alias(sym('_pattern_paren_end'), ')'))),
+      seq('(', choice(...nestedConstantExpressionRoots($)), completedOperandCloser(')')),
 
     _pattern_primary_expression: ($) =>
       choice(
@@ -1747,7 +1746,7 @@ module.exports = grammar({
 
     // Uses '(' pattern ')' to create direct conflict with parenthesized_pattern
     _parenthesized_pattern_with_designation: ($) =>
-      seq('(', $.pattern, choice(')', alias(sym('_pattern_paren_end'), ')')), $._simple_designation),
+      seq('(', $.pattern, completedOperandCloser(')'), $._simple_designation),
 
     constant_pattern: ($) => choice(...nestedConstantExpressionRoots($)),
 
@@ -1774,8 +1773,7 @@ module.exports = grammar({
 
     discard: () => '_',
 
-    parenthesized_pattern: ($) =>
-      seq('(', alias($._nonconstant_pattern, $.pattern), choice(')', alias(sym('_pattern_paren_end'), ')'))),
+    parenthesized_pattern: ($) => seq('(', alias($._nonconstant_pattern, $.pattern), completedOperandCloser(')')),
 
     // The implicit_type reading of `var` contributes dynamic precedence 1; its parenthesized designation needs more.
     var_pattern: ($) => prec.dynamic(2, seq('var', $.parenthesized_variable_designation)),
@@ -1791,6 +1789,8 @@ module.exports = grammar({
       seq(
         '[',
         optional(seq(commaSep1($.pattern), optional(','))),
+        // The scanner's `]` before a `?` ends the list pattern, as in `x is [1] or [2] ? …`, where a collection expression
+        // could otherwise take the `]` and the `?` as a conditional access.
         choice(']', alias(sym('_pattern_bracket_end'), ']')),
         optional($._simple_designation)
       ),
@@ -1837,8 +1837,7 @@ module.exports = grammar({
         )
       ),
 
-    positional_pattern_clause: ($) =>
-      prec(1, seq('(', optional(commaSep($.subpattern)), choice(')', alias(sym('_pattern_paren_end'), ')')))),
+    positional_pattern_clause: ($) => prec(1, seq('(', optional(commaSep($.subpattern)), completedOperandCloser(')'))),
 
     _untyped_positional_pattern_clause: ($) =>
       prec(
@@ -1846,17 +1845,14 @@ module.exports = grammar({
         seq(
           '(',
           optional(choice(commaSep2($.subpattern), alias($._named_subpattern, $.subpattern))),
-          choice(')', alias(sym('_pattern_paren_end'), ')'))
+          completedOperandCloser(')')
         )
       ),
 
     _named_subpattern: ($) => subpattern($, true),
 
     property_pattern_clause: ($) =>
-      prec(
-        1,
-        seq('{', commaSep($.subpattern), optional(','), choice('}', alias(sym('_nonprimary_expression_end'), '}')))
-      ),
+      prec(1, seq('{', commaSep($.subpattern), optional(','), completedOperandCloser('}'))),
 
     subpattern: ($) => subpattern($),
 
@@ -2415,7 +2411,7 @@ module.exports = grammar({
       seq(
         '{',
         conditionalList($.switch_expression_arm, 'preproc_if_in_switch_expression'),
-        choice('}', alias(sym('_nonprimary_expression_end'), '}'))
+        completedOperandCloser('}')
       ),
 
     switch_expression_arm: ($) => seq($.pattern, optional($.when_clause), '=>', $.expression),
@@ -2675,8 +2671,7 @@ module.exports = grammar({
     default_expression: ($) => prec.right(seq('default', optional(seq('(', field('type', $.type), ')')))),
 
     with_expression: ($) => withExpression($, $.expression),
-    _with_body: ($) =>
-      seq('{', commaSep($.with_initializer), optional(','), choice('}', alias(sym('_nonprimary_expression_end'), '}'))),
+    _with_body: ($) => seq('{', commaSep($.with_initializer), optional(','), completedOperandCloser('}')),
 
     with_initializer: ($) => seq($.identifier, '=', $.expression),
 
@@ -3486,6 +3481,17 @@ function stackallocExpression($, initializer) {
  */
 function bracketedArgumentList($, opener) {
   return seq(opener, commaSep1($.argument), optional(','), ']');
+}
+
+/**
+ * A `)` or `}` that completes a pattern or another nonprimary operand. The external scanner never emits the optional token:
+ * its validity tells the question scan that the operand before a following `?` is complete, without an external
+ * alternative to the closer that would split every parse state of the operand from those of ordinary expressions.
+ *
+ * @param {string} closer
+ */
+function completedOperandCloser(closer) {
+  return seq(closer, optional(sym('_completed_operand_question')));
 }
 
 function bangOperator() {
