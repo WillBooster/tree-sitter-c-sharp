@@ -2,6 +2,7 @@
 #define TREE_SITTER_C_SHARP_AWAIT_IDENTIFIER_H_
 
 static QuestionScanResult scan_await_word(TSLexer *lexer);
+static QuestionScanResult scan_await_follower(TSLexer *lexer);
 static bool await_continues_identifier(TSLexer *lexer);
 static bool continues_expression(TSLexer *lexer);
 static bool starts_pattern(TSLexer *lexer);
@@ -10,7 +11,7 @@ static bool is_ascii_in(int32_t c, const char *characters);
 
 static QuestionScanResult scan_await_identifier(TSLexer *lexer, const bool *valid_symbols) {
     // The scanner's later branches must see the `as` or pragma text that a consumed word would hide, and directive
-    // ends must see the line break that skipped whitespace would hide.
+    // ends must see the line break that skipped whitespace would hide. The `as` branch also handles `await` itself.
     if (!valid_symbols[AWAIT_IDENTIFIER] || valid_symbols[TYPE_CONTEXT_AS] || valid_symbols[PRAGMA_TEXT] ||
         valid_symbols[PRAGMA_BOUNDARY] || valid_symbols[DIRECTIVE_NEWLINE] || valid_symbols[FILE_DIRECTIVE_NEWLINE] ||
         valid_symbols[END_OF_INPUT])
@@ -29,7 +30,13 @@ static QuestionScanResult scan_await_word(TSLexer *lexer) {
     if (lexer->lookahead != 'a') return QUESTION_NOT_STARTED;
     char word[6] = {0};
     size_t length = consume_identifier_into(lexer, word, sizeof(word));
-    if (!buf_equals(word, length, "await") || lexer->lookahead == '\\') return QUESTION_MISMATCHED;
+    if (!buf_equals(word, length, "await")) return QUESTION_MISMATCHED;
+    return scan_await_follower(lexer);
+}
+
+// Decides the role of an `await` word that the lexer has just consumed.
+static QuestionScanResult scan_await_follower(TSLexer *lexer) {
+    if (lexer->lookahead == '\\') return QUESTION_MISMATCHED;
     lexer->mark_end(lexer);
     lexer->result_symbol = AWAIT_IDENTIFIER;
     return await_continues_identifier(lexer) ? QUESTION_MATCHED : QUESTION_MISMATCHED;

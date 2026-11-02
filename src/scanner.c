@@ -1235,8 +1235,9 @@ static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *l
     if (lexer->lookahead == 'i' && valid_symbols[TYPE_CONTEXT_IS]) symbol = TYPE_CONTEXT_IS;
     else if (lexer->lookahead == 'a' && valid_symbols[TYPE_CONTEXT_AS]) symbol = TYPE_CONTEXT_AS;
     else return QUESTION_NOT_STARTED;
-    char word[3] = {0};
+    char word[6] = {0};
     size_t size = consume_identifier_into(lexer, word, sizeof(word));
+    if (valid_symbols[AWAIT_IDENTIFIER] && buf_equals(word, size, "await")) return scan_await_follower(lexer);
     bool matched = symbol == TYPE_CONTEXT_IS ? buf_equals(word, size, "is") : buf_equals(word, size, "as");
     int32_t next = lexer->lookahead;
     if (!matched || next == '\\' || (next > 0x7F && !is_directive_horizontal(next) && !is_line_terminator(next)))
