@@ -696,6 +696,179 @@ class C {
               arguments: (argument_list))))))))
 
 ================================================================================
+Await identifiers outside async functions
+================================================================================
+
+class C {
+    void M(int[] await) {
+        Use(await);
+        Use(await
+#nullable enable
+        );
+        await[0] = await.Length + 1;
+        var negated = await - 1;
+        int[] spread = [..await];
+        var named = await => await * 2;
+        var suppressed = await! is object && await! != null && x is await or null;
+    }
+    async Task Run(Task<Task> task, Task with) {
+        await (await task);
+        await with;
+        await or;
+        var both = await and && await when < 5;
+        await or();
+        var tested = await or is object;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        returns: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (array_type
+              type: (predefined_type)
+              rank: (array_rank_specifier))
+            name: (identifier)))
+        body: (block
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier)))))
+          (expression_statement
+            (invocation_expression
+              function: (identifier)
+              arguments: (argument_list
+                (argument
+                  (identifier))
+                (preproc_nullable))))
+          (expression_statement
+            (assignment_expression
+              left: (element_access_expression
+                expression: (identifier)
+                subscript: (bracketed_argument_list
+                  (argument
+                    (integer_literal))))
+              right: (binary_expression
+                left: (member_access_expression
+                  expression: (identifier)
+                  name: (identifier))
+                right: (integer_literal))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (binary_expression
+                  left: (identifier)
+                  right: (integer_literal)))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (array_type
+                type: (predefined_type)
+                rank: (array_rank_specifier))
+              (variable_declarator
+                name: (identifier)
+                (collection_expression
+                  (collection_element
+                    (spread_element
+                      (identifier)))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (lambda_expression
+                  parameters: (implicit_parameter)
+                  body: (binary_expression
+                    left: (identifier)
+                    right: (integer_literal))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (binary_expression
+                  left: (binary_expression
+                    left: (is_pattern_expression
+                      expression: (postfix_unary_expression
+                        (identifier))
+                      pattern: (type_pattern
+                        type: (predefined_type)))
+                    right: (binary_expression
+                      left: (postfix_unary_expression
+                        (identifier))
+                      right: (null_literal)))
+                  right: (is_pattern_expression
+                    expression: (identifier)
+                    pattern: (or_pattern
+                      left: (type_pattern
+                        type: (identifier))
+                      right: (constant_pattern
+                        (null_literal))))))))))
+      (method_declaration
+        (modifier)
+        returns: (identifier)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (generic_name
+              (identifier)
+              (type_argument_list
+                (identifier)))
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (expression_statement
+            (await_expression
+              (parenthesized_expression
+                (await_expression
+                  (identifier)))))
+          (expression_statement
+            (await_expression
+              (identifier)))
+          (expression_statement
+            (await_expression
+              (identifier)))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (binary_expression
+                  left: (await_expression
+                    (identifier))
+                  right: (binary_expression
+                    left: (await_expression
+                      (identifier))
+                    right: (integer_literal))))))
+          (expression_statement
+            (await_expression
+              (invocation_expression
+                function: (identifier)
+                arguments: (argument_list))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (is_pattern_expression
+                  expression: (await_expression
+                    (identifier))
+                  pattern: (type_pattern
+                    type: (predefined_type)))))))))))
+
+================================================================================
 Async identifiers in types and calls
 ================================================================================
 

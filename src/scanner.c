@@ -68,6 +68,7 @@ enum TokenType {
     EXPRESSION_GENERIC_START,
     STACKALLOC_CONTEXT,
     CASE_GUARD_WHEN,
+    AWAIT_IDENTIFIER,
 };
 
 typedef enum {
@@ -515,6 +516,7 @@ static bool scan_pragma_boundary(TSLexer *lexer);
 static bool scan_pragma_text(TSLexer *lexer);
 
 #include "ifAlternativeDirective.h"
+#include "awaitIdentifier.h"
 
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols);
@@ -550,6 +552,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
     if (valid_symbols[CONDITIONAL_CONSEQUENCE_START]) return scan_conditional_consequence(scanner, lexer);
     scanner->ternary_confirmation.valid = false;
+
+    QuestionScanResult await_identifier = scan_await_identifier(lexer, valid_symbols);
+    if (await_identifier != QUESTION_NOT_STARTED) return await_identifier == QUESTION_MATCHED;
 
     QuestionScanResult generic_start = scan_expression_generic_start(lexer, valid_symbols);
     if (generic_start != QUESTION_NOT_STARTED) return generic_start == QUESTION_MATCHED;
@@ -1222,16 +1227,17 @@ static bool advance_operator_character(TSLexer *lexer) {
 }
 
 
-// code-gauge-allow functionCognitiveComplexity 20 -- Keyword recognition and proof-cache handoff share the consumed token and current scanner frame.
-// code-gauge-allow functionNcss 41 -- Keep token marking, cache selection and prefix replay in their required lexical order.
+// code-gauge-allow functionCognitiveComplexity 22 -- Keyword recognition and proof-cache handoff share the consumed token and current scanner frame.
+// code-gauge-allow functionNcss 43 -- Keep token marking, cache selection and prefix replay in their required lexical order.
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     unsigned symbol;
     if (lexer->lookahead == 'i' && valid_symbols[TYPE_CONTEXT_IS]) symbol = TYPE_CONTEXT_IS;
     else if (lexer->lookahead == 'a' && valid_symbols[TYPE_CONTEXT_AS]) symbol = TYPE_CONTEXT_AS;
     else return QUESTION_NOT_STARTED;
-    char word[3] = {0};
+    char word[6] = {0};
     size_t size = consume_identifier_into(lexer, word, sizeof(word));
+    if (valid_symbols[AWAIT_IDENTIFIER] && buf_equals(word, size, "await")) return scan_await_follower(lexer);
     bool matched = symbol == TYPE_CONTEXT_IS ? buf_equals(word, size, "is") : buf_equals(word, size, "as");
     int32_t next = lexer->lookahead;
     if (!matched || next == '\\' || (next > 0x7F && !is_directive_horizontal(next) && !is_line_terminator(next)))
