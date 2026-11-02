@@ -721,7 +721,7 @@ switch (y) {
 List pattern alternatives before ternary collection access
 ================================================================================
 var r = x is [1] or [2] ? [a]?[b] : c;
-var s = x is [1] or ([2]) ? [a]?[b] : c;
+var s = x is [1] or [A<B>] ? [a]?[b] : c;
 
 --------------------------------------------------------------------------------
 
@@ -764,10 +764,12 @@ var s = x is [1] or ([2]) ? [a]?[b] : c;
                 (list_pattern
                   (constant_pattern
                     (integer_literal)))
-                (parenthesized_pattern
-                  (list_pattern
-                    (constant_pattern
-                      (integer_literal))))))
+                (list_pattern
+                  (type_pattern
+                    (generic_name
+                      (identifier)
+                      (type_argument_list
+                        (identifier)))))))
             (conditional_access_expression
               (collection_expression
                 (collection_element

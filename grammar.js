@@ -368,6 +368,7 @@ module.exports = grammar({
     sym('_definite_cast_type_end'),
     sym('_range_cast_type_end'),
     sym('_completed_operand_question'),
+    sym('_pattern_bracket_end'),
     sym('_bang_operator'),
     sym('_conditional_alternative_start'),
     sym('_statement_end'),
@@ -1784,16 +1785,14 @@ module.exports = grammar({
     // that point, so unrelated surrounding text could switch it.
     type_pattern: ($) => prec.dynamic(-1, field('type', $._pattern_type)),
 
-    // A collection expression is no constant, so a `[…]` that can be a list pattern is one, as in `x is [1] or [2] ? …`.
     list_pattern: ($) =>
-      prec.dynamic(
-        1,
-        seq(
-          '[',
-          optional(seq(commaSep1($.pattern), optional(','))),
-          completedOperandCloser(']'),
-          optional($._simple_designation)
-        )
+      seq(
+        '[',
+        optional(seq(commaSep1($.pattern), optional(','))),
+        // The scanner's `]` before a `?` ends the list pattern, as in `x is [1] or [2] ? …`, where a collection expression
+        // could otherwise take the `]` and the `?` as a conditional access.
+        choice(']', alias(sym('_pattern_bracket_end'), ']')),
+        optional($._simple_designation)
       ),
 
     slice_pattern: ($) => prec.right(seq(alias(sym('_slice_pattern_start'), '..'), optional($.pattern))),
@@ -3485,7 +3484,7 @@ function bracketedArgumentList($, opener) {
 }
 
 /**
- * A closer that completes a pattern or another nonprimary operand. The external scanner never emits the optional token:
+ * A `)` or `}` that completes a pattern or another nonprimary operand. The external scanner never emits the optional token:
  * its validity tells the question scan that the operand before a following `?` is complete, without an external
  * alternative to the closer that would split every parse state of the operand from those of ordinary expressions.
  *
