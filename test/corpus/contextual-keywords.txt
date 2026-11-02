@@ -708,7 +708,7 @@ class C {
         await[0] = await.Length + 1;
         var negated = await - 1;
         var named = await => await * 2;
-        var suppressed = await! is object && x is await or null;
+        var suppressed = await! is object && await! != null && x is await or null;
     }
     async Task Run(Task<Task> task, Task with) {
         await (await task);
@@ -781,11 +781,16 @@ class C {
               (variable_declarator
                 name: (identifier)
                 (binary_expression
-                  left: (is_pattern_expression
-                    expression: (postfix_unary_expression
-                      (identifier))
-                    pattern: (type_pattern
-                      type: (predefined_type)))
+                  left: (binary_expression
+                    left: (is_pattern_expression
+                      expression: (postfix_unary_expression
+                        (identifier))
+                      pattern: (type_pattern
+                        type: (predefined_type)))
+                    right: (binary_expression
+                      left: (postfix_unary_expression
+                        (identifier))
+                      right: (null_literal)))
                   right: (is_pattern_expression
                     expression: (identifier)
                     pattern: (or_pattern

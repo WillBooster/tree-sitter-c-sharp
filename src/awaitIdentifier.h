@@ -52,6 +52,10 @@ static bool continues_expression(TSLexer *lexer) {
         return lexer->lookahead != '.' && (lexer->lookahead < '0' || lexer->lookahead > '9');
     }
     if (is_ascii_in(c, ")]},;:?=<>|&^*%")) return true;
+    if (c == '!') {
+        advance(lexer);
+        return lexer->lookahead == '=';
+    }
     char word[7] = {0};
     size_t length = consume_identifier_into(lexer, word, sizeof(word));
     if (lexer->lookahead == '\\') return false;
