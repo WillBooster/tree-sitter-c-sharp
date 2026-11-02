@@ -3,6 +3,7 @@
 
 static QuestionScanResult scan_await_word(TSLexer *lexer);
 static bool await_continues_identifier(TSLexer *lexer);
+static bool continues_expression(TSLexer *lexer);
 static bool skip_await_trivia(TSLexer *lexer);
 static bool is_ascii_in(int32_t c, const char *characters);
 
@@ -18,10 +19,10 @@ static QuestionScanResult scan_await_identifier(TSLexer *lexer, const bool *vali
 
 // `await` is the await operator inside async functions and an identifier elsewhere, but the parser does not track async
 // context. Like Roslyn outside async functions, this takes `await` as an identifier when the next token continues an
-// identifier expression rather than starting an operand. Of the tokens that can do both, `+`, `-`, `*`, `&`, `^`, and `[`
-// make an identifier because awaiting such a unary or collection operand is rare, while `(` keeps the operator because
-// `await (task)` is common in async functions; `..` and a `!` followed by an operand keep it as well, as the identifier
-// reading is no more common there.
+// identifier expression or pattern rather than starting an operand. Of the tokens that can do both, `+`, `-`, `*`, `&`,
+// `^`, and `[` make an identifier because awaiting such a unary or collection operand is rare, while `(` keeps the
+// operator because `await (task)` is common in async functions; `..` and a `!` followed by an operand keep it as well,
+// as the identifier reading is no more common there.
 static QuestionScanResult scan_await_word(TSLexer *lexer) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     if (lexer->lookahead != 'a') return QUESTION_NOT_STARTED;
@@ -34,22 +35,32 @@ static QuestionScanResult scan_await_word(TSLexer *lexer) {
 }
 
 static bool await_continues_identifier(TSLexer *lexer) {
+    if (!skip_await_trivia(lexer)) return true;
+    if (lexer->lookahead == '!') {
+        advance(lexer);
+        return continues_expression(lexer);
+    }
+    return is_ascii_in(lexer->lookahead, "+-[") || continues_expression(lexer);
+}
+
+// Whether the next token can follow a complete expression or pattern but cannot start an operand.
+static bool continues_expression(TSLexer *lexer) {
     if (!skip_await_trivia(lexer) || lexer->eof(lexer)) return true;
     int32_t c = lexer->lookahead;
     if (c == '.') {
         advance(lexer);
         return lexer->lookahead != '.' && (lexer->lookahead < '0' || lexer->lookahead > '9');
     }
-    if (c == '!') {
-        advance(lexer);
-        return !skip_await_trivia(lexer) || lexer->eof(lexer) || is_ascii_in(lexer->lookahead, ")]},;:?=.[");
-    }
-    if (is_ascii_in(c, ")]},;:?=<>|&^*%+-[")) return true;
+    if (is_ascii_in(c, ")]},;:?=<>|&^*%")) return true;
     char word[7] = {0};
     size_t length = consume_identifier_into(lexer, word, sizeof(word));
     if (lexer->lookahead == '\\') return false;
     if (buf_equals(word, length, "with")) return skip_await_trivia(lexer) && lexer->lookahead == '{';
-    return buf_equals(word, length, "is") || buf_equals(word, length, "as") || buf_equals(word, length, "switch");
+    static const char *const words[] = {"and", "as", "is", "or", "switch", "when"};
+    for (size_t i = 0; i < sizeof(words) / sizeof(words[0]); i++) {
+        if (buf_equals(word, length, words[i])) return true;
+    }
+    return false;
 }
 
 // Skips whitespace, comments, and directive lines. Returns false after consuming a `/` that is a division operator or
