@@ -714,7 +714,8 @@ class C {
         await (await task);
         await with;
         await or;
-        var both = await and && await when;
+        var both = await and && await when < 5;
+        await or();
     }
 }
 
@@ -834,8 +835,15 @@ class C {
                 (binary_expression
                   left: (await_expression
                     (identifier))
-                  right: (await_expression
-                    (identifier)))))))))))
+                  right: (binary_expression
+                    left: (await_expression
+                      (identifier))
+                    right: (integer_literal))))))
+          (expression_statement
+            (await_expression
+              (invocation_expression
+                function: (identifier)
+                arguments: (argument_list)))))))))
 
 ================================================================================
 Async identifiers in types and calls

@@ -69,7 +69,8 @@ static bool continues_expression(TSLexer *lexer) {
     return false;
 }
 
-// `(`, `[`, `<`, `>`, and `-` can also continue an awaited variable (`await or(x)`); the pattern reading wins for them.
+// Excludes pattern starts that can also continue an awaited variable, such as `(` in `await or(x)`, so a pattern like
+// `x is await or (1)` keeps the operator.
 static bool starts_pattern(TSLexer *lexer) {
     if (!skip_await_trivia(lexer) || lexer->eof(lexer)) return false;
     int32_t c = lexer->lookahead;
@@ -77,7 +78,7 @@ static bool starts_pattern(TSLexer *lexer) {
         advance(lexer);
         return lexer->lookahead >= '0' && lexer->lookahead <= '9';
     }
-    return is_id_start(c) || (c >= '0' && c <= '9') || is_ascii_in(c, "@\\\"'$([{<>-");
+    return is_id_start(c) || (c >= '0' && c <= '9') || is_ascii_in(c, "@\\\"'${");
 }
 
 // Skips whitespace, comments, and directive lines. Returns false after consuming a `/` that is a division operator or
