@@ -1784,12 +1784,16 @@ module.exports = grammar({
     // that point, so unrelated surrounding text could switch it.
     type_pattern: ($) => prec.dynamic(-1, field('type', $._pattern_type)),
 
+    // A collection expression is no constant, so a `[…]` that can be a list pattern is one, as in `x is [1] or [2] ? …`.
     list_pattern: ($) =>
-      seq(
-        '[',
-        optional(seq(commaSep1($.pattern), optional(','))),
-        completedOperandCloser(']'),
-        optional($._simple_designation)
+      prec.dynamic(
+        1,
+        seq(
+          '[',
+          optional(seq(commaSep1($.pattern), optional(','))),
+          completedOperandCloser(']'),
+          optional($._simple_designation)
+        )
       ),
 
     slice_pattern: ($) => prec.right(seq(alias(sym('_slice_pattern_start'), '..'), optional($.pattern))),
