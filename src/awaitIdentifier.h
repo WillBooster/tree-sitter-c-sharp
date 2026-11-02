@@ -60,10 +60,11 @@ static bool continues_expression(TSLexer *lexer) {
     size_t length = consume_identifier_into(lexer, word, sizeof(word));
     if (lexer->lookahead == '\\') return false;
     if (buf_equals(word, length, "with")) return skip_await_trivia(lexer) && lexer->lookahead == '{';
-    static const char *const words[] = {"and", "as", "is", "or", "switch", "when"};
-    for (size_t i = 0; i < sizeof(words) / sizeof(words[0]); i++) {
-        if (buf_equals(word, length, words[i])) return true;
-    }
+    if (buf_equals(word, length, "is") || buf_equals(word, length, "as") || buf_equals(word, length, "switch"))
+        return true;
+    // These pattern words are also variable names that an async function can await, as in `await or;`.
+    if (buf_equals(word, length, "and") || buf_equals(word, length, "or") || buf_equals(word, length, "when"))
+        return skip_await_trivia(lexer) && !lexer->eof(lexer) && !is_ascii_in(lexer->lookahead, ";),.]}?:=");
     return false;
 }
 
