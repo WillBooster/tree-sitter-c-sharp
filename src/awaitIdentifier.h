@@ -80,7 +80,7 @@ static bool starts_pattern(TSLexer *lexer) {
     }
     if (!is_id_start(c)) return (c >= '0' && c <= '9') || is_ascii_in(c, "@\\\"'${");
     static const char *const continuations[] = {
-        "and", "as", "ascending", "by", "descending", "equals", "group", "in", "into", "is", "join",
+        "and", "as", "ascending", "by", "descending", "equals", "from", "group", "in", "into", "is", "join",
         "let", "on", "or", "orderby", "select", "switch", "when", "where", "with",
     };
     char word[10] = {0};
