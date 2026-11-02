@@ -85,6 +85,7 @@ static bool starts_pattern(TSLexer *lexer) {
     };
     char word[10] = {0};
     size_t length = consume_identifier_into(lexer, word, sizeof(word));
+    if (lexer->lookahead == '\\') return true;
     for (size_t i = 0; i < sizeof(continuations) / sizeof(continuations[0]); i++) {
         if (buf_equals(word, length, continuations[i])) return false;
     }
