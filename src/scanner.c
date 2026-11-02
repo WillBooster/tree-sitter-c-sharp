@@ -1147,10 +1147,10 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     return result;
 }
 
-// A `?` right after the `)`, `]`, or `}` that completes a pattern or another nonprimary operand cannot access a member,
-// so it starts a ternary. The grammar makes the never-emitted token valid after those closers, rather than an alternative
-// to the closers, because the closers' lookahead would split every parse state of the operand from those of ordinary
-// expressions.
+// Records that a `)`, `]`, or `}` completed a pattern or another nonprimary operand before a `?`, so the question scan
+// treats the operand as complete when it picks the `?`'s role. The grammar makes the never-emitted token valid after
+// those closers, rather than an alternative to the closers, because the closers' lookahead would split every parse state
+// of the operand from those of ordinary expressions.
 static void mark_completed_operand_question(Scanner *scanner, TSLexer *lexer) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     if (lexer->lookahead != '?') return;

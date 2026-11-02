@@ -3485,9 +3485,9 @@ function bracketedArgumentList($, opener) {
 }
 
 /**
- * A closer after which a `?` starts a ternary. The external scanner never emits the optional token: its validity tells
- * the scanner where the closer ended the operand, without an external alternative to the closer that would split every
- * parse state of the operand from those of ordinary expressions.
+ * A closer that completes a pattern or another nonprimary operand. The external scanner never emits the optional token:
+ * its validity tells the question scan that the operand before a following `?` is complete, without an external
+ * alternative to the closer that would split every parse state of the operand from those of ordinary expressions.
  *
  * @param {string} closer
  */
