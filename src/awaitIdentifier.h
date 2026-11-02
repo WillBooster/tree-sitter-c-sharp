@@ -4,6 +4,7 @@
 static QuestionScanResult scan_await_word(TSLexer *lexer);
 static bool await_continues_identifier(TSLexer *lexer);
 static bool continues_expression(TSLexer *lexer);
+static bool starts_pattern(TSLexer *lexer);
 static bool skip_await_trivia(TSLexer *lexer);
 static bool is_ascii_in(int32_t c, const char *characters);
 
@@ -64,8 +65,19 @@ static bool continues_expression(TSLexer *lexer) {
         return true;
     // These pattern words are also variable names that an async function can await, as in `await or;`.
     if (buf_equals(word, length, "and") || buf_equals(word, length, "or") || buf_equals(word, length, "when"))
-        return skip_await_trivia(lexer) && !lexer->eof(lexer) && !is_ascii_in(lexer->lookahead, ";),.]}?:=");
+        return starts_pattern(lexer);
     return false;
+}
+
+// `(`, `[`, `<`, `>`, and `-` can also continue an awaited variable (`await or(x)`); the pattern reading wins for them.
+static bool starts_pattern(TSLexer *lexer) {
+    if (!skip_await_trivia(lexer) || lexer->eof(lexer)) return false;
+    int32_t c = lexer->lookahead;
+    if (c == '.') {
+        advance(lexer);
+        return lexer->lookahead >= '0' && lexer->lookahead <= '9';
+    }
+    return is_id_start(c) || (c >= '0' && c <= '9') || is_ascii_in(c, "@\\\"'$([{<>-");
 }
 
 // Skips whitespace, comments, and directive lines. Returns false after consuming a `/` that is a division operator or

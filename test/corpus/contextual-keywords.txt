@@ -714,6 +714,7 @@ class C {
         await (await task);
         await with;
         await or;
+        var both = await and && await when;
     }
 }
 
@@ -824,7 +825,17 @@ class C {
               (identifier)))
           (expression_statement
             (await_expression
-              (identifier))))))))
+              (identifier)))
+          (local_declaration_statement
+            (variable_declaration
+              type: (implicit_type)
+              (variable_declarator
+                name: (identifier)
+                (binary_expression
+                  left: (await_expression
+                    (identifier))
+                  right: (await_expression
+                    (identifier)))))))))))
 
 ================================================================================
 Async identifiers in types and calls
