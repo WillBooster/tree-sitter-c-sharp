@@ -116,8 +116,8 @@ static bool expression_generic_following_read(TSLexer *lexer, GenericFollowing *
 static bool expression_generic_word_following(TSLexer *lexer, GenericFollowing *kind) {
     QuestionIdentifier word;
     if (!rank_read_identifier(lexer, &word)) return false;
-    if (word.keyword && (str_eq(word.word, "is") || str_eq(word.word, "as"))) return true;
-    if (word.keyword && (str_eq(word.word, "with") || !rank_identifier_allowed(&word, false))) return false;
+    if (word.keyword && (!strcmp(word.word, "is") || !strcmp(word.word, "as"))) return true;
+    if (word.keyword && (!strcmp(word.word, "with") || !rank_identifier_allowed(&word, false))) return false;
     static const char *const query[] = {"from", "join", "on", "equals", "by", "into", "where", "select", "group", "orderby", "let", "ascending", "descending"};
     if (kind) {
         unsigned flags = GENERIC_IDENTIFIER;

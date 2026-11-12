@@ -174,8 +174,8 @@ static RankReadStep rank_read_code_identifier(TSLexer *lexer, RankLiteralFrame *
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return RANK_READ_UNKNOWN;
     if (frame->mode == RANK_BODY_TYPE_DIMENSION && identifier.keyword &&
-        (str_eq(identifier.word, "new") || str_eq(identifier.word, "stackalloc") || str_eq(identifier.word, "is") ||
-         str_eq(identifier.word, "as") || str_eq(identifier.word, "delegate"))) return RANK_READ_UNKNOWN;
+        (!strcmp(identifier.word, "new") || !strcmp(identifier.word, "stackalloc") || !strcmp(identifier.word, "is") ||
+         !strcmp(identifier.word, "as") || !strcmp(identifier.word, "delegate"))) return RANK_READ_UNKNOWN;
     if (!identifier.keyword || (identifier.length < sizeof(identifier.word) && is_syntax_word(identifier.word))) {
         frame->identifiers = 0;
         return RANK_READ_MORE;

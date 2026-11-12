@@ -6,18 +6,6 @@
 #include <string.h>
 #include <wctype.h>
 
-static inline int str_cmp(const char *left, const char *right) {
-    while (*left && *left == *right) {
-        left++;
-        right++;
-    }
-    return (unsigned char)*left - (unsigned char)*right;
-}
-
-static inline bool str_eq(const char *left, const char *right) {
-    return str_cmp(left, right) == 0;
-}
-
 static inline bool buf_equals(const char *buf, size_t n, const char *kw) {
     for (size_t i = 0; i < n; i++) {
         if (!kw[i] || buf[i] != kw[i]) return false;
@@ -25,7 +13,7 @@ static inline bool buf_equals(const char *buf, size_t n, const char *kw) {
     return !kw[n];
 }
 
-// Wasm parsers cannot link strchr.
+// web-tree-sitter.wasm omits strchr; non-literal sets cannot lower to memchr.
 static inline bool is_ascii_in(int32_t c, const char *characters) {
     if ((uint32_t)(c - 1) >= 127) return false;
     for (; *characters; characters++) {
@@ -173,7 +161,7 @@ static bool is_syntax_word(const char *word) {
     unsigned low = 0, high = sizeof(words) / sizeof(words[0]);
     while (low < high) {
         unsigned middle = low + (high - low) / 2;
-        int order = str_cmp(word, words[middle]);
+        int order = strcmp(word, words[middle]);
         if (!order) return true;
         if (order < 0) high = middle;
         else low = middle + 1;

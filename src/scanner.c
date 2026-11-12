@@ -1097,7 +1097,7 @@ static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return false;
     if (!identifier.keyword) return true;
-    if (str_eq(identifier.word, "is") || str_eq(identifier.word, "as")) return false;
+    if (!strcmp(identifier.word, "is") || !strcmp(identifier.word, "as")) return false;
     if (!preferred) return true;
     static const char *const continuations[] = {
         "switch", "when", "with", "and", "or", "not", "from", "join", "on", "equals", "by", "into",
@@ -1197,7 +1197,7 @@ static bool scan_file_directive_kind(TSLexer *lexer) {
     lexer->result_symbol = FILE_DIRECTIVE_KIND;
     if (length < sizeof(kind)) {
         for (unsigned i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
-            if (str_eq(kind, kinds[i])) {
+            if (!strcmp(kind, kinds[i])) {
                 lexer->result_symbol = FILE_DIRECTIVE_SDK + i;
                 break;
             }

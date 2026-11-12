@@ -75,7 +75,7 @@ static int rank_logical_nullable_operand(TSLexer *lexer) {
     if (!rank_read_identifier(lexer, &operand) || !rank_identifier_allowed(&operand, false)) return -1;
     if (rank_logical_boundary(lexer)) return 0;
     QuestionIdentifier keyword;
-    return rank_read_identifier(lexer, &keyword) && keyword.keyword && str_eq(keyword.word, "is") ? 1 : -1;
+    return rank_read_identifier(lexer, &keyword) && keyword.keyword && !strcmp(keyword.word, "is") ? 1 : -1;
 }
 
 static bool rank_logical_boundary(TSLexer *lexer) {
