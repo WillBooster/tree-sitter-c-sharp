@@ -1,4 +1,4 @@
-import { Language, type Node, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, type Node, Parser } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
 test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
@@ -7,7 +7,6 @@ test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
     await Parser.init();
     const language = await Language.load('tree-sitter-c_sharp.wasm');
     const parser = new Parser().setLanguage(language);
-    const query = new Query(language, '[(namespace_declaration) (file_scoped_namespace_declaration)] @namespace');
     try {
       for (const block of [false, true]) {
         const source =
@@ -18,9 +17,12 @@ test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
         const tree = parser.parse(source)!;
         try {
           expect(tree.rootNode.hasError, source).toBe(false);
-          const captures = query.captures(tree.rootNode);
-          expect(captures).toHaveLength(1);
-          const namespace = captures[0]!.node;
+          const namespaces = tree.rootNode.descendantsOfType([
+            'namespace_declaration',
+            'file_scoped_namespace_declaration',
+          ]);
+          expect(namespaces).toHaveLength(1);
+          const namespace = namespaces[0]!;
           expect(namespace.childForFieldName('name')?.text).toBe('N');
           const members = tree.rootNode.descendantsOfType([
             'class_declaration',
@@ -46,7 +48,6 @@ test.each(['\n', '\r\n', '\r', '\u0085', '\u2028', '\u2029'])(
         }
       }
     } finally {
-      query.delete();
       parser.delete();
     }
   }

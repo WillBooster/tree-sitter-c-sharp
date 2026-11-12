@@ -1,4 +1,4 @@
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 let language: Language;
@@ -128,7 +128,6 @@ cases.push(
 
 test('retains conditional base lists and declaration bodies', () => {
   const parser = new Parser().setLanguage(language);
-  const query = new Query(language, '(base_list) @base');
   try {
     for (const source of cases) {
       const tree = parser.parse(source)!;
@@ -148,18 +147,17 @@ test('retains conditional base lists and declaration bodies', () => {
         const declaration = declarations[0]!;
         const body = declaration.childForFieldName('body')!;
         expect(body.text, source).toBe('{}');
-        const captures = query.captures(tree.rootNode);
-        expect(captures.length).toBeGreaterThan(0);
-        for (const capture of captures) {
-          expect(capture.node.startIndex).toBeGreaterThan(declaration.startIndex);
-          expect(capture.node.endIndex).toBeLessThanOrEqual(body.startIndex);
+        const baseLists = tree.rootNode.descendantsOfType('base_list');
+        expect(baseLists.length).toBeGreaterThan(0);
+        for (const baseList of baseLists) {
+          expect(baseList.startIndex).toBeGreaterThan(declaration.startIndex);
+          expect(baseList.endIndex).toBeLessThanOrEqual(body.startIndex);
         }
       } finally {
         tree.delete();
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });

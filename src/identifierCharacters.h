@@ -4,6 +4,43 @@
 
 #include "tree_sitter/parser.h"
 #include <string.h>
+#include <wctype.h>
+
+static inline int str_cmp(const char *left, const char *right) {
+    while (*left && *left == *right) {
+        left++;
+        right++;
+    }
+    return (unsigned char)*left - (unsigned char)*right;
+}
+
+static inline bool str_eq(const char *left, const char *right) {
+    return str_cmp(left, right) == 0;
+}
+
+static inline bool buf_equals(const char *buf, size_t n, const char *kw) {
+    for (size_t i = 0; i < n; i++) {
+        if (!kw[i] || buf[i] != kw[i]) return false;
+    }
+    return !kw[n];
+}
+
+// Wasm parsers cannot link strchr.
+static inline bool is_ascii_in(int32_t c, const char *characters) {
+    if ((uint32_t)(c - 1) >= 127) return false;
+    for (; *characters; characters++) {
+        if (c == (unsigned char)*characters) return true;
+    }
+    return false;
+}
+
+static inline bool is_unicode_whitespace(int32_t c) {
+    return c >= 0 && (c < 0x80 ? (c == ' ' || (uint32_t)(c - '	') < 5) : iswspace((wint_t)c) != 0);
+}
+
+static inline bool at_eof(const TSLexer *lexer) {
+    return lexer->lookahead == 0 && lexer->eof(lexer);
+}
 
 static bool is_syntax_word(const char *word) {
     static const char *const words[] = {
@@ -136,7 +173,7 @@ static bool is_syntax_word(const char *word) {
     unsigned low = 0, high = sizeof(words) / sizeof(words[0]);
     while (low < high) {
         unsigned middle = low + (high - low) / 2;
-        int order = strcmp(word, words[middle]);
+        int order = str_cmp(word, words[middle]);
         if (!order) return true;
         if (order < 0) high = middle;
         else low = middle + 1;
@@ -457,13 +494,23 @@ static inline bool scanner_identifier_set_contains_with_ascii(
   return len && set_contains(ranges, len, lookahead);
 }
 
-// Lexer tables include the escape introducer; scanner readers decode escapes separately.
-static bool is_id_start(int32_t character) {
-    return character != 0x5C && scanner_identifier_pages8_contains(scanner_identifier_sym__identifier_token_character_set_2_ascii, scanner_identifier_sym__identifier_token_character_set_2_page_ids, scanner_identifier_sym__identifier_token_character_set_2_pages, 0, 804, character);
+static inline bool is_ascii_id_start(int32_t character) {
+    return (((uint32_t)character | 0x20u) - (uint32_t)'a' < 26u) || character == '_';
 }
 
-static bool is_id_continue(int32_t character) {
-    return character != 0x5C && scanner_identifier_set_contains_with_ascii(scanner_identifier_sym__identifier_token_character_set_3_ascii, scanner_identifier_sym__identifier_token_character_set_3, 796, character);
+static inline bool is_ascii_id_continue(int32_t character) {
+    return is_ascii_id_start(character) || ((uint32_t)character - (uint32_t)'0' < 10u);
+}
+
+// Lexer tables include the escape introducer; scanner readers decode escapes separately.
+static inline bool is_id_start(int32_t character) {
+    if (character < 0x80) return is_ascii_id_start(character);
+    return scanner_identifier_pages8_contains(scanner_identifier_sym__identifier_token_character_set_2_ascii, scanner_identifier_sym__identifier_token_character_set_2_page_ids, scanner_identifier_sym__identifier_token_character_set_2_pages, 0, 804, character);
+}
+
+static inline bool is_id_continue(int32_t character) {
+    if (character < 0x80) return is_ascii_id_continue(character);
+    return scanner_identifier_set_contains_with_ascii(scanner_identifier_sym__identifier_token_character_set_3_ascii, scanner_identifier_sym__identifier_token_character_set_3, 796, character);
 }
 
 static const TSCharacterRange directive_identifier_continue_ranges[] = {
@@ -903,8 +950,8 @@ static const TSCharacterRange directive_identifier_continue_ranges[] = {
     {0xfff9, 0xfffb},
 };
 
-static bool is_directive_identifier_continue(int32_t character) {
-    if (character < 128) return character >= 0 && is_id_continue(character);
+static inline bool is_directive_identifier_continue(int32_t character) {
+    if (character < 0x80) return is_ascii_id_continue(character);
     return set_contains(directive_identifier_continue_ranges, 434, character);
 }
 

@@ -34,7 +34,7 @@ static void question_input_advance(TSLexer *lexer, bool skip) {
 
 static bool question_input_eof(const TSLexer *lexer) {
     const QuestionInput *input = (const QuestionInput *)lexer;
-    return input->cursor == input->characters.size && input->source->eof(input->source);
+    return input->cursor == input->characters.size && at_eof(input->source);
 }
 
 static void question_input_position(const TSLexer *lexer, TSLexerPosition *position) {
@@ -116,8 +116,8 @@ static bool expression_generic_following_read(TSLexer *lexer, GenericFollowing *
 static bool expression_generic_word_following(TSLexer *lexer, GenericFollowing *kind) {
     QuestionIdentifier word;
     if (!rank_read_identifier(lexer, &word)) return false;
-    if (word.keyword && (!strcmp(word.word, "is") || !strcmp(word.word, "as"))) return true;
-    if (word.keyword && (!strcmp(word.word, "with") || !rank_identifier_allowed(&word, false))) return false;
+    if (word.keyword && (str_eq(word.word, "is") || str_eq(word.word, "as"))) return true;
+    if (word.keyword && (str_eq(word.word, "with") || !rank_identifier_allowed(&word, false))) return false;
     static const char *const query[] = {"from", "join", "on", "equals", "by", "into", "where", "select", "group", "orderby", "let", "ascending", "descending"};
     if (kind) {
         unsigned flags = GENERIC_IDENTIFIER;
@@ -212,7 +212,7 @@ static bool expression_generic_flat(TSLexer *lexer) {
     advance(lexer);
     for (;;) {
         int32_t c = question_skip_separators(lexer);
-        if (c < 0 || lexer->eof(lexer) || c == '<' || c == '(' || c == '"' || c == '\'' || c == '$' || c == '#') return false;
+        if (c < 0 || at_eof(lexer) || c == '<' || c == '(' || c == '"' || c == '\'' || c == '$' || c == '#') return false;
         if (c == '>') return true;
         advance(lexer);
     }

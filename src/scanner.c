@@ -3,9 +3,6 @@
 #include "tree_sitter/array.h"
 #include "tree_sitter/parser.h"
 
-#include <string.h>
-#include <wctype.h>
-
 #include "identifierCharacters.h"
 
 enum TokenType {
@@ -172,34 +169,27 @@ static void skip_ws_and_comments(TSLexer *lexer) {
 static bool skip_block_comment(TSLexer *lexer) {
     advance(lexer);
     int32_t previous = 0;
-    while (!lexer->eof(lexer) && !(previous == '*' && lexer->lookahead == '/')) {
+    while (!at_eof(lexer) && !(previous == '*' && lexer->lookahead == '/')) {
         previous = lexer->lookahead;
         advance(lexer);
     }
-    if (lexer->eof(lexer)) return false;
+    if (at_eof(lexer)) return false;
     advance(lexer);
     return true;
 }
 
 static void skip_line_comment(TSLexer *lexer) {
-    while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) advance(lexer);
+    while (!at_eof(lexer) && !is_line_terminator(lexer->lookahead)) advance(lexer);
 }
 
 static size_t consume_identifier_into(TSLexer *lexer, char *buf, size_t max) {
     size_t n = 0;
     while (is_id_continue(lexer->lookahead)) {
-        if (n < max) {
-            buf[n] = lexer->lookahead <= 0x7F ? (char)lexer->lookahead : '?';
-        }
+        if (n < max) buf[n] = lexer->lookahead <= 0x7F ? (char)lexer->lookahead : '?';
         n++;
         advance(lexer);
     }
     return n;
-}
-
-static bool buf_equals(const char *buf, size_t n, const char *kw) {
-    size_t klen = strlen(kw);
-    return n == klen && memcmp(buf, kw, klen) == 0;
 }
 
 #define QUESTION_STATE_UNKNOWN 2
@@ -276,7 +266,7 @@ unsigned tree_sitter_c_sharp_external_scanner_serialize(void *payload, char *buf
     question_serialize_modes(scanner, state, buffer, &size);
     question_suffix_serialize(&scanner->suffix, buffer, &size);
     rank_logical_serialize_refusals(scanner, buffer, &size);
-    return size;
+    return size == 3 && !buffer[0] && !buffer[1] && !buffer[2] ? 0 : size;
 }
 
 static unsigned interpolation_serialize(const Scanner *scanner, char *buffer, bool depths) {
@@ -349,87 +339,39 @@ unknown:
     scanner->question_unknown = true;
 }
 
-// Outcome of `scan_lambda_paren_open` — distinguishes "didn't start"
-// (lexer untouched, wrapper can fall through to other token handlers)
-// from "started and failed" (lexer cursor advanced past characters
-// the wrapper must not let other handlers consume — they would emit
-// tokens with wrong spans, e.g. an `INTERPOLATION_REGULAR_START`
-// span covering `(false, $` in `return (false, $"...");`).
+// Distinguishes untouched lookahead (safe to fall through) from a speculative advance past '(' (must return false so
+// tree-sitter rewinds instead of letting later handlers emit spans starting at the pre-'(' cursor).
 typedef enum {
-    LAMBDA_SCAN_NO_PAREN,         // not a '(', no advance() done
-    LAMBDA_SCAN_FAILED_AFTER_PAREN, // '(' was consumed, dirty state
+    LAMBDA_SCAN_NO_PAREN,
+    LAMBDA_SCAN_FAILED_AFTER_PAREN,
     LAMBDA_SCAN_SUCCESS,
 } LambdaScanResult;
 
-// Try to recognize a C# 14 simple-lambda parameter list at the current
-// position. On SUCCESS, `lexer->result_symbol` is LAMBDA_PAREN_OPEN
-// and `mark_end` is set on the opening '('. On NO_PAREN, the lexer is
-// untouched (only `skip(lexer)` over leading whitespace, which doesn't
-// participate in token boundaries). On FAILED_AFTER_PAREN, the lexer
-// has advanced past at least the opening '(' and the caller must
-// surface this as a false return from the external_scanner_scan
-// function so tree-sitter rewinds.
-//
-// Grammar of the pattern (after the opening '('):
-//
-//   element (',' element)* ')' '=>'
-//
-//   element  := modifier+ identifier
-//             | identifier
-//
-//   modifier ∈ { scoped, ref, out, in, readonly }
-//
-// At least one element must carry a modifier; otherwise we'd over-fire
-// on plain `(x, y) => ...` which is already handled by the existing
-// `_lambda_parameters` choice.
-//
-// Implementation note: identifier-tokens are consumed *whole* into a
-// small buffer before being classified as modifier-or-name. A
-// character-by-character probe against each candidate keyword would be
-// unworkable because `ref` is a prefix of `readonly` (they share `re`)
-// and TSLexer has no rewind primitive: any probe order leaves one of
-// the two keywords unreachable. Buffering the whole identifier
-// sidesteps the prefix conflict entirely.
-// code-gauge-allow functionNcss 49 -- Parameter modifier recognition and balanced-group lookahead share the lexical cursor until the arrow is confirmed.
+static bool consume_lambda_element(TSLexer *lexer, bool *saw_hard_modifier);
+
+// Whole-word buffering avoids rewinding on the `ref` vs `readonly` prefix conflict (`TSLexer` has no rewind), and
+// requiring a hard modifier rejects `(scoped x) =>` where `scoped` is a legal type name.
+// code-gauge-allow functionCognitiveComplexity 21 -- Parameter-list commas and balanced-group closing share the speculative cursor until `=>` is confirmed.
+// code-gauge-allow functionNcss 34 -- Parameter-list commas and balanced-group closing share the speculative cursor until `=>` is confirmed.
 static LambdaScanResult scan_lambda_paren_open(TSLexer *lexer) {
-    // External scanners run before whitespace `extras` are skipped, so
-    // we need to skip leading whitespace/comments ourselves before
-    // checking for the opening '('. `skip(lexer)` consumes the char as
-    // an extra (not part of any token), so even on NO_PAREN return the
-    // wrapper's fall-through into other handlers is safe — those
-    // handlers do their own whitespace skipping.
-    while (iswspace(lexer->lookahead)) {
-        skip(lexer);
-    }
+    while (is_unicode_whitespace(lexer->lookahead)) skip(lexer);
     if (lexer->lookahead != '(') return LAMBDA_SCAN_NO_PAREN;
     advance(lexer);
     lexer->mark_end(lexer);
 
-    // From this point on, the lexer cursor has moved past '('. Any
-    // return must be FAILED_AFTER_PAREN unless we reach SUCCESS.
     #define BAIL return LAMBDA_SCAN_FAILED_AFTER_PAREN
-
-    // We require at least one "hard" modifier (ref/out/in/readonly) across
-    // the whole list before committing. `scoped` alone is not a valid C#
-    // parameter modifier — it must always combine with a hard modifier —
-    // and `scoped` is also a legal type name, so accepting `(scoped x) =>`
-    // as a modifier+name pair would collide with the existing
-    // `parameter_list` path on input that semantically means
-    // type+identifier.
     bool saw_hard_modifier = false;
     bool expecting_element = true;
 
     for (;;) {
         skip_ws_and_comments(lexer);
         int32_t c = lexer->lookahead;
-
-        if (lexer->eof(lexer)) BAIL;
+        if (at_eof(lexer)) BAIL;
 
         if (c == ')') {
             advance(lexer);
             skip_ws_and_comments(lexer);
-            if (!saw_hard_modifier) BAIL;
-            if (lexer->lookahead != '=') BAIL;
+            if (!saw_hard_modifier || lexer->lookahead != '=') BAIL;
             advance(lexer);
             if (lexer->lookahead != '>') BAIL;
             lexer->result_symbol = LAMBDA_PAREN_OPEN;
@@ -443,44 +385,26 @@ static LambdaScanResult scan_lambda_paren_open(TSLexer *lexer) {
             continue;
         }
 
-        // Consume identifier-tokens in this element. Each one is either a
-        // parameter modifier (`scoped`/`ref`/`out`/`in`/`readonly`) — in which
-        // case we continue looking for more — or the parameter name, which
-        // ends the element. Consuming the whole token before classifying
-        // avoids any need to rewind the lexer on a prefix-conflict (e.g. ref
-        // vs readonly).
-        bool consumed_name = false;
-        while (!consumed_name) {
-            skip_ws_and_comments(lexer);
-            if (!is_id_start(lexer->lookahead)) BAIL;
-
-            char buf[9];  // "readonly" is 8 chars
-            size_t n = consume_identifier_into(lexer, buf, sizeof(buf));
-
-            bool is_hard_modifier = (n <= 8) && (
-                buf_equals(buf, n, "ref") ||
-                buf_equals(buf, n, "out") ||
-                buf_equals(buf, n, "in") ||
-                buf_equals(buf, n, "readonly")
-            );
-            bool is_soft_modifier = (n == 6) && buf_equals(buf, n, "scoped");
-
-            if (is_hard_modifier) {
-                saw_hard_modifier = true;
-            } else if (is_soft_modifier) {
-                // `scoped` is a modifier only when followed by a hard
-                // modifier; keep scanning. If the element turns out to
-                // end with `scoped <identifier>` and no hard modifier
-                // appeared, the final `saw_hard_modifier` check fails
-                // and we fall back to the regular parameter_list path.
-            } else {
-                consumed_name = true;
-            }
-        }
+        if (!consume_lambda_element(lexer, &saw_hard_modifier)) BAIL;
         expecting_element = false;
     }
 }
 #undef BAIL
+
+static bool consume_lambda_element(TSLexer *lexer, bool *saw_hard_modifier) {
+    for (;;) {
+        skip_ws_and_comments(lexer);
+        if (!is_id_start(lexer->lookahead)) return false;
+        char buf[9];
+        size_t n = consume_identifier_into(lexer, buf, sizeof(buf));
+        if (buf_equals(buf, n, "ref") || buf_equals(buf, n, "out") ||
+            buf_equals(buf, n, "in") || buf_equals(buf, n, "readonly")) {
+            *saw_hard_modifier = true;
+        } else if (!buf_equals(buf, n, "scoped")) {
+            return true;
+        }
+    }
+}
 
 static bool scan_file_directive_prefix(TSLexer *lexer) {
     if (lexer->lookahead != '#') return false;
@@ -492,12 +416,12 @@ static bool scan_file_directive_prefix(TSLexer *lexer) {
 
 static bool scan_preproc_arg(TSLexer *lexer, bool opaque, enum TokenType symbol) {
     lexer->mark_end(lexer);
-    while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) {
+    while (!at_eof(lexer) && !is_line_terminator(lexer->lookahead)) {
         int32_t c = lexer->lookahead;
         advance(lexer);
         if (!opaque && c == '/') {
             if (lexer->lookahead == '*') break;
-            if (lexer->eof(lexer) || is_line_terminator(lexer->lookahead)) {
+            if (at_eof(lexer) || is_line_terminator(lexer->lookahead)) {
                 lexer->mark_end(lexer);
                 break;
             }
@@ -569,7 +493,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     if (valid_symbols[PRAGMA_BOUNDARY]) return scan_pragma_boundary(lexer);
     if (valid_symbols[PRAGMA_TEXT]) {
         while (is_directive_horizontal(lexer->lookahead)) skip(lexer);
-        if (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) return scan_pragma_text(lexer);
+        if (!at_eof(lexer) && !is_line_terminator(lexer->lookahead)) return scan_pragma_text(lexer);
     }
 
     if (valid_symbols[INTERPOLATION_FORMAT_COLON] && scan_interpolation_format_colon(lexer)) return true;
@@ -649,24 +573,9 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     QuestionScanResult creation_context = scan_stackalloc_context(scanner, lexer, valid_symbols);
     if (creation_context != QUESTION_NOT_STARTED) return creation_context == QUESTION_MATCHED;
 
-    // Lambda-paren scanning advances forward speculatively past the
-    // opening `(`. If it consumes input and then bails, the lexer
-    // cursor is mispositioned and must not be reused by other token
-    // handlers below — they would emit tokens with spans starting at
-    // the original scan position but ending at the dirty cursor (e.g.
-    // an INTERPOLATION_REGULAR_START swallowing `(false, $` in
-    // `return (false, $"...");`). When the scanner consumed `(` but
-    // didn't confirm a lambda, return false here so tree-sitter
-    // rewinds and lets the built-in `(` tokenizer match.
     if (valid_symbols[LAMBDA_PAREN_OPEN]) {
-        switch (scan_lambda_paren_open(lexer)) {
-            case LAMBDA_SCAN_SUCCESS:
-                return true;
-            case LAMBDA_SCAN_FAILED_AFTER_PAREN:
-                return false;
-            case LAMBDA_SCAN_NO_PAREN:
-                break;  // lexer untouched; fall through
-        }
+        LambdaScanResult lambda = scan_lambda_paren_open(lexer);
+        if (lambda != LAMBDA_SCAN_NO_PAREN) return lambda == LAMBDA_SCAN_SUCCESS;
     }
 
     if (valid_symbols[FILE_DIRECTIVE_KIND] && !valid_symbols[FILE_DIRECTIVE_LITERAL_CONTEXT] && !valid_symbols[FILE_DIRECTIVE_PREPROC_ARG] &&
@@ -704,18 +613,14 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
     // A directive may end the input without a line break, which no regex token can match.
     if (valid_symbols[END_OF_INPUT]) {
-        while (is_space_but_line_feed(lexer->lookahead)) {
-            skip(lexer);
-        }
+        while (is_space_but_line_feed(lexer->lookahead)) skip(lexer);
         lexer->result_symbol = END_OF_INPUT;
-        return lexer->eof(lexer);
+        return at_eof(lexer);
     }
 
     if (valid_symbols[OPT_SEMI]) {
         lexer->result_symbol = OPT_SEMI;
-        if (lexer->lookahead == ';') {
-            advance(lexer);
-        }
+        if (lexer->lookahead == ';') advance(lexer);
         scanner->question_type_uncertain = false;
         question_clear_access_cache(scanner);
         clear_question_rank(scanner);
@@ -723,9 +628,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     if (valid_symbols[RAW_STRING_START]) {
-        while (iswspace(lexer->lookahead)) {
-            skip(lexer);
-        }
+        while (is_unicode_whitespace(lexer->lookahead)) skip(lexer);
 
         if (lexer->lookahead == '"') {
             while (lexer->lookahead == '"') {
@@ -757,7 +660,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     }
 
     if (valid_symbols[RAW_STRING_CONTENT]) {
-        while (!lexer->eof(lexer)) {
+        while (!at_eof(lexer)) {
             if (lexer->lookahead == '"') {
                 lexer->mark_end(lexer);
                 quote_count = 0;
@@ -782,9 +685,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
 
     if (valid_symbols[INTERPOLATION_REGULAR_START] || valid_symbols[INTERPOLATION_VERBATIM_START] ||
         valid_symbols[INTERPOLATION_RAW_START]) {
-        while (iswspace(lexer->lookahead)) {
-            skip(lexer);
-        }
+        while (is_unicode_whitespace(lexer->lookahead)) skip(lexer);
 
         uint8_t dollar_advanced = 0;
 
@@ -915,9 +816,7 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
         uint8_t brace_advanced = 0;
         Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
 
-        while (iswspace(lexer->lookahead)) {
-            advance(lexer);
-        }
+        while (is_unicode_whitespace(lexer->lookahead)) advance(lexer);
 
         while (lexer->lookahead == '}') {
             advance(lexer);
@@ -937,9 +836,12 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
     if (valid_symbols[INTERPOLATION_STRING_CONTENT] && scanner->interpolation_stack.size > 0) {
         lexer->result_symbol = INTERPOLATION_STRING_CONTENT;
         Interpolation *current_interpolation = array_back(&scanner->interpolation_stack);
+        bool raw = is_raw(current_interpolation);
+        bool verbatim = !raw && is_verbatim(current_interpolation);
+        bool regular = !raw && !verbatim && is_regular(current_interpolation);
 
-        while (!lexer->eof(lexer)) {
-            if (is_raw(current_interpolation)) {
+        while (!at_eof(lexer)) {
+            if (raw) {
                 if (lexer->lookahead == '"') {
                     lexer->mark_end(lexer);
                     advance(lexer);
@@ -950,78 +852,38 @@ bool tree_sitter_c_sharp_external_scanner_scan(void *payload, TSLexer *lexer, co
                             quote_advanced++;
                             advance(lexer);
                         }
-                        if (quote_advanced == current_interpolation->quote_count) {
-                            return did_advance;
-                        }
+                        if (quote_advanced == current_interpolation->quote_count) return did_advance;
                     }
                 }
-
-                if (lexer->lookahead == '{') {
-                    lexer->mark_end(lexer);
-
-                    while (lexer->lookahead == '{' && brace_advanced < current_interpolation->open_brace_count) {
-                        advance(lexer);
-                        brace_advanced++;
-                    }
-
-                    if (brace_advanced == current_interpolation->open_brace_count &&
-                        (brace_advanced == 0 || lexer->lookahead != '{')) {
-                        return did_advance;
-                    }
-                }
-            }
-
-            else if (is_verbatim(current_interpolation)) {
+            } else if (verbatim) {
                 if (lexer->lookahead == '"') {
                     lexer->mark_end(lexer);
                     advance(lexer);
-                    if (lexer->lookahead == '"') {
-                        advance(lexer);
-                        did_advance = true;
-                        continue;
-                    }
-                    return did_advance;
+                    if (lexer->lookahead != '"') return did_advance;
+                    advance(lexer);
+                    did_advance = true;
+                    continue;
                 }
-
-                if (lexer->lookahead == '{') {
-                    lexer->mark_end(lexer);
-
-                    while (lexer->lookahead == '{' && brace_advanced < current_interpolation->open_brace_count) {
-                        advance(lexer);
-                        brace_advanced++;
-                    }
-
-                    if (brace_advanced == current_interpolation->open_brace_count &&
-                        (brace_advanced == 0 || lexer->lookahead != '{')) {
-                        return did_advance;
-                    }
-                }
-            }
-
-            else if (is_regular(current_interpolation)) {
+            } else if (regular) {
                 if (lexer->lookahead == '\\' || is_line_terminator(lexer->lookahead) || lexer->lookahead == '"') {
                     lexer->mark_end(lexer);
                     return did_advance;
                 }
+            }
 
-                if (lexer->lookahead == '{') {
-                    lexer->mark_end(lexer);
-
-                    while (lexer->lookahead == '{' && brace_advanced < current_interpolation->open_brace_count) {
-                        advance(lexer);
-                        brace_advanced++;
-                    }
-
-                    if (brace_advanced == current_interpolation->open_brace_count &&
-                        (brace_advanced == 0 || lexer->lookahead != '{')) {
-                        return did_advance;
-                    }
+            if ((raw || verbatim || regular) && lexer->lookahead == '{') {
+                lexer->mark_end(lexer);
+                while (lexer->lookahead == '{' && brace_advanced < current_interpolation->open_brace_count) {
+                    advance(lexer);
+                    brace_advanced++;
+                }
+                if (brace_advanced == current_interpolation->open_brace_count &&
+                    (brace_advanced == 0 || lexer->lookahead != '{')) {
+                    return did_advance;
                 }
             }
 
-            if (lexer->lookahead != '{') {
-                brace_advanced = 0;
-            }
+            if (lexer->lookahead != '{') brace_advanced = 0;
             advance(lexer);
             did_advance = true;
         }
@@ -1099,6 +961,10 @@ static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *
     return QUESTION_MATCHED;
 }
 
+static bool question_known_nullable_follower(QuestionFollowing next, bool case_guard, const bool *valid_symbols);
+static unsigned question_context_flags(const bool *valid_symbols, bool owned_type_prefix, bool dimension_expression);
+
+// code-gauge-allow functionCognitiveComplexity 28 -- Current-frame applicability, role selection and canonical question consumption must remain in lexical order.
 // code-gauge-allow functionNcss 41 -- Current-frame applicability, role selection and canonical question consumption must remain in lexical order.
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
@@ -1116,9 +982,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     scanner->question_frames[scanner->question_frame_count - 1].case_colon |= valid_symbols[CASE_LABEL_COLON];
     bool known_ternary = false;
     if (next.member) scanner->question_type_uncertain = false;
-    bool known_nullable = (next.token == '{' && frame->case_guard) || next.token == ')' || next.token == ',' || next.token == ':' || next.token == ';' ||
-        (valid_symbols[QUESTION_NULLABLE] &&
-         (next.token == '>' || next.token == '/' || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member)));
+    bool known_nullable = question_known_nullable_follower(next, frame->case_guard, valid_symbols);
     bool dimension_expression = false;
     uint8_t rank_phase = question_take_rank(scanner, &known_nullable, &dimension_expression);
     bool owned_type_prefix = rank_phase == RANK_OWNED_NULLABLE_PREFIX;
@@ -1127,12 +991,7 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
         (frame->unknown && (frame->case_guard || rank_phase != RANK_TERNARY)) ||
         (next.token != '[' && !(frame->case_guard && rank_phase == RANK_PATTERN_COMPLETE && !next.member)))
         rank_phase = RANK_NONE;
-    unsigned context_flags = (owned_type_prefix ? QUESTION_TYPE_PREFIX : 0) | (dimension_expression ? QUESTION_DIMENSION_EXPRESSION : 0) |
-        (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
-        (valid_symbols[QUESTION_ELEMENT_ACCESS] ? QUESTION_ACCESS_ALTERNATIVE : 0) |
-        (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
-        (valid_symbols[QUESTION_NULLABLE] ? QUESTION_NULLABLE_ALLOWED : 0) |
-        (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
+    unsigned context_flags = question_context_flags(valid_symbols, owned_type_prefix, dimension_expression);
     bool guard_question = frame->case_guard;
     bool preserve_unknown = guard_question
         ? valid_symbols[QUESTION_UNKNOWN] && !valid_symbols[QUESTION_NULLABLE] && next.token != '[' && !next.member
@@ -1148,6 +1007,22 @@ static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *l
     if (result == QUESTION_MATCHED && lexer->result_symbol == QUESTION_TERNARY)
         scanner->question_type_uncertain = false;
     return result;
+}
+
+static bool question_known_nullable_follower(QuestionFollowing next, bool case_guard, const bool *valid_symbols) {
+    if ((next.token == '{' && case_guard) || next.token == ')' || next.token == ',' || next.token == ':' || next.token == ';')
+        return true;
+    return valid_symbols[QUESTION_NULLABLE] &&
+        (next.token == '>' || next.token == '/' || ((!valid_symbols[QUESTION_TERNARY] || next.token == '?') && next.token != '[' && !next.member));
+}
+
+static unsigned question_context_flags(const bool *valid_symbols, bool owned_type_prefix, bool dimension_expression) {
+    return (owned_type_prefix ? QUESTION_TYPE_PREFIX : 0) | (dimension_expression ? QUESTION_DIMENSION_EXPRESSION : 0) |
+        (valid_symbols[QUESTION_DEFINITE_ACCESS] ? QUESTION_EXPRESSION_RECEIVER : 0) |
+        (valid_symbols[QUESTION_ELEMENT_ACCESS] ? QUESTION_ACCESS_ALTERNATIVE : 0) |
+        (valid_symbols[CASE_LABEL_COLON] ? QUESTION_CASE_COLON : 0) |
+        (valid_symbols[QUESTION_NULLABLE] ? QUESTION_NULLABLE_ALLOWED : 0) |
+        (valid_symbols[QUESTION_NULLABLE] && !valid_symbols[QUESTION_TERNARY] ? QUESTION_NULLABLE_ONLY : 0);
 }
 
 // Records that a `)` or `}` completed a pattern or another nonprimary operand before a `?`, so the question scan
@@ -1222,7 +1097,7 @@ static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return false;
     if (!identifier.keyword) return true;
-    if (!strcmp(identifier.word, "is") || !strcmp(identifier.word, "as")) return false;
+    if (str_eq(identifier.word, "is") || str_eq(identifier.word, "as")) return false;
     if (!preferred) return true;
     static const char *const continuations[] = {
         "switch", "when", "with", "and", "or", "not", "from", "join", "on", "equals", "by", "into",
@@ -1311,7 +1186,7 @@ static bool scan_pragma_text(TSLexer *lexer) {
 static bool scan_file_directive_kind(TSLexer *lexer) {
     char kind[9] = {0};
     unsigned length = 0;
-    while (!lexer->eof(lexer) && !is_directive_horizontal(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) {
+    while (!at_eof(lexer) && !is_directive_horizontal(lexer->lookahead) && !is_line_terminator(lexer->lookahead)) {
         int32_t c = lexer->lookahead;
         if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
         if (length < sizeof(kind) - 1) kind[length] = c > 0 && c < 128 ? c : '?';
@@ -1322,7 +1197,7 @@ static bool scan_file_directive_kind(TSLexer *lexer) {
     lexer->result_symbol = FILE_DIRECTIVE_KIND;
     if (length < sizeof(kind)) {
         for (unsigned i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
-            if (strcmp(kind, kinds[i]) == 0) {
+            if (str_eq(kind, kinds[i])) {
                 lexer->result_symbol = FILE_DIRECTIVE_SDK + i;
                 break;
             }
