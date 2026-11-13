@@ -279,7 +279,7 @@ static bool rank_read_closing_braces(TSLexer *lexer, unsigned count) {
 
 static bool rank_read_format(TSLexer *lexer, unsigned closing_braces) {
     unsigned braces = 0;
-    while (!lexer->eof(lexer)) {
+    while (!at_eof(lexer)) {
         braces = lexer->lookahead == '}' ? braces + 1 : 0;
         advance(lexer);
         if (braces == closing_braces) return true;
@@ -289,7 +289,7 @@ static bool rank_read_format(TSLexer *lexer, unsigned closing_braces) {
 
 static unsigned rank_read_character_run(TSLexer *lexer, int32_t character) {
     unsigned count = 0;
-    while (lexer->lookahead == character && !lexer->eof(lexer)) {
+    while (lexer->lookahead == character && !at_eof(lexer)) {
         count++;
         advance(lexer);
     }
@@ -310,7 +310,7 @@ static bool question_skip_quoted(TSLexer *lexer, bool verbatim) {
 }
 
 static bool question_skip_character(TSLexer *lexer) {
-    if (lexer->eof(lexer) || lexer->lookahead == '\'' || is_line_terminator(lexer->lookahead)) return false;
+    if (at_eof(lexer) || lexer->lookahead == '\'' || is_line_terminator(lexer->lookahead)) return false;
     if (lexer->lookahead == '\\') {
         advance(lexer);
         if (!question_character_escape(lexer)) return false;
@@ -325,7 +325,7 @@ static bool question_skip_character(TSLexer *lexer) {
 
 static bool question_character_escape(TSLexer *lexer) {
     int32_t kind = lexer->lookahead;
-    if (kind > 0 && kind < 128 && strchr("0abefnrtv\\\"'", kind)) { advance(lexer); return true; }
+    if (is_ascii_in(kind, "0abefnrtv\\\"'")) { advance(lexer); return true; }
     unsigned digits = kind == 'x' || kind == 'u' ? 4 : kind == 'U' ? 8 : 0;
     if (!digits) return false;
     advance(lexer);
@@ -341,7 +341,7 @@ static bool question_character_escape(TSLexer *lexer) {
 
 static bool question_skip_raw_quoted(TSLexer *lexer, unsigned count) {
     unsigned closing = 0;
-    while (!lexer->eof(lexer)) {
+    while (!at_eof(lexer)) {
         if (lexer->lookahead == '"') closing++; else closing = 0;
         advance(lexer);
         if (closing == count) return lexer->lookahead != '"';
@@ -350,20 +350,18 @@ static bool question_skip_raw_quoted(TSLexer *lexer, unsigned count) {
 }
 
 static bool question_skip_regular_quoted(TSLexer *lexer, int32_t quote, bool verbatim) {
-    while (!lexer->eof(lexer)) {
+    while (!at_eof(lexer)) {
         int32_t c = lexer->lookahead;
         advance(lexer);
         if (c == quote) {
             if (!verbatim || lexer->lookahead != quote) return true;
             advance(lexer);
-            continue;
-        }
-        if (c == '\\' && !verbatim) {
-            if (lexer->eof(lexer)) return false;
+        } else if (!verbatim && is_line_terminator(c)) {
+            return false;
+        } else if (!verbatim && c == '\\') {
+            if (at_eof(lexer)) return false;
             advance(lexer);
-            continue;
         }
-        if (!verbatim && is_line_terminator(c)) return false;
     }
     return false;
 }

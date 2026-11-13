@@ -80,7 +80,7 @@ static int rank_logical_nullable_operand(TSLexer *lexer) {
 
 static bool rank_logical_boundary(TSLexer *lexer) {
     int32_t next = question_skip_separators(lexer);
-    return next >= 0 && (next == ';' || next == ')' || next == ']' || next == '}' || next == ',' || lexer->eof(lexer));
+    return next >= 0 && (next == ';' || next == ')' || next == ']' || next == '}' || next == ',' || at_eof(lexer));
 }
 
 static void rank_logical_serialize_refusals(const Scanner *scanner, char *buffer, unsigned *size) {

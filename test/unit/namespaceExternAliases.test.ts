@@ -1,11 +1,10 @@
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
 test('retains namespace extern aliases and their name ranges', async () => {
   await Parser.init();
   const language = await Language.load('tree-sitter-c_sharp.wasm');
   const parser = new Parser().setLanguage(language);
-  const names = new Query(language, '(extern_alias_directive name: (identifier) @alias)');
   const cases = [
     ['namespace N { extern alias External; class C {} } class Following {}', ['External']],
     ['namespace N { namespace Inner { extern alias External; class C {} } } class Following {}', ['External']],
@@ -29,13 +28,16 @@ test('retains namespace extern aliases and their name ranges', async () => {
         const tree = parser.parse(source)!;
         try {
           expect(tree.rootNode.hasError, source).toBe(false);
-          const captures = names.captures(tree.rootNode);
+          const aliases = tree.rootNode.descendantsOfType('extern_alias_directive').flatMap((directive) => {
+            const name = directive.childForFieldName('name');
+            return name?.type === 'identifier' ? [name] : [];
+          });
           expect(
-            captures.map((capture) => capture.node.text),
+            aliases.map((node) => node.text),
             source
           ).toEqual(expected);
           expect(
-            captures.map((capture) => [capture.node.startIndex, capture.node.endIndex]),
+            aliases.map((node) => [node.startIndex, node.endIndex]),
             source
           ).toEqual(expected.map((name) => [source.indexOf(name), source.indexOf(name) + name.length]));
           expect(
@@ -53,7 +55,6 @@ test('retains namespace extern aliases and their name ranges', async () => {
       }
     }
   } finally {
-    names.delete();
     parser.delete();
   }
 });

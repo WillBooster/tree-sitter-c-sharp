@@ -34,7 +34,7 @@ static void question_input_advance(TSLexer *lexer, bool skip) {
 
 static bool question_input_eof(const TSLexer *lexer) {
     const QuestionInput *input = (const QuestionInput *)lexer;
-    return input->cursor == input->characters.size && input->source->eof(input->source);
+    return input->cursor == input->characters.size && at_eof(input->source);
 }
 
 static void question_input_position(const TSLexer *lexer, TSLexerPosition *position) {
@@ -212,7 +212,7 @@ static bool expression_generic_flat(TSLexer *lexer) {
     advance(lexer);
     for (;;) {
         int32_t c = question_skip_separators(lexer);
-        if (c < 0 || lexer->eof(lexer) || c == '<' || c == '(' || c == '"' || c == '\'' || c == '$' || c == '#') return false;
+        if (c < 0 || at_eof(lexer) || c == '<' || c == '(' || c == '"' || c == '\'' || c == '$' || c == '#') return false;
         if (c == '>') return true;
         advance(lexer);
     }

@@ -1,4 +1,4 @@
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 let language: Language;
@@ -11,7 +11,6 @@ beforeAll(async () => {
 test('keeps dependent calls and indexes inside conditional access and terminal suppression outside it', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, '(conditional_access_expression consequence: (_) @dependent)');
   try {
     for (const [expression, accesses, dependents] of [
       ['a?.B.C()[i]', ['a?.B.C()[i]'], ['.B.C()[i]']],
@@ -21,10 +20,14 @@ test('keeps dependent calls and indexes inside conditional access and terminal s
       const tree = parser.parse(`var result = ${expression};`)!;
       try {
         expect(tree.rootNode.hasError, expression).toBe(false);
-        expect(tree.rootNode.descendantsOfType('conditional_access_expression').map((node) => node.text)).toEqual(
-          accesses
-        );
-        expect(query.captures(tree.rootNode).map(({ node }) => node.text)).toEqual(dependents);
+        const accessNodes = tree.rootNode.descendantsOfType('conditional_access_expression');
+        expect(accessNodes.map((node) => node.text)).toEqual(accesses);
+        expect(
+          accessNodes.flatMap((node) => {
+            const consequence = node.childForFieldName('consequence');
+            return consequence?.isNamed ? [consequence.text] : [];
+          })
+        ).toEqual(dependents);
         if (expression.includes('C()')) {
           expect(tree.rootNode.descendantsOfType('invocation_expression').map((node) => node.text)).toEqual(['.B.C()']);
           expect(tree.rootNode.descendantsOfType('element_access_expression').map((node) => node.text)).toEqual([
@@ -41,7 +44,6 @@ test('keeps dependent calls and indexes inside conditional access and terminal s
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });

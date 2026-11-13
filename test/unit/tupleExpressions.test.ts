@@ -1,4 +1,4 @@
-import { Language, Parser, Query, type Tree } from '@willbooster/web-tree-sitter';
+import { Language, Parser, type Tree } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 let language: Language;
@@ -10,7 +10,6 @@ beforeAll(async () => {
 
 test('preserves tuple products as expressions in typed deconstruction', () => {
   const parser = new Parser();
-  let query: Query | undefined;
   let tree: Tree | undefined;
   const source = `using System.Collections.Generic;
 class A {}
@@ -25,18 +24,17 @@ class C {
 }`;
   try {
     parser.setLanguage(language);
-    query = new Query(
-      language,
-      `(binary_expression left: (identifier) @left right: (identifier) @right) @product
-(generic_name) @generic`
-    );
     tree = parser.parse(source)!;
     expect(tree.rootNode.hasError).toBe(false);
     expect(
-      query
-        .captures(tree.rootNode)
-        .filter(({ name }) => name === 'product')
-        .map(({ node }) => node.text)
+      tree.rootNode
+        .descendantsOfType('binary_expression')
+        .filter(
+          (node) =>
+            node.childForFieldName('left')?.type === 'identifier' &&
+            node.childForFieldName('right')?.type === 'identifier'
+        )
+        .map((node) => node.text)
     ).toEqual(['a*b', 'u*v']);
     expect(tree.rootNode.descendantsOfType('declaration_expression').map((node) => node.text)).toEqual([
       'int x',
@@ -49,10 +47,10 @@ class C {
       'int v',
     ]);
     expect(
-      query
-        .captures(tree.rootNode)
-        .filter(({ name, node }) => name === 'generic' && node.parent?.type === 'declaration_expression')
-        .map(({ node }) => node.text)
+      tree.rootNode
+        .descendantsOfType('generic_name')
+        .filter((node) => node.parent?.type === 'declaration_expression')
+        .map((node) => node.text)
     ).toEqual(['List<A>', 'List<A>', 'List<List<int>>']);
     const divided = parser.parse(source.replace('*', '/'))!;
     try {
@@ -62,7 +60,6 @@ class C {
     }
   } finally {
     tree?.delete();
-    query?.delete();
     parser.delete();
   }
 });

@@ -7,7 +7,6 @@ static bool await_continues_identifier(TSLexer *lexer);
 static bool continues_expression(TSLexer *lexer);
 static bool starts_pattern(TSLexer *lexer);
 static bool skip_await_trivia(TSLexer *lexer);
-static bool is_ascii_in(int32_t c, const char *characters);
 
 static QuestionScanResult scan_await_identifier(TSLexer *lexer, const bool *valid_symbols) {
     // The scanner's later branches must see the `as` or pragma text that a consumed word would hide, and directive
@@ -53,7 +52,7 @@ static bool await_continues_identifier(TSLexer *lexer) {
 
 // Whether the next token can follow a complete expression or pattern but cannot start an operand.
 static bool continues_expression(TSLexer *lexer) {
-    if (!skip_await_trivia(lexer) || lexer->eof(lexer)) return true;
+    if (!skip_await_trivia(lexer) || at_eof(lexer)) return true;
     int32_t c = lexer->lookahead;
     if (c == '.') {
         advance(lexer);
@@ -79,7 +78,7 @@ static bool continues_expression(TSLexer *lexer) {
 // Excludes pattern starts that can also continue an awaited variable, such as `(` in `await or(x)` or the keyword in
 // `await or is T`, so a pattern like `x is await or (1)` keeps the operator.
 static bool starts_pattern(TSLexer *lexer) {
-    if (!skip_await_trivia(lexer) || lexer->eof(lexer)) return false;
+    if (!skip_await_trivia(lexer) || at_eof(lexer)) return false;
     int32_t c = lexer->lookahead;
     if (c == '.') {
         advance(lexer);
@@ -117,14 +116,6 @@ static bool skip_await_trivia(TSLexer *lexer) {
         if (lexer->lookahead == '/') skip_line_comment(lexer);
         else if (lexer->lookahead != '*' || !skip_block_comment(lexer)) return false;
     }
-}
-
-// Wasm parsers cannot link `strchr`.
-static bool is_ascii_in(int32_t c, const char *characters) {
-    for (; *characters; characters++) {
-        if (c == *characters) return true;
-    }
-    return false;
 }
 
 #endif

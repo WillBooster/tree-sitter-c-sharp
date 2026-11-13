@@ -13,7 +13,7 @@ static QuestionScanResult scan_if_alternative_directive(TSLexer *lexer, const bo
     advance(lexer);
     while (is_directive_horizontal(lexer->lookahead)) advance(lexer);
     if (!scan_directive_word(lexer, "if")) return QUESTION_MISMATCHED;
-    while (!lexer->eof(lexer) && !is_line_terminator(lexer->lookahead)) advance(lexer);
+    while (!at_eof(lexer) && !is_line_terminator(lexer->lookahead)) advance(lexer);
     skip_ws_and_comments(lexer);
     if (!scan_directive_word(lexer, "else")) return QUESTION_MISMATCHED;
     lexer->result_symbol = IF_ALTERNATIVE_DIRECTIVE;

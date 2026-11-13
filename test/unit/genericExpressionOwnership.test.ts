@@ -1,4 +1,4 @@
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, type Node, Parser } from '@willbooster/web-tree-sitter';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 
 let language: Language;
@@ -183,50 +183,56 @@ test('retains colon-leading interpolation formats after generic method groups', 
 });
 
 test('preserves callable and operator ranges in generic-shaped expressions', () => {
-  const query = new Query(
-    language,
-    '(generic_name) @generic\n(binary_expression operator: _ @operator)\n(type_argument_list (_) @argumentType)'
-  );
-  try {
-    for (const [expression, expectedGenerics, expectedArgumentTypes] of [
-      ['A<X>>B', [], []],
-      ['F<int>(B)', ['F<int>'], ['int']],
-      ['F<A,B>(B)', ['F<A,B>'], ['A', 'B']],
-      ['Use(A < B, C > D)', [], []],
-      ['F<int>!', ['F<int>'], ['int']],
-      ['F<T>..B', ['F<T>'], ['T']],
-      ['F<G<T>,U>>B', ['F<G<T>,U>', 'G<T>'], ['G<T>', 'T', 'U']],
-      ['$"{F<T>::x}"', ['F<T>'], ['T']],
-      ['F<T[]> ?? G<T[]>', ['F<T[]>', 'G<T[]>'], ['T[]', 'T[]']],
-      ['F<global::N.C.Value>+B', [], []],
-      ['global::A<X>+B', ['A<X>'], ['X']],
-      ['A<X>+B', [], []],
-    ] as const) {
-      const source = `/* 😀 */ class C { T F<T>(T value)=>value; dynamic M(dynamic A,dynamic X,dynamic B)=>${expression}; } class Following {}`;
-      const tree = parser.parse(source)!;
-      try {
-        expect(tree.rootNode.hasError, source).toBe(false);
-        expect(
-          tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
-        ).toEqual(['C', 'Following']);
-        const captures = query.captures(tree.rootNode);
-        expect(
-          captures.filter((capture) => capture.name === 'generic').map((capture) => capture.node.text),
-          source
-        ).toEqual(expectedGenerics);
-        expect(
-          captures.filter((capture) => capture.name === 'argumentType').map((capture) => capture.node.text),
-          source
-        ).toEqual(expectedArgumentTypes);
-        for (const { node } of captures) {
-          expect(source.slice(node.startIndex, node.endIndex), source).toBe(node.text);
-          expect(node.startIndex, source).toBeGreaterThanOrEqual(source.indexOf(expression));
-        }
-      } finally {
-        tree.delete();
+  for (const [expression, expectedGenerics, expectedArgumentTypes] of [
+    ['A<X>>B', [], []],
+    ['F<int>(B)', ['F<int>'], ['int']],
+    ['F<A,B>(B)', ['F<A,B>'], ['A', 'B']],
+    ['Use(A < B, C > D)', [], []],
+    ['F<int>!', ['F<int>'], ['int']],
+    ['F<T>..B', ['F<T>'], ['T']],
+    ['F<G<T>,U>>B', ['F<G<T>,U>', 'G<T>'], ['G<T>', 'T', 'U']],
+    ['$"{F<T>::x}"', ['F<T>'], ['T']],
+    ['F<T[]> ?? G<T[]>', ['F<T[]>', 'G<T[]>'], ['T[]', 'T[]']],
+    ['F<global::N.C.Value>+B', [], []],
+    ['global::A<X>+B', ['A<X>'], ['X']],
+    ['A<X>+B', [], []],
+  ] as const) {
+    const source = `/* 😀 */ class C { T F<T>(T value)=>value; dynamic M(dynamic A,dynamic X,dynamic B)=>${expression}; } class Following {}`;
+    const tree = parser.parse(source)!;
+    try {
+      expect(tree.rootNode.hasError, source).toBe(false);
+      expect(
+        tree.rootNode.descendantsOfType('class_declaration').map((node) => node.childForFieldName('name')?.text)
+      ).toEqual(['C', 'Following']);
+      const generics = tree.rootNode.descendantsOfType('generic_name');
+      const argumentTypes = collectNodes(
+        tree.rootNode,
+        (node) => node.isNamed && !node.isExtra && node.parent?.type === 'type_argument_list'
+      );
+      const operators = tree.rootNode.descendantsOfType('binary_expression').flatMap((node) => {
+        const operator = node.childForFieldName('operator');
+        return operator ? [operator] : [];
+      });
+      expect(
+        generics.map((node) => node.text),
+        source
+      ).toEqual(expectedGenerics);
+      expect(
+        argumentTypes.map((node) => node.text),
+        source
+      ).toEqual(expectedArgumentTypes);
+      for (const node of [...generics, ...operators, ...argumentTypes]) {
+        expect(source.slice(node.startIndex, node.endIndex), source).toBe(node.text);
+        expect(node.startIndex, source).toBeGreaterThanOrEqual(source.indexOf(expression));
       }
+    } finally {
+      tree.delete();
     }
-  } finally {
-    query.delete();
   }
 });
+
+function collectNodes(node: Node, predicate: (candidate: Node) => boolean, out: Node[] = []): Node[] {
+  if (predicate(node)) out.push(node);
+  for (const child of node.children) collectNodes(child, predicate, out);
+  return out;
+}

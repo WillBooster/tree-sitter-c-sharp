@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { expect, test } from 'vitest';
 
 await Parser.init();
@@ -52,9 +52,7 @@ test('retains pointer operands in assignments', () => {
 
 test('preserves cast and postfix binding around pointer reads', () => {
   const parser = new Parser().setLanguage(language);
-  let query: Query | undefined;
   try {
-    query = new Query(language, '(prefix_unary_expression) @pointer (identifier) @operand');
     for (const expression of [
       '*++p',
       '*--p',
@@ -72,7 +70,9 @@ test('preserves cast and postfix binding around pointer reads', () => {
       const tree = parser.parse(source)!;
       try {
         expect(tree.rootNode.hasError, expression).toBe(false);
-        const captured = query.captures(tree.rootNode).map(({ node }) => node.text);
+        const captured = tree.rootNode
+          .descendantsOfType(['prefix_unary_expression', 'identifier'])
+          .map((node) => node.text);
         expect(captured).toContain(expression);
         if (expression === '*++p' || expression === '*--p' || expression === '**++p') expect(captured).toContain('p');
         if (expression === '*(int*)*f()') expect(captured).toContain('*f()');
@@ -96,7 +96,6 @@ test('preserves cast and postfix binding around pointer reads', () => {
       }
     }
   } finally {
-    query?.delete();
     parser.delete();
   }
 });

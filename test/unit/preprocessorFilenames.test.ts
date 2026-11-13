@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { Language, Parser, Query } from '@willbooster/web-tree-sitter';
+import { Language, Parser } from '@willbooster/web-tree-sitter';
 import { beforeAll, expect, test } from 'vitest';
 
 let language: Language;
@@ -12,7 +12,6 @@ beforeAll(async () => {
 test('keeps literal backslashes within line-directive filename boundaries', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, '(preproc_line (string_literal) @filename)');
   try {
     for (const directive of [
       String.raw`10 "raw\path.cs"`,
@@ -24,7 +23,11 @@ test('keeps literal backslashes within line-directive filename boundaries', () =
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
         expect(
-          query.captures(tree.rootNode).map(({ node }) => node.text),
+          tree.rootNode
+            .descendantsOfType('preproc_line')
+            .flatMap((line) =>
+              line.namedChildren.filter((child) => child.type === 'string_literal').map((child) => child.text)
+            ),
           source
         ).toEqual([directive.slice(directive.indexOf('"'))]);
         expect(tree.rootNode.namedChildren.at(-1)?.type, source).toBe('class_declaration');
@@ -33,7 +36,6 @@ test('keeps literal backslashes within line-directive filename boundaries', () =
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
@@ -70,7 +72,6 @@ test('rejects line breaks and string-only syntax in line-directive filenames', (
 test('preserves checksum operands and the following declaration with literal filename backslashes', () => {
   const parser = new Parser();
   parser.setLanguage(language);
-  const query = new Query(language, '(string_literal) @string');
   const algorithm = '"{406EA660-64CF-4C82-B6F0-42D48172A799}"';
   const checksum = '"ab"';
   try {
@@ -80,7 +81,7 @@ test('preserves checksum operands and the following declaration with literal fil
       try {
         expect(tree.rootNode.hasError, source).toBe(false);
         expect(
-          query.captures(tree.rootNode).map(({ node }) => node.text),
+          tree.rootNode.descendantsOfType('string_literal').map((node) => node.text),
           source
         ).toEqual([filename, algorithm, checksum]);
         expect(
@@ -92,7 +93,6 @@ test('preserves checksum operands and the following declaration with literal fil
       }
     }
   } finally {
-    query.delete();
     parser.delete();
   }
 });
