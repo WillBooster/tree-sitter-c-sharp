@@ -66,6 +66,7 @@ jobs:
           test "$seed_nuls" -eq "$corpus_nuls"
       - name: Build the fuzzer
         run: |
+          # tree-sitter/fuzz-action builds upstream's runtime and calls 4-argument ts_parser_parse_string.
           cat << 'EOF' > .tmp/fuzzer.c
           #include <assert.h>
           #include <stddef.h>
@@ -94,7 +95,7 @@ jobs:
           EOF
           jq '.. | select((.type? == "STRING" or (.type? == "ALIAS" and .named? == false)) and .value? != "") | .value' \
             src/grammar.json | grep -v '\\' | iconv -c -f UTF-8 -t ASCII//TRANSLIT > .tmp/fuzz-dict
-          # tree-sitter/fuzz-action builds upstream's runtime and 4-arg parse API; instrument only the grammar here.
+          # Leave the runtime uninstrumented so libFuzzer coverage guides grammar and scanner paths.
           clang -std=c11 -Og -g -c -D_POSIX_C_SOURCE=200112L -D_DEFAULT_SOURCE -I.tmp/tree-sitter/lib/include \
             -I.tmp/tree-sitter/lib/src .tmp/tree-sitter/lib/src/lib.c -o .tmp/tree-sitter.o
           clang -std=c11 -Og -g -fsanitize=fuzzer,address,undefined \
