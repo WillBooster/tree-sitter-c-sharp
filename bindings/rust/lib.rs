@@ -10,14 +10,14 @@
 //! parser
 //!     .set_language(&language.into())
 //!     .expect("Error loading C# parser");
-//! let tree = parser.parse(code, None).unwrap();
+//! let tree = parser.parse(code).unwrap();
 //! assert!(!tree.root_node().has_error());
 //! ```
 //!
 //! The parser uses WillBooster ABI `0x5742000c`, which rejects upstream's `tree-sitter` crate.
-//! Require `willbooster-tree-sitter` 19.1.1 or later in the `19.x` series; pre-19.1.0 WillBooster runtimes (`17.x`, `18.x`, and `19.0.x`) share ABI `0x5742000c` so they pass the ABI check, but 19.1.0 and later omit unused `TSLanguage` tables that pre-19.1.0 runtimes dereference.
+//! Require `willbooster-tree-sitter` 20.0.0 or later in the `20.x` series; pre-19.1.0 WillBooster runtimes (`17.x`, `18.x`, and `19.0.x`) share ABI `0x5742000c` so they pass the ABI check, but 19.1.0 and later omit unused `TSLanguage` tables that pre-19.1.0 runtimes dereference.
 //!
-//! [`Parser`]: https://docs.rs/willbooster-tree-sitter/19.1.1/tree_sitter/struct.Parser.html
+//! [`Parser`]: https://docs.rs/willbooster-tree-sitter/20.0.0/tree_sitter/struct.Parser.html
 //! [tree-sitter]: https://tree-sitter.github.io/
 
 use tree_sitter_language::LanguageFn;
@@ -61,7 +61,7 @@ mod tests {
             "var b = true == 1 as int? is int;\n",
         );
         let var_b = code.find("var b").unwrap();
-        let tree = new_parser().parse(code, None).unwrap();
+        let tree = new_parser().parse(code).unwrap();
         assert_eq!(
             tree.root_node()
                 .named_descendant_for_byte_range(var_b, var_b + 3)

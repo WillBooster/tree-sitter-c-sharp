@@ -40,17 +40,17 @@ The contextual type names `nint` and `nuint` use `identifier` nodes.
 ## Support Scope
 
 This fork maintains only full parsing: valid input yields a correct tree, and invalid input yields `ERROR` or `MISSING`
-nodes without crashing, hanging, or taking more than linear time. Incremental parsing works as in upstream tree-sitter
-but is not tested here, and no queries (highlights, locals, injections, tags) are shipped. Node types, field names, and
-the trees that error recovery produces may change; such changes are released as new major versions.
+nodes without crashing, hanging, or taking more than linear time. Incremental parsing is not supported, and no queries
+(highlights, locals, injections, tags) are shipped. Node types, field names, and the trees that error recovery produces
+may change; such changes are released as new major versions.
 
 ## Usage
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
-[@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter/v/19.1.1), which runs in Node.js, Bun,
+[@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter/v/20.0.0), which runs in Node.js, Bun,
 browsers, and Cloudflare Workers.
 The parser uses WillBooster ABI `0x5742000c`, which rejects upstream Tree-sitter runtimes.
-Require `@willbooster/web-tree-sitter` 19.1.1 or later in the `19.x` series: pre-19.1.0 WillBooster runtimes (`17.x`, `18.x`, and `19.0.x`) share ABI `0x5742000c` so they pass the ABI check, but 19.1.0 and later omit unused `TSLanguage` tables that pre-19.1.0 runtimes dereference.
+Require `@willbooster/web-tree-sitter` 20.0.0 or later in the `20.x` series; pre-19.1.0 WillBooster runtimes (`17.x`, `18.x`, and `19.0.x`) share ABI `0x5742000c` so they pass the ABI check, but 19.1.0 and later omit unused `TSLanguage` tables that pre-19.1.0 runtimes dereference.
 Install the runtime alongside the grammar when using the Wasm parser; it remains an optional peer for consumers that only use the grammar source.
 
 In Node.js and Bun, load it from the package:
@@ -98,12 +98,12 @@ When extending the source grammar, use `grammar.js` and the files under `src/` f
 Their external tokens and serialized scanner state must match.
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
-[willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter/19.1.1), the runtime this package is tested and
+[willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter/20.0.0), the runtime this package is tested and
 fuzzed with.
-ABI `0x5742000c` rejects upstream's `tree-sitter` crate, and `willbooster-tree-sitter` 19.1.1 or later in the `19.x` series is required because 19.1.0 and later omit unused `TSLanguage` tables that pre-19.1.0 WillBooster runtimes (`17.x`, `18.x`, and `19.0.x`) dereference despite sharing ABI `0x5742000c`:
+ABI `0x5742000c` rejects upstream's `tree-sitter` crate. Require `willbooster-tree-sitter` 20.0.0 or later in the `20.x` series; pre-19.1.0 WillBooster runtimes (`17.x`, `18.x`, and `19.0.x`) share ABI `0x5742000c` so they pass the ABI check, but 19.1.0 and later omit unused `TSLanguage` tables that pre-19.1.0 runtimes dereference:
 
 ```sh
-cargo add willbooster-tree-sitter@19.1.1 --rename tree-sitter
+cargo add willbooster-tree-sitter@20.0.0 --rename tree-sitter
 cargo add willbooster-tree-sitter-c-sharp --rename tree-sitter-c-sharp
 ```
 
