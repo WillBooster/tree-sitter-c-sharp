@@ -49,8 +49,8 @@ may change; such changes are released as new major versions.
 The npm package ships `tree-sitter-c_sharp.wasm` for
 [@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter/v/20.0.0), which runs in Node.js, Bun,
 browsers, and Cloudflare Workers.
-The parser uses WillBooster ABI `0x5742000c`, which rejects upstream Tree-sitter runtimes.
-Earlier WillBooster runtimes also use ABI `0x5742000c`, so the ABI check alone does not reject them.
+The parser uses WillBooster ABI `0x5742000c`, which upstream Tree-sitter runtimes and pre-`17.0.0` WillBooster runtimes reject.
+WillBooster runtimes `17.x`–`19.x` also accept ABI `0x5742000c`, so the ABI check alone does not reject them.
 Require `@willbooster/web-tree-sitter` 20.0.0 or later in the `20.x` series, the full-parse runtime this package is tested with.
 Install the runtime alongside the grammar when using the Wasm parser; it remains an optional peer for consumers that only use the grammar source.
 
@@ -101,7 +101,8 @@ Their external tokens and serialized scanner state must match.
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
 [willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter/20.0.0), the full-parse runtime this package is tested and
 fuzzed with.
-ABI `0x5742000c` rejects upstream's `tree-sitter` crate, while earlier WillBooster runtimes also use ABI `0x5742000c` and pass the ABI check.
+ABI `0x5742000c` rejects upstream's `tree-sitter` crate and pre-`17.0.0` WillBooster runtimes.
+WillBooster runtimes `17.x`–`19.x` also accept ABI `0x5742000c`, so the ABI check alone does not reject them.
 Require `willbooster-tree-sitter` 20.0.0 or later in the `20.x` series:
 
 ```sh
