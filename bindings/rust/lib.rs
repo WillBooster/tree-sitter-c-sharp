@@ -15,7 +15,8 @@
 //! ```
 //!
 //! The parser uses WillBooster ABI `0x5742000c`, which rejects upstream's `tree-sitter` crate.
-//! Require `willbooster-tree-sitter` 20.0.0 or later in the `20.x` series; pre-19.1.0 WillBooster runtimes (`17.x`, `18.x`, and `19.0.x`) share ABI `0x5742000c` so they pass the ABI check, but 19.1.0 and later omit unused `TSLanguage` tables that pre-19.1.0 runtimes dereference.
+//! Earlier WillBooster runtimes also use ABI `0x5742000c`, so the ABI check alone does not reject them.
+//! Require `willbooster-tree-sitter` 20.0.0 or later in the `20.x` series, the full-parse runtime this crate is tested and fuzzed with.
 //!
 //! [`Parser`]: https://docs.rs/willbooster-tree-sitter/20.0.0/tree_sitter/struct.Parser.html
 //! [tree-sitter]: https://tree-sitter.github.io/
