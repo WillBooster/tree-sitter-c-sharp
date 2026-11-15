@@ -1,3 +1,4 @@
+// code-gauge-allow-file fileNcss 881 -- Operand, binding and lambda lookahead helpers share QuestionWalk state.
 #ifndef TREE_SITTER_C_SHARP_QUESTION_OPERANDS_H_
 #define TREE_SITTER_C_SHARP_QUESTION_OPERANDS_H_
 
@@ -44,6 +45,7 @@ static bool rank_complete_sibling(TSLexer *lexer, Scanner *context, QuestionInpu
 }
 
 
+// code-gauge-allow functionNcss 35 -- Scope setup, walk execution and checkpoint restoration share one local Scanner lifetime.
 static bool question_rank_scope(Scanner *context, QuestionInput *input, QuestionCheckpoint start, unsigned end, bool normalize) {
     QuestionCheckpoint restore = {.cursor = input->cursor, .capturing = input->capturing};
     question_input_restore(input, (QuestionCheckpoint){start.cursor, true});
@@ -110,7 +112,7 @@ static bool question_walk_scope_prefix(QuestionWalk *walk, unsigned end, bool no
 static const QuestionFrame *question_walk_prefix_frame(QuestionWalk *walk) {
     if (!walk->preview_ready) {
         if (!walk->preview) walk->preview = ts_malloc(sizeof(*walk->preview));
-        *walk->preview = *walk->scanner;
+        question_copy_shallow(walk->preview, walk->scanner);
         walk->preview_ready = true;
         walk->preview_valid = true;
     }
@@ -256,6 +258,9 @@ static QuestionWalkStep question_walk_identifier(Scanner *scanner, TSLexer *lexe
     return step;
 }
 
+static void question_walk_confirm_expression_keyword(QuestionWalk *walk, const QuestionIdentifier *identifier, bool first_identifier);
+
+// code-gauge-allow functionCognitiveComplexity 28 -- Identifier classification updates query, logical, ternary and keyword context in one pass.
 static QuestionWalkStep question_walk_identifier_read(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk, bool first_identifier, bool future_identifier, const QuestionCheckpoint *word_start) {
     QuestionIdentifier identifier;
     if (!question_identifier(lexer, false, &identifier)) return QUESTION_WALK_UNKNOWN;
@@ -270,9 +275,8 @@ static QuestionWalkStep question_walk_identifier_read(Scanner *scanner, TSLexer 
     if (identifier.keyword && !walk->is_later_alternative && (creation || strcmp(identifier.word, "delegate") == 0 ||
         strcmp(identifier.word, "from") == 0)) walk->is_eligible = false;
     if (question_keyword_incomplete(lexer, walk, &identifier)) return QUESTION_WALK_UNKNOWN;
-    bool is_or_as = type_boundary;
-    question_walk_type_operand(walk, future_identifier, is_or_as, &identifier, creation);
-    bool value_operator = is_or_as || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
+    question_walk_type_operand(walk, future_identifier, type_boundary, &identifier, creation);
+    bool value_operator = type_boundary || (identifier.keyword && (!strcmp(identifier.word, "switch") || !strcmp(identifier.word, "with")));
     if (walk->logical_name_candidate && !walk->depth && !value_operator)
         question_walk_logical_nullable(walk);
     walk->logical_name_candidate = ((walk->recording && (first_identifier || walk->nullable_name_candidate)) || future_identifier) &&
@@ -283,17 +287,20 @@ static QuestionWalkStep question_walk_identifier_read(Scanner *scanner, TSLexer 
         walk->known_ternary = true;
         walk->known_nullable = false;
     }
-    walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary && !is_or_as;
-    if (question_uncertain_keyword(&identifier)) question_walk_keyword_context(scanner, walk, &identifier, is_or_as);
-    if (question_expression_keyword(&identifier) && walk->recording && walk->first_word && walk->ordinary) {
-        walk->definite_ternary = true;
-        if (first_identifier && !walk->depth && !walk->nullable_only) {
-            walk->known_ternary = true;
-            walk->known_nullable = false;
-        }
-    }
+    walk->ordinary_name_candidate = first_identifier && walk->recording && !walk->depth && walk->ordinary && !type_boundary;
+    if (question_uncertain_keyword(&identifier)) question_walk_keyword_context(scanner, walk, &identifier, type_boundary);
+    question_walk_confirm_expression_keyword(walk, &identifier, first_identifier);
     if (walk->recording) walk->first_word = false;
     return question_walk_identifier_operand(lexer, walk, &identifier, creation, word_start);
+}
+
+static void question_walk_confirm_expression_keyword(QuestionWalk *walk, const QuestionIdentifier *identifier, bool first_identifier) {
+    if (!question_expression_keyword(identifier) || !walk->recording || !walk->first_word || !walk->ordinary) return;
+    walk->definite_ternary = true;
+    if (first_identifier && !walk->depth && !walk->nullable_only) {
+        walk->known_ternary = true;
+        walk->known_nullable = false;
+    }
 }
 
 static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, const QuestionIdentifier *identifier, bool is_or_as) {
@@ -312,6 +319,7 @@ static void question_walk_keyword_context(Scanner *scanner, QuestionWalk *walk, 
     }
 }
 
+// code-gauge-allow functionCognitiveComplexity 18 -- Lambda, `is`/`as`, generic and creation dispatches share the consumed identifier.
 static QuestionWalkStep question_walk_identifier_operand(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier, bool creation, const QuestionCheckpoint *word_start) {
     if (question_walk_future_lambda(lexer, walk, identifier, word_start)) return QUESTION_WALK_CONTINUE;
     if (!question_walk_is_name(lexer, walk, identifier)) return QUESTION_WALK_UNKNOWN;
@@ -367,6 +375,7 @@ static bool question_walk_future_lambda(TSLexer *lexer, QuestionWalk *walk, cons
     return valid;
 }
 
+// code-gauge-allow functionCognitiveComplexity 20 -- Pending `is` operand validation and suffix tracking share one RankTypeRead state.
 static bool question_walk_is_name(TSLexer *lexer, QuestionWalk *walk, const QuestionIdentifier *identifier) {
     if (walk->depth || !walk->is_name_pending) return true;
     if (identifier->keyword && (!strcmp(identifier->word, "is") || !strcmp(identifier->word, "not"))) return true;
@@ -430,6 +439,7 @@ static void question_walk_type_operand(QuestionWalk *walk, bool future_identifie
     walk->is_ternary_eligible = walk->future_ternary_eligible;
 }
 
+// code-gauge-allow functionCognitiveComplexity 17 -- Nested creation, tuple allocation and named type creation share the post-keyword token.
 static QuestionWalkStep question_walk_creation_prefix(TSLexer *lexer, QuestionWalk *walk) {
     if (walk->depth && !walk->recording) return question_walk_creation_child(lexer, walk);
     if (walk->depth) {
@@ -496,6 +506,7 @@ unknown:
     return QUESTION_WALK_UNKNOWN;
 }
 
+// code-gauge-allow functionNcss 39 -- Tuple type probing, event rollback and expression fallback share one frame stack.
 static bool question_walk_creation_tuple(TSLexer *lexer, QuestionWalk *walk, bool *tuple) {
     RankLiteralFrames frames = array_new();
     rank_push_code(&frames, '(', RANK_BODY_EXPRESSION, 0);
@@ -547,6 +558,7 @@ static void question_walk_creation_operator(QuestionWalk *walk, int32_t c) {
     if (value) { walk->allocation_type = false; walk->allocation_rank = false; }
 }
 
+// code-gauge-allow functionCognitiveComplexity 19 -- Group stack updates and parameter-list `=>` checks share the delimiter token.
 static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
     if (question_opening_group(c)) {
         int32_t previous = walk->previous_token;
@@ -567,6 +579,8 @@ static bool question_walk_group(TSLexer *lexer, QuestionWalk *walk, int32_t c) {
     return question_skip_separators(lexer) == '=';
 }
 
+// code-gauge-allow functionCognitiveComplexity 29 -- Rank-phase resolution, pattern fallback and binding start share the opening bracket token.
+// code-gauge-allow functionNcss 37 -- Rank-phase resolution, pattern fallback and binding start share the opening bracket token.
 static QuestionWalkStep question_walk_enter_binding(Scanner *scanner, TSLexer *lexer, QuestionWalk *walk) {
     if (walk->recording && !walk->depth) question_walk_attributed_lambda(lexer, walk);
     int32_t first = question_skip_separators(lexer);
@@ -803,6 +817,7 @@ static bool question_is_type_designation(TSLexer *lexer, QuestionInput *input) {
     return named;
 }
 
+// code-gauge-allow functionCognitiveComplexity 18 -- Case-colon, property-pattern, designation and logical-combinator tails share one lookahead.
 static bool question_walk_pattern_tail(TSLexer *lexer, bool nullable, bool case_boundary, QuestionInput *input) {
     if (nullable && case_boundary && lexer->lookahead == ':') return true;
     if (lexer->lookahead == '{') return true;

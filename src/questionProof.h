@@ -814,7 +814,7 @@ static QuestionScanResult scan_case_guard_when(Scanner *scanner, TSLexer *lexer)
     lexer->mark_end(lexer);
     if (question_prepare_guard(guard, lexer)) {
         array_delete(&scanner->interpolation_stack);
-        *scanner = *guard;
+        question_copy_shallow(scanner, guard);
         ts_free(guard);
     } else question_scope_delete(guard);
     lexer->result_symbol = CASE_GUARD_WHEN;
@@ -841,7 +841,7 @@ static void question_prepare_type_prefix(Scanner *scanner, QuestionInput *input)
     uint32_t questions = scanner->question_rank_prefix_questions;
     if (question_prepare_prefix(prefix, input, true)) {
         array_delete(&scanner->interpolation_stack);
-        *scanner = *prefix;
+        question_copy_shallow(scanner, prefix);
         ts_free(prefix);
         if (role) {
             scanner->question_rank_role = role;

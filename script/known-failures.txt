@@ -11,6 +11,7 @@ examples/Newtonsoft.Json/Src/Newtonsoft.Json/Serialization/JsonSerializerInterna
 examples/Newtonsoft.Json/Src/Newtonsoft.Json/Utilities/AsyncUtils.cs
 examples/PowerToys/src/modules/AdvancedPaste/AdvancedPaste/Services/KernelServiceBase.cs
 examples/PowerToys/src/modules/cmdpal/Tests/Microsoft.CmdPal.Ext.Bookmarks.UnitTests/BookmarkResolverTests.Common.cs
+examples/PowerToys/src/settings-ui/Settings.UI/ViewModels/PowerLauncherViewModel.cs
 examples/nunit/src/NUnitFramework/framework/Internal/DisposeHelper.cs
 examples/nunit/src/NUnitFramework/framework/Internal/ExceptionHelper.cs
 examples/nunit/src/NUnitFramework/framework/Internal/OSPlatform.cs

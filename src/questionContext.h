@@ -101,7 +101,7 @@ static unsigned question_hex_digit(int32_t c) {
 #include "nullableTypes.h"
 #include "genericExpressions.h"
 static void question_scope_init(Scanner *scope, const Scanner *source) {
-    *scope = *source;
+    question_copy_shallow(scope, source);
     scope->interpolation_stack.contents = NULL;
     scope->interpolation_stack.size = scope->interpolation_stack.capacity = 0;
     array_assign(&scope->interpolation_stack, &source->interpolation_stack);
@@ -549,7 +549,7 @@ static unsigned question_walk_finish(Scanner *scanner, TSLexer *lexer, QuestionW
     bool confirmable = !walk->lambda_boundary && !role && walk->ordinary && !walk->known_nullable && !walk->assignment_possible && confirmation_proved;
     Scanner *confirmed = confirmable ? ts_malloc(sizeof(*confirmed)) : NULL;
     if (confirmable) {
-        *confirmed = *scanner;
+        question_copy_shallow(confirmed, scanner);
         QuestionWalk ternary = *walk;
         ternary.known_ternary = true;
         question_walk_pending(&ternary, &confirmed->question_frames[confirmed->question_frame_count - 1], false);

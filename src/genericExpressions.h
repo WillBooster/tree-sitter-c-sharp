@@ -1,6 +1,12 @@
 #ifndef TREE_SITTER_C_SHARP_GENERIC_EXPRESSIONS_H_
 #define TREE_SITTER_C_SHARP_GENERIC_EXPRESSIONS_H_
 
+#include <stddef.h>
+
+static inline void question_copy_shallow(Scanner *dst, const Scanner *src) {
+    memcpy(dst, src, offsetof(Scanner, question_frames) + (size_t)src->question_frame_count * sizeof(QuestionFrame));
+}
+
 typedef struct { int32_t value; TSLexerPosition position; uint8_t generic; } QuestionCharacter;
 typedef struct { unsigned cursor; bool capturing; } QuestionCheckpoint;
 typedef struct {
