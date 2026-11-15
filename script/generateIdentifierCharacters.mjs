@@ -228,13 +228,14 @@ function createLexTableReader(t) {
 
 function readNextState(layout, state, cls) {
   const sm = readStateMeta(layout, state);
+  if (sm.tmpl === 0) return -1;
   const idx = sm.base + cls;
   const inComb = idx < layout.combLen && layout.word(layout.combOff + idx * 2) === sm.tmpl;
   const act = inComb ? layout.word(layout.combOff + idx * 2 + 1) : sm.def;
   if (act === 0) return -1;
   if ((act & 0x80_00) === 0) return act & 0x40_00 ? -1 : (act & 0x1f_ff) - 1;
   const p = layout.extTransOff + (act & 0x7f_ff);
-  return layout.word(p + 1) & 1 ? -1 : layout.word(p);
+  return layout.word(p + 1) & 0x80_00 ? -1 : layout.word(p);
 }
 
 function readAccepts(layout, state, symbol) {
