@@ -14,11 +14,10 @@
 //! assert!(!tree.root_node().has_error());
 //! ```
 //!
-//! The parser uses WillBooster ABI `0x5742000c`, which upstream's `tree-sitter` crate and pre-`17.0.0` WillBooster runtimes reject.
-//! WillBooster runtimes `17.x`–`19.x` also accept ABI `0x5742000c`, so the ABI check alone does not reject them.
-//! Require `willbooster-tree-sitter` 20.0.0 or later in the `20.x` series, the full-parse runtime this crate is tested and fuzzed with.
+//! The parser uses WillBooster ABI `0x5742000d`, which upstream's `tree-sitter` crate and pre-`22.0.0` WillBooster runtimes reject.
+//! Require `willbooster-tree-sitter` 23.0.0 or later in the `23.x` series, the full-parse runtime this crate is tested and fuzzed with.
 //!
-//! [`Parser`]: https://docs.rs/willbooster-tree-sitter/20.0.0/tree_sitter/struct.Parser.html
+//! [`Parser`]: https://docs.rs/willbooster-tree-sitter/23.0.0/tree_sitter/struct.Parser.html
 //! [tree-sitter]: https://tree-sitter.github.io/
 
 use tree_sitter_language::LanguageFn;

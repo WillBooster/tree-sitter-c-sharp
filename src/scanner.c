@@ -128,9 +128,9 @@ typedef struct {
     uint8_t question_rank_role;
     uint32_t question_rank_prefix_questions;
     TernaryConfirmation ternary_confirmation;
+    Array(Interpolation) interpolation_stack;
     uint16_t question_frame_count;
     QuestionFrame question_frames[QUESTION_FRAME_LIMIT];
-    Array(Interpolation) interpolation_stack;
 } Scanner;
 
 static inline void advance(TSLexer *lexer) { lexer->advance(lexer, false); }

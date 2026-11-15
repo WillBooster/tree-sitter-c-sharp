@@ -47,11 +47,10 @@ may change; such changes are released as new major versions.
 ## Usage
 
 The npm package ships `tree-sitter-c_sharp.wasm` for
-[@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter/v/20.0.0), which runs in Node.js, Bun,
+[@willbooster/web-tree-sitter](https://www.npmjs.com/package/@willbooster/web-tree-sitter/v/23.0.0), which runs in Node.js, Bun,
 browsers, and Cloudflare Workers.
-The parser uses WillBooster ABI `0x5742000c`, which upstream Tree-sitter runtimes and pre-`17.0.0` WillBooster runtimes reject.
-WillBooster runtimes `17.x`–`19.x` also accept ABI `0x5742000c`, so the ABI check alone does not reject them.
-Require `@willbooster/web-tree-sitter` 20.0.0 or later in the `20.x` series, the full-parse runtime this package is tested with.
+The parser uses WillBooster ABI `0x5742000d`, which upstream Tree-sitter runtimes and pre-`22.0.0` WillBooster runtimes reject.
+Require `@willbooster/web-tree-sitter` 23.0.0 or later in the `23.x` series, the full-parse runtime this package is tested with.
 Install the runtime alongside the grammar when using the Wasm parser; it remains an optional peer for consumers that only use the grammar source.
 
 In Node.js and Bun, load it from the package:
@@ -99,14 +98,13 @@ When extending the source grammar, use `grammar.js` and the files under `src/` f
 Their external tokens and serialized scanner state must match.
 
 In Rust, depend on the [crate](https://crates.io/crates/willbooster-tree-sitter-c-sharp) and on
-[willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter/20.0.0), the full-parse runtime this package is tested and
+[willbooster-tree-sitter](https://crates.io/crates/willbooster-tree-sitter/23.0.0), the full-parse runtime this package is tested and
 fuzzed with.
-ABI `0x5742000c` rejects upstream's `tree-sitter` crate and pre-`17.0.0` WillBooster runtimes.
-WillBooster runtimes `17.x`–`19.x` also accept ABI `0x5742000c`, so the ABI check alone does not reject them.
-Require `willbooster-tree-sitter` 20.0.0 or later in the `20.x` series:
+ABI `0x5742000d` rejects upstream's `tree-sitter` crate and pre-`22.0.0` WillBooster runtimes.
+Require `willbooster-tree-sitter` 23.0.0 or later in the `23.x` series:
 
 ```sh
-cargo add willbooster-tree-sitter@20.0.0 --rename tree-sitter
+cargo add willbooster-tree-sitter@23.0.0 --rename tree-sitter
 cargo add willbooster-tree-sitter-c-sharp --rename tree-sitter-c-sharp
 ```
 
