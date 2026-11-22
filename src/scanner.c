@@ -1,4 +1,4 @@
-// code-gauge-allow-file fileNcss 994 -- Scanner dispatch and literal lifecycles share token state.
+// code-gauge-allow-file fileNcss -- Scanner dispatch and literal lifecycles share token state.
 #include "tree_sitter/alloc.h"
 #include "tree_sitter/array.h"
 #include "tree_sitter/parser.h"
@@ -285,8 +285,8 @@ static unsigned interpolation_serialize(const Scanner *scanner, char *buffer, bo
     return size;
 }
 
-// code-gauge-allow functionCognitiveComplexity 29 -- Mandatory literal state and optional question proofs must be validated before publishing one deserialized scanner.
-// code-gauge-allow functionNcss 57 -- Mandatory literal state and optional question proofs must be validated before publishing one deserialized scanner.
+// code-gauge-allow functionCognitiveComplexity -- Mandatory literal state and optional question proofs must be validated before publishing one deserialized scanner.
+// code-gauge-allow functionNcss -- Mandatory literal state and optional question proofs must be validated before publishing one deserialized scanner.
 void tree_sitter_c_sharp_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
     Scanner *scanner = (Scanner *)payload;
     scanner->quote_count = 0;
@@ -351,8 +351,8 @@ static bool consume_lambda_element(TSLexer *lexer, bool *saw_hard_modifier);
 
 // Whole-word buffering avoids rewinding on the `ref` vs `readonly` prefix conflict (`TSLexer` has no rewind), and
 // requiring a hard modifier rejects `(scoped x) =>` where `scoped` is a legal type name.
-// code-gauge-allow functionCognitiveComplexity 21 -- Parameter-list commas and balanced-group closing share the speculative cursor until `=>` is confirmed.
-// code-gauge-allow functionNcss 34 -- Parameter-list commas and balanced-group closing share the speculative cursor until `=>` is confirmed.
+// code-gauge-allow functionCognitiveComplexity -- Parameter-list commas and balanced-group closing share the speculative cursor until `=>` is confirmed.
+// code-gauge-allow functionNcss -- Parameter-list commas and balanced-group closing share the speculative cursor until `=>` is confirmed.
 static LambdaScanResult scan_lambda_paren_open(TSLexer *lexer) {
     while (is_unicode_whitespace(lexer->lookahead)) skip(lexer);
     if (lexer->lookahead != '(') return LAMBDA_SCAN_NO_PAREN;
@@ -964,8 +964,8 @@ static QuestionScanResult scan_operator_punctuation(TSLexer *lexer, const bool *
 static bool question_known_nullable_follower(QuestionFollowing next, bool case_guard, const bool *valid_symbols);
 static unsigned question_context_flags(const bool *valid_symbols, bool owned_type_prefix, bool dimension_expression);
 
-// code-gauge-allow functionCognitiveComplexity 28 -- Current-frame applicability, role selection and canonical question consumption must remain in lexical order.
-// code-gauge-allow functionNcss 41 -- Current-frame applicability, role selection and canonical question consumption must remain in lexical order.
+// code-gauge-allow functionCognitiveComplexity -- Current-frame applicability, role selection and canonical question consumption must remain in lexical order.
+// code-gauge-allow functionNcss -- Current-frame applicability, role selection and canonical question consumption must remain in lexical order.
 static QuestionScanResult scan_conditional_question(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     if (lexer->lookahead != '?') return QUESTION_NOT_STARTED;
@@ -1069,8 +1069,8 @@ static bool scan_cast_type_end(TSLexer *lexer, const bool *valid_symbols) {
     return true;
 }
 
-// code-gauge-allow functionCognitiveComplexity 27 -- Operand-start exceptions use the same consumed punctuation and ordinary/range cast mode.
-// code-gauge-allow functionNcss 35 -- Operand-start exceptions use the same consumed punctuation and ordinary/range cast mode.
+// code-gauge-allow functionCognitiveComplexity -- Operand-start exceptions use the same consumed punctuation and ordinary/range cast mode.
+// code-gauge-allow functionNcss -- Operand-start exceptions use the same consumed punctuation and ordinary/range cast mode.
 static bool cast_operand_start(TSLexer *lexer, bool ambiguous, bool preferred) {
     int32_t next = question_skip_separators(lexer);
     if (ambiguous && (next == '+' || next == '-' || next == '*' || next == '&' || next == '^')) return false;
@@ -1114,8 +1114,8 @@ static bool advance_operator_character(TSLexer *lexer) {
 }
 
 
-// code-gauge-allow functionCognitiveComplexity 22 -- Keyword recognition and proof-cache handoff share the consumed token and current scanner frame.
-// code-gauge-allow functionNcss 43 -- Keep token marking, cache selection and prefix replay in their required lexical order.
+// code-gauge-allow functionCognitiveComplexity -- Keyword recognition and proof-cache handoff share the consumed token and current scanner frame.
+// code-gauge-allow functionNcss -- Keep token marking, cache selection and prefix replay in their required lexical order.
 static QuestionScanResult scan_type_context_keyword(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     while (is_space_but_line_feed(lexer->lookahead) || is_line_terminator(lexer->lookahead)) skip(lexer);
     unsigned symbol;
@@ -1182,7 +1182,7 @@ static bool scan_pragma_text(TSLexer *lexer) {
     return scan_preproc_arg(lexer, true, PRAGMA_TEXT);
 }
 
-// code-gauge-allow functionCognitiveComplexity 19 -- Directive-kind recognition and fallback share the source line and marked token end.
+// code-gauge-allow functionCognitiveComplexity -- Directive-kind recognition and fallback share the source line and marked token end.
 static bool scan_file_directive_kind(TSLexer *lexer) {
     char kind[9] = {0};
     unsigned length = 0;
@@ -1207,8 +1207,8 @@ static bool scan_file_directive_kind(TSLexer *lexer) {
     return true;
 }
 
-// code-gauge-allow functionCognitiveComplexity 21 -- Quote-width and brace-count synchronization share the active interpolation frame.
-// code-gauge-allow functionNcss 31 -- Quote-width and brace-count synchronization share the active interpolation frame.
+// code-gauge-allow functionCognitiveComplexity -- Quote-width and brace-count synchronization share the active interpolation frame.
+// code-gauge-allow functionNcss -- Quote-width and brace-count synchronization share the active interpolation frame.
 static bool scan_interpolation_recovery(Scanner *scanner, TSLexer *lexer) {
     Interpolation *interpolation = array_back(&scanner->interpolation_stack);
     bool closes_hole = lexer->lookahead == '}';
