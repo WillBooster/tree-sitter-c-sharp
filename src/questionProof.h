@@ -1,4 +1,4 @@
-// code-gauge-allow-file fileNcss 894 -- Guard and ordinary proofs share captured input, checkpoint restoration and event chronology.
+// code-gauge-allow-file fileNcss -- Guard and ordinary proofs share captured input, checkpoint restoration and event chronology.
 #ifndef TREE_SITTER_C_SHARP_QUESTION_PROOF_H_
 #define TREE_SITTER_C_SHARP_QUESTION_PROOF_H_
 
@@ -36,8 +36,8 @@ static void question_guard_probe_current(Scanner *, QuestionInput *, QuestionWal
 static bool rank_format_logical_types(QuestionInput *, const RankTypeRead *, uint32_t *);
 
 // Role proof may read farther, but only events before the next question prepare its saved context.
-// code-gauge-allow functionCognitiveComplexity 27 -- The walk owns scanner checkpoints, event replay and role outputs together; separating these values would obscure restoration order.
-// code-gauge-allow functionParameterCount 7 -- The walk owns scanner checkpoints, event replay and role outputs together; separating these values would obscure restoration order.
+// code-gauge-allow functionCognitiveComplexity -- The walk owns scanner checkpoints, event replay and role outputs together; separating these values would obscure restoration order.
+// code-gauge-allow functionParameterCount -- The walk owns scanner checkpoints, event replay and role outputs together; separating these values would obscure restoration order.
 static unsigned prepare_question_context(Scanner *scanner, TSLexer *lexer, QuestionFollowing following, bool *known_nullable, unsigned context_flags, uint8_t *phase, bool *known_ternary) {
     uint8_t rank_phase = *phase;
     QuestionInput input = question_input_create(lexer);
@@ -181,7 +181,7 @@ typedef struct { unsigned successor; bool first, colon, concrete, fixed_rank; } 
 
 static RankParse question_guard_evaluate(const RankTokens *, unsigned, uint32_t, bool, QuestionGuardPreference *);
 
-// code-gauge-allow functionCognitiveComplexity 22 -- Prefix role and pending-count validation share the same consumed guard boundary.
+// code-gauge-allow functionCognitiveComplexity -- Prefix role and pending-count validation share the same consumed guard boundary.
 static bool question_guard_complete_prefix(QuestionGuardRead *guard) {
     RankTokens *tail = guard->tail;
     for (; guard->scanned < tail->size; guard->scanned++) {
@@ -211,7 +211,7 @@ static bool question_guard_assignment(TSLexer *lexer) {
     return lexer->lookahead != '=' && lexer->lookahead != '>';
 }
 
-// code-gauge-allow functionCognitiveComplexity 19 -- The stream callback validates guard delimiters against one mutable token cursor.
+// code-gauge-allow functionCognitiveComplexity -- The stream callback validates guard delimiters against one mutable token cursor.
 static bool question_guard_stream_stop(TSLexer *lexer, void *context) {
     QuestionGuardRead *guard = context;
     QuestionInput *input = guard->input;
@@ -243,8 +243,8 @@ typedef Array(QuestionGuardBranch) QuestionGuardBranches;
 
 static bool question_guard_collect_questions(const RankTokens *, const RankParse *, QuestionSuffixBuilder *, unsigned);
 
-// code-gauge-allow functionCognitiveComplexity 21 -- Full and segmented certificates share the same saved owner, input position and published role bits.
-// code-gauge-allow functionNcss 34 -- Full and segmented certificates share the same saved owner, input position and published role bits.
+// code-gauge-allow functionCognitiveComplexity -- Full and segmented certificates share the same saved owner, input position and published role bits.
+// code-gauge-allow functionNcss -- Full and segmented certificates share the same saved owner, input position and published role bits.
 static bool question_guard_save_questions(Scanner *scanner, QuestionInput *input, bool binding, bool probe) {
     QuestionGuardCertificate *guard_state = &scanner->question_frames[scanner->question_frame_count - 1].guard;
     bool segmented = guard_state->ordinary_scanned;
@@ -287,7 +287,7 @@ static bool question_guard_save_questions(Scanner *scanner, QuestionInput *input
     return stored;
 }
 
-// code-gauge-allow functionNcss 37 -- The certificate trace must keep body-first traversal and terminal-boundary validation in one pass.
+// code-gauge-allow functionNcss -- The certificate trace must keep body-first traversal and terminal-boundary validation in one pass.
 static bool question_guard_collect_questions(const RankTokens *tokens, const RankParse *memo, QuestionSuffixBuilder *builder, unsigned end) {
     QuestionGuardBranches branches = array_new();
     array_push(&branches, ((QuestionGuardBranch){0}));
@@ -324,7 +324,7 @@ done:
     return builder->roles.size > 0;
 }
 
-// code-gauge-allow functionNcss 50 -- Normal and forced guard interpretations share the same token frontier and ownership preference.
+// code-gauge-allow functionNcss -- Normal and forced guard interpretations share the same token frontier and ownership preference.
 static RankParse question_guard_evaluate(const RankTokens *tail, unsigned limit, uint32_t pending, bool definite, QuestionGuardPreference *preference) {
     RankTokens tokens = array_new();
     for (uint32_t i = 0; i < pending; i++) {
@@ -400,7 +400,7 @@ static bool question_guard_modes_agree(const RankParse modes[2]) {
         normal->types.last == forced->types.last;
 }
 
-// code-gauge-allow functionCognitiveComplexity 24 -- Ordered ordinary and guard proof fallbacks share the same scanner/input checkpoints; extraction would relocate the dispatch.
+// code-gauge-allow functionCognitiveComplexity -- Ordered ordinary and guard proof fallbacks share the same scanner/input checkpoints; extraction would relocate the dispatch.
 static uint8_t rank_stream_input(TSLexer *lexer, Scanner *scanner, uint32_t *questions, QuestionInput *input) {
     const QuestionFrame *frame = &scanner->question_frames[scanner->question_frame_count - 1];
     uint32_t logical = rank_logical_nullable_scope(scanner, input);
@@ -775,7 +775,7 @@ static uint8_t question_guard_save(QuestionFrame *frame, RankParse *parsed, bool
         parsed->role == RANK_NULLABLE_LAST ? RANK_OWNED_NULLABLE_PREFIX : RANK_NONE;
 }
 
-// code-gauge-allow functionCognitiveComplexity 16 -- The consumed AS prefix and later type-operator boundary share one type-reader checkpoint.
+// code-gauge-allow functionCognitiveComplexity -- The consumed AS prefix and later type-operator boundary share one type-reader checkpoint.
 static uint8_t question_guard_as_role(QuestionInput *input, uint32_t *questions, bool pending) {
     RankTypeRead read = {.expression_ranks = true};
     bool type = rank_read_as_type(&input->lexer, &read);
@@ -971,7 +971,7 @@ static bool rank_local_pattern_reset(QuestionInput *input, QuestionCheckpoint pr
     return reset;
 }
 
-// code-gauge-allow functionCognitiveComplexity 19 -- Local nullable promotion and refusal restore the same buffered prefix before returning.
+// code-gauge-allow functionCognitiveComplexity -- Local nullable promotion and refusal restore the same buffered prefix before returning.
 static bool rank_local_nullable_prefix(QuestionInput *input, QuestionCheckpoint prefix, uint32_t *questions, bool interpolation) {
     TSLexer *lexer = &input->lexer;
     QuestionCheckpoint end = question_input_checkpoint(input);
@@ -1008,7 +1008,7 @@ static bool rank_local_nullable_prefix(QuestionInput *input, QuestionCheckpoint 
     return valid;
 }
 
-// code-gauge-allow functionCognitiveComplexity 30 -- Interpolation-format boundaries and the strict logical-type prefix share one consuming proof walk.
+// code-gauge-allow functionCognitiveComplexity -- Interpolation-format boundaries and the strict logical-type prefix share one consuming proof walk.
 static bool rank_format_logical_types(QuestionInput *input, const RankTypeRead *first, uint32_t *questions) {
     if (!first->conditional || !first->has_word || !first->word.keyword ||
         (strcmp(first->word.word, "and") && strcmp(first->word.word, "or"))) return false;
